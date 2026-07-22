@@ -78,3 +78,31 @@
 | P3 | 운영자 백오피스 4종 | ✅ (커밋 예정) |
 
 전 구간 하네스 루프: executor 구현 → `flutter analyze` 게이트(13/13 No issues) → 원장 기록. 기존 화면 렌더링 보존, 신규 화면 추가 + 진입점 연결 방식.
+
+---
+
+# 🚀 내일 재개 (2026-07-23 시작 지점)
+
+## 확정된 것
+- **목표 확정**: [`GOAL.md`](./GOAL.md) — 실서비스(Airbnb·Uber·Toss급) 품질. **Option C**(프런트 프로덕션 퀄리티 + 교체가능 데이터 어댑터층, Supabase는 나중 단계).
+- **디자인 시스템 확정**: [`../design/design-system.md`](../design/design-system.md) — 라이트/다크 semantic 토큰, 타이포/스페이싱/라운드/엘리베이션/모션, 컴포넌트 스펙 전부 숫자로.
+- **브랜드 토큰**: primary `#FFCA10`, ink `#241F20` (React `index.css`와 일치, 유지).
+
+## 다음 액션 — **Phase B부터 시작** (여기서 이어서)
+1. `lib/theme/tokens.dart` 생성 — design-system.md의 semantic 토큰 코드화 (`SetflowColors` 하위호환 유지).
+2. `lib/theme.dart` 재구성 — ColorScheme/TextTheme/컴포넌트 테마를 스펙대로. **기존 클래스명·시그니처 유지, 값/스타일만 업그레이드**(전 화면 일괄 깨짐 방지).
+3. `lib/widgets/common.dart` 확장 — `AppButton`/`AppTextField`/`LoadingState`/`EmptyState`/`ErrorState`/`AppSnackbar` 추가.
+4. 게이트: `flutter analyze` + `flutter build web`.
+그다음 Phase C(데이터 어댑터층 `lib/data/**`) → Phase D(화면군 6개 순차) → Phase E(React UX 이식) → Phase F(테스트).
+
+## 하네스 실행 방식 (그대로 유지)
+- 각 반복: executor 위임 → `flutter analyze` 게이트 → 이 원장 기록 → 단계말 웹빌드+커밋/푸시.
+- 운영 규칙: 하위호환 유지, 점진 적용, 역할 라우팅 보존.
+
+## 재개 트리거 문장 (내일 붙여넣기용)
+> "GOAL.md / design-system.md 기준으로 Phase B(디자인 시스템 파운데이션)부터 루프 이어서 진행해줘"
+
+## 상태 요약
+- 저장소: `develop-para/setflow-app` main, 최신 커밋 이 문서 포함 푸시됨.
+- 웹 실행: `flutter run -d chrome` 정상. Windows 데스크톱 빌드는 VS `vcruntimed.lib` 손상으로 보류(웹으로 개발).
+- React 레퍼런스: `C:\Users\SIMJAE\Downloads\setflow` (src/App.tsx 라우트 112개, src/index.css 토큰).
