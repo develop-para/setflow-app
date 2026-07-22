@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
+import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'theme.dart';
 
@@ -46,8 +47,15 @@ class _SetflowAppState extends State<SetflowApp> {
   }
 }
 
-class RootScreen extends StatelessWidget {
+class RootScreen extends StatefulWidget {
   const RootScreen({super.key});
+
+  @override
+  State<RootScreen> createState() => _RootScreenState();
+}
+
+class _RootScreenState extends State<RootScreen> {
+  bool _showSplash = true;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +84,12 @@ class RootScreen extends StatelessWidget {
               duration: const Duration(milliseconds: 300),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
-              child: KeyedSubtree(key: ValueKey(state.role), child: page),
+              child: _showSplash
+                  ? SplashScreen(
+                      key: const ValueKey('splash'),
+                      onFinished: () => setState(() => _showSplash = false),
+                    )
+                  : KeyedSubtree(key: ValueKey(state.role), child: page),
             ),
           ),
         ),

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'admin_content_screens.dart';
+import 'admin_system_screens.dart';
 import 'business_detail_screens.dart';
 import 'business_settings_screens.dart';
 import 'consultation_retarget_screen.dart';
@@ -159,9 +161,8 @@ class _BusinessHeader extends StatelessWidget {
             tooltip: '설정',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => BusinessSettingsListScreen(
-                  role: AppScope.of(context).role,
-                ),
+                builder: (_) =>
+                    BusinessSettingsListScreen(role: AppScope.of(context).role),
               ),
             ),
             icon: const Icon(Icons.settings_outlined),
@@ -711,6 +712,29 @@ class AdminHome extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
+                const SectionTitle('시스템 관리'),
+                const SizedBox(height: 10),
+                SetflowCard(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AdminSystemScreen(),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.tune_outlined, color: SetflowColors.primary),
+                      SizedBox(width: 11),
+                      Expanded(
+                        child: Text(
+                          '랭킹 · OCR · 요금제 · 금칙어 · 로그 관리',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: SetflowColors.disabled),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1148,8 +1172,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
             tooltip: '상담 리타겟',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) =>
-                    ConsultationRetargetScreen(role: widget.role),
+                builder: (_) => ConsultationRetargetScreen(role: widget.role),
               ),
             ),
             icon: const Icon(Icons.campaign_outlined),
@@ -1553,6 +1576,26 @@ class AdminReviewPage extends StatefulWidget {
 
 class _AdminReviewPageState extends State<AdminReviewPage> {
   final approved = <int>{};
+
+  static const _contentReviewEntries = [
+    (Icons.fitness_center_outlined, SetflowColors.teal, '루틴 심사', '키워드 탐지 검토'),
+    (
+      Icons.report_gmailerrorred_outlined,
+      SetflowColors.red,
+      '신고 처리',
+      '유저 신고 대기열',
+    ),
+    (Icons.history_outlined, SetflowColors.purple, '제재 이력', '유저 제재 누적 이력'),
+    (Icons.warning_amber_outlined, SetflowColors.orange, '미성년 알림', '위험 행동 감지'),
+  ];
+
+  Widget _contentReviewScreenFor(int index) => switch (index) {
+    0 => const AdminContentRoutinesScreen(),
+    1 => const AdminContentReportsScreen(),
+    2 => const AdminUserSanctionHistoryScreen(),
+    _ => const AdminContentMinorAlertsScreen(),
+  };
+
   @override
   Widget build(BuildContext context) {
     const queue = [
@@ -1562,116 +1605,174 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
     ];
     return Scaffold(
       appBar: AppBar(title: const Text('인증 심사 큐')),
-      body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
-        itemCount: queue.length,
-        itemBuilder: (_, index) {
-          final item = queue[index];
-          final done = approved.contains(index);
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: SetflowCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              (item.$1 == '트레이너'
-                                      ? SetflowColors.blue
-                                      : SetflowColors.purple)
-                                  .withValues(alpha: .12),
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                        child: Text(
-                          item.$1,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: item.$1 == '트레이너'
-                                ? SetflowColors.blue
-                                : SetflowColors.purple,
-                          ),
-                        ),
+      body: Column(
+        children: [
+          SizedBox(
+            height: 96,
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              scrollDirection: Axis.horizontal,
+              itemCount: _contentReviewEntries.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final entry = _contentReviewEntries[index];
+                return SizedBox(
+                  width: 132,
+                  child: SetflowCard(
+                    padding: const EdgeInsets.all(12),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => _contentReviewScreenFor(index),
                       ),
-                      const Spacer(),
-                      Text(
-                        done ? '승인 완료' : 'D-2',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          color: done
-                              ? SetflowColors.green
-                              : SetflowColors.orange,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    item.$2,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.$3,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: SetflowColors.secondaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (!done)
-                    Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () =>
-                                showMessage(context, '거절 사유 입력 화면을 열었습니다.'),
-                            child: const Text('거절'),
-                          ),
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () =>
-                                setState(() => approved.add(index)),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: SetflowColors.ink,
-                            ),
-                            child: const Text('승인'),
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    const Row(
-                      children: [
-                        Icon(Icons.check_circle, color: SetflowColors.green),
-                        SizedBox(width: 7),
+                        Icon(entry.$1, color: entry.$2),
+                        const SizedBox(height: 8),
                         Text(
-                          '인증 배지를 발급했습니다.',
-                          style: TextStyle(
-                            color: SetflowColors.green,
-                            fontWeight: FontWeight.w800,
+                          entry.$3,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          entry.$4,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: SetflowColors.secondaryText,
                           ),
                         ),
                       ],
                     ),
-                ],
-              ),
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
+              itemCount: queue.length,
+              itemBuilder: (_, index) {
+                final item = queue[index];
+                final done = approved.contains(index);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SetflowCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    (item.$1 == '트레이너'
+                                            ? SetflowColors.blue
+                                            : SetflowColors.purple)
+                                        .withValues(alpha: .12),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                              child: Text(
+                                item.$1,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: item.$1 == '트레이너'
+                                      ? SetflowColors.blue
+                                      : SetflowColors.purple,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              done ? '승인 완료' : 'D-2',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                color: done
+                                    ? SetflowColors.green
+                                    : SetflowColors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          item.$2,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.$3,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: SetflowColors.secondaryText,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (!done)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => showMessage(
+                                    context,
+                                    '거절 사유 입력 화면을 열었습니다.',
+                                  ),
+                                  child: const Text('거절'),
+                                ),
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () =>
+                                      setState(() => approved.add(index)),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: SetflowColors.ink,
+                                  ),
+                                  child: const Text('승인'),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                color: SetflowColors.green,
+                              ),
+                              SizedBox(width: 7),
+                              Text(
+                                '인증 배지를 발급했습니다.',
+                                style: TextStyle(
+                                  color: SetflowColors.green,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1842,9 +1943,7 @@ class SettlementPage extends StatelessWidget {
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: SetflowColors.blue.withValues(
-                      alpha: .12,
-                    ),
+                    backgroundColor: SetflowColors.blue.withValues(alpha: .12),
                     child: const Icon(
                       Icons.groups_outlined,
                       color: SetflowColors.blue,
@@ -1861,6 +1960,88 @@ class SettlementPage extends StatelessWidget {
                         ),
                         Text(
                           '소속 코치 매출·분배 내역',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: SetflowColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, size: 18),
+                ],
+              ),
+            ),
+          ],
+          if (admin) ...[
+            const SizedBox(height: 10),
+            SetflowCard(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SettlementCommissionPage(role: role),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: SetflowColors.purple.withValues(
+                      alpha: .12,
+                    ),
+                    child: const Icon(
+                      Icons.percent_outlined,
+                      color: SetflowColors.purple,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '수수료 정산',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          '사업자·트레이너별 수수료 산정 내역',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: SetflowColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, size: 18),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            SetflowCard(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SettlementFinalConfirmPage(role: role),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: SetflowColors.green.withValues(alpha: .12),
+                    child: const Icon(
+                      Icons.task_alt_outlined,
+                      color: SetflowColors.green,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '최종 정산 확정',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          '지급 대상 확정 및 처리 상태 관리',
                           style: TextStyle(
                             fontSize: 11,
                             color: SetflowColors.secondaryText,

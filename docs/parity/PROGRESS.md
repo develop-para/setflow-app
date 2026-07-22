@@ -49,4 +49,32 @@
 | 8 | 상담 리타겟 | `ConsultationQueuePage` + `consultation_retarget_screen.dart` | ✅ analyze 통과 |
 | 9 | 워크스페이스(PC 뷰) | `_BusinessHeader` + `workspace_screen.dart` | ✅ analyze 통과 |
 
-**🎯 P2 목표 달성** — 6개 플로우 모두 구현 + 각 analyze 통과. 신규 파일 6개(member_detail/settlement_detail/stats_detail/business_settings/consultation_retarget/workspace), `business_screens.dart`는 진입점만 추가(기존 렌더링 보존).
+**🎯 P2 목표 달성** — 6개 플로우 모두 구현 + 각 analyze 통과. 신규 파일 6개(member_detail/settlement_detail/stats_detail/business_settings/consultation_retarget/workspace), `business_screens.dart`는 진입점만 추가(기존 렌더링 보존). 웹 빌드 ✅. 커밋 `cea0072` 푸시됨.
+
+---
+
+# P3 — 운영자 백오피스 세부 (진행 중)
+
+**목표**: missing-flows P3 (#10~#13) 구현 + 각 `flutter analyze` 통과.
+**제약**: 기존 화면 렌더링 보존. 신규 화면 + 진입점만 추가.
+
+| # | 플로우 | 대상 | 상태 |
+|---|---|---|---|
+| 10 | 정산 수수료/최종 확정 | `SettlementPage`(admin) + `settlement_detail_screens.dart` | ✅ analyze 통과 |
+| 11 | 시스템 관리 개별 화면(랭킹/OCR/요금제/금칙어/로그) | `AdminHome` + `admin_system_screens.dart` | ✅ analyze 통과 |
+| 12 | 콘텐츠 심사 세분화(루틴/신고/제재/미성년) | `AdminReviewPage` + `admin_content_screens.dart` | ✅ analyze 통과 |
+| 13 | 스플래시 화면 | `main.dart` `RootScreen` + `splash_screen.dart` | ✅ analyze 통과 |
+
+**🎯 P3 목표 달성** — 4개 플로우 구현 + 각 analyze 통과. 신규 파일 3개(admin_system/admin_content/splash), `main.dart`는 스플래시 1회 게이트만 추가(역할 라우팅 보존), `SettlementPage`/`AdminHome`/`AdminReviewPage`는 진입점만 추가.
+
+---
+
+## 최종 요약
+
+| 단계 | 플로우 | 상태 |
+|---|---|---|
+| P1 | 온보딩 3종 | ✅ 커밋 `251204d` |
+| P2 | 사업자 운영 6종 | ✅ 커밋 `cea0072` |
+| P3 | 운영자 백오피스 4종 | ✅ (커밋 예정) |
+
+전 구간 하네스 루프: executor 구현 → `flutter analyze` 게이트(13/13 No issues) → 원장 기록. 기존 화면 렌더링 보존, 신규 화면 추가 + 진입점 연결 방식.

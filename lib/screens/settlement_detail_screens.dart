@@ -556,3 +556,482 @@ String _formatAmount(int value) {
   }
   return buffer.toString();
 }
+
+/// [SettlementPage]에서 진입하는 수수료 정산 상세 화면 (admin 전용).
+/// 사업자/트레이너별 매출·수수료율·수수료액 리스트와 합계를 보여준다.
+class SettlementCommissionPage extends StatelessWidget {
+  const SettlementCommissionPage({required this.role, super.key});
+  final UserRole role;
+
+  static const _items = [
+    _CommissionItem(
+      type: '트레이너',
+      name: '김동현 코치',
+      revenue: 4000000,
+      rate: 15,
+    ),
+    _CommissionItem(
+      type: '트레이너',
+      name: '이민수 코치',
+      revenue: 2000000,
+      rate: 20,
+    ),
+    _CommissionItem(
+      type: '사업자',
+      name: '이지짐 강남점',
+      revenue: 12500000,
+      rate: 8,
+    ),
+    _CommissionItem(
+      type: '사업자',
+      name: '헬스원 송파점',
+      revenue: 8300000,
+      rate: 8,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final totalRevenue = _items.fold<int>(0, (sum, i) => sum + i.revenue);
+    final totalCommission = _items.fold<int>(
+      0,
+      (sum, i) => sum + i.commission,
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('수수료 정산')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: SetflowColors.ink,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '이번 달 플랫폼 수수료 합계',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${_formatAmount(totalCommission)}원',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 27,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '총 매출 ${_formatAmount(totalRevenue)}원 기준 산정',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          const SectionTitle('사업자·트레이너별 수수료 내역'),
+          const SizedBox(height: 10),
+          for (final item in _items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: SetflowCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                (item.type == '트레이너'
+                                        ? SetflowColors.blue
+                                        : SetflowColors.purple)
+                                    .withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Text(
+                            item.type,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: item.type == '트레이너'
+                                  ? SetflowColors.blue
+                                  : SetflowColors.purple,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '수수료율 ${item.rate}%',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: SetflowColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: SetflowColors.soft,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '발생 매출',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: SetflowColors.secondaryText,
+                                ),
+                              ),
+                              Text(
+                                '${_formatAmount(item.revenue)}원',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Text(
+                                '플랫폼 수수료',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: SetflowColors.secondaryText,
+                                ),
+                              ),
+                              Text(
+                                '${_formatAmount(item.commission)}원',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  color: SetflowColors.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 22),
+          const SectionTitle('합계'),
+          const SizedBox(height: 10),
+          SetflowCard(
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '총 매출',
+                      style: TextStyle(
+                        color: SetflowColors.secondaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '${_formatAmount(totalRevenue)}원',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '총 플랫폼 수수료',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      '${_formatAmount(totalCommission)}원',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: SetflowColors.ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommissionItem {
+  const _CommissionItem({
+    required this.type,
+    required this.name,
+    required this.revenue,
+    required this.rate,
+  });
+
+  final String type;
+  final String name;
+  final int revenue;
+  final int rate;
+
+  int get commission => (revenue * rate / 100).round();
+}
+
+/// [SettlementPage]에서 진입하는 최종 정산 확정 화면 (admin 전용).
+/// 지급 대상 리스트와 "확정" 액션(데모 상태 토글)을 제공한다.
+class SettlementFinalConfirmPage extends StatefulWidget {
+  const SettlementFinalConfirmPage({required this.role, super.key});
+  final UserRole role;
+
+  @override
+  State<SettlementFinalConfirmPage> createState() =>
+      _SettlementFinalConfirmPageState();
+}
+
+class _SettlementFinalConfirmPageState
+    extends State<SettlementFinalConfirmPage> {
+  final _items = [
+    _PayoutItem(
+      name: '박은지 코치',
+      account: '국민 123456-78-901234',
+      amount: 345000,
+    ),
+    _PayoutItem(
+      name: '정근육 코치',
+      account: '신한 110-123-456789',
+      amount: 85000,
+    ),
+    _PayoutItem(
+      name: '이지짐 강남점',
+      account: '우리 1002-345-678901',
+      amount: 1250000,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final pendingCount = _items
+        .where((item) => item.status != _PayoutStatus.confirmed)
+        .length;
+    final pendingAmount = _items
+        .where((item) => item.status != _PayoutStatus.confirmed)
+        .fold<int>(0, (sum, item) => sum + item.amount);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('최종 정산 확정')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: SetflowColors.ink,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '확정 대기 중인 지급액',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${_formatAmount(pendingAmount)}원',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 27,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '대기 중인 지급 대상 $pendingCount건',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          const SectionTitle('지급 대상 목록'),
+          const SizedBox(height: 10),
+          for (var i = 0; i < _items.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: SetflowCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _items[i].name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        _PayoutStatusChip(status: _items[i].status),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: SetflowColors.soft,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '지급 계좌: ${_items[i].account}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: SetflowColors.secondaryText,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${_formatAmount(_items[i].amount)}원',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    switch (_items[i].status) {
+                      _PayoutStatus.pending => SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () => setState(
+                            () => _items[i].status = _PayoutStatus.processing,
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: SetflowColors.blue,
+                          ),
+                          child: const Text('입금 처리 시작'),
+                        ),
+                      ),
+                      _PayoutStatus.processing => SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () => setState(
+                            () => _items[i].status = _PayoutStatus.confirmed,
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: SetflowColors.ink,
+                          ),
+                          child: const Text('최종 정산 확정'),
+                        ),
+                      ),
+                      _PayoutStatus.confirmed => const Row(
+                        children: [
+                          Icon(Icons.check_circle, color: SetflowColors.green),
+                          SizedBox(width: 7),
+                          Text(
+                            '최종 정산이 확정되었습니다.',
+                            style: TextStyle(
+                              color: SetflowColors.green,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    },
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _PayoutStatus { pending, processing, confirmed }
+
+class _PayoutItem {
+  _PayoutItem({required this.name, required this.account, required this.amount});
+
+  final String name;
+  final String account;
+  final int amount;
+  _PayoutStatus status = _PayoutStatus.pending;
+}
+
+class _PayoutStatusChip extends StatelessWidget {
+  const _PayoutStatusChip({required this.status});
+  final _PayoutStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      _PayoutStatus.pending => ('확정 대기', SetflowColors.orange),
+      _PayoutStatus.processing => ('처리 중', SetflowColors.blue),
+      _PayoutStatus.confirmed => ('확정 완료', SetflowColors.green),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
