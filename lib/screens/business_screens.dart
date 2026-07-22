@@ -4,6 +4,12 @@ import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'business_detail_screens.dart';
+import 'business_settings_screens.dart';
+import 'consultation_retarget_screen.dart';
+import 'member_detail_screens.dart';
+import 'settlement_detail_screens.dart';
+import 'stats_detail_screens.dart';
+import 'workspace_screen.dart';
 
 class BusinessShell extends StatefulWidget {
   const BusinessShell({required this.role, super.key});
@@ -138,6 +144,27 @@ class _BusinessHeader extends StatelessWidget {
             tooltip: '워크스페이스 전환',
             onPressed: () => _showWorkspaceMenu(context),
             icon: const Icon(Icons.grid_view_rounded),
+          ),
+          IconButton(
+            tooltip: '워크스페이스',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    WorkspaceScreen(role: AppScope.of(context).role),
+              ),
+            ),
+            icon: const Icon(Icons.dashboard_customize_outlined),
+          ),
+          IconButton(
+            tooltip: '설정',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => BusinessSettingsListScreen(
+                  role: AppScope.of(context).role,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.settings_outlined),
           ),
           IconButton(
             tooltip: '알림',
@@ -870,6 +897,26 @@ class _PeoplePageState extends State<PeoplePage> {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(sheetContext);
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        MemberDetailScreen(person: person, role: widget.role),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.person_search_outlined),
+              label: const Text('회원 상세 보기'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
             const SizedBox(height: 22),
             Row(
               children: [
@@ -1033,6 +1080,38 @@ class RoutineManagerPage extends StatelessWidget {
                         _MiniMetric(label: '랭킹', value: '#12'),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => RoutineStatsPage(routine: routine),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.bar_chart_rounded,
+                            size: 16,
+                            color: SetflowColors.blue,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            '통계 보기',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              color: SetflowColors.blue,
+                            ),
+                          ),
+                          Spacer(),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 16,
+                            color: SetflowColors.disabled,
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1062,7 +1141,21 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
       ('정민아', '체력 향상', '러닝과 근력 병행 희망'),
     ];
     return Scaffold(
-      appBar: AppBar(title: const Text('상담 수신함')),
+      appBar: AppBar(
+        title: const Text('상담 수신함'),
+        actions: [
+          IconButton(
+            tooltip: '상담 리타겟',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    ConsultationRetargetScreen(role: widget.role),
+              ),
+            ),
+            icon: const Icon(Icons.campaign_outlined),
+          ),
+        ],
+      ),
       body: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
         itemCount: items.length,
@@ -1216,19 +1309,31 @@ class TrainerManagementPage extends StatelessWidget {
         itemCount: trainers.length,
         itemBuilder: (_, index) {
           final trainer = trainers[index];
+          final accentColor = [
+            SetflowColors.blue,
+            SetflowColors.teal,
+            SetflowColors.orange,
+            SetflowColors.purple,
+          ][index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 11),
             child: SetflowCard(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => TrainerPerformancePage(
+                    name: trainer.$1,
+                    membersLabel: trainer.$2,
+                    feedbackRate: trainer.$3,
+                    rating: trainer.$4,
+                    accentColor: accentColor,
+                  ),
+                ),
+              ),
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: 24,
-                    backgroundColor: [
-                      SetflowColors.blue,
-                      SetflowColors.teal,
-                      SetflowColors.orange,
-                      SetflowColors.purple,
-                    ][index].withValues(alpha: .16),
+                    backgroundColor: accentColor.withValues(alpha: .16),
                     child: Text(
                       trainer.$1.characters.first,
                       style: const TextStyle(fontWeight: FontWeight.w900),
@@ -1685,6 +1790,90 @@ class SettlementPage extends StatelessWidget {
                 ),
               ),
             ),
+          const SizedBox(height: 22),
+          const SectionTitle('정산 상세 보기'),
+          const SizedBox(height: 10),
+          SetflowCard(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SettlementRefundsPage(role: role),
+              ),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: SetflowColors.red.withValues(alpha: .12),
+                  child: const Icon(
+                    Icons.receipt_long_outlined,
+                    color: SetflowColors.red,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '환불 내역',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        '환불 요청 및 처리 이력 확인',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: SetflowColors.secondaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, size: 18),
+              ],
+            ),
+          ),
+          if (role != UserRole.trainer) ...[
+            const SizedBox(height: 10),
+            SetflowCard(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => TrainerSettlementBreakdownPage(role: role),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: SetflowColors.blue.withValues(
+                      alpha: .12,
+                    ),
+                    child: const Icon(
+                      Icons.groups_outlined,
+                      color: SetflowColors.blue,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '트레이너별 정산',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          '소속 코치 매출·분배 내역',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: SetflowColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, size: 18),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
