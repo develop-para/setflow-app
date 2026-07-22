@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'business_detail_screens.dart';
 
 class BusinessShell extends StatefulWidget {
   const BusinessShell({required this.role, super.key});
@@ -153,15 +154,70 @@ class _BusinessHeader extends StatelessWidget {
 
   void _showWorkspaceMenu(BuildContext context) {
     final state = AppScope.of(context);
+    final tools = switch (state.role) {
+      UserRole.trainer => const [
+        (Icons.person_outline, '프로필 편집', BusinessTool.profile),
+        (Icons.calendar_month_outlined, '코칭 캘린더', BusinessTool.calendar),
+        (Icons.replay_outlined, '환불 및 미정산', BusinessTool.refunds),
+        (Icons.workspace_premium_outlined, '플랜 관리', BusinessTool.plan),
+        (Icons.notifications_none, '알림 설정', BusinessTool.notifications),
+        (Icons.person_off_outlined, '계정 탈퇴', BusinessTool.withdraw),
+      ],
+      UserRole.gym => const [
+        (Icons.apartment_outlined, '헬스장 프로필', BusinessTool.profile),
+        (Icons.replay_outlined, '환불 및 미정산', BusinessTool.refunds),
+        (Icons.workspace_premium_outlined, '플랜 관리', BusinessTool.plan),
+        (Icons.notifications_none, '알림 설정', BusinessTool.notifications),
+        (Icons.person_off_outlined, '계정 탈퇴', BusinessTool.withdraw),
+      ],
+      UserRole.admin => const [
+        (Icons.verified_outlined, '배지 발급 관리', BusinessTool.badges),
+        (Icons.report_outlined, '커뮤니티 신고 큐', BusinessTool.contentReports),
+        (Icons.gavel_outlined, '제재 이력', BusinessTool.sanctions),
+        (Icons.child_care_outlined, '미성년자 위험 신호', BusinessTool.minorAlerts),
+        (Icons.leaderboard_outlined, '랭킹 알고리즘', BusinessTool.ranking),
+        (Icons.document_scanner_outlined, 'OCR 설정', BusinessTool.ocr),
+        (Icons.price_change_outlined, '구독 플랜 정책', BusinessTool.plans),
+        (Icons.block_outlined, '금지 키워드', BusinessTool.keywords),
+        (Icons.monitor_heart_outlined, '시스템 로그', BusinessTool.logs),
+      ],
+      _ => const <(IconData, String, BusinessTool)>[],
+    };
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .78,
+        maxChildSize: .9,
+        builder: (_, controller) => SafeArea(
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
             children: [
+              const ListTile(
+                title: Text(
+                  '운영 메뉴',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              for (final item in tools)
+                ListTile(
+                  leading: Icon(item.$1),
+                  title: Text(item.$2),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            BusinessToolScreen(tool: item.$3, role: state.role),
+                      ),
+                    );
+                  },
+                ),
+              const Divider(height: 28),
               const ListTile(
                 title: Text(
                   '데모 워크스페이스 전환',

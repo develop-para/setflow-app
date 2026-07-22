@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'detail_screens.dart';
 import 'workout_screens.dart';
 
 class MemberShell extends StatefulWidget {
@@ -993,21 +994,27 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen> {
   final liked = <int>{};
+  final posts = <(String, String, String)>[
+    ('오운완 민지', '오늘 하체 루틴 100% 완료! 지난주보다 스쿼트 5kg 올렸어요.', '하체 · 12세트 · 4.2t'),
+    ('꾸준한 준호', '30일 연속 운동 달성. 짧게라도 기록하니 습관이 되네요.', '전신 · 8세트 · 2.8t'),
+    ('세트플로우 코치', '이번 주는 무게보다 정확한 가동범위에 집중해보세요.', '코칭 팁'),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    const posts = [
-      ('오운완 민지', '오늘 하체 루틴 100% 완료! 지난주보다 스쿼트 5kg 올렸어요.', '하체 · 12세트 · 4.2t'),
-      ('꾸준한 준호', '30일 연속 운동 달성. 짧게라도 기록하니 습관이 되네요.', '전신 · 8세트 · 2.8t'),
-      ('세트플로우 코치', '이번 주는 무게보다 정확한 가동범위에 집중해보세요.', '코칭 팁'),
-    ];
     return Scaffold(
       appBar: AppBar(
         title: const Text('동기부여'),
         actions: [
           IconButton(
-            onPressed: () =>
-                showMessage(context, '게시물 작성 화면은 다음 단계에서 사진 업로드와 연결됩니다.'),
+            onPressed: () async {
+              final text = await Navigator.of(context).push<String>(
+                MaterialPageRoute(builder: (_) => const PostComposerScreen()),
+              );
+              if (text != null && mounted) {
+                setState(() => posts.insert(0, ('운동초보', text, '오늘 운동 기록')));
+              }
+            },
             icon: const Icon(Icons.add_box_outlined),
           ),
         ],
@@ -1189,6 +1196,9 @@ class CoachingScreen extends StatelessWidget {
           const SectionTitle('진행 중인 상담'),
           const SizedBox(height: 10),
           SetflowCard(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CoachingDetailScreen()),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1382,6 +1392,43 @@ class DashboardScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 26),
+          SetflowCard(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BodyCompositionScreen()),
+            ),
+            child: const Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Color(0xFFE0FAF7),
+                  child: Icon(
+                    Icons.accessibility_new,
+                    color: SetflowColors.teal,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '체성분 변화',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      Text(
+                        '체중 70.9kg · 골격근량 32.5kg',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: SetflowColors.secondaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right),
+              ],
+            ),
+          ),
+          const SizedBox(height: 26),
           const SectionTitle('주간 볼륨'),
           const SizedBox(height: 10),
           SetflowCard(
@@ -1479,6 +1526,62 @@ class SettingsScreen extends StatelessWidget {
         children: [
           const ListTile(
             title: Text(
+              '계정 & 개인화',
+              style: TextStyle(
+                fontSize: 13,
+                color: SetflowColors.secondaryText,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text('계정 & 프로필'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    const SettingDetailScreen(section: SettingSection.account),
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.notifications_none),
+            title: const Text('알림 설정'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const SettingDetailScreen(
+                  section: SettingSection.notifications,
+                ),
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text('데이터 & 개인정보'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    const SettingDetailScreen(section: SettingSection.privacy),
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('디스플레이'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    const SettingDetailScreen(section: SettingSection.display),
+              ),
+            ),
+          ),
+          const Divider(height: 30),
+          const ListTile(
+            title: Text(
               '운동 기록',
               style: TextStyle(
                 fontSize: 13,
@@ -1504,6 +1607,12 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('기본 휴식 타이머'),
             subtitle: Text('${state.restDefaultSeconds}초'),
             trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    const SettingDetailScreen(section: SettingSection.workout),
+              ),
+            ),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.dark_mode_outlined),
