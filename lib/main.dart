@@ -1,26 +1,45 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'data/app_repository.dart';
+import 'data/hive_app_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SetflowApp());
+  AppRepository repository;
+  try {
+    repository = await HiveAppRepository.open();
+  } catch (_) {
+    repository = MemoryAppRepository();
+  }
+  runApp(SetflowApp(repository: repository));
 }
 
 class SetflowApp extends StatefulWidget {
-  const SetflowApp({super.key});
+  const SetflowApp({this.repository, super.key});
+
+  final AppRepository? repository;
 
   @override
   State<SetflowApp> createState() => _SetflowAppState();
 }
 
 class _SetflowAppState extends State<SetflowApp> {
-  final AppState state = AppState();
+  late final AppState state;
+
+  @override
+  void initState() {
+    super.initState();
+    state = AppState(repository: widget.repository);
+    unawaited(state.initialize());
+  }
 
   @override
   void dispose() {
@@ -84,7 +103,7 @@ class _RootScreenState extends State<RootScreen> {
               duration: const Duration(milliseconds: 300),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
-              child: _showSplash
+              child: _showSplash || !state.isInitialized
                   ? SplashScreen(
                       key: const ValueKey('splash'),
                       onFinished: () => setState(() => _showSplash = false),

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme.dart';
 
 class SetflowCard extends StatelessWidget {
   const SetflowCard({
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(SetflowSpacing.lg),
     this.color,
     this.onTap,
     super.key,
@@ -18,19 +19,157 @@ class SetflowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: color ?? (dark ? const Color(0xFF242226) : Colors.white),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
-        side: BorderSide(color: Theme.of(context).dividerColor),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final card = DecoratedBox(
+      decoration: BoxDecoration(
+        color: color ?? context.setflowColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        boxShadow: isDark ? null : SetflowShadows.level1,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(padding: padding, child: child),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        child: Material(
+          color: Colors.transparent,
+          child: onTap == null
+              ? Padding(padding: padding, child: child)
+              : InkWell(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onTap?.call();
+                  },
+                  child: Padding(padding: padding, child: child),
+                ),
+        ),
       ),
     );
+    return Semantics(button: onTap != null, child: card);
+  }
+}
+
+enum AppButtonVariant { primary, tonal, outlined, text }
+
+class AppButton extends StatefulWidget {
+  const AppButton({
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.variant = AppButtonVariant.primary,
+    this.expanded = true,
+    this.isLoading = false,
+    this.semanticLabel,
+    super.key,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final AppButtonVariant variant;
+  final bool expanded;
+  final bool isLoading;
+  final String? semanticLabel;
+
+  @override
+  State<AppButton> createState() => _AppButtonState();
+}
+
+class _AppButtonState extends State<AppButton> {
+  bool _pressed = false;
+
+  bool get _enabled => widget.onPressed != null && !widget.isLoading;
+
+  void _setPressed(bool value) {
+    if (!_enabled || _pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final content = widget.isLoading
+        ? SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.4,
+              color: widget.variant == AppButtonVariant.primary
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.primary,
+            ),
+          )
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (widget.icon != null) ...[
+                Icon(widget.icon, size: 20),
+                const SizedBox(width: SetflowSpacing.sm),
+              ],
+              Flexible(child: Text(widget.label, overflow: TextOverflow.fade)),
+            ],
+          );
+
+    final onPressed = _enabled
+        ? () {
+            HapticFeedback.lightImpact();
+            widget.onPressed?.call();
+          }
+        : null;
+    final style = ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(Size(48, 52)),
+      tapTargetSize: MaterialTapTargetSize.padded,
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+        ),
+      ),
+    );
+
+    final Widget button = switch (widget.variant) {
+      AppButtonVariant.primary => FilledButton(
+        onPressed: onPressed,
+        style: style,
+        child: content,
+      ),
+      AppButtonVariant.tonal => FilledButton.tonal(
+        onPressed: onPressed,
+        style: style,
+        child: content,
+      ),
+      AppButtonVariant.outlined => OutlinedButton(
+        onPressed: onPressed,
+        style: style,
+        child: content,
+      ),
+      AppButtonVariant.text => TextButton(
+        onPressed: onPressed,
+        style: style.copyWith(
+          minimumSize: const WidgetStatePropertyAll(Size(48, 44)),
+        ),
+        child: content,
+      ),
+    };
+
+    final scaled = Semantics(
+      label: widget.semanticLabel,
+      button: true,
+      enabled: _enabled,
+      child: Listener(
+        onPointerDown: (_) => _setPressed(true),
+        onPointerUp: (_) => _setPressed(false),
+        onPointerCancel: (_) => _setPressed(false),
+        child: AnimatedScale(
+          scale: _pressed ? .98 : 1,
+          duration: SetflowMotion.micro,
+          curve: Curves.easeOut,
+          child: button,
+        ),
+      ),
+    );
+    return widget.expanded
+        ? SizedBox(width: double.infinity, child: scaled)
+        : scaled;
   }
 }
 
@@ -50,22 +189,83 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final button = FilledButton.icon(
+    return AppButton(
+      label: label,
       onPressed: onPressed,
-      icon: icon == null ? const SizedBox.shrink() : Icon(icon, size: 20),
-      label: Text(label),
-      style: FilledButton.styleFrom(
-        backgroundColor: SetflowColors.primary,
-        foregroundColor: SetflowColors.ink,
-        disabledBackgroundColor: SetflowColors.elevated,
-        disabledForegroundColor: SetflowColors.disabled,
-        minimumSize: const Size(0, 54),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+      icon: icon,
+      expanded: expanded,
+    );
+  }
+}
+
+class AppTextField extends StatelessWidget {
+  const AppTextField({
+    this.controller,
+    this.focusNode,
+    this.label,
+    this.hint,
+    this.helperText,
+    this.validator,
+    this.onChanged,
+    this.onSubmitted,
+    this.keyboardType,
+    this.textInputAction,
+    this.prefixIcon,
+    this.suffixIcon,
+    this.obscureText = false,
+    this.enabled = true,
+    this.autofocus = false,
+    this.maxLines = 1,
+    this.minLines,
+    this.autofillHints,
+    super.key,
+  });
+
+  final TextEditingController? controller;
+  final FocusNode? focusNode;
+  final String? label;
+  final String? hint;
+  final String? helperText;
+  final FormFieldValidator<String>? validator;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
+  final bool obscureText;
+  final bool enabled;
+  final bool autofocus;
+  final int? maxLines;
+  final int? minLines;
+  final Iterable<String>? autofillHints;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      focusNode: focusNode,
+      validator: validator,
+      onChanged: onChanged,
+      onFieldSubmitted: onSubmitted,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      obscureText: obscureText,
+      enabled: enabled,
+      autofocus: autofocus,
+      maxLines: obscureText ? 1 : maxLines,
+      minLines: minLines,
+      autofillHints: autofillHints,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      style: Theme.of(context).textTheme.bodyLarge,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        helperText: helperText,
+        prefixIcon: prefixIcon,
+        suffixIcon: suffixIcon,
       ),
     );
-    return expanded ? SizedBox(width: double.infinity, child: button) : button;
   }
 }
 
@@ -81,10 +281,7 @@ class SectionTitle extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
-          ),
+          child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
         if (action != null)
           TextButton(onPressed: onAction, child: Text(action!)),
@@ -111,6 +308,7 @@ class MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Expanded(
       child: SetflowCard(
         padding: const EdgeInsets.all(14),
@@ -118,36 +316,26 @@ class MetricCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: tint, size: 20),
-            const SizedBox(height: 12),
+            const SizedBox(height: SetflowSpacing.md),
             Text(
               label,
-              style: const TextStyle(
-                color: SetflowColors.secondaryText,
-                fontSize: 11,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: SetflowSpacing.xs),
             RichText(
               text: TextSpan(
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+                style: TextStyle(color: theme.colorScheme.onSurface),
                 children: [
-                  TextSpan(
-                    text: value,
-                    style: const TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                  TextSpan(text: value, style: theme.textTheme.headlineLarge),
                   if (suffix != null)
                     TextSpan(
                       text: ' $suffix',
-                      style: const TextStyle(
-                        fontSize: 11,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
-                        color: SetflowColors.secondaryText,
                       ),
                     ),
                 ],
@@ -160,23 +348,119 @@ class MetricCard extends StatelessWidget {
   }
 }
 
+class LoadingState extends StatefulWidget {
+  const LoadingState({
+    this.message,
+    this.itemCount = 3,
+    this.compact = false,
+    super.key,
+  });
+
+  final String? message;
+  final int itemCount;
+  final bool compact;
+
+  @override
+  State<LoadingState> createState() => _LoadingStateState();
+}
+
+class _LoadingStateState extends State<LoadingState>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = context.setflowColors.surfaceContainer;
+    final highlight = context.setflowColors.surfaceContainerHigh;
+    if (widget.compact) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(SetflowSpacing.xxl),
+          child: CircularProgressIndicator(
+            semanticsLabel: widget.message ?? '불러오는 중',
+          ),
+        ),
+      );
+    }
+    return Semantics(
+      label: widget.message ?? '콘텐츠를 불러오는 중',
+      liveRegion: true,
+      child: ExcludeSemantics(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final color = Color.lerp(base, highlight, _controller.value)!;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 156,
+                  height: 22,
+                  decoration: _skeletonDecoration(color, SetflowRadii.sm),
+                ),
+                const SizedBox(height: SetflowSpacing.lg),
+                for (var index = 0; index < widget.itemCount; index++) ...[
+                  Container(
+                    width: double.infinity,
+                    height: 84,
+                    decoration: _skeletonDecoration(color, SetflowRadii.md),
+                  ),
+                  if (index < widget.itemCount - 1)
+                    const SizedBox(height: SetflowSpacing.md),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration _skeletonDecoration(Color color, double radius) {
+    return BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(radius),
+    );
+  }
+}
+
 class EmptyState extends StatelessWidget {
   const EmptyState({
     required this.icon,
     required this.title,
     required this.message,
+    this.actionLabel,
+    this.onAction,
     super.key,
   });
 
   final IconData icon;
   final String title;
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(SetflowSpacing.section),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -184,26 +468,38 @@ class EmptyState extends StatelessWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: SetflowColors.soft,
-                borderRadius: BorderRadius.circular(24),
+                color: context.setflowColors.surfaceContainer,
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
-              child: Icon(icon, size: 34, color: SetflowColors.disabled),
+              child: Icon(
+                icon,
+                size: 34,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: SetflowSpacing.lg),
             Text(
               title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              style: theme.textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: SetflowSpacing.sm),
             Text(
               message,
-              style: const TextStyle(
-                color: SetflowColors.secondaryText,
-                height: 1.5,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: SetflowSpacing.xl),
+              AppButton(
+                label: actionLabel!,
+                onPressed: onAction,
+                expanded: false,
+                variant: AppButtonVariant.tonal,
+              ),
+            ],
           ],
         ),
       ),
@@ -211,8 +507,68 @@ class EmptyState extends StatelessWidget {
   }
 }
 
+class ErrorState extends StatelessWidget {
+  const ErrorState({
+    this.title = '문제가 발생했어요',
+    required this.message,
+    this.retryLabel = '다시 시도',
+    this.onRetry,
+    super.key,
+  });
+
+  final String title;
+  final String message;
+  final String retryLabel;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return EmptyState(
+      icon: Icons.error_outline_rounded,
+      title: title,
+      message: message,
+      actionLabel: onRetry == null ? null : retryLabel,
+      onAction: onRetry,
+    );
+  }
+}
+
+abstract final class AppSnackbar {
+  static void success(BuildContext context, String message) {
+    _show(context, message, Icons.check_circle_rounded, SetflowColors.green);
+  }
+
+  static void error(BuildContext context, String message) {
+    _show(context, message, Icons.error_rounded, SetflowColors.red);
+  }
+
+  static void info(BuildContext context, String message) {
+    _show(context, message, Icons.info_rounded, context.setflowColors.info);
+  }
+
+  static void _show(
+    BuildContext context,
+    String message,
+    IconData icon,
+    Color color,
+  ) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(icon, color: color, size: 21),
+              const SizedBox(width: SetflowSpacing.md),
+              Expanded(child: Text(message)),
+            ],
+          ),
+        ),
+      );
+  }
+}
+
 void showMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  AppSnackbar.info(context, message);
 }

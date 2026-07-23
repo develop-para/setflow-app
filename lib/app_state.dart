@@ -2,14 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'data/app_repository.dart';
 import 'models.dart';
 
 export 'models.dart';
 
 class AppState extends ChangeNotifier {
-  AppState() {
+  AppState({AppRepository? repository})
+    : _repository = repository ?? MemoryAppRepository() {
     _seedSessions();
   }
+
+  final AppRepository _repository;
+  Timer? _persistTimer;
+  bool _initialized = false;
+
+  bool get isInitialized => _initialized;
+  Object? persistenceError;
 
   UserRole role = UserRole.guest;
   bool isDarkMode = false;
@@ -85,6 +94,31 @@ class AppState extends ChangeNotifier {
   final Map<DateTime, WorkoutSession> sessions = {};
   final List<RoutineData> routines = [];
 
+  Future<void> initialize() async {
+    try {
+      final snapshot = await _repository.load(exercises);
+      if (snapshot != null) {
+        role = snapshot.role;
+        isDarkMode = snapshot.isDarkMode;
+        weightUnit = snapshot.weightUnit;
+        restDefaultSeconds = snapshot.restDefaultSeconds;
+        sessions
+          ..clear()
+          ..addAll(snapshot.sessions);
+        routines
+          ..clear()
+          ..addAll(snapshot.routines);
+      }
+      _initialized = true;
+      persistenceError = null;
+      if (snapshot == null) _schedulePersist();
+    } catch (error) {
+      _initialized = true;
+      persistenceError = error;
+    }
+    notifyListeners();
+  }
+
   List<RoutineData> get marketRoutines => [
     RoutineData(
       id: 'market_1',
@@ -117,22 +151,32 @@ class AppState extends ChangeNotifier {
 
   void chooseRole(UserRole value) {
     role = value;
+    _schedulePersist();
     notifyListeners();
   }
 
   void logout() {
     role = UserRole.guest;
     cancelRestTimer();
+    _schedulePersist();
     notifyListeners();
   }
 
   void toggleTheme() {
     isDarkMode = !isDarkMode;
+    _schedulePersist();
     notifyListeners();
   }
 
   void setWeightUnit(String value) {
     weightUnit = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setRestDefaultSeconds(int seconds) {
+    restDefaultSeconds = seconds.clamp(30, 600);
+    _schedulePersist();
     notifyListeners();
   }
 
@@ -162,6 +206,7 @@ class AppState extends ChangeNotifier {
         ],
       ),
     );
+    _schedulePersist();
     notifyListeners();
   }
 
@@ -174,12 +219,14 @@ class AppState extends ChangeNotifier {
         reps: previous?.reps ?? 10,
       ),
     );
+    _schedulePersist();
     notifyListeners();
   }
 
   void reorderExercise(WorkoutSession session, int oldIndex, int newIndex) {
     final item = session.exercises.removeAt(oldIndex);
     session.exercises.insert(newIndex, item);
+    _schedulePersist();
     notifyListeners();
   }
 
@@ -192,12 +239,14 @@ class AppState extends ChangeNotifier {
     if (weight != null) set.weight = weight.clamp(0, 999);
     if (reps != null) set.reps = reps.clamp(0, 999);
     if (type != null) set.type = type;
+    _schedulePersist();
     notifyListeners();
   }
 
   void toggleSet(WorkoutSetEntry set) {
     set.completed = !set.completed;
     if (set.completed) startRestTimer(restDefaultSeconds);
+    _schedulePersist();
     notifyListeners();
   }
 
@@ -209,11 +258,13 @@ class AppState extends ChangeNotifier {
       date: target,
       exercises: source.exercises.map((exercise) => exercise.copy()).toList(),
     );
+    _schedulePersist();
     notifyListeners();
   }
 
   void deleteSession(DateTime date) {
     sessions.remove(dateOnly(date));
+    _schedulePersist();
     notifyListeners();
   }
 
@@ -226,6 +277,7 @@ class AppState extends ChangeNotifier {
   void importRoutine(RoutineData routine) {
     if (routines.any((item) => item.id == routine.id)) return;
     routines.add(routine);
+    _schedulePersist();
     notifyListeners();
   }
 
@@ -239,7 +291,36 @@ class AppState extends ChangeNotifier {
         exercises: [exercises[0], exercises[2], exercises[4]],
       ),
     );
+    _schedulePersist();
     notifyListeners();
+  }
+
+  Future<void> clearPersistedData() async {
+    _persistTimer?.cancel();
+    await _repository.clear();
+  }
+
+  void _schedulePersist() {
+    if (!_initialized) return;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(const Duration(milliseconds: 250), () async {
+      try {
+        await _repository.save(
+          AppSnapshot(
+            role: role,
+            isDarkMode: isDarkMode,
+            weightUnit: weightUnit,
+            restDefaultSeconds: restDefaultSeconds,
+            sessions: sessions,
+            routines: routines,
+          ),
+        );
+        persistenceError = null;
+      } catch (error) {
+        persistenceError = error;
+        notifyListeners();
+      }
+    });
   }
 
   void startRestTimer(int seconds) {
@@ -314,6 +395,7 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     _restTimer?.cancel();
+    _persistTimer?.cancel();
     super.dispose();
   }
 }

@@ -106,3 +106,38 @@
 - 저장소: `develop-para/setflow-app` main, 최신 커밋 이 문서 포함 푸시됨.
 - 웹 실행: `flutter run -d chrome` 정상. Windows 데스크톱 빌드는 VS `vcruntimed.lib` 손상으로 보류(웹으로 개발).
 - React 레퍼런스: `C:\Users\SIMJAE\Downloads\setflow` (src/App.tsx 라우트 112개, src/index.css 토큰).
+
+---
+
+# Phase B · C — 프로덕션 파운데이션 (2026-07-23)
+
+## Phase B 디자인 시스템 ✅
+
+- `lib/theme/tokens.dart`: 라이트/다크 semantic 컬러, 간격, 라운드, 모션, 그림자 토큰 구현.
+- `lib/theme.dart`: Material 3 `ColorScheme`, 타이포 스케일, 버튼·입력·카드·칩·내비게이션·시트·다이얼로그 테마 재구성.
+- `lib/widgets/common.dart`: 기존 API를 유지하면서 `AppButton`, `AppTextField`, `LoadingState`, `EmptyState`, `ErrorState`, `AppSnackbar` 추가.
+- 기존 `SetflowColors`, `SetflowCard`, `PrimaryButton`, `showMessage` 호출부 하위호환 유지.
+- 라이트/다크 모바일 뷰포트(432×900) 및 브라우저 콘솔 검증 완료.
+
+## Phase C 데이터 어댑터층 ✅
+
+- `AppRepository` 인터페이스로 앱 상태 저장소 경계 분리.
+- `MemoryAppRepository`: 테스트 및 저장소 초기화 실패 시 안전한 폴백.
+- `HiveAppRepository`: Android/iOS/Web 로컬 영속 구현. Supabase 전환 시 이 구현만 교체 가능.
+- `AppSnapshotCodec`: 역할, 테마, 단위, 휴식 타이머 기본값, 운동 세션·세트 완료 상태, 루틴 JSON 스키마 v1 직렬화.
+- `AppState`: 250ms 디바운스 자동 저장 및 앱 시작 시 복원 연결.
+- 실제 웹 IndexedDB에서 역할·다크모드 설정 후 새로고침 복원 검증 완료.
+
+## 게이트
+
+- `flutter analyze`: No issues.
+- `flutter test`: 7개 통과(스냅샷 왕복·저장소 복원 테스트 포함).
+- `flutter build web`: 성공.
+
+## 다음 재개 지점
+
+**Phase D-1 온보딩 화면군 프로덕션 적용**부터 시작한다.
+
+1. Welcome/member setup/business setup/splash에 신규 토큰과 공용 컴포넌트 적용.
+2. 폼 검증·인라인 오류, 로딩·성공·실패 상태, 햅틱과 전환 모션 보강.
+3. 화면별 위젯 테스트 추가 후 analyze/test/build 게이트.

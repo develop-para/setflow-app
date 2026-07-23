@@ -4,6 +4,7 @@ import 'package:setflow/main.dart';
 void main() {
   testWidgets('shows role selection on launch', (tester) async {
     await tester.pumpWidget(const SetflowApp());
+    await tester.pump(const Duration(milliseconds: 1900));
     await tester.pumpAndSettle();
 
     expect(find.text('Setflow'), findsOneWidget);
