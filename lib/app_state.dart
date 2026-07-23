@@ -12,6 +12,7 @@ class AppState extends ChangeNotifier {
     : _repository = repository ?? MemoryAppRepository() {
     _seedSessions();
     _seedSocial();
+    _seedBusinessDashboards();
   }
 
   final AppRepository _repository;
@@ -96,6 +97,7 @@ class AppState extends ChangeNotifier {
   final List<RoutineData> routines = [];
   final List<CommunityPost> communityPosts = [];
   final List<ConsultationData> consultations = [];
+  final Map<UserRole, BusinessDashboardData> businessDashboards = {};
 
   Future<void> initialize() async {
     try {
@@ -120,6 +122,9 @@ class AppState extends ChangeNotifier {
           consultations
             ..clear()
             ..addAll(snapshot.consultations);
+        }
+        if (snapshot.businessDashboards.isNotEmpty) {
+          businessDashboards.addAll(snapshot.businessDashboards);
         }
       }
       _initialized = true;
@@ -412,6 +417,39 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  BusinessDashboardData dashboardFor(UserRole role) {
+    return businessDashboards[role] ?? businessDashboards[UserRole.trainer]!;
+  }
+
+  int unreadBusinessNotifications(UserRole role) {
+    return dashboardFor(
+      role,
+    ).notifications.where((notification) => !notification.isRead).length;
+  }
+
+  void dismissBusinessNotification(UserRole role, String notificationId) {
+    dashboardFor(
+      role,
+    ).notifications.removeWhere((item) => item.id == notificationId);
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void markAllBusinessNotificationsRead(UserRole role) {
+    for (final notification in dashboardFor(role).notifications) {
+      notification.isRead = true;
+    }
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  Future<void> refreshBusinessDashboard(UserRole role) async {
+    await Future<void>.delayed(const Duration(milliseconds: 550));
+    dashboardFor(role).lastSyncedAt = DateTime.now();
+    _schedulePersist();
+    notifyListeners();
+  }
+
   Future<void> clearPersistedData() async {
     _persistTimer?.cancel();
     await _repository.clear();
@@ -434,6 +472,7 @@ class AppState extends ChangeNotifier {
             routines: routines,
             communityPosts: communityPosts,
             consultations: consultations,
+            businessDashboards: businessDashboards,
           ),
         );
         persistenceError = null;
@@ -570,6 +609,167 @@ class AppState extends ChangeNotifier {
             '가능합니다. 통증이 없는 범위에서 스쿼트 깊이와 중량을 낮추고, 둔근 중심 동작으로 구성해드릴게요. 운동 중 날카로운 통증이 있으면 즉시 중단해주세요.',
       ),
     );
+  }
+
+  void _seedBusinessDashboards() {
+    final now = DateTime.now();
+    businessDashboards.addAll({
+      UserRole.trainer: BusinessDashboardData(
+        role: UserRole.trainer,
+        facts: {
+          'displayName': '김코치',
+          'revenue': '2,480,000원',
+          'revenueChange': '지난달보다 12.4% 증가',
+          'members': '12',
+          'memberCapacity': '/ 50명',
+          'feedbackPending': '3',
+          'routineViews': '1,284',
+          'routineViewsChange': '+18%',
+          'consultationConversion': '8.6%',
+          'consultationConversionChange': '+2.1%',
+          'routineImports': '94회',
+          'routineImportsChange': '+12회',
+        },
+        tasks: [
+          BusinessTaskData(
+            id: 'trainer_feedback_due',
+            title: '72시간 피드백 마감 임박',
+            subtitle: '박민지 회원 · 4시간 남음',
+            action: '피드백',
+            kind: 'urgent',
+          ),
+          BusinessTaskData(
+            id: 'trainer_new_consultation',
+            title: '새 상담이 도착했어요',
+            subtitle: '근육 증가 상담 외 1건',
+            action: '확인',
+            kind: 'consultation',
+          ),
+        ],
+        notifications: [
+          BusinessNotificationData(
+            id: 'trainer_consultation',
+            title: '새 상담이 도착했어요',
+            subtitle: '방금 전 · 상담 내용을 확인해주세요.',
+            kind: 'consultation',
+            createdAt: now.subtract(const Duration(minutes: 2)),
+          ),
+          BusinessNotificationData(
+            id: 'trainer_feedback',
+            title: '피드백 마감이 가까워요',
+            subtitle: '12분 전 · 남은 시간 4시간',
+            kind: 'timer',
+            createdAt: now.subtract(const Duration(minutes: 12)),
+          ),
+          BusinessNotificationData(
+            id: 'trainer_settlement',
+            title: '정산 예정 금액이 확정됐어요',
+            subtitle: '오늘 · 정산 내역에서 확인할 수 있어요.',
+            kind: 'settlement',
+            createdAt: now.subtract(const Duration(hours: 2)),
+          ),
+        ],
+        lastSyncedAt: now,
+      ),
+      UserRole.gym: BusinessDashboardData(
+        role: UserRole.gym,
+        facts: {
+          'displayName': '모션짐 강남점',
+          'plan': '엔터프라이즈 플랜',
+          'members': '84',
+          'revenue': '18.4',
+          'trainers': '6',
+          'consultations': '9',
+          'trainer1Name': '김코치',
+          'trainer1Detail': '회원 18명 · 피드백 98%',
+          'trainer2Name': '박트레이너',
+          'trainer2Detail': '회원 15명 · 피드백 94%',
+          'trainer3Name': '이코치',
+          'trainer3Detail': '회원 12명 · 피드백 78%',
+        },
+        tasks: [
+          BusinessTaskData(
+            id: 'gym_member_assignment',
+            title: '신규 회원 배정이 필요해요',
+            subtitle: '상담 완료 회원 3명',
+            action: '배정',
+            kind: 'member',
+          ),
+          BusinessTaskData(
+            id: 'gym_feedback_rate',
+            title: '피드백 이행률 확인',
+            subtitle: '이행률 80% 미만 트레이너 1명',
+            action: '보기',
+            kind: 'warning',
+          ),
+        ],
+        notifications: [
+          BusinessNotificationData(
+            id: 'gym_assignment',
+            title: '회원 배정 대기 3건',
+            subtitle: '방금 전 · 담당 트레이너를 지정해주세요.',
+            kind: 'member',
+            createdAt: now.subtract(const Duration(minutes: 3)),
+          ),
+          BusinessNotificationData(
+            id: 'gym_feedback',
+            title: '피드백 이행률을 확인해주세요',
+            subtitle: '20분 전 · 기준 미달 트레이너 1명',
+            kind: 'warning',
+            createdAt: now.subtract(const Duration(minutes: 20)),
+          ),
+        ],
+        lastSyncedAt: now,
+      ),
+      UserRole.admin: BusinessDashboardData(
+        role: UserRole.admin,
+        facts: {
+          'users': '8,420',
+          'coaching': '284',
+          'reviews': '14',
+          'reports': '6',
+          'redSla': '82',
+          'orangeSla': '94',
+          'reviewSla': '97',
+          'apiStatus': '정상',
+          'ocrStatus': '정상',
+          'settlementStatus': '대기 2건',
+        },
+        tasks: [
+          BusinessTaskData(
+            id: 'admin_urgent_reports',
+            title: '긴급 신고 2건',
+            subtitle: 'SLA 1시간 내 처리가 필요해요.',
+            action: '처리',
+            kind: 'urgent',
+          ),
+          BusinessTaskData(
+            id: 'admin_business_reviews',
+            title: '사업자 심사 대기 14건',
+            subtitle: '트레이너 9건 · 센터 5건',
+            action: '검토',
+            kind: 'review',
+          ),
+        ],
+        notifications: [
+          BusinessNotificationData(
+            id: 'admin_report',
+            title: 'Red 신고가 접수됐어요',
+            subtitle: '1분 전 · SLA 1시간 내 처리가 필요해요.',
+            kind: 'urgent',
+            createdAt: now.subtract(const Duration(minutes: 1)),
+          ),
+          BusinessNotificationData(
+            id: 'admin_review',
+            title: '사업자 심사 대기가 증가했어요',
+            subtitle: '15분 전 · 현재 14건 대기 중',
+            kind: 'review',
+            createdAt: now.subtract(const Duration(minutes: 15)),
+          ),
+        ],
+        lastSyncedAt: now,
+      ),
+    });
   }
 
   @override

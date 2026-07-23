@@ -6,7 +6,7 @@ import '../models.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 2;
+  static const schemaVersion = 3;
 
   static String encode(AppSnapshot snapshot) {
     return jsonEncode({
@@ -21,6 +21,9 @@ abstract final class AppSnapshotCodec {
       'routines': snapshot.routines.map(_routineToJson).toList(),
       'communityPosts': snapshot.communityPosts.map(_postToJson).toList(),
       'consultations': snapshot.consultations.map(_consultationToJson).toList(),
+      'businessDashboards': snapshot.businessDashboards.values
+          .map(_businessDashboardToJson)
+          .toList(),
     });
   }
 
@@ -31,7 +34,9 @@ abstract final class AppSnapshotCodec {
     try {
       final root = jsonDecode(source) as Map<String, dynamic>;
       final version = (root['schemaVersion'] as num?)?.toInt();
-      if (version != 1 && version != schemaVersion) return null;
+      if (version != 1 && version != 2 && version != schemaVersion) {
+        return null;
+      }
       final preferences = root['preferences'] as Map<String, dynamic>? ?? {};
       final templates = {
         for (final exercise in exerciseCatalog) exercise.id: exercise,
@@ -62,6 +67,16 @@ abstract final class AppSnapshotCodec {
         final consultation = _consultationFromJson(raw as Map<String, dynamic>);
         if (consultation != null) consultations.add(consultation);
       }
+      final businessDashboards = <UserRole, BusinessDashboardData>{};
+      for (final raw
+          in root['businessDashboards'] as List<dynamic>? ?? const []) {
+        final dashboard = _businessDashboardFromJson(
+          raw as Map<String, dynamic>,
+        );
+        if (dashboard != null) {
+          businessDashboards[dashboard.role] = dashboard;
+        }
+      }
       final roleName = preferences['role'] as String?;
       final role = UserRole.values
           .where((item) => item.name == roleName)
@@ -76,6 +91,7 @@ abstract final class AppSnapshotCodec {
         routines: routines,
         communityPosts: posts,
         consultations: consultations,
+        businessDashboards: businessDashboards,
       );
     } on FormatException {
       return null;
@@ -293,6 +309,104 @@ abstract final class AppSnapshotCodec {
       status: status ?? ConsultationStatus.waiting,
       response: json['response'] as String?,
       rating: (json['rating'] as num?)?.toInt(),
+    );
+  }
+
+  static Map<String, dynamic> _businessDashboardToJson(
+    BusinessDashboardData dashboard,
+  ) {
+    return {
+      'role': dashboard.role.name,
+      'facts': dashboard.facts,
+      'lastSyncedAt': dashboard.lastSyncedAt.toIso8601String(),
+      'tasks': dashboard.tasks
+          .map(
+            (task) => {
+              'id': task.id,
+              'title': task.title,
+              'subtitle': task.subtitle,
+              'action': task.action,
+              'kind': task.kind,
+            },
+          )
+          .toList(),
+      'notifications': dashboard.notifications
+          .map(
+            (notification) => {
+              'id': notification.id,
+              'title': notification.title,
+              'subtitle': notification.subtitle,
+              'kind': notification.kind,
+              'createdAt': notification.createdAt.toIso8601String(),
+              'isRead': notification.isRead,
+            },
+          )
+          .toList(),
+    };
+  }
+
+  static BusinessDashboardData? _businessDashboardFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final roleName = json['role'] as String?;
+    final role = UserRole.values
+        .where((item) => item.name == roleName)
+        .firstOrNull;
+    final lastSyncedAt = DateTime.tryParse(
+      json['lastSyncedAt'] as String? ?? '',
+    );
+    if (role == null || lastSyncedAt == null) return null;
+
+    final facts = <String, String>{};
+    final rawFacts = json['facts'] as Map<String, dynamic>? ?? const {};
+    for (final entry in rawFacts.entries) {
+      facts[entry.key] = entry.value.toString();
+    }
+
+    final tasks = <BusinessTaskData>[];
+    for (final raw in json['tasks'] as List<dynamic>? ?? const []) {
+      final task = raw as Map<String, dynamic>;
+      final id = task['id'] as String?;
+      final title = task['title'] as String?;
+      if (id == null || title == null) continue;
+      tasks.add(
+        BusinessTaskData(
+          id: id,
+          title: title,
+          subtitle: task['subtitle'] as String? ?? '',
+          action: task['action'] as String? ?? '확인',
+          kind: task['kind'] as String? ?? 'info',
+        ),
+      );
+    }
+
+    final notifications = <BusinessNotificationData>[];
+    for (final raw in json['notifications'] as List<dynamic>? ?? const []) {
+      final notification = raw as Map<String, dynamic>;
+      final id = notification['id'] as String?;
+      final title = notification['title'] as String?;
+      final createdAt = DateTime.tryParse(
+        notification['createdAt'] as String? ?? '',
+      );
+      if (id == null || title == null || createdAt == null) continue;
+      notifications.add(
+        BusinessNotificationData(
+          id: id,
+          title: title,
+          subtitle: notification['subtitle'] as String? ?? '',
+          kind: notification['kind'] as String? ?? 'info',
+          createdAt: createdAt,
+          isRead: notification['isRead'] as bool? ?? false,
+        ),
+      );
+    }
+
+    return BusinessDashboardData(
+      role: role,
+      facts: facts,
+      tasks: tasks,
+      notifications: notifications,
+      lastSyncedAt: lastSyncedAt,
     );
   }
 }

@@ -189,7 +189,7 @@ abstract final class SetflowTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 68,
+        height: 64,
         backgroundColor: semantic.surfaceContainerLow,
         surfaceTintColor: Colors.transparent,
         indicatorColor: scheme.primaryContainer,

@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/app_repository.dart';
 import 'package:setflow/screens/business_screens.dart';
+import 'package:setflow/screens/business_settings_screens.dart';
 import 'package:setflow/theme.dart';
+import 'package:setflow/widgets/common.dart';
 
 void main() {
   Future<AppState> pumpBusiness(
@@ -11,6 +13,7 @@ void main() {
     UserRole role, {
     Widget? screen,
     AppRepository? repository,
+    bool darkMode = false,
   }) async {
     await tester.binding.setSurfaceSize(const Size(432, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -23,6 +26,8 @@ void main() {
         notifier: state,
         child: MaterialApp(
           theme: SetflowTheme.light,
+          darkTheme: SetflowTheme.dark,
+          themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
           home: screen == null
               ? BusinessShell(role: role)
               : Scaffold(body: screen),
@@ -30,6 +35,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     return state;
   }
 
@@ -54,7 +60,7 @@ void main() {
 
     await tester.tap(find.byTooltip('새로고침'));
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.byType(LoadingState), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('운영 현황을 최신 상태로 갱신했어요.'), findsOneWidget);
 
@@ -65,6 +71,7 @@ void main() {
     await tester.tap(find.text('모두 읽음'));
     await tester.pumpAndSettle();
     expect(find.text('새 알림이 없어요'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 350));
   });
 
   testWidgets('trainer action opens its real consultation queue', (
@@ -118,6 +125,103 @@ void main() {
     await tester.tap(find.text('재시도'));
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('저장을 다시 시도했어요.'), findsOneWidget);
+  });
+
+  testWidgets('business notifications persist read state through repository', (
+    tester,
+  ) async {
+    final repository = MemoryAppRepository();
+    await pumpBusiness(
+      tester,
+      UserRole.trainer,
+      screen: const TrainerHome(),
+      repository: repository,
+    );
+
+    await tester.tap(find.byTooltip('알림'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('모두 읽음'));
+    await tester.pumpAndSettle();
+    expect(find.text('새 알림이 없어요'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final restored = AppState(repository: repository);
+    await restored.initialize();
+    addTearDown(restored.dispose);
+    expect(restored.unreadBusinessNotifications(UserRole.trainer), 0);
+  });
+
+  testWidgets('business home exposes an empty state from repository data', (
+    tester,
+  ) async {
+    final emptyDashboard = BusinessDashboardData(
+      role: UserRole.trainer,
+      facts: {},
+      tasks: [],
+      notifications: [],
+      lastSyncedAt: DateTime(2026, 7, 23),
+    );
+    final repository = MemoryAppRepository(
+      initialSnapshot: AppSnapshot(
+        role: UserRole.trainer,
+        isDarkMode: false,
+        weightUnit: 'kg',
+        restDefaultSeconds: 90,
+        sessions: const {},
+        routines: const [],
+        businessDashboards: {UserRole.trainer: emptyDashboard},
+      ),
+    );
+
+    await pumpBusiness(
+      tester,
+      UserRole.trainer,
+      screen: const TrainerHome(),
+      repository: repository,
+    );
+
+    expect(find.text('표시할 운영 데이터가 없어요'), findsOneWidget);
+    expect(find.text('다시 불러오기'), findsOneWidget);
+  });
+
+  testWidgets('trainer home renders without overflow in dark mode', (
+    tester,
+  ) async {
+    await pumpBusiness(
+      tester,
+      UserRole.trainer,
+      screen: const TrainerHome(),
+      darkMode: true,
+    );
+
+    expect(find.text('안녕하세요, 김코치님'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final surface = tester.widget<Material>(find.byType(Material).first);
+    expect(surface, isNotNull);
+  });
+
+  testWidgets('business settings exposes and persists dark mode control', (
+    tester,
+  ) async {
+    final repository = MemoryAppRepository();
+    final state = await pumpBusiness(
+      tester,
+      UserRole.trainer,
+      screen: const BusinessSettingsListScreen(role: UserRole.trainer),
+      repository: repository,
+    );
+
+    expect(find.text('밝은 화면 사용 중'), findsOneWidget);
+    await tester.tap(find.text('다크 모드'));
+    await tester.pump();
+    expect(state.isDarkMode, isTrue);
+    expect(find.text('어두운 화면 사용 중'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final restored = AppState(repository: repository);
+    await restored.initialize();
+    addTearDown(restored.dispose);
+    expect(restored.isDarkMode, isTrue);
   });
 }
 

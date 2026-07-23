@@ -175,4 +175,54 @@ class ConsultationData {
   int? rating;
 }
 
+class BusinessTaskData {
+  BusinessTaskData({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.action,
+    required this.kind,
+  });
+
+  final String id;
+  final String title;
+  final String subtitle;
+  final String action;
+  final String kind;
+}
+
+class BusinessNotificationData {
+  BusinessNotificationData({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.kind,
+    required this.createdAt,
+    this.isRead = false,
+  });
+
+  final String id;
+  final String title;
+  final String subtitle;
+  final String kind;
+  final DateTime createdAt;
+  bool isRead;
+}
+
+class BusinessDashboardData {
+  BusinessDashboardData({
+    required this.role,
+    required this.facts,
+    required this.tasks,
+    required this.notifications,
+    required this.lastSyncedAt,
+  });
+
+  final UserRole role;
+  final Map<String, String> facts;
+  final List<BusinessTaskData> tasks;
+  final List<BusinessNotificationData> notifications;
+  DateTime lastSyncedAt;
+}
+
 enum RoutineImportResult { imported, alreadySaved, limitReached }

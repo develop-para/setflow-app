@@ -82,6 +82,32 @@ void main() {
             response: '큰 근육 운동부터 시작하세요.',
           ),
         ],
+        businessDashboards: {
+          UserRole.trainer: BusinessDashboardData(
+            role: UserRole.trainer,
+            facts: {'revenue': '2,480,000원'},
+            tasks: [
+              BusinessTaskData(
+                id: 'task_1',
+                title: '피드백 확인',
+                subtitle: '4시간 남음',
+                action: '확인',
+                kind: 'timer',
+              ),
+            ],
+            notifications: [
+              BusinessNotificationData(
+                id: 'notice_1',
+                title: '새 알림',
+                subtitle: '방금 전',
+                kind: 'consultation',
+                createdAt: date,
+                isRead: true,
+              ),
+            ],
+            lastSyncedAt: date,
+          ),
+        },
       );
 
       final encoded = AppSnapshotCodec.encode(snapshot);
@@ -101,6 +127,10 @@ void main() {
       expect(decoded.communityPosts.single.comments.single.content, '좋아요');
       expect(decoded.consultations.single.status, ConsultationStatus.answered);
       expect(decoded.consultations.single.response, contains('큰 근육'));
+      final dashboard = decoded.businessDashboards[UserRole.trainer]!;
+      expect(dashboard.facts['revenue'], '2,480,000원');
+      expect(dashboard.tasks.single.id, 'task_1');
+      expect(dashboard.notifications.single.isRead, isTrue);
     });
 
     test('reads schema version 1 snapshots without social data', () {
@@ -122,6 +152,29 @@ void main() {
       expect(decoded!.role, UserRole.member);
       expect(decoded.communityPosts, isEmpty);
       expect(decoded.consultations, isEmpty);
+      expect(decoded.businessDashboards, isEmpty);
+    });
+
+    test('reads schema version 2 snapshots without business data', () {
+      final decoded = AppSnapshotCodec.decode('''
+        {
+          "schemaVersion": 2,
+          "preferences": {
+            "role": "trainer",
+            "isDarkMode": false,
+            "weightUnit": "kg",
+            "restDefaultSeconds": 90
+          },
+          "sessions": [],
+          "routines": [],
+          "communityPosts": [],
+          "consultations": []
+        }
+        ''', const []);
+
+      expect(decoded, isNotNull);
+      expect(decoded!.role, UserRole.trainer);
+      expect(decoded.businessDashboards, isEmpty);
     });
 
     test('returns null for an unsupported schema', () {

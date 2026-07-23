@@ -13,10 +13,16 @@ class BusinessSettingsListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.xxl,
+          SetflowSpacing.xs,
+          SetflowSpacing.xxl,
+          SetflowSpacing.xxl,
+        ),
         children: [
           const ListTile(
             title: Text(
@@ -69,9 +75,34 @@ class BusinessSettingsListScreen extends StatelessWidget {
                 ),
               ),
             ),
+          const Divider(height: SetflowSpacing.section),
+          const ListTile(
+            title: Text(
+              '화면',
+              style: TextStyle(
+                fontSize: 13,
+                color: SetflowColors.secondaryText,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            secondary: Icon(
+              state.isDarkMode
+                  ? Icons.dark_mode_rounded
+                  : Icons.light_mode_rounded,
+            ),
+            title: const Text('다크 모드'),
+            subtitle: Text(state.isDarkMode ? '어두운 화면 사용 중' : '밝은 화면 사용 중'),
+            value: state.isDarkMode,
+            onChanged: (_) => state.toggleTheme(),
+          ),
           const Divider(height: 30),
           ListTile(
-            leading: const Icon(Icons.person_off_outlined, color: SetflowColors.red),
+            leading: const Icon(
+              Icons.person_off_outlined,
+              color: SetflowColors.red,
+            ),
             title: Text(
               _isGym ? '헬스장 탈퇴' : '탈퇴',
               style: const TextStyle(color: SetflowColors.red),
@@ -390,7 +421,9 @@ class _BusinessSettingsWithdrawScreenState
             decoration: BoxDecoration(
               color: SetflowColors.red.withValues(alpha: .08),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: SetflowColors.red.withValues(alpha: .2)),
+              border: Border.all(
+                color: SetflowColors.red.withValues(alpha: .2),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -467,10 +500,7 @@ class _BusinessSettingsWithdrawScreenState
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text(
-              '탈퇴',
-              style: TextStyle(color: SetflowColors.red),
-            ),
+            child: const Text('탈퇴', style: TextStyle(color: SetflowColors.red)),
           ),
         ],
       ),
@@ -508,7 +538,10 @@ class _WarningItem extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -605,7 +638,11 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                 const SizedBox(height: 8),
                 const Text(
                   '만료일($_expiryDate) 전까지 증빙 서류를 제출하지 않으면 신규 회원 상담 및 결제 수신이 제한될 수 있습니다.',
-                  style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -632,7 +669,10 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                   const SizedBox(height: 4),
                   const Text(
                     'JPG, PNG, PDF (최대 10MB) · 데모',
-                    style: TextStyle(fontSize: 12, color: SetflowColors.secondaryText),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: SetflowColors.secondaryText,
+                    ),
                   ),
                 ],
               ),
@@ -648,7 +688,10 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                       color: SetflowColors.green.withValues(alpha: .12),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.description_outlined, color: SetflowColors.green),
+                    child: const Icon(
+                      Icons.description_outlined,
+                      color: SetflowColors.green,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -696,7 +739,9 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                 ? null
                 : () async {
                     setState(() => _submitting = true);
-                    await Future<void>.delayed(const Duration(milliseconds: 600));
+                    await Future<void>.delayed(
+                      const Duration(milliseconds: 600),
+                    );
                     if (!context.mounted) return;
                     setState(() => _submitting = false);
                     showMessage(context, '자격 재확인 서류가 제출되었습니다. (데모)');
@@ -719,8 +764,7 @@ class BusinessProfileEditScreen extends StatefulWidget {
       _BusinessProfileEditScreenState();
 }
 
-class _BusinessProfileEditScreenState
-    extends State<BusinessProfileEditScreen> {
+class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
   bool get _isGym => widget.role == UserRole.gym;
 
   late final _nameController = TextEditingController(
@@ -811,11 +855,7 @@ class _BusinessProfileEditScreenState
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: _introController,
-            maxLines: 4,
-            maxLength: 150,
-          ),
+          TextField(controller: _introController, maxLines: 4, maxLength: 150),
         ],
       ),
     );

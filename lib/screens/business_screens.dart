@@ -53,7 +53,7 @@ class _BusinessShellState extends State<BusinessShell> {
     return Scaffold(
       body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: NavigationBar(
-        height: 74,
+        height: 64,
         selectedIndex: index,
         indicatorColor: config.color.withValues(alpha: .14),
         onDestinationSelected: (value) {
@@ -84,6 +84,31 @@ IconData _selectedBusinessIcon(IconData icon) {
     Icons.manage_accounts_outlined => Icons.manage_accounts_rounded,
     Icons.fact_check_outlined => Icons.fact_check_rounded,
     _ => icon,
+  };
+}
+
+IconData _businessKindIcon(String kind) {
+  return switch (kind) {
+    'consultation' => Icons.chat_bubble_outline_rounded,
+    'timer' => Icons.timer_outlined,
+    'settlement' => Icons.payments_outlined,
+    'member' => Icons.person_add_alt_1_outlined,
+    'warning' => Icons.warning_amber_rounded,
+    'urgent' => Icons.report_gmailerrorred_rounded,
+    'review' => Icons.fact_check_outlined,
+    _ => Icons.notifications_none_rounded,
+  };
+}
+
+Color _businessKindColor(BuildContext context, String kind) {
+  final colors = context.setflowColors;
+  return switch (kind) {
+    'consultation' => colors.blue,
+    'timer' || 'urgent' => Theme.of(context).colorScheme.error,
+    'settlement' => colors.teal,
+    'member' || 'review' => colors.purple,
+    'warning' => colors.orange,
+    _ => colors.info,
   };
 }
 
@@ -139,8 +164,19 @@ class _BusinessHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final unreadCount = state.unreadBusinessNotifications(state.role);
+    final theme = Theme.of(context);
+    final eyebrowColor = theme.brightness == Brightness.dark
+        ? accent
+        : Color.lerp(accent, SetflowColors.ink, .35)!;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 10, 10),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.lg,
+        SetflowSpacing.md,
+        SetflowSpacing.md,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -149,17 +185,15 @@ class _BusinessHeader extends StatelessWidget {
               children: [
                 Text(
                   eyebrow,
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: accent,
+                    color: eyebrowColor,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 24,
+                  style: theme.textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -174,9 +208,10 @@ class _BusinessHeader extends StatelessWidget {
           IconButton(
             tooltip: '알림',
             onPressed: () => _showNotifications(context, accent),
-            icon: const Badge(
-              label: Text('3'),
-              child: Icon(Icons.notifications_none_rounded),
+            icon: Badge(
+              isLabelVisible: unreadCount > 0,
+              label: Text('$unreadCount'),
+              child: const Icon(Icons.notifications_none_rounded),
             ),
           ),
           PopupMenuButton<String>(
@@ -237,7 +272,10 @@ class _BusinessHeader extends StatelessWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (_) => _BusinessNotificationSheet(accent: accent),
+      builder: (_) => _BusinessNotificationSheet(
+        accent: accent,
+        role: AppScope.of(context).role,
+      ),
     );
   }
 
@@ -370,12 +408,14 @@ class _BusinessHomeFrame extends StatefulWidget {
     required this.eyebrow,
     required this.title,
     required this.accent,
+    required this.role,
     required this.children,
   });
 
   final String eyebrow;
   final String title;
   final Color accent;
+  final UserRole role;
   final List<Widget> children;
 
   @override
@@ -388,7 +428,7 @@ class _BusinessHomeFrameState extends State<_BusinessHomeFrame> {
   Future<void> _refresh() async {
     if (refreshing) return;
     setState(() => refreshing = true);
-    await Future<void>.delayed(const Duration(milliseconds: 550));
+    await AppScope.of(context).refreshBusinessDashboard(widget.role);
     if (!mounted) return;
     setState(() => refreshing = false);
     AppSnackbar.success(context, '운영 현황을 최신 상태로 갱신했어요.');
@@ -406,15 +446,18 @@ class _BusinessHomeFrameState extends State<_BusinessHomeFrame> {
             accent: widget.accent,
             onRefresh: _refresh,
           ),
-          if (refreshing)
-            const LinearProgressIndicator(minHeight: 2)
-          else
-            const SizedBox(height: 2),
           if (state.persistenceError != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.xxl,
+                SetflowSpacing.xs,
+                SetflowSpacing.xxl,
+                SetflowSpacing.sm,
+              ),
               child: Material(
-                color: SetflowColors.red.withValues(alpha: .08),
+                color: Theme.of(
+                  context,
+                ).colorScheme.errorContainer.withValues(alpha: .5),
                 borderRadius: BorderRadius.circular(SetflowRadii.md),
                 child: ListTile(
                   leading: const Icon(
@@ -436,13 +479,42 @@ class _BusinessHomeFrameState extends State<_BusinessHomeFrame> {
               ),
             ),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
-                children: widget.children,
-              ),
+            child: AnimatedSwitcher(
+              duration: SetflowMotion.standard,
+              switchInCurve: SetflowMotion.standardCurve,
+              switchOutCurve: SetflowMotion.standardCurve,
+              child: refreshing
+                  ? const Padding(
+                      key: ValueKey('business-loading'),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: SetflowSpacing.xxl,
+                      ),
+                      child: LoadingState(itemCount: 5),
+                    )
+                  : state.dashboardFor(widget.role).facts.isEmpty &&
+                        state.dashboardFor(widget.role).tasks.isEmpty
+                  ? EmptyState(
+                      key: const ValueKey('business-empty'),
+                      icon: Icons.dashboard_customize_outlined,
+                      title: '표시할 운영 데이터가 없어요',
+                      message: '데이터를 다시 불러오거나 운영 설정을 확인해주세요.',
+                      actionLabel: '다시 불러오기',
+                      onAction: _refresh,
+                    )
+                  : RefreshIndicator(
+                      key: const ValueKey('business-content'),
+                      onRefresh: _refresh,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(
+                          SetflowSpacing.xxl,
+                          SetflowSpacing.xs,
+                          SetflowSpacing.xxl,
+                          SetflowSpacing.xxl,
+                        ),
+                        children: widget.children,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -451,41 +523,28 @@ class _BusinessHomeFrameState extends State<_BusinessHomeFrame> {
   }
 }
 
-class _BusinessNotificationSheet extends StatefulWidget {
-  const _BusinessNotificationSheet({required this.accent});
+class _BusinessNotificationSheet extends StatelessWidget {
+  const _BusinessNotificationSheet({required this.accent, required this.role});
 
   final Color accent;
-
-  @override
-  State<_BusinessNotificationSheet> createState() =>
-      _BusinessNotificationSheetState();
-}
-
-class _BusinessNotificationSheetState
-    extends State<_BusinessNotificationSheet> {
-  final notifications = <({IconData icon, String title, String subtitle})>[
-    (
-      icon: Icons.chat_bubble_outline_rounded,
-      title: '새 상담이 도착했어요',
-      subtitle: '방금 전 · 상담 내용을 확인해주세요.',
-    ),
-    (
-      icon: Icons.timer_outlined,
-      title: '피드백 마감이 가까워요',
-      subtitle: '12분 전 · 남은 시간 4시간',
-    ),
-    (
-      icon: Icons.payments_outlined,
-      title: '정산 예정 금액이 확정됐어요',
-      subtitle: '오늘 · 정산 내역에서 확인할 수 있어요.',
-    ),
-  ];
+  final UserRole role;
 
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final notifications = state
+        .dashboardFor(role)
+        .notifications
+        .where((notification) => !notification.isRead)
+        .toList();
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.xxl,
+          0,
+          SetflowSpacing.xxl,
+          SetflowSpacing.xxl,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -499,7 +558,8 @@ class _BusinessNotificationSheetState
                 ),
                 if (notifications.isNotEmpty)
                   TextButton(
-                    onPressed: () => setState(notifications.clear),
+                    onPressed: () =>
+                        state.markAllBusinessNotificationsRead(role),
                     child: const Text('모두 읽음'),
                   ),
               ],
@@ -523,8 +583,10 @@ class _BusinessNotificationSheetState
                     return Dismissible(
                       key: ValueKey(notification.title),
                       direction: DismissDirection.endToStart,
-                      onDismissed: (_) =>
-                          setState(() => notifications.removeAt(index)),
+                      onDismissed: (_) => state.dismissBusinessNotification(
+                        role,
+                        notification.id,
+                      ),
                       background: Container(
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 18),
@@ -537,8 +599,11 @@ class _BusinessNotificationSheetState
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(
-                          backgroundColor: widget.accent.withValues(alpha: .12),
-                          child: Icon(notification.icon, color: widget.accent),
+                          backgroundColor: accent.withValues(alpha: .12),
+                          child: Icon(
+                            _businessKindIcon(notification.kind),
+                            color: accent,
+                          ),
                         ),
                         title: Text(
                           notification.title,
@@ -562,21 +627,25 @@ class TrainerHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dashboard = AppScope.of(context).dashboardFor(UserRole.trainer);
+    final facts = dashboard.facts;
+    final accent = context.setflowColors.blue;
     return _BusinessHomeFrame(
       eyebrow: 'VERIFIED TRAINER',
-      title: '안녕하세요, 김코치님',
-      accent: SetflowColors.blue,
+      title: '안녕하세요, ${facts['displayName'] ?? '트레이너'}님',
+      accent: accent,
+      role: UserRole.trainer,
       children: [
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(SetflowSpacing.xl),
           decoration: BoxDecoration(
-            color: SetflowColors.blue,
-            borderRadius: BorderRadius.circular(24),
+            color: accent,
+            borderRadius: BorderRadius.circular(SetflowRadii.lg),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const Row(
                 children: [
                   Expanded(
                     child: Row(
@@ -613,8 +682,8 @@ class TrainerHome extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                '2,480,000원',
-                style: TextStyle(
+                facts['revenue'] ?? '0원',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
@@ -622,8 +691,8 @@ class TrainerHome extends StatelessWidget {
               ),
               SizedBox(height: 8),
               Text(
-                '지난달보다 12.4% 증가',
-                style: TextStyle(
+                facts['revenueChange'] ?? '비교 데이터 없음',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -634,64 +703,66 @@ class TrainerHome extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Row(
-          children: const [
+          children: [
             MetricCard(
               label: '관리 회원',
-              value: '12',
-              suffix: '/ 50명',
+              value: facts['members'] ?? '0',
+              suffix: facts['memberCapacity'] ?? '/ 0명',
               icon: Icons.people_outline,
-              tint: SetflowColors.purple,
+              tint: context.setflowColors.purple,
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: SetflowSpacing.md),
             MetricCard(
               label: '피드백 대기',
-              value: '3',
+              value: facts['feedbackPending'] ?? '0',
               suffix: '건',
               icon: Icons.mark_chat_unread_outlined,
-              tint: SetflowColors.orange,
+              tint: context.setflowColors.orange,
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('오늘 할 일'),
-        const SizedBox(height: 10),
-        _ActionTile(
-          icon: Icons.timer_outlined,
-          color: SetflowColors.red,
-          title: '72시간 피드백 마감 임박',
-          subtitle: '박민지 회원 · 4시간 남음',
-          action: '피드백',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const PeoplePage(role: UserRole.trainer),
+        const SizedBox(height: SetflowSpacing.md),
+        for (var index = 0; index < dashboard.tasks.length; index++) ...[
+          _ActionTile(
+            icon: _businessKindIcon(dashboard.tasks[index].kind),
+            color: _businessKindColor(context, dashboard.tasks[index].kind),
+            title: dashboard.tasks[index].title,
+            subtitle: dashboard.tasks[index].subtitle,
+            action: dashboard.tasks[index].action,
+            onTap: () => _openBusinessTask(
+              context,
+              UserRole.trainer,
+              dashboard.tasks[index],
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        _ActionTile(
-          icon: Icons.chat_bubble_outline,
-          color: SetflowColors.blue,
-          title: '새 상담이 도착했어요',
-          subtitle: '근육 증가 상담 외 1건',
-          action: '확인',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  const ConsultationQueuePage(role: UserRole.trainer),
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
+          if (index < dashboard.tasks.length - 1)
+            const SizedBox(height: SetflowSpacing.md),
+        ],
+        const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('루틴 성과'),
-        const SizedBox(height: 10),
-        const SetflowCard(
+        const SizedBox(height: SetflowSpacing.md),
+        SetflowCard(
           child: Column(
             children: [
-              _PerformanceRow(label: '루틴 조회수', value: '1,284', change: '+18%'),
-              Divider(height: 26),
-              _PerformanceRow(label: '상담 전환', value: '8.6%', change: '+2.1%'),
-              Divider(height: 26),
-              _PerformanceRow(label: '가져가기', value: '94회', change: '+12회'),
+              _PerformanceRow(
+                label: '루틴 조회수',
+                value: facts['routineViews'] ?? '0',
+                change: facts['routineViewsChange'] ?? '-',
+              ),
+              const Divider(height: 26),
+              _PerformanceRow(
+                label: '상담 전환',
+                value: facts['consultationConversion'] ?? '0%',
+                change: facts['consultationConversionChange'] ?? '-',
+              ),
+              const Divider(height: 26),
+              _PerformanceRow(
+                label: '가져가기',
+                value: facts['routineImports'] ?? '0회',
+                change: facts['routineImportsChange'] ?? '-',
+              ),
             ],
           ),
         ),
@@ -705,37 +776,41 @@ class GymHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dashboard = AppScope.of(context).dashboardFor(UserRole.gym);
+    final facts = dashboard.facts;
+    final accent = context.setflowColors.purple;
     return _BusinessHomeFrame(
       eyebrow: 'BUSINESS VERIFIED',
-      title: '모션짐 강남점',
-      accent: SetflowColors.purple,
+      title: facts['displayName'] ?? '센터',
+      accent: accent,
+      role: UserRole.gym,
       children: [
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(SetflowSpacing.xl),
           decoration: BoxDecoration(
-            color: const Color(0xFF5635A5),
-            borderRadius: BorderRadius.circular(24),
+            color: accent,
+            borderRadius: BorderRadius.circular(SetflowRadii.lg),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              CircleAvatar(
+              const CircleAvatar(
                 radius: 27,
                 backgroundColor: Colors.white24,
                 child: Icon(Icons.apartment_rounded, color: Colors.white),
               ),
-              SizedBox(width: 14),
+              const SizedBox(width: SetflowSpacing.lg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       '사업자 인증 완료',
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     SizedBox(height: 3),
                     Text(
-                      '엔터프라이즈 플랜',
-                      style: TextStyle(
+                      facts['plan'] ?? '기본 플랜',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
@@ -744,98 +819,91 @@ class GymHome extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.verified_rounded, color: Colors.white),
+              const Icon(Icons.verified_rounded, color: Colors.white),
             ],
           ),
         ),
         const SizedBox(height: 14),
         Row(
-          children: const [
+          children: [
             MetricCard(
               label: '전체 회원',
-              value: '84',
+              value: facts['members'] ?? '0',
               suffix: '명',
               icon: Icons.groups_outlined,
-              tint: SetflowColors.teal,
+              tint: context.setflowColors.teal,
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: SetflowSpacing.md),
             MetricCard(
               label: '이번 달 매출',
-              value: '18.4',
+              value: facts['revenue'] ?? '0',
               suffix: '백만원',
               icon: Icons.trending_up,
-              tint: SetflowColors.green,
+              tint: context.setflowColors.success,
             ),
           ],
         ),
         const SizedBox(height: 14),
         Row(
-          children: const [
+          children: [
             MetricCard(
               label: '소속 트레이너',
-              value: '6',
+              value: facts['trainers'] ?? '0',
               suffix: '명',
               icon: Icons.badge_outlined,
-              tint: SetflowColors.purple,
+              tint: context.setflowColors.purple,
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: SetflowSpacing.md),
             MetricCard(
               label: '신규 상담',
-              value: '9',
+              value: facts['consultations'] ?? '0',
               suffix: '건',
               icon: Icons.chat_bubble_outline,
-              tint: SetflowColors.orange,
+              tint: context.setflowColors.orange,
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('운영 알림'),
-        const SizedBox(height: 10),
-        _ActionTile(
-          icon: Icons.person_add_alt_1_outlined,
-          color: SetflowColors.purple,
-          title: '신규 회원 배정이 필요해요',
-          subtitle: '상담 완료 회원 3명',
-          action: '배정',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const PeoplePage(role: UserRole.gym),
+        const SizedBox(height: SetflowSpacing.md),
+        for (var index = 0; index < dashboard.tasks.length; index++) ...[
+          _ActionTile(
+            icon: _businessKindIcon(dashboard.tasks[index].kind),
+            color: _businessKindColor(context, dashboard.tasks[index].kind),
+            title: dashboard.tasks[index].title,
+            subtitle: dashboard.tasks[index].subtitle,
+            action: dashboard.tasks[index].action,
+            onTap: () => _openBusinessTask(
+              context,
+              UserRole.gym,
+              dashboard.tasks[index],
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        _ActionTile(
-          icon: Icons.warning_amber_rounded,
-          color: SetflowColors.orange,
-          title: '피드백 이행률 확인',
-          subtitle: '이행률 80% 미만 트레이너 1명',
-          action: '보기',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TrainerManagementPage()),
-          ),
-        ),
-        const SizedBox(height: 24),
+          if (index < dashboard.tasks.length - 1)
+            const SizedBox(height: SetflowSpacing.md),
+        ],
+        const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('트레이너 현황'),
-        const SizedBox(height: 10),
-        const SetflowCard(
+        const SizedBox(height: SetflowSpacing.md),
+        SetflowCard(
           child: Column(
             children: [
               _PersonRow(
-                name: '김코치',
-                detail: '회원 18명 · 피드백 98%',
-                color: SetflowColors.blue,
+                name: facts['trainer1Name'] ?? '-',
+                detail: facts['trainer1Detail'] ?? '데이터 없음',
+                color: context.setflowColors.blue,
               ),
-              Divider(height: 22),
+              const Divider(height: 22),
               _PersonRow(
-                name: '박트레이너',
-                detail: '회원 15명 · 피드백 94%',
-                color: SetflowColors.teal,
+                name: facts['trainer2Name'] ?? '-',
+                detail: facts['trainer2Detail'] ?? '데이터 없음',
+                color: context.setflowColors.teal,
               ),
-              Divider(height: 22),
+              const Divider(height: 22),
               _PersonRow(
-                name: '이코치',
-                detail: '회원 12명 · 피드백 78%',
-                color: SetflowColors.orange,
+                name: facts['trainer3Name'] ?? '-',
+                detail: facts['trainer3Detail'] ?? '데이터 없음',
+                color: context.setflowColors.orange,
               ),
             ],
           ),
@@ -850,129 +918,127 @@ class AdminHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dashboard = AppScope.of(context).dashboardFor(UserRole.admin);
+    final facts = dashboard.facts;
     return _BusinessHomeFrame(
       eyebrow: 'OPERATIONS',
       title: 'Setflow 운영 현황',
-      accent: SetflowColors.primary,
+      accent: Theme.of(context).colorScheme.onPrimaryContainer,
+      role: UserRole.admin,
       children: [
         Row(
-          children: const [
+          children: [
             MetricCard(
               label: '전체 사용자',
-              value: '8,420',
+              value: facts['users'] ?? '0',
               suffix: '명',
               icon: Icons.groups_outlined,
-              tint: SetflowColors.blue,
+              tint: context.setflowColors.blue,
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: SetflowSpacing.md),
             MetricCard(
               label: '활성 코칭',
-              value: '284',
+              value: facts['coaching'] ?? '0',
               suffix: '건',
               icon: Icons.handshake_outlined,
-              tint: SetflowColors.teal,
+              tint: context.setflowColors.teal,
             ),
           ],
         ),
         const SizedBox(height: 12),
         Row(
-          children: const [
+          children: [
             MetricCard(
               label: '심사 대기',
-              value: '14',
+              value: facts['reviews'] ?? '0',
               suffix: '건',
               icon: Icons.fact_check_outlined,
-              tint: SetflowColors.orange,
+              tint: context.setflowColors.orange,
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: SetflowSpacing.md),
             MetricCard(
               label: '신고 큐',
-              value: '6',
+              value: facts['reports'] ?? '0',
               suffix: '건',
               icon: Icons.report_outlined,
-              tint: SetflowColors.red,
+              tint: Theme.of(context).colorScheme.error,
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('우선 처리'),
-        const SizedBox(height: 10),
-        _ActionTile(
-          icon: Icons.report_gmailerrorred_rounded,
-          color: SetflowColors.red,
-          title: '긴급 신고 2건',
-          subtitle: 'SLA 1시간 내 처리가 필요해요.',
-          action: '처리',
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const AdminReviewPage())),
-        ),
-        const SizedBox(height: 10),
-        _ActionTile(
-          icon: Icons.fact_check_outlined,
-          color: SetflowColors.orange,
-          title: '사업자 심사 대기 14건',
-          subtitle: '트레이너 9건 · 센터 5건',
-          action: '검토',
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const AdminUsersPage())),
-        ),
-        const SizedBox(height: 24),
+        const SizedBox(height: SetflowSpacing.md),
+        for (var index = 0; index < dashboard.tasks.length; index++) ...[
+          _ActionTile(
+            icon: _businessKindIcon(dashboard.tasks[index].kind),
+            color: _businessKindColor(context, dashboard.tasks[index].kind),
+            title: dashboard.tasks[index].title,
+            subtitle: dashboard.tasks[index].subtitle,
+            action: dashboard.tasks[index].action,
+            onTap: () => _openBusinessTask(
+              context,
+              UserRole.admin,
+              dashboard.tasks[index],
+            ),
+          ),
+          if (index < dashboard.tasks.length - 1)
+            const SizedBox(height: SetflowSpacing.md),
+        ],
+        const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('SLA 처리 현황'),
-        const SizedBox(height: 10),
-        const SetflowCard(
+        const SizedBox(height: SetflowSpacing.md),
+        SetflowCard(
           child: Column(
             children: [
               _ProgressRow(
                 label: 'Red 신고 · 1시간',
-                value: .82,
-                color: SetflowColors.red,
+                value: _percentageFact(facts, 'redSla'),
+                color: Theme.of(context).colorScheme.error,
               ),
-              SizedBox(height: 18),
+              const SizedBox(height: 18),
               _ProgressRow(
                 label: 'Orange 신고 · 24시간',
-                value: .94,
-                color: SetflowColors.orange,
+                value: _percentageFact(facts, 'orangeSla'),
+                color: context.setflowColors.orange,
               ),
-              SizedBox(height: 18),
+              const SizedBox(height: 18),
               _ProgressRow(
                 label: '인증 심사 · 3영업일',
-                value: .97,
-                color: SetflowColors.green,
+                value: _percentageFact(facts, 'reviewSla'),
+                color: context.setflowColors.success,
               ),
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('시스템 상태'),
-        const SizedBox(height: 10),
-        const SetflowCard(
+        const SizedBox(height: SetflowSpacing.md),
+        SetflowCard(
           child: Column(
             children: [
               _StatusRow(
                 label: 'API',
-                status: '정상',
-                color: SetflowColors.green,
+                status: facts['apiStatus'] ?? '확인 필요',
+                color: context.setflowColors.success,
               ),
-              Divider(height: 24),
+              const Divider(height: 24),
               _StatusRow(
                 label: 'OCR 서비스',
-                status: '정상',
-                color: SetflowColors.green,
+                status: facts['ocrStatus'] ?? '확인 필요',
+                color: context.setflowColors.success,
               ),
-              Divider(height: 24),
+              const Divider(height: 24),
               _StatusRow(
                 label: '정산 배치',
-                status: '대기 2건',
-                color: SetflowColors.orange,
+                status: facts['settlementStatus'] ?? '확인 필요',
+                color: context.setflowColors.orange,
               ),
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('시스템 관리'),
-        const SizedBox(height: 10),
+        const SizedBox(height: SetflowSpacing.md),
         SetflowCard(
           onTap: () => Navigator.of(
             context,
@@ -994,6 +1060,29 @@ class AdminHome extends StatelessWidget {
       ],
     );
   }
+}
+
+double _percentageFact(Map<String, String> facts, String key) {
+  return ((double.tryParse(facts[key] ?? '') ?? 0) / 100).clamp(0, 1);
+}
+
+void _openBusinessTask(
+  BuildContext context,
+  UserRole role,
+  BusinessTaskData task,
+) {
+  final page = switch (task.id) {
+    'trainer_feedback_due' => const PeoplePage(role: UserRole.trainer),
+    'trainer_new_consultation' => const ConsultationQueuePage(
+      role: UserRole.trainer,
+    ),
+    'gym_member_assignment' => const PeoplePage(role: UserRole.gym),
+    'gym_feedback_rate' => const TrainerManagementPage(),
+    'admin_urgent_reports' => const AdminReviewPage(),
+    'admin_business_reviews' => const AdminUsersPage(),
+    _ => WorkspaceScreen(role: role),
+  };
+  Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 }
 
 class PeoplePage extends StatefulWidget {

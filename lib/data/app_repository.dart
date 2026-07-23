@@ -10,6 +10,7 @@ class AppSnapshot {
     required this.routines,
     this.communityPosts = const [],
     this.consultations = const [],
+    this.businessDashboards = const {},
   });
 
   final UserRole role;
@@ -20,6 +21,7 @@ class AppSnapshot {
   final List<RoutineData> routines;
   final List<CommunityPost> communityPosts;
   final List<ConsultationData> consultations;
+  final Map<UserRole, BusinessDashboardData> businessDashboards;
 }
 
 abstract interface class AppRepository {
