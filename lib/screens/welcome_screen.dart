@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
@@ -209,6 +210,7 @@ class MemberSetupScreen extends StatefulWidget {
 }
 
 class _MemberSetupScreenState extends State<MemberSetupScreen> {
+  final bodyFormKey = GlobalKey<FormState>();
   String unit = 'kg';
   int step = 0;
   final goals = <String>{};
@@ -216,6 +218,8 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   final weightController = TextEditingController();
   final ageController = TextEditingController();
   String? gender;
+  bool isSubmitting = false;
+  String? submitError;
 
   @override
   void dispose() {
@@ -229,7 +233,12 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: IconButton(
+          tooltip: '이전',
+          onPressed: _goBack,
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: Text('${step + 1} / 4'),
         actions: [
           if (step == 1)
             TextButton(onPressed: _finish, child: const Text('건너뛰기')),
@@ -240,14 +249,39 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             ),
         ],
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 260),
-        child: switch (step) {
-          0 => _preferences(context),
-          1 => _goals(context),
-          2 => _bodyProfile(context),
-          _ => _signup(context),
-        },
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.xxl),
+            child: _OnboardingProgress(current: step + 1, total: 4),
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: SetflowMotion.standard,
+              switchInCurve: SetflowMotion.standardCurve,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween(
+                      begin: const Offset(.04, 0),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: switch (step) {
+                0 => _preferences(context),
+                1 => _goals(context),
+                2 => _bodyProfile(context),
+                _ => _signup(context),
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -418,80 +452,118 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
         weightController.text.isNotEmpty ||
         ageController.text.isNotEmpty ||
         gender != null;
-    return SingleChildScrollView(
-      key: const ValueKey('bodyProfile'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '현재 신체 정보를\n입력해주세요',
-            style: TextStyle(
-              fontSize: 29,
-              fontWeight: FontWeight.w900,
-              height: 1.2,
+    return Form(
+      key: bodyFormKey,
+      child: SingleChildScrollView(
+        key: const ValueKey('bodyProfile'),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '현재 신체 정보를\n입력해주세요',
+              style: TextStyle(
+                fontSize: 29,
+                fontWeight: FontWeight.w900,
+                height: 1.2,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            '정확한 데이터 분석을 위해 필요해요.\n지금 모르는 정보는 나중에 입력할 수 있어요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
-          ),
-          const SizedBox(height: 28),
-          const Text('나이', style: TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: ageController,
-            keyboardType: TextInputType.number,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: '예: 29',
-              suffixText: '세',
+            const SizedBox(height: 10),
+            const Text(
+              '정확한 데이터 분석을 위해 필요해요.\n지금 모르는 정보는 나중에 입력할 수 있어요.',
+              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text('성별', style: TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'M', label: Text('남성')),
-              ButtonSegment(value: 'F', label: Text('여성')),
-              ButtonSegment(value: 'O', label: Text('기타')),
-            ],
-            selected: gender == null ? const {} : {gender!},
-            emptySelectionAllowed: true,
-            onSelectionChanged: (value) => setState(
-              () => gender = value.isEmpty ? null : value.first,
+            const SizedBox(height: 28),
+            const Text('나이', style: TextStyle(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            AppTextField(
+              controller: ageController,
+              keyboardType: TextInputType.number,
+              onChanged: (_) => setState(() {}),
+              hint: '예: 29세',
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: (value) => _optionalNumberValidator(
+                value,
+                minimum: 14,
+                maximum: 100,
+                label: '나이',
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text('키', style: TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: heightController,
-            keyboardType: TextInputType.number,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: '예: 175',
-              suffixText: 'cm',
+            const SizedBox(height: 20),
+            const Text('성별', style: TextStyle(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'M', label: Text('남성')),
+                ButtonSegment(value: 'F', label: Text('여성')),
+                ButtonSegment(value: 'O', label: Text('기타')),
+              ],
+              selected: gender == null ? const {} : {gender!},
+              emptySelectionAllowed: true,
+              onSelectionChanged: (value) =>
+                  setState(() => gender = value.isEmpty ? null : value.first),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text('체중 ($unit)', style: const TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: weightController,
-            keyboardType: TextInputType.number,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(hintText: '예: 70', suffixText: unit),
-          ),
-          const SizedBox(height: 30),
-          PrimaryButton(
-            label: '저장',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: filled ? () => setState(() => step = 3) : null,
-          ),
-        ],
+            const SizedBox(height: 20),
+            const Text('키', style: TextStyle(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            AppTextField(
+              controller: heightController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) => setState(() {}),
+              hint: '예: 175cm',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(
+                  RegExp(r'^\d{0,3}\.?\d{0,1}'),
+                ),
+              ],
+              validator: (value) => _optionalNumberValidator(
+                value,
+                minimum: 100,
+                maximum: 250,
+                label: '키',
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '체중 ($unit)',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            AppTextField(
+              controller: weightController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) => setState(() {}),
+              hint: '예: 70$unit',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(
+                  RegExp(r'^\d{0,3}\.?\d{0,1}'),
+                ),
+              ],
+              validator: (value) => _optionalNumberValidator(
+                value,
+                minimum: unit == 'kg' ? 30 : 66,
+                maximum: unit == 'kg' ? 300 : 660,
+                label: '체중',
+              ),
+            ),
+            const SizedBox(height: 30),
+            PrimaryButton(
+              label: '저장',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: filled
+                  ? () {
+                      if (bodyFormKey.currentState?.validate() ?? false) {
+                        setState(() => step = 3);
+                      }
+                    }
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -517,15 +589,37 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
           const SizedBox(height: 28),
-          PrimaryButton(label: '카카오로 시작하기', onPressed: _finish),
+          if (submitError != null) ...[
+            _OnboardingAlert(
+              message: submitError!,
+              color: SetflowColors.red,
+              icon: Icons.error_outline_rounded,
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
+          AppButton(
+            label: '카카오로 시작하기',
+            onPressed: () => _submitMember('카카오'),
+            isLoading: isSubmitting,
+          ),
           const SizedBox(height: 12),
-          PrimaryButton(label: '구글로 시작하기', onPressed: _finish),
+          AppButton(
+            label: '구글로 시작하기',
+            onPressed: () => _submitMember('구글'),
+            variant: AppButtonVariant.outlined,
+            isLoading: isSubmitting,
+          ),
           const SizedBox(height: 12),
-          PrimaryButton(label: 'Apple로 시작하기', onPressed: _finish),
+          AppButton(
+            label: 'Apple로 시작하기',
+            onPressed: () => _submitMember('Apple'),
+            variant: AppButtonVariant.outlined,
+            isLoading: isSubmitting,
+          ),
           const SizedBox(height: 18),
           Center(
             child: TextButton(
-              onPressed: _finish,
+              onPressed: isSubmitting ? null : () => _submitMember('이메일'),
               child: const Text('이메일로 가입하기'),
             ),
           ),
@@ -538,10 +632,60 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             style: TextStyle(fontSize: 13, color: SetflowColors.secondaryText),
           ),
           const SizedBox(height: 12),
-          PrimaryButton(label: '가입 없이 바로 시작', onPressed: _finish),
+          AppButton(
+            label: '가입 없이 바로 시작',
+            onPressed: isSubmitting ? null : _finish,
+            variant: AppButtonVariant.tonal,
+          ),
         ],
       ),
     );
+  }
+
+  void _goBack() {
+    if (step == 0) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      submitError = null;
+      step--;
+    });
+  }
+
+  String? _optionalNumberValidator(
+    String? value, {
+    required double minimum,
+    required double maximum,
+    required String label,
+  }) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final number = double.tryParse(text);
+    if (number == null) return '$label 값을 숫자로 입력해주세요.';
+    if (number < minimum || number > maximum) {
+      return '$label 값은 ${minimum.toStringAsFixed(0)}~${maximum.toStringAsFixed(0)} 범위로 입력해주세요.';
+    }
+    return null;
+  }
+
+  Future<void> _submitMember(String provider) async {
+    if (isSubmitting) return;
+    setState(() {
+      isSubmitting = true;
+      submitError = null;
+    });
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+      if (!mounted) return;
+      AppSnackbar.success(context, '$provider 연결이 완료됐어요.');
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => submitError = '가입 정보를 저장하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => isSubmitting = false);
+    }
   }
 
   void _finish() => Navigator.of(context).pop(true);
@@ -560,6 +704,7 @@ enum _TrainerStep { register, docs, pending, rejected, complete }
 enum _GymStep { register, docs, hometax, complete }
 
 class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
+  final businessFormKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
   final numberController = TextEditingController();
   _TrainerStep trainerStep = _TrainerStep.register;
@@ -567,6 +712,8 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   _GymStep gymStep = _GymStep.register;
   bool gymDocUploaded = false;
   bool gymHometaxVerified = false;
+  bool isSubmitting = false;
+  String? submitError;
 
   @override
   void dispose() {
@@ -584,16 +731,41 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _buildGymWizard(BuildContext context) {
+    final current = switch (gymStep) {
+      _GymStep.register => 1,
+      _GymStep.docs => 2,
+      _GymStep.hometax => 3,
+      _GymStep.complete => 4,
+    };
     return Scaffold(
-      appBar: AppBar(leading: const BackButton()),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 260),
-        child: switch (gymStep) {
-          _GymStep.register => _gymRegister(context),
-          _GymStep.docs => _gymDocs(context),
-          _GymStep.hometax => _gymHometax(context),
-          _GymStep.complete => _gymComplete(context),
-        },
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: '이전',
+          onPressed: _goBusinessBack,
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: const Text('센터 등록'),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.xxl),
+            child: _OnboardingProgress(current: current, total: 4),
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: SetflowMotion.standard,
+              switchInCurve: SetflowMotion.standardCurve,
+              child: switch (gymStep) {
+                _GymStep.register => _gymRegister(context),
+                _GymStep.docs => _gymDocs(context),
+                _GymStep.hometax => _gymHometax(context),
+                _GymStep.complete => _gymComplete(context),
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -602,52 +774,66 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     final filled =
         nameController.text.trim().isNotEmpty &&
         numberController.text.trim().isNotEmpty;
-    return SingleChildScrollView(
-      key: const ValueKey('gymRegister'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: SetflowColors.purple.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(20),
+    return Form(
+      key: businessFormKey,
+      child: SingleChildScrollView(
+        key: const ValueKey('gymRegister'),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: SetflowColors.purple.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(Icons.apartment, color: SetflowColors.purple),
             ),
-            child: const Icon(Icons.apartment, color: SetflowColors.purple),
-          ),
-          const SizedBox(height: 22),
-          const Text(
-            '헬스장 등록하기',
-            style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '센터 운영과 회원 관리를 한곳에서 시작하세요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
-          ),
-          const SizedBox(height: 32),
-          TextField(
-            controller: nameController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(labelText: '헬스장명'),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: numberController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(labelText: '사업자등록번호'),
-          ),
-          const SizedBox(height: 30),
-          PrimaryButton(
-            label: '다음',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: filled
-                ? () => setState(() => gymStep = _GymStep.docs)
-                : null,
-          ),
-        ],
+            const SizedBox(height: 22),
+            const Text(
+              '헬스장 등록하기',
+              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '센터 운영과 회원 관리를 한곳에서 시작하세요.',
+              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            ),
+            const SizedBox(height: 32),
+            AppTextField(
+              controller: nameController,
+              onChanged: (_) => setState(() {}),
+              label: '헬스장명',
+              hint: '예: 세트플로우 피트니스 강남점',
+              textInputAction: TextInputAction.next,
+              validator: (value) => _requiredValidator(value, '헬스장명'),
+            ),
+            const SizedBox(height: 14),
+            AppTextField(
+              controller: numberController,
+              onChanged: (_) => setState(() {}),
+              label: '사업자등록번호',
+              hint: '숫자 10자리',
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: _gymNumberValidator,
+            ),
+            const SizedBox(height: 30),
+            PrimaryButton(
+              label: '다음',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: filled
+                  ? () {
+                      if (businessFormKey.currentState?.validate() ?? false) {
+                        setState(() => gymStep = _GymStep.docs);
+                      }
+                    }
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -733,12 +919,19 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           ),
           const SizedBox(height: 30),
-          PrimaryButton(
+          if (submitError != null) ...[
+            _OnboardingAlert(
+              message: submitError!,
+              color: SetflowColors.red,
+              icon: Icons.error_outline_rounded,
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
+          AppButton(
             label: '서류 제출하기',
             icon: Icons.arrow_forward_rounded,
-            onPressed: gymDocUploaded
-                ? () => setState(() => gymStep = _GymStep.hometax)
-                : null,
+            isLoading: isSubmitting,
+            onPressed: gymDocUploaded ? _submitGymDocuments : null,
           ),
         ],
       ),
@@ -779,10 +972,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           SetflowCard(
             child: Row(
               children: [
-                const Icon(
-                  Icons.business_rounded,
-                  color: SetflowColors.purple,
-                ),
+                const Icon(Icons.business_rounded, color: SetflowColors.purple),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -870,12 +1060,11 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           const SizedBox(height: 30),
           if (!gymHometaxVerified)
-            PrimaryButton(
+            AppButton(
               label: '홈택스 인증하기',
               icon: Icons.fact_check_rounded,
-              onPressed: bizNumber.isEmpty
-                  ? null
-                  : () => setState(() => gymHometaxVerified = true),
+              isLoading: isSubmitting,
+              onPressed: bizNumber.isEmpty ? null : _verifyHometax,
             )
           else
             PrimaryButton(
@@ -919,10 +1108,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
           const SizedBox(height: 32),
-          PrimaryButton(
+          AppButton(
             label: '센터 운영 시작하기',
             icon: Icons.rocket_launch_rounded,
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => _completeBusiness('센터 등록이 완료됐어요.'),
           ),
         ],
       ),
@@ -930,17 +1119,42 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _buildTrainerWizard(BuildContext context) {
+    final current = switch (trainerStep) {
+      _TrainerStep.register => 1,
+      _TrainerStep.docs => 2,
+      _TrainerStep.pending => 3,
+      _TrainerStep.rejected || _TrainerStep.complete => 4,
+    };
     return Scaffold(
-      appBar: AppBar(leading: const BackButton()),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 260),
-        child: switch (trainerStep) {
-          _TrainerStep.register => _trainerRegister(context),
-          _TrainerStep.docs => _trainerDocs(context),
-          _TrainerStep.pending => _trainerPending(context),
-          _TrainerStep.rejected => _trainerRejected(context),
-          _TrainerStep.complete => _trainerComplete(context),
-        },
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: '이전',
+          onPressed: _goBusinessBack,
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: const Text('트레이너 등록'),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.xxl),
+            child: _OnboardingProgress(current: current, total: 4),
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: SetflowMotion.standard,
+              switchInCurve: SetflowMotion.standardCurve,
+              child: switch (trainerStep) {
+                _TrainerStep.register => _trainerRegister(context),
+                _TrainerStep.docs => _trainerDocs(context),
+                _TrainerStep.pending => _trainerPending(context),
+                _TrainerStep.rejected => _trainerRejected(context),
+                _TrainerStep.complete => _trainerComplete(context),
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -949,52 +1163,67 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     final filled =
         nameController.text.trim().isNotEmpty &&
         numberController.text.trim().isNotEmpty;
-    return SingleChildScrollView(
-      key: const ValueKey('trainerRegister'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: SetflowColors.blue.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(20),
+    return Form(
+      key: businessFormKey,
+      child: SingleChildScrollView(
+        key: const ValueKey('trainerRegister'),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: SetflowColors.blue.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.fitness_center,
+                color: SetflowColors.blue,
+              ),
             ),
-            child: const Icon(Icons.fitness_center, color: SetflowColors.blue),
-          ),
-          const SizedBox(height: 22),
-          const Text(
-            '트레이너로 시작하기',
-            style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '인증 배지로 신뢰받는 코칭을 시작하세요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
-          ),
-          const SizedBox(height: 32),
-          TextField(
-            controller: nameController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(labelText: '이름'),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: numberController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(labelText: '자격증 번호'),
-          ),
-          const SizedBox(height: 30),
-          PrimaryButton(
-            label: '다음',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: filled
-                ? () => setState(() => trainerStep = _TrainerStep.docs)
-                : null,
-          ),
-        ],
+            const SizedBox(height: 22),
+            const Text(
+              '트레이너로 시작하기',
+              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '인증 배지로 신뢰받는 코칭을 시작하세요.',
+              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            ),
+            const SizedBox(height: 32),
+            AppTextField(
+              controller: nameController,
+              onChanged: (_) => setState(() {}),
+              label: '이름',
+              hint: '실명을 입력해주세요',
+              textInputAction: TextInputAction.next,
+              validator: (value) => _requiredValidator(value, '이름'),
+            ),
+            const SizedBox(height: 14),
+            AppTextField(
+              controller: numberController,
+              onChanged: (_) => setState(() {}),
+              label: '자격증 번호',
+              hint: '예: 생활스포츠지도사 123456',
+              validator: _trainerNumberValidator,
+            ),
+            const SizedBox(height: 30),
+            PrimaryButton(
+              label: '다음',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: filled
+                  ? () {
+                      if (businessFormKey.currentState?.validate() ?? false) {
+                        setState(() => trainerStep = _TrainerStep.docs);
+                      }
+                    }
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1090,11 +1319,20 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           ),
           const SizedBox(height: 30),
-          PrimaryButton(
+          if (submitError != null) ...[
+            _OnboardingAlert(
+              message: submitError!,
+              color: SetflowColors.red,
+              icon: Icons.error_outline_rounded,
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
+          AppButton(
             label: '서류 제출하기',
             icon: Icons.arrow_forward_rounded,
+            isLoading: isSubmitting,
             onPressed: uploadedDocs.length >= 2
-                ? () => setState(() => trainerStep = _TrainerStep.pending)
+                ? _submitTrainerDocuments
                 : null,
           ),
         ],
@@ -1163,20 +1401,20 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: PrimaryButton(
+                      child: AppButton(
                         label: '심사 승인',
                         icon: Icons.check_circle_outline,
-                        onPressed: () => setState(
-                          () => trainerStep = _TrainerStep.complete,
-                        ),
+                        onPressed: () {
+                          AppSnackbar.success(context, '트레이너 심사가 승인됐어요.');
+                          setState(() => trainerStep = _TrainerStep.complete);
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => setState(
-                          () => trainerStep = _TrainerStep.rejected,
-                        ),
+                        onPressed: () =>
+                            setState(() => trainerStep = _TrainerStep.rejected),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 54),
                           foregroundColor: SetflowColors.red,
@@ -1293,12 +1531,190 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
           const SizedBox(height: 32),
-          PrimaryButton(
+          AppButton(
             label: '코칭 시작하기',
             icon: Icons.rocket_launch_rounded,
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => _completeBusiness('트레이너 등록이 완료됐어요.'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _goBusinessBack() {
+    submitError = null;
+    if (widget.role == UserRole.trainer) {
+      if (trainerStep == _TrainerStep.register) {
+        Navigator.of(context).pop();
+        return;
+      }
+      setState(() {
+        trainerStep = switch (trainerStep) {
+          _TrainerStep.docs => _TrainerStep.register,
+          _TrainerStep.pending ||
+          _TrainerStep.rejected ||
+          _TrainerStep.complete => _TrainerStep.docs,
+          _TrainerStep.register => _TrainerStep.register,
+        };
+      });
+      return;
+    }
+    if (gymStep == _GymStep.register) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      gymStep = switch (gymStep) {
+        _GymStep.docs => _GymStep.register,
+        _GymStep.hometax => _GymStep.docs,
+        _GymStep.complete => _GymStep.hometax,
+        _GymStep.register => _GymStep.register,
+      };
+    });
+  }
+
+  String? _requiredValidator(String? value, String label) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return '$label을 입력해주세요.';
+    if (text.length < 2) return '$label을 2자 이상 입력해주세요.';
+    return null;
+  }
+
+  String? _trainerNumberValidator(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return '자격증 번호를 입력해주세요.';
+    if (text.length < 4) return '자격증 번호를 4자 이상 입력해주세요.';
+    return null;
+  }
+
+  String? _gymNumberValidator(String? value) {
+    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '사업자등록번호를 입력해주세요.';
+    if (digits.length != 10) return '사업자등록번호 숫자 10자리를 입력해주세요.';
+    return null;
+  }
+
+  Future<void> _submitGymDocuments() async {
+    await _runSubmission(
+      successMessage: '사업자등록증이 안전하게 제출됐어요.',
+      onSuccess: () => gymStep = _GymStep.hometax,
+    );
+  }
+
+  Future<void> _verifyHometax() async {
+    await _runSubmission(
+      successMessage: '홈택스 사업자 인증이 완료됐어요.',
+      delay: const Duration(milliseconds: 850),
+      onSuccess: () => gymHometaxVerified = true,
+    );
+  }
+
+  Future<void> _submitTrainerDocuments() async {
+    await _runSubmission(
+      successMessage: '인증 서류가 제출됐어요.',
+      onSuccess: () => trainerStep = _TrainerStep.pending,
+    );
+  }
+
+  Future<void> _runSubmission({
+    required String successMessage,
+    required VoidCallback onSuccess,
+    Duration delay = const Duration(milliseconds: 700),
+  }) async {
+    if (isSubmitting) return;
+    setState(() {
+      isSubmitting = true;
+      submitError = null;
+    });
+    try {
+      await Future<void>.delayed(delay);
+      if (!mounted) return;
+      setState(onSuccess);
+      AppSnackbar.success(context, successMessage);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => submitError = '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => isSubmitting = false);
+    }
+  }
+
+  void _completeBusiness(String message) {
+    AppSnackbar.success(context, message);
+    Navigator.of(context).pop(true);
+  }
+}
+
+class _OnboardingProgress extends StatelessWidget {
+  const _OnboardingProgress({required this.current, required this.total});
+
+  final int current;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      label: '가입 진행 단계 $current/$total',
+      value: '${(current / total * 100).round()}%',
+      child: Row(
+        children: List.generate(total, (index) {
+          final active = index < current;
+          return Expanded(
+            child: AnimatedContainer(
+              duration: SetflowMotion.micro,
+              curve: Curves.easeOut,
+              height: 4,
+              margin: EdgeInsets.only(right: index == total - 1 ? 0 : 6),
+              decoration: BoxDecoration(
+                color: active
+                    ? theme.colorScheme.primary
+                    : context.setflowColors.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(SetflowRadii.full),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _OnboardingAlert extends StatelessWidget {
+  const _OnboardingAlert({
+    required this.message,
+    required this.color,
+    required this.icon,
+  });
+
+  final String message;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(SetflowSpacing.md),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+          border: Border.all(color: color.withValues(alpha: .24)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: SetflowSpacing.sm),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

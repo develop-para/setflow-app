@@ -218,6 +218,7 @@ class AppTextField extends StatelessWidget {
     this.maxLines = 1,
     this.minLines,
     this.autofillHints,
+    this.inputFormatters,
     super.key,
   });
 
@@ -239,6 +240,7 @@ class AppTextField extends StatelessWidget {
   final int? maxLines;
   final int? minLines;
   final Iterable<String>? autofillHints;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -256,6 +258,7 @@ class AppTextField extends StatelessWidget {
       maxLines: obscureText ? 1 : maxLines,
       minLines: minLines,
       autofillHints: autofillHints,
+      inputFormatters: inputFormatters,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       style: Theme.of(context).textTheme.bodyLarge,
       decoration: InputDecoration(
