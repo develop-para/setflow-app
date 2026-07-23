@@ -25,7 +25,7 @@ class WorkoutSetEntry {
     this.type = '일반',
   });
 
-  final int number;
+  int number;
   double weight;
   int reps;
   bool completed;

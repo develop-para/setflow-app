@@ -27,7 +27,6 @@ class _MemberShellState extends State<MemberShell> {
 
   @override
   Widget build(BuildContext context) {
-    final state = AppScope.of(context);
     final pages = [
       const CalendarScreen(),
       const RoutinesScreen(),
@@ -37,84 +36,18 @@ class _MemberShellState extends State<MemberShell> {
     ];
 
     return Scaffold(
-      body: Stack(
-        children: [
-          IndexedStack(index: index, children: pages),
-          if (state.restRemaining > 0)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 10,
-              child: _RestTimerBar(seconds: state.restRemaining),
-            ),
-        ],
-      ),
+      body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: NavigationBar(
-        height: 74,
         selectedIndex: index,
-        indicatorColor: Colors.transparent,
-        backgroundColor: Theme.of(context).colorScheme.surface,
         onDestinationSelected: (value) => setState(() => index = value),
         destinations: [
           for (var i = 0; i < destinations.length; i++)
             NavigationDestination(
-              icon: Icon(destinations[i].$1, color: SetflowColors.disabled),
-              selectedIcon: Icon(
-                destinations[i].$2,
-                color: SetflowColors.primary,
-              ),
+              icon: Icon(destinations[i].$1),
+              selectedIcon: Icon(destinations[i].$2),
               label: destinations[i].$3,
             ),
         ],
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      ),
-    );
-  }
-}
-
-class _RestTimerBar extends StatelessWidget {
-  const _RestTimerBar({required this.seconds});
-  final int seconds;
-
-  @override
-  Widget build(BuildContext context) {
-    final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
-    final remainder = (seconds % 60).toString().padLeft(2, '0');
-    return Material(
-      color: SetflowColors.ink,
-      elevation: 10,
-      borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        child: Row(
-          children: [
-            const Icon(Icons.timer_outlined, color: SetflowColors.primary),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                '휴식 중',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            Text(
-              '$minutes:$remainder',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(width: 10),
-            IconButton(
-              onPressed: AppScope.of(context).cancelRestTimer,
-              icon: const Icon(Icons.close, color: Colors.white),
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -343,7 +276,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (copySource != null) {
       AppScope.of(context).copySession(copySource!, day);
       setState(() => copySource = null);
-      showMessage(context, '${day.month}월 ${day.day}일로 운동을 복사했습니다.');
+      AppSnackbar.success(context, '${day.month}월 ${day.day}일로 운동을 복사했습니다.');
       return;
     }
     Navigator.of(
@@ -387,9 +320,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   '기록 삭제',
                   style: TextStyle(color: SetflowColors.red),
                 ),
-                onTap: () {
-                  state.deleteSession(day);
+                onTap: () async {
                   Navigator.pop(sheetContext);
+                  final confirmed = await _confirmDeleteDay(context, day);
+                  if (!confirmed || !context.mounted) return;
+                  state.deleteSession(day);
+                  AppSnackbar.success(context, '운동 기록을 삭제했어요.');
                 },
               ),
             ],
@@ -397,6 +333,35 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
       ),
     );
+  }
+
+  Future<bool> _confirmDeleteDay(BuildContext context, DateTime day) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: SetflowColors.red,
+            ),
+            title: const Text('운동 기록을 삭제할까요?'),
+            content: Text('${day.month}월 ${day.day}일의 운동과 세트 기록이 모두 삭제됩니다.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SetflowColors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('삭제'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   List<DateTime> _calendarDays(DateTime target) {

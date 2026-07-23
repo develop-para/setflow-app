@@ -536,6 +536,104 @@ class ErrorState extends StatelessWidget {
   }
 }
 
+class GlobalRestTimerOverlay extends StatelessWidget {
+  const GlobalRestTimerOverlay({
+    required this.seconds,
+    required this.totalSeconds,
+    required this.onAddTime,
+    required this.onCancel,
+    super.key,
+  });
+
+  final int seconds;
+  final int totalSeconds;
+  final VoidCallback onAddTime;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
+    final remainder = (seconds % 60).toString().padLeft(2, '0');
+    final progress = totalSeconds <= 0
+        ? 0.0
+        : (seconds / totalSeconds).clamp(0.0, 1.0);
+    return Semantics(
+      label: '휴식 타이머 $minutes분 $remainder초 남음',
+      liveRegion: true,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: .96, end: 1),
+        duration: SetflowMotion.micro,
+        curve: SetflowMotion.emphasisCurve,
+        builder: (context, scale, child) =>
+            Transform.scale(scale: scale, child: child),
+        child: Material(
+          color: SetflowColors.ink,
+          elevation: 12,
+          borderRadius: BorderRadius.circular(SetflowRadii.lg),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: progress,
+                minHeight: 3,
+                color: SetflowColors.primary,
+                backgroundColor: Colors.white12,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.timer_outlined,
+                      color: SetflowColors.primary,
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    const Expanded(
+                      child: Text(
+                        '휴식 중',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$minutes:$remainder',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: onAddTime,
+                      style: TextButton.styleFrom(
+                        foregroundColor: SetflowColors.primary,
+                        minimumSize: const Size(48, 44),
+                      ),
+                      child: const Text('+30초'),
+                    ),
+                    Semantics(
+                      button: true,
+                      label: '휴식 종료',
+                      child: IconButton(
+                        onPressed: onCancel,
+                        icon: const Icon(Icons.close, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 abstract final class AppSnackbar {
   static void success(BuildContext context, String message) {
     _show(context, message, Icons.check_circle_rounded, SetflowColors.green);

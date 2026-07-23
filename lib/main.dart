@@ -10,6 +10,7 @@ import 'screens/member_screens.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'theme.dart';
+import 'widgets/common.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,6 +60,27 @@ class _SetflowAppState extends State<SetflowApp> {
           theme: SetflowTheme.light,
           darkTheme: SetflowTheme.dark,
           themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          builder: (context, child) => Stack(
+            children: [
+              child ?? const SizedBox.shrink(),
+              if (state.restRemaining > 0)
+                Positioned(
+                  left: SetflowSpacing.lg,
+                  right: SetflowSpacing.lg,
+                  bottom: 84,
+                  child: SafeArea(
+                    top: false,
+                    child: GlobalRestTimerOverlay(
+                      seconds: state.restRemaining,
+                      totalSeconds: state.restDefaultSeconds,
+                      onAddTime: () =>
+                          state.startRestTimer(state.restRemaining + 30),
+                      onCancel: state.cancelRestTimer,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           home: const RootScreen(),
         ),
       ),

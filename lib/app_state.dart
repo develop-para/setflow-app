@@ -230,6 +230,21 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removeExercise(WorkoutSession session, WorkoutExercise exercise) {
+    session.exercises.remove(exercise);
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void removeSet(WorkoutExercise exercise, WorkoutSetEntry set) {
+    exercise.sets.remove(set);
+    for (var index = 0; index < exercise.sets.length; index++) {
+      exercise.sets[index].number = index + 1;
+    }
+    _schedulePersist();
+    notifyListeners();
+  }
+
   void updateSet(
     WorkoutSetEntry set, {
     double? weight,
@@ -299,6 +314,8 @@ class AppState extends ChangeNotifier {
     _persistTimer?.cancel();
     await _repository.clear();
   }
+
+  void retryPersistence() => _schedulePersist();
 
   void _schedulePersist() {
     if (!_initialized) return;
