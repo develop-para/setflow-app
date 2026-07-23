@@ -11,6 +11,7 @@ class AppState extends ChangeNotifier {
   AppState({AppRepository? repository})
     : _repository = repository ?? MemoryAppRepository() {
     _seedSessions();
+    _seedSocial();
   }
 
   final AppRepository _repository;
@@ -93,6 +94,8 @@ class AppState extends ChangeNotifier {
 
   final Map<DateTime, WorkoutSession> sessions = {};
   final List<RoutineData> routines = [];
+  final List<CommunityPost> communityPosts = [];
+  final List<ConsultationData> consultations = [];
 
   Future<void> initialize() async {
     try {
@@ -108,6 +111,16 @@ class AppState extends ChangeNotifier {
         routines
           ..clear()
           ..addAll(snapshot.routines);
+        if (snapshot.communityPosts.isNotEmpty) {
+          communityPosts
+            ..clear()
+            ..addAll(snapshot.communityPosts);
+        }
+        if (snapshot.consultations.isNotEmpty) {
+          consultations
+            ..clear()
+            ..addAll(snapshot.consultations);
+        }
       }
       _initialized = true;
       persistenceError = null;
@@ -289,14 +302,19 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void importRoutine(RoutineData routine) {
-    if (routines.any((item) => item.id == routine.id)) return;
+  RoutineImportResult importRoutine(RoutineData routine) {
+    if (routines.any((item) => item.id == routine.id)) {
+      return RoutineImportResult.alreadySaved;
+    }
+    if (routines.length >= 4) return RoutineImportResult.limitReached;
     routines.add(routine);
     _schedulePersist();
     notifyListeners();
+    return RoutineImportResult.imported;
   }
 
-  void createRoutine(String name, String description) {
+  bool createRoutine(String name, String description) {
+    if (routines.length >= 4) return false;
     routines.add(
       RoutineData(
         id: 'routine_${DateTime.now().microsecondsSinceEpoch}',
@@ -306,6 +324,90 @@ class AppState extends ChangeNotifier {
         exercises: [exercises[0], exercises[2], exercises[4]],
       ),
     );
+    _schedulePersist();
+    notifyListeners();
+    return true;
+  }
+
+  void removeRoutine(RoutineData routine) {
+    routines.remove(routine);
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void addCommunityPost({
+    required String content,
+    required bool includeWorkout,
+    required String visualKey,
+  }) {
+    communityPosts.insert(
+      0,
+      CommunityPost(
+        id: 'post_${DateTime.now().microsecondsSinceEpoch}',
+        author: '운동초보',
+        content: content,
+        metric: includeWorkout ? '오늘 운동 기록 · 12세트 · 4.2t' : '일상 기록',
+        createdAt: DateTime.now(),
+        visualKey: visualKey,
+        color: const Color(0xFF10CEBD),
+        isMine: true,
+      ),
+    );
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void togglePostLike(CommunityPost post) {
+    post.isLiked = !post.isLiked;
+    post.likes += post.isLiked ? 1 : -1;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void addPostComment(CommunityPost post, String content) {
+    post.comments.add(
+      PostComment(
+        id: 'comment_${DateTime.now().microsecondsSinceEpoch}',
+        author: '운동초보',
+        content: content,
+        createdAt: DateTime.now(),
+      ),
+    );
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void addConsultation({
+    required String trainerName,
+    required String specialty,
+    required String goal,
+    required String level,
+    required String question,
+  }) {
+    consultations.insert(
+      0,
+      ConsultationData(
+        id: 'consult_${DateTime.now().microsecondsSinceEpoch}',
+        trainerName: trainerName,
+        specialty: specialty,
+        goal: goal,
+        level: level,
+        question: question,
+        createdAt: DateTime.now(),
+      ),
+    );
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void startCoaching(ConsultationData consultation) {
+    consultation.status = ConsultationStatus.coaching;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void rateConsultation(ConsultationData consultation, int rating) {
+    consultation.rating = rating.clamp(1, 5);
     _schedulePersist();
     notifyListeners();
   }
@@ -330,6 +432,8 @@ class AppState extends ChangeNotifier {
             restDefaultSeconds: restDefaultSeconds,
             sessions: sessions,
             routines: routines,
+            communityPosts: communityPosts,
+            consultations: consultations,
           ),
         );
         persistenceError = null;
@@ -407,6 +511,65 @@ class AppState extends ChangeNotifier {
         exercises: [templates[2], templates[3]],
       ),
     ]);
+  }
+
+  void _seedSocial() {
+    final now = DateTime.now();
+    communityPosts.addAll([
+      CommunityPost(
+        id: 'post_1',
+        author: '오운완 민지',
+        content: '오늘 하체 루틴 100% 완료! 지난주보다 스쿼트 5kg 올렸어요.',
+        metric: '하체 · 12세트 · 4.2t',
+        createdAt: now.subtract(const Duration(minutes: 10)),
+        visualKey: 'strength',
+        color: const Color(0xFFFFB20C),
+        likes: 24,
+        comments: [
+          PostComment(
+            id: 'comment_1',
+            author: '꾸준한 준호',
+            content: '기록 갱신 축하해요. 다음 운동도 응원할게요!',
+            createdAt: now.subtract(const Duration(minutes: 5)),
+          ),
+        ],
+      ),
+      CommunityPost(
+        id: 'post_2',
+        author: '꾸준한 준호',
+        content: '30일 연속 운동 달성. 짧게라도 기록하니 습관이 되네요.',
+        metric: '전신 · 8세트 · 2.8t',
+        createdAt: now.subtract(const Duration(hours: 1)),
+        visualKey: 'streak',
+        color: const Color(0xFF10CEBD),
+        likes: 128,
+        isLiked: true,
+      ),
+      CommunityPost(
+        id: 'post_3',
+        author: '세트플로우 코치',
+        content: '이번 주는 무게보다 정확한 가동범위에 집중해보세요.',
+        metric: '코칭 팁',
+        createdAt: now.subtract(const Duration(hours: 3)),
+        visualKey: 'tip',
+        color: const Color(0xFF3B82F6),
+        likes: 56,
+      ),
+    ]);
+    consultations.add(
+      ConsultationData(
+        id: 'consult_1',
+        trainerName: '김코치',
+        specialty: '초보자 근력 향상',
+        goal: '주 3회 근력 운동을 꾸준히 진행하고 싶어요.',
+        level: '헬스장 등록 1개월 차이며 기본 동작을 배우는 중입니다.',
+        question: '무릎이 불편한 날에도 하체 운동을 안전하게 진행할 수 있을까요?',
+        createdAt: now.subtract(const Duration(days: 1)),
+        status: ConsultationStatus.answered,
+        response:
+            '가능합니다. 통증이 없는 범위에서 스쿼트 깊이와 중량을 낮추고, 둔근 중심 동작으로 구성해드릴게요. 운동 중 날카로운 통증이 있으면 즉시 중단해주세요.',
+      ),
+    );
   }
 
   @override

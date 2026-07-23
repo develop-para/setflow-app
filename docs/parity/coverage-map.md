@@ -28,19 +28,19 @@
 | `/calendar/:date/exercise/:exerciseId` | ExerciseSetPage | `ExerciseSetScreen` | ✅ |
 | `/library/:date` | ExerciseLibraryPage | `ExerciseLibraryScreen` | ✅ |
 | `/routines` | RoutinesPage | `RoutinesScreen` | ✅ |
-| `/routines/create` | RoutineCreatePage | 루틴 생성("새 루틴 만들기") | 🟡 (확인필요) |
+| `/routines/create` | RoutineCreatePage | `RoutineCreateSheet`(검증·저장한도) | ✅ |
 | `/routines/market` | RoutineMarketPage | `MarketScreen` | ✅ |
-| `/routines/market/:routineId` | RoutineMarketDetailPage | Market 상세("가져오기") | 🟡 (확인필요) |
+| `/routines/market/:routineId` | RoutineMarketDetailPage | `ExpertRoutineDetailScreen` | ✅ |
 | `/dashboard` | DashboardPage | `DashboardScreen` | ✅ |
 | `/dashboard/body` | BodyCompositionPage | `BodyCompositionScreen` | ✅ |
 | `/community` | CommunityPage | `CommunityScreen` | ✅ |
-| `/community/post/create` | PostCreatePage | `PostComposerScreen` | ✅ |
-| `/community/post/:id` | PostDetailPage | (상세 — 인라인/미확인) | 🟡 (확인필요) |
+| `/community/post/create` | PostCreatePage | `SocialPostComposerScreen` | ✅ |
+| `/community/post/:id` | PostDetailPage | `CommunityPostDetailScreen` | ✅ |
 | `/coaching` | CoachingPage | `CoachingScreen` | ✅ |
-| `/coaching/consult/new` | ConsultCreatePage | "새 상담 신청" | 🟡 |
-| `/coaching/consult/:id` | ConsultDetailPage | `CoachingDetailScreen` | ✅ |
-| `/coaching/payment/:id` | CoachingPaymentPage | (payment 흔적 소수) | 🟡 부분 |
-| `/coaching/feedback/:id` | CoachingFeedbackPage | (feedback 흔적) | 🟡 부분 |
+| `/coaching/consult/new` | ConsultCreatePage | `ConsultationCreateScreen` | ✅ |
+| `/coaching/consult/:id` | ConsultDetailPage | `ConsultationDetailScreen` | ✅ |
+| `/coaching/payment/:id` | CoachingPaymentPage | 상담 상세 내 구매 확인·코칭 전환 | ✅ 통합 |
+| `/coaching/feedback/:id` | CoachingFeedbackPage | 상담 상세 내 만족도 입력 | ✅ 통합 |
 | `/settings` | SettingsPage | `SettingsScreen` | ✅ |
 | `/settings/account` | AccountSettingsPage | `SettingDetailScreen`(통합) | 🟡 |
 | `/settings/{workout,notifications,privacy,display}` | 각 설정 페이지 | `SettingDetailScreen`(통합) | 🟡 흔적 존재 |

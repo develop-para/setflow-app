@@ -8,6 +8,8 @@ class AppSnapshot {
     required this.restDefaultSeconds,
     required this.sessions,
     required this.routines,
+    this.communityPosts = const [],
+    this.consultations = const [],
   });
 
   final UserRole role;
@@ -16,6 +18,8 @@ class AppSnapshot {
   final int restDefaultSeconds;
   final Map<DateTime, WorkoutSession> sessions;
   final List<RoutineData> routines;
+  final List<CommunityPost> communityPosts;
+  final List<ConsultationData> consultations;
 }
 
 abstract interface class AppRepository {

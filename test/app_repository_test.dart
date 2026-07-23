@@ -6,7 +6,7 @@ import 'package:setflow/data/app_snapshot_codec.dart';
 
 void main() {
   group('AppSnapshotCodec', () {
-    test('round-trips preferences, workouts, and routines', () {
+    test('round-trips preferences, workouts, routines, and social data', () {
       const catalog = [
         ExerciseTemplate(
           id: 'squat',
@@ -49,6 +49,39 @@ void main() {
             exercises: catalog,
           ),
         ],
+        communityPosts: [
+          CommunityPost(
+            id: 'post_1',
+            author: '테스터',
+            content: '운동 완료',
+            metric: '하체 · 3세트',
+            createdAt: date,
+            visualKey: 'strength',
+            color: const Color(0xFFFFB20C),
+            likes: 3,
+            comments: [
+              PostComment(
+                id: 'comment_1',
+                author: '응원회원',
+                content: '좋아요',
+                createdAt: date,
+              ),
+            ],
+          ),
+        ],
+        consultations: [
+          ConsultationData(
+            id: 'consult_1',
+            trainerName: '김코치',
+            specialty: '근력 향상',
+            goal: '주 3회 운동',
+            level: '초급',
+            question: '운동 순서가 궁금해요.',
+            createdAt: date,
+            status: ConsultationStatus.answered,
+            response: '큰 근육 운동부터 시작하세요.',
+          ),
+        ],
       );
 
       final encoded = AppSnapshotCodec.encode(snapshot);
@@ -64,6 +97,31 @@ void main() {
       );
       expect(decoded.routines.single.name, '하체 루틴');
       expect(decoded.routines.single.exercises.single.id, 'squat');
+      expect(decoded.communityPosts.single.likes, 3);
+      expect(decoded.communityPosts.single.comments.single.content, '좋아요');
+      expect(decoded.consultations.single.status, ConsultationStatus.answered);
+      expect(decoded.consultations.single.response, contains('큰 근육'));
+    });
+
+    test('reads schema version 1 snapshots without social data', () {
+      final decoded = AppSnapshotCodec.decode('''
+        {
+          "schemaVersion": 1,
+          "preferences": {
+            "role": "member",
+            "isDarkMode": false,
+            "weightUnit": "kg",
+            "restDefaultSeconds": 90
+          },
+          "sessions": [],
+          "routines": []
+        }
+        ''', const []);
+
+      expect(decoded, isNotNull);
+      expect(decoded!.role, UserRole.member);
+      expect(decoded.communityPosts, isEmpty);
+      expect(decoded.consultations, isEmpty);
     });
 
     test('returns null for an unsupported schema', () {

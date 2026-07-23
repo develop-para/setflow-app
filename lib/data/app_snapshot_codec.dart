@@ -6,7 +6,7 @@ import '../models.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 1;
+  static const schemaVersion = 2;
 
   static String encode(AppSnapshot snapshot) {
     return jsonEncode({
@@ -19,6 +19,8 @@ abstract final class AppSnapshotCodec {
       },
       'sessions': snapshot.sessions.values.map(_sessionToJson).toList(),
       'routines': snapshot.routines.map(_routineToJson).toList(),
+      'communityPosts': snapshot.communityPosts.map(_postToJson).toList(),
+      'consultations': snapshot.consultations.map(_consultationToJson).toList(),
     });
   }
 
@@ -28,7 +30,8 @@ abstract final class AppSnapshotCodec {
   ) {
     try {
       final root = jsonDecode(source) as Map<String, dynamic>;
-      if (root['schemaVersion'] != schemaVersion) return null;
+      final version = (root['schemaVersion'] as num?)?.toInt();
+      if (version != 1 && version != schemaVersion) return null;
       final preferences = root['preferences'] as Map<String, dynamic>? ?? {};
       final templates = {
         for (final exercise in exerciseCatalog) exercise.id: exercise,
@@ -49,6 +52,16 @@ abstract final class AppSnapshotCodec {
         );
         if (routine != null) routines.add(routine);
       }
+      final posts = <CommunityPost>[];
+      for (final raw in root['communityPosts'] as List<dynamic>? ?? const []) {
+        final post = _postFromJson(raw as Map<String, dynamic>);
+        if (post != null) posts.add(post);
+      }
+      final consultations = <ConsultationData>[];
+      for (final raw in root['consultations'] as List<dynamic>? ?? const []) {
+        final consultation = _consultationFromJson(raw as Map<String, dynamic>);
+        if (consultation != null) consultations.add(consultation);
+      }
       final roleName = preferences['role'] as String?;
       final role = UserRole.values
           .where((item) => item.name == roleName)
@@ -61,6 +74,8 @@ abstract final class AppSnapshotCodec {
             (preferences['restDefaultSeconds'] as num?)?.toInt() ?? 90,
         sessions: sessions,
         routines: routines,
+        communityPosts: posts,
+        consultations: consultations,
       );
     } on FormatException {
       return null;
@@ -173,6 +188,111 @@ abstract final class AppSnapshotCodec {
       exercises: exercises,
       author: json['author'] as String? ?? '나',
       level: json['level'] as String? ?? '중급',
+    );
+  }
+
+  static Map<String, dynamic> _postToJson(CommunityPost post) {
+    return {
+      'id': post.id,
+      'author': post.author,
+      'content': post.content,
+      'metric': post.metric,
+      'createdAt': post.createdAt.toIso8601String(),
+      'visualKey': post.visualKey,
+      'color': post.color.toARGB32(),
+      'likes': post.likes,
+      'isLiked': post.isLiked,
+      'isMine': post.isMine,
+      'comments': post.comments
+          .map(
+            (comment) => {
+              'id': comment.id,
+              'author': comment.author,
+              'content': comment.content,
+              'createdAt': comment.createdAt.toIso8601String(),
+            },
+          )
+          .toList(),
+    };
+  }
+
+  static CommunityPost? _postFromJson(Map<String, dynamic> json) {
+    final id = json['id'] as String?;
+    final content = json['content'] as String?;
+    final createdAt = DateTime.tryParse(json['createdAt'] as String? ?? '');
+    if (id == null || content == null || createdAt == null) return null;
+    final comments = <PostComment>[];
+    for (final raw in json['comments'] as List<dynamic>? ?? const []) {
+      final comment = raw as Map<String, dynamic>;
+      final commentDate = DateTime.tryParse(
+        comment['createdAt'] as String? ?? '',
+      );
+      final commentId = comment['id'] as String?;
+      final commentContent = comment['content'] as String?;
+      if (commentDate == null || commentId == null || commentContent == null) {
+        continue;
+      }
+      comments.add(
+        PostComment(
+          id: commentId,
+          author: comment['author'] as String? ?? '회원',
+          content: commentContent,
+          createdAt: commentDate,
+        ),
+      );
+    }
+    return CommunityPost(
+      id: id,
+      author: json['author'] as String? ?? '회원',
+      content: content,
+      metric: json['metric'] as String? ?? '',
+      createdAt: createdAt,
+      visualKey: json['visualKey'] as String? ?? 'workout',
+      color: Color((json['color'] as num?)?.toInt() ?? 0xFFFFB20C),
+      likes: (json['likes'] as num?)?.toInt() ?? 0,
+      isLiked: json['isLiked'] as bool? ?? false,
+      isMine: json['isMine'] as bool? ?? false,
+      comments: comments,
+    );
+  }
+
+  static Map<String, dynamic> _consultationToJson(
+    ConsultationData consultation,
+  ) {
+    return {
+      'id': consultation.id,
+      'trainerName': consultation.trainerName,
+      'specialty': consultation.specialty,
+      'goal': consultation.goal,
+      'level': consultation.level,
+      'question': consultation.question,
+      'createdAt': consultation.createdAt.toIso8601String(),
+      'status': consultation.status.name,
+      'response': consultation.response,
+      'rating': consultation.rating,
+    };
+  }
+
+  static ConsultationData? _consultationFromJson(Map<String, dynamic> json) {
+    final id = json['id'] as String?;
+    final question = json['question'] as String?;
+    final createdAt = DateTime.tryParse(json['createdAt'] as String? ?? '');
+    if (id == null || question == null || createdAt == null) return null;
+    final statusName = json['status'] as String?;
+    final status = ConsultationStatus.values
+        .where((item) => item.name == statusName)
+        .firstOrNull;
+    return ConsultationData(
+      id: id,
+      trainerName: json['trainerName'] as String? ?? '김코치',
+      specialty: json['specialty'] as String? ?? '근력 향상',
+      goal: json['goal'] as String? ?? '',
+      level: json['level'] as String? ?? '',
+      question: question,
+      createdAt: createdAt,
+      status: status ?? ConsultationStatus.waiting,
+      response: json['response'] as String?,
+      rating: (json['rating'] as num?)?.toInt(),
     );
   }
 }

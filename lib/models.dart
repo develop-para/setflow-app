@@ -97,3 +97,82 @@ class RoutineData {
   final String author;
   final String level;
 }
+
+class PostComment {
+  PostComment({
+    required this.id,
+    required this.author,
+    required this.content,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String author;
+  final String content;
+  final DateTime createdAt;
+}
+
+class CommunityPost {
+  CommunityPost({
+    required this.id,
+    required this.author,
+    required this.content,
+    required this.metric,
+    required this.createdAt,
+    required this.visualKey,
+    required this.color,
+    this.likes = 0,
+    this.isLiked = false,
+    this.isMine = false,
+    List<PostComment>? comments,
+  }) : comments = comments ?? [];
+
+  final String id;
+  final String author;
+  final String content;
+  final String metric;
+  final DateTime createdAt;
+  final String visualKey;
+  final Color color;
+  int likes;
+  bool isLiked;
+  final bool isMine;
+  final List<PostComment> comments;
+
+  IconData get icon => switch (visualKey) {
+    'streak' => Icons.local_fire_department_rounded,
+    'tip' => Icons.lightbulb_rounded,
+    'strength' => Icons.fitness_center_rounded,
+    _ => Icons.emoji_events_rounded,
+  };
+}
+
+enum ConsultationStatus { waiting, answered, coaching }
+
+class ConsultationData {
+  ConsultationData({
+    required this.id,
+    required this.trainerName,
+    required this.specialty,
+    required this.goal,
+    required this.level,
+    required this.question,
+    required this.createdAt,
+    this.status = ConsultationStatus.waiting,
+    this.response,
+    this.rating,
+  });
+
+  final String id;
+  final String trainerName;
+  final String specialty;
+  final String goal;
+  final String level;
+  final String question;
+  final DateTime createdAt;
+  ConsultationStatus status;
+  String? response;
+  int? rating;
+}
+
+enum RoutineImportResult { imported, alreadySaved, limitReached }
