@@ -95,7 +95,7 @@ class SettlementRefundsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(_admin ? '환불 및 분쟁 관리' : '환불 및 미정산 내역')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           Container(
             padding: const EdgeInsets.all(20),
@@ -356,7 +356,7 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
         title: Text(role == UserRole.admin ? '트레이너별 정산 현황' : '트레이너별 정산'),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           Container(
             padding: const EdgeInsets.all(20),
@@ -564,44 +564,21 @@ class SettlementCommissionPage extends StatelessWidget {
   final UserRole role;
 
   static const _items = [
-    _CommissionItem(
-      type: '트레이너',
-      name: '김동현 코치',
-      revenue: 4000000,
-      rate: 15,
-    ),
-    _CommissionItem(
-      type: '트레이너',
-      name: '이민수 코치',
-      revenue: 2000000,
-      rate: 20,
-    ),
-    _CommissionItem(
-      type: '사업자',
-      name: '이지짐 강남점',
-      revenue: 12500000,
-      rate: 8,
-    ),
-    _CommissionItem(
-      type: '사업자',
-      name: '헬스원 송파점',
-      revenue: 8300000,
-      rate: 8,
-    ),
+    _CommissionItem(type: '트레이너', name: '김동현 코치', revenue: 4000000, rate: 15),
+    _CommissionItem(type: '트레이너', name: '이민수 코치', revenue: 2000000, rate: 20),
+    _CommissionItem(type: '사업자', name: '이지짐 강남점', revenue: 12500000, rate: 8),
+    _CommissionItem(type: '사업자', name: '헬스원 송파점', revenue: 8300000, rate: 8),
   ];
 
   @override
   Widget build(BuildContext context) {
     final totalRevenue = _items.fold<int>(0, (sum, i) => sum + i.revenue);
-    final totalCommission = _items.fold<int>(
-      0,
-      (sum, i) => sum + i.commission,
-    );
+    final totalCommission = _items.fold<int>(0, (sum, i) => sum + i.commission);
 
     return Scaffold(
       appBar: AppBar(title: const Text('수수료 정산')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           Container(
             padding: const EdgeInsets.all(20),
@@ -677,9 +654,7 @@ class SettlementCommissionPage extends StatelessWidget {
                         Expanded(
                           child: Text(
                             item.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
                         ),
                         Text(
@@ -832,16 +807,8 @@ class SettlementFinalConfirmPage extends StatefulWidget {
 class _SettlementFinalConfirmPageState
     extends State<SettlementFinalConfirmPage> {
   final _items = [
-    _PayoutItem(
-      name: '박은지 코치',
-      account: '국민 123456-78-901234',
-      amount: 345000,
-    ),
-    _PayoutItem(
-      name: '정근육 코치',
-      account: '신한 110-123-456789',
-      amount: 85000,
-    ),
+    _PayoutItem(name: '박은지 코치', account: '국민 123456-78-901234', amount: 345000),
+    _PayoutItem(name: '정근육 코치', account: '신한 110-123-456789', amount: 85000),
     _PayoutItem(
       name: '이지짐 강남점',
       account: '우리 1002-345-678901',
@@ -861,7 +828,7 @@ class _SettlementFinalConfirmPageState
     return Scaffold(
       appBar: AppBar(title: const Text('최종 정산 확정')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           Container(
             padding: const EdgeInsets.all(20),
@@ -912,9 +879,7 @@ class _SettlementFinalConfirmPageState
                         Expanded(
                           child: Text(
                             _items[i].name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
                         ),
                         _PayoutStatusChip(status: _items[i].status),
@@ -999,7 +964,11 @@ class _SettlementFinalConfirmPageState
 enum _PayoutStatus { pending, processing, confirmed }
 
 class _PayoutItem {
-  _PayoutItem({required this.name, required this.account, required this.amount});
+  _PayoutItem({
+    required this.name,
+    required this.account,
+    required this.amount,
+  });
 
   final String name;
   final String account;

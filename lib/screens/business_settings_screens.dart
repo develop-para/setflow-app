@@ -196,7 +196,7 @@ class _BusinessSettingsPlanScreenState
     return Scaffold(
       appBar: AppBar(title: const Text('요금제')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           for (final plan in _plans) ...[
             SetflowCard(
@@ -326,7 +326,7 @@ class _BusinessSettingsNotificationsScreenState
     return Scaffold(
       appBar: AppBar(title: const Text('알림 설정')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 6, 14, 28),
+        padding: SetflowInsets.pageList,
         children: [
           const ListTile(
             title: Text(
@@ -414,7 +414,7 @@ class _BusinessSettingsWithdrawScreenState
     return Scaffold(
       appBar: AppBar(title: Text(_isGym ? '헬스장 탈퇴' : '탈퇴')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           Container(
             padding: const EdgeInsets.all(18),
@@ -582,7 +582,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('인증 뱃지 갱신')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           Container(
             padding: const EdgeInsets.all(20),
@@ -803,7 +803,7 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+        padding: SetflowInsets.pageForm,
         children: [
           Center(
             child: Stack(

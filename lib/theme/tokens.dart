@@ -157,6 +157,14 @@ abstract final class SetflowSpacing {
   static const page = 48.0;
 }
 
+abstract final class SetflowInsets {
+  static const pageList = EdgeInsets.fromLTRB(24, 6, 24, 28);
+  static const pageListTight = EdgeInsets.fromLTRB(24, 4, 24, 28);
+  static const pageHeader = EdgeInsets.fromLTRB(24, 4, 24, 12);
+  static const pageForm = EdgeInsets.fromLTRB(24, 12, 24, 28);
+  static const bottomAction = EdgeInsets.fromLTRB(24, 10, 24, 16);
+}
+
 abstract final class SetflowRadii {
   static const xs = 8.0;
   static const sm = 12.0;

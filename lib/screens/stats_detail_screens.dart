@@ -19,15 +19,14 @@ class RoutineStatsPage extends StatelessWidget {
   double get _conversion => _views == 0 ? 0 : _consultations / _views * 100;
   int get _ranking => 1 + _seed % 40;
 
-  List<int> get _trend =>
-      List.generate(7, (i) => 20 + (_seed + i * 37) % 80);
+  List<int> get _trend => List.generate(7, (i) => 20 + (_seed + i * 37) % 80);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('${routine.name} 통계')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           SetflowCard(
             child: Row(
@@ -107,7 +106,9 @@ class RoutineStatsPage extends StatelessWidget {
           const SizedBox(height: 20),
           const SectionTitle('최근 7일 조회 추이'),
           const SizedBox(height: 10),
-          SetflowCard(child: _TrendChart(values: _trend, color: routine.color)),
+          SetflowCard(
+            child: _TrendChart(values: _trend, color: routine.color),
+          ),
           const SizedBox(height: 20),
           const SectionTitle('마켓 노출 랭킹'),
           const SizedBox(height: 10),
@@ -168,15 +169,14 @@ class TrainerPerformancePage extends StatelessWidget {
     return (int.tryParse(digits ?? '0') ?? 0) / 100;
   }
 
-  List<int> get _trend =>
-      List.generate(6, (i) => 30 + (_seed + i * 53) % 70);
+  List<int> get _trend => List.generate(6, (i) => 30 + (_seed + i * 53) % 70);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('$name 성과')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           SetflowCard(
             child: Row(
@@ -311,7 +311,9 @@ class TrainerPerformancePage extends StatelessWidget {
           const SizedBox(height: 20),
           const SectionTitle('최근 상담 전환 추이'),
           const SizedBox(height: 10),
-          SetflowCard(child: _TrendChart(values: _trend, color: accentColor)),
+          SetflowCard(
+            child: _TrendChart(values: _trend, color: accentColor),
+          ),
         ],
       ),
     );
@@ -325,9 +327,7 @@ class _TrendChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxValue = values
-        .reduce((a, b) => a > b ? a : b)
-        .clamp(1, 1 << 30);
+    final maxValue = values.reduce((a, b) => a > b ? a : b).clamp(1, 1 << 30);
     return SizedBox(
       height: 110,
       child: Row(

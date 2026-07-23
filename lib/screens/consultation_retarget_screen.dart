@@ -61,8 +61,7 @@ class _ConsultationRetargetScreenState
     _DaysFilter.thirtyPlus => target.daysSince >= 30,
   };
 
-  List<_RetargetTarget> get _visible =>
-      _targets.where(_matchesFilter).toList();
+  List<_RetargetTarget> get _visible => _targets.where(_matchesFilter).toList();
 
   int get _selectedCount => _targets.where((t) => t.selected).length;
 
@@ -92,7 +91,7 @@ class _ConsultationRetargetScreenState
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 120),
+        padding: const EdgeInsets.fromLTRB(24, 6, 24, 120),
         children: [
           SetflowCard(
             child: Column(
@@ -149,8 +148,7 @@ class _ConsultationRetargetScreenState
                       (option) => FilterChip(
                         label: Text(option.$1),
                         selected: _filter == option.$2,
-                        onSelected: (_) =>
-                            setState(() => _filter = option.$2),
+                        onSelected: (_) => setState(() => _filter = option.$2),
                       ),
                     )
                     .toList(),
@@ -178,8 +176,9 @@ class _ConsultationRetargetScreenState
                       Checkbox(
                         value: target.selected,
                         onChanged: target.optIn
-                            ? (value) =>
-                                  setState(() => target.selected = value ?? false)
+                            ? (value) => setState(
+                                () => target.selected = value ?? false,
+                              )
                             : null,
                       ),
                       const SizedBox(width: 4),
@@ -250,7 +249,7 @@ class _ConsultationRetargetScreenState
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          padding: SetflowInsets.bottomAction,
           child: PrimaryButton(
             label: _selectedCount > 0
                 ? '선택한 $_selectedCount명에게 재접근 메시지 발송'
@@ -258,9 +257,8 @@ class _ConsultationRetargetScreenState
             icon: Icons.send_rounded,
             onPressed: _selectedCount == 0
                 ? null
-                : () => _openComposer(
-                    _targets.where((t) => t.selected).toList(),
-                  ),
+                : () =>
+                      _openComposer(_targets.where((t) => t.selected).toList()),
           ),
         ),
       ),
@@ -274,9 +272,9 @@ class _ConsultationRetargetScreenState
       showDragHandle: true,
       builder: (sheetContext) => Padding(
         padding: EdgeInsets.fromLTRB(
-          20,
+          SetflowSpacing.xxl,
           4,
-          20,
+          SetflowSpacing.xxl,
           MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
         ),
         child: Column(

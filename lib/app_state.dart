@@ -450,6 +450,93 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void recordBusinessMemberFeedback({
+    required UserRole role,
+    required String memberName,
+    required String feedback,
+  }) {
+    final facts = dashboardFor(role).facts;
+    facts['memberFeedback.$memberName'] = feedback;
+    facts['memberFeedbackAt.$memberName'] = DateTime.now().toIso8601String();
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void assignBusinessMember({
+    required String memberName,
+    required String trainerName,
+  }) {
+    final facts = dashboardFor(UserRole.gym).facts;
+    facts['memberAssignment.$memberName'] = trainerName;
+    facts['memberAssignmentAt.$memberName'] = DateTime.now().toIso8601String();
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  bool isBusinessConsultationAnswered(UserRole role, int consultationIndex) {
+    return dashboardFor(
+          role,
+        ).facts['consultation.$consultationIndex.answered'] ==
+        'true';
+  }
+
+  void answerBusinessConsultation({
+    required UserRole role,
+    required int consultationIndex,
+    required String answer,
+  }) {
+    final facts = dashboardFor(role).facts;
+    facts['consultation.$consultationIndex.answered'] = 'true';
+    facts['consultation.$consultationIndex.answer'] = answer;
+    facts['consultation.$consultationIndex.answeredAt'] = DateTime.now()
+        .toIso8601String();
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  bool isAdminUserBlocked(String email, {bool fallback = false}) {
+    final value = dashboardFor(
+      UserRole.admin,
+    ).facts['adminUser.$email.blocked'];
+    return value == null ? fallback : value == 'true';
+  }
+
+  void setAdminUserBlocked({
+    required String email,
+    required bool blocked,
+    required String reason,
+  }) {
+    final facts = dashboardFor(UserRole.admin).facts;
+    facts['adminUser.$email.blocked'] = '$blocked';
+    facts['adminUser.$email.reason'] = reason;
+    facts['adminUser.$email.updatedAt'] = DateTime.now().toIso8601String();
+    facts['audit.latest'] = blocked ? '$email 계정 이용 제한' : '$email 계정 제한 해제';
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  String adminReviewStatus(String reviewId) {
+    return dashboardFor(UserRole.admin).facts['adminReview.$reviewId.status'] ??
+        'pending';
+  }
+
+  void completeAdminReview({
+    required String reviewId,
+    required String applicantName,
+    required String status,
+    String reason = '',
+  }) {
+    final facts = dashboardFor(UserRole.admin).facts;
+    facts['adminReview.$reviewId.status'] = status;
+    facts['adminReview.$reviewId.reason'] = reason;
+    facts['adminReview.$reviewId.updatedAt'] = DateTime.now().toIso8601String();
+    facts['audit.latest'] = status == 'approved'
+        ? '$applicantName 인증 승인'
+        : '$applicantName 인증 반려';
+    _schedulePersist();
+    notifyListeners();
+  }
+
   Future<void> clearPersistedData() async {
     _persistTimer?.cancel();
     await _repository.clear();

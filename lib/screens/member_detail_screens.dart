@@ -12,7 +12,11 @@ String _weekdayLabel(DateTime date) => _weekdayLabels[date.weekday - 1];
 /// 사업자(트레이너/헬스장)가 담당 회원의 상세 정보를 열람하는 화면.
 /// [PeoplePage._showMember] 바텀시트에서 진입한다.
 class MemberDetailScreen extends StatelessWidget {
-  const MemberDetailScreen({required this.person, required this.role, super.key});
+  const MemberDetailScreen({
+    required this.person,
+    required this.role,
+    super.key,
+  });
 
   final (String, String, String, int) person;
   final UserRole role;
@@ -22,7 +26,9 @@ class MemberDetailScreen extends StatelessWidget {
     final state = AppScope.of(context);
     final recentSessions = state.sessions.values.toList()
       ..sort((a, b) => b.date.compareTo(a.date));
-    final latestVolume = recentSessions.isEmpty ? 0.0 : recentSessions.first.volume;
+    final latestVolume = recentSessions.isEmpty
+        ? 0.0
+        : recentSessions.first.volume;
     final routines = [...state.routines, ...state.marketRoutines];
 
     return DefaultTabController(
@@ -43,8 +49,11 @@ class MemberDetailScreen extends StatelessWidget {
         body: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-              child: _MemberSummaryHeader(person: person, latestVolume: latestVolume),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+              child: _MemberSummaryHeader(
+                person: person,
+                latestVolume: latestVolume,
+              ),
             ),
             Expanded(
               child: TabBarView(
@@ -64,7 +73,10 @@ class MemberDetailScreen extends StatelessWidget {
 }
 
 class _MemberSummaryHeader extends StatelessWidget {
-  const _MemberSummaryHeader({required this.person, required this.latestVolume});
+  const _MemberSummaryHeader({
+    required this.person,
+    required this.latestVolume,
+  });
 
   final (String, String, String, int) person;
   final double latestVolume;
@@ -80,7 +92,10 @@ class _MemberSummaryHeader extends StatelessWidget {
               backgroundColor: SetflowColors.primary.withValues(alpha: .2),
               child: Text(
                 person.$1.characters.first,
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -90,7 +105,10 @@ class _MemberSummaryHeader extends StatelessWidget {
                 children: [
                   Text(
                     person.$1,
-                    style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   Text(
                     '${person.$2} · 마지막 기록 ${person.$3}',
@@ -112,7 +130,9 @@ class _MemberSummaryHeader extends StatelessWidget {
               value: '${person.$4}',
               suffix: '%',
               icon: Icons.check_circle_outline,
-              tint: person.$4 >= 80 ? SetflowColors.green : SetflowColors.orange,
+              tint: person.$4 >= 80
+                  ? SetflowColors.green
+                  : SetflowColors.orange,
             ),
             const SizedBox(width: 10),
             MetricCard(
@@ -154,27 +174,28 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
       ..sort((a, b) => b.date.compareTo(a.date));
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
+      padding: SetflowInsets.pageListTight,
       children: [
         Row(
           children: [
             IconButton(
-              onPressed: () => setState(
-                () => month = DateTime(month.year, month.month - 1),
-              ),
+              onPressed: () =>
+                  setState(() => month = DateTime(month.year, month.month - 1)),
               icon: const Icon(Icons.chevron_left),
             ),
             Expanded(
               child: Text(
                 DateFormat('yyyy.MM').format(month),
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
             IconButton(
-              onPressed: () => setState(
-                () => month = DateTime(month.year, month.month + 1),
-              ),
+              onPressed: () =>
+                  setState(() => month = DateTime(month.year, month.month + 1)),
               icon: const Icon(Icons.chevron_right),
             ),
           ],
@@ -190,7 +211,8 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
               else
                 _MemberCalendarCell(
                   date: day,
-                  session: widget.sessions[DateTime(day.year, day.month, day.day)],
+                  session:
+                      widget.sessions[DateTime(day.year, day.month, day.day)],
                 ),
           ],
         ),
@@ -261,7 +283,9 @@ class _MemberCalendarCell extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: isToday ? Border.all(color: SetflowColors.primary, width: 1.4) : null,
+          border: isToday
+              ? Border.all(color: SetflowColors.primary, width: 1.4)
+              : null,
         ),
         alignment: Alignment.center,
         child: Column(
@@ -302,7 +326,7 @@ class _MemberRoutineTab extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
       itemCount: routines.length,
       itemBuilder: (_, index) {
         final routine = routines[index];
@@ -373,7 +397,7 @@ class _MemberCommunityTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
       itemCount: _posts.length,
       itemBuilder: (_, index) {
         final post = _posts[index];
@@ -385,7 +409,10 @@ class _MemberCommunityTab extends StatelessWidget {
               children: [
                 Text(
                   post.$1,
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -432,7 +459,7 @@ class _MemberLibraryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 10,
@@ -455,7 +482,10 @@ class _MemberLibraryTab extends StatelessWidget {
                   children: [
                     Text(
                       exercise.name,
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
