@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import '../widgets/brand.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({required this.onFinished, super.key});
@@ -62,20 +63,18 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 96,
-                      height: 96,
+                    DecoratedBox(
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        borderRadius: BorderRadius.circular(SetflowRadii.xl),
+                        borderRadius: BorderRadius.circular(28),
                         boxShadow: theme.brightness == Brightness.dark
                             ? null
                             : SetflowShadows.level2,
                       ),
-                      child: const Icon(
-                        Icons.rocket_launch_rounded,
-                        size: 48,
-                        color: Color(0xFFFF4F75),
+                      child: SetflowMark(
+                        size: 96,
+                        background: theme.colorScheme.primary,
+                        color: SetflowColors.ink,
+                        radius: 28,
                       ),
                     ),
                     const SizedBox(height: SetflowSpacing.section),

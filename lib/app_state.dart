@@ -8,12 +8,16 @@ import 'models.dart';
 export 'models.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({AppRepository? repository})
+  AppState({AppRepository? repository, this.debugRoleOverride})
     : _repository = repository ?? MemoryAppRepository() {
     _seedSessions();
     _seedSocial();
     _seedBusinessDashboards();
   }
+
+  /// Web design-QA only: `?role=member|trainer|gym|admin` lands directly in a
+  /// role shell (non-persistent) so screens can be reviewed without onboarding.
+  final String? debugRoleOverride;
 
   final AppRepository _repository;
   Timer? _persistTimer;
@@ -23,7 +27,19 @@ class AppState extends ChangeNotifier {
   Object? persistenceError;
 
   UserRole role = UserRole.guest;
-  bool isDarkMode = false;
+  // Theme follows the OS by default (official brand is light-first, but we
+  // honour the device). Users can still force light/dark from settings.
+  ThemeMode themeMode = ThemeMode.system;
+
+  /// Effective dark state, resolving [ThemeMode.system] against the platform.
+  /// Kept as a bool so the existing settings switches stay simple.
+  bool get isDarkMode => switch (themeMode) {
+    ThemeMode.dark => true,
+    ThemeMode.light => false,
+    ThemeMode.system =>
+      WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+          Brightness.dark,
+  };
   String weightUnit = 'kg';
   int restDefaultSeconds = 90;
   int restRemaining = 0;
@@ -104,7 +120,7 @@ class AppState extends ChangeNotifier {
       final snapshot = await _repository.load(exercises);
       if (snapshot != null) {
         role = snapshot.role;
-        isDarkMode = snapshot.isDarkMode;
+        themeMode = snapshot.themeMode;
         weightUnit = snapshot.weightUnit;
         restDefaultSeconds = snapshot.restDefaultSeconds;
         sessions
@@ -127,9 +143,16 @@ class AppState extends ChangeNotifier {
           businessDashboards.addAll(snapshot.businessDashboards);
         }
       }
+      final override = debugRoleOverride;
+      if (override != null) {
+        final resolved = UserRole.values
+            .where((r) => r.name == override)
+            .firstOrNull;
+        if (resolved != null) role = resolved; // non-persistent
+      }
       _initialized = true;
       persistenceError = null;
-      if (snapshot == null) _schedulePersist();
+      if (snapshot == null && override == null) _schedulePersist();
     } catch (error) {
       _initialized = true;
       persistenceError = error;
@@ -180,8 +203,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Binary switches call this: flip to the explicit opposite of the current
+  /// effective brightness (leaving [ThemeMode.system] for an explicit choice).
   void toggleTheme() {
-    isDarkMode = !isDarkMode;
+    themeMode = isDarkMode ? ThemeMode.light : ThemeMode.dark;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  /// Explicit setter for a tri-state control (시스템/라이트/다크).
+  void setThemeMode(ThemeMode mode) {
+    if (mode == themeMode) return;
+    themeMode = mode;
     _schedulePersist();
     notifyListeners();
   }
@@ -552,7 +585,7 @@ class AppState extends ChangeNotifier {
         await _repository.save(
           AppSnapshot(
             role: role,
-            isDarkMode: isDarkMode,
+            themeMode: themeMode,
             weightUnit: weightUnit,
             restDefaultSeconds: restDefaultSeconds,
             sessions: sessions,
@@ -680,6 +713,67 @@ class AppState extends ChangeNotifier {
         visualKey: 'tip',
         color: const Color(0xFF3B82F6),
         likes: 56,
+      ),
+      CommunityPost(
+        id: 'post_4',
+        author: '벤치프레서 도현',
+        content: '벤치 90kg 첫 성공! 반년 만에 20kg 늘렸습니다.',
+        metric: '가슴 · 10세트 · 3.6t',
+        createdAt: now.subtract(const Duration(hours: 5)),
+        visualKey: 'strength',
+        color: const Color(0xFF8B5CF6),
+        likes: 89,
+      ),
+      CommunityPost(
+        id: 'post_5',
+        author: '아침러너 수아',
+        content: '출근 전 5km 러닝 + 코어 마무리. 하루가 개운해요.',
+        metric: '유산소 · 32분 · 5km',
+        createdAt: now.subtract(const Duration(hours: 8)),
+        visualKey: 'streak',
+        color: const Color(0xFF22C55E),
+        likes: 41,
+      ),
+      CommunityPost(
+        id: 'post_6',
+        author: '주말파이터 재훈',
+        content: '데드리프트 150kg 5회. 허리 대신 힙힌지로 밀었더니 안정적이네요.',
+        metric: '등 · 14세트 · 6.1t',
+        createdAt: now.subtract(const Duration(hours: 11)),
+        visualKey: 'strength',
+        color: const Color(0xFFFFB20C),
+        likes: 73,
+      ),
+      CommunityPost(
+        id: 'post_7',
+        author: '요가하는 지은',
+        content: '가동성 루틴 4주차. 오버헤드 자세가 확실히 편해졌어요.',
+        metric: '전신 · 모빌리티 · 25분',
+        createdAt: now.subtract(const Duration(hours: 20)),
+        visualKey: 'tip',
+        color: const Color(0xFF10CEBD),
+        likes: 34,
+      ),
+      CommunityPost(
+        id: 'post_8',
+        author: '다이어터 하늘',
+        content: '체지방 3% 감량 성공. 기록하니까 진짜 관리가 되네요.',
+        metric: '인바디 · -3% · 8주',
+        createdAt: now.subtract(const Duration(days: 1, hours: 2)),
+        visualKey: 'streak',
+        color: const Color(0xFF3B82F6),
+        likes: 152,
+        isLiked: true,
+      ),
+      CommunityPost(
+        id: 'post_9',
+        author: '헬린이 태윤',
+        content: '첫 주 3회 완주! 폼부터 익히라는 조언 감사합니다.',
+        metric: '전신 · 6세트 · 1.9t',
+        createdAt: now.subtract(const Duration(days: 1, hours: 6)),
+        visualKey: 'strength',
+        color: const Color(0xFFFFB20C),
+        likes: 27,
       ),
     ]);
     consultations.add(

@@ -4,6 +4,13 @@ import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
+/// Volt and other bright accents need dark text, not [HeroStatBanner]'s
+/// white default — pick whichever reads legibly against [background].
+Color _heroForeground(Color background) =>
+    ThemeData.estimateBrightnessForColor(background) == Brightness.dark
+    ? Colors.white
+    : Colors.black;
+
 /// 사업자(트레이너/헬스장) 전용 PC 데스크톱 워크스페이스.
 ///
 /// 모바일 목업 폭에 갇히지 않고, 넓은 화면에서는 다단 그리드로
@@ -14,7 +21,9 @@ class WorkspaceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final config = _workspaceConfig(role);
+    final config = _workspaceConfig(context, role);
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),
@@ -26,32 +35,35 @@ class WorkspaceScreen extends StatelessWidget {
             final width = constraints.maxWidth;
             final columns = width >= 1180 ? 3 : (width >= 760 ? 2 : 1);
             return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.xxl,
+                SetflowSpacing.xl,
+                SetflowSpacing.xxl,
+                SetflowSpacing.huge,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     config.subtitle,
-                    style: const TextStyle(
-                      fontSize: 22,
+                    style: text.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     '데스크톱 워크스페이스 데모 · 넓은 화면에서 다단으로 배치됩니다.',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: SetflowColors.secondaryText,
+                    style: text.labelMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: SetflowSpacing.xl),
                   _ResponsiveGrid(
                     width: width,
                     columns: columns,
                     children: config.stats,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: SetflowSpacing.xxl),
                   _ResponsiveGrid(
                     width: width,
                     columns: columns,
@@ -67,7 +79,8 @@ class WorkspaceScreen extends StatelessWidget {
   }
 
   ({String title, String subtitle, List<Widget> stats, List<Widget> panels})
-  _workspaceConfig(UserRole role) {
+  _workspaceConfig(BuildContext context, UserRole role) {
+    final scheme = Theme.of(context).colorScheme;
     return switch (role) {
       UserRole.gym => (
         title: '헬스장 워크스페이스',
@@ -168,26 +181,20 @@ class WorkspaceScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '이번 달 정산 예정',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: SetflowColors.secondaryText,
-                  ),
+                HeroStatBanner(
+                  caption: '이번 달 정산 예정',
+                  value: '14,280,000원',
+                  color: context.setflowColors.teal,
+                  foreground: _heroForeground(context.setflowColors.teal),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  '14,280,000원',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 const Divider(height: 1),
-                const SizedBox(height: 16),
-                const _EntryRow(
+                const SizedBox(height: SetflowSpacing.lg),
+                _EntryRow(
                   name: '장기 코칭',
                   subtitle: '박트레이너 · 이준호',
                   trailing: '680,000원',
-                  trailingColor: SetflowColors.ink,
+                  trailingColor: scheme.onSurface,
                   avatarColor: SetflowColors.green,
                 ),
                 const Divider(height: 22),
@@ -406,26 +413,20 @@ class WorkspaceScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '이번 달 정산 예정',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: SetflowColors.secondaryText,
-                  ),
+                HeroStatBanner(
+                  caption: '이번 달 정산 예정',
+                  value: '2,480,000원',
+                  color: context.setflowColors.teal,
+                  foreground: _heroForeground(context.setflowColors.teal),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  '2,480,000원',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 const Divider(height: 1),
-                const SizedBox(height: 16),
-                const _EntryRow(
+                const SizedBox(height: SetflowSpacing.lg),
+                _EntryRow(
                   name: '단기 코칭',
                   subtitle: '김코치 · 박민지',
                   trailing: '350,000원',
-                  trailingColor: SetflowColors.ink,
+                  trailingColor: scheme.onSurface,
                   avatarColor: SetflowColors.green,
                 ),
               ],
@@ -464,7 +465,7 @@ class WorkspaceScreen extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         SectionTitle(title),
-        const SizedBox(height: 10),
+        const SizedBox(height: SetflowSpacing.md),
         SetflowCard(child: child),
       ],
     );
@@ -489,13 +490,13 @@ class _ResponsiveGrid extends StatelessWidget {
         children: [
           for (final child in children)
             Padding(
-              padding: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.lg),
               child: child,
             ),
         ],
       );
     }
-    const gap = 16.0;
+    const gap = SetflowSpacing.lg;
     final itemWidth = (width - gap * (columns - 1)) / columns;
     return Wrap(
       spacing: gap,
@@ -523,48 +524,49 @@ class _StatTile extends StatelessWidget {
   final Color tint;
 
   @override
-  Widget build(BuildContext context) => SetflowCard(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: tint, size: 22),
-        const SizedBox(height: 14),
-        Text(
-          label,
-          style: const TextStyle(
-            color: SetflowColors.secondaryText,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
+    return SetflowCard(
+      padding: const EdgeInsets.all(SetflowSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: tint, size: 22),
+          const SizedBox(height: SetflowSpacing.lg),
+          Text(
+            label,
+            style: text.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        RichText(
-          text: TextSpan(
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-            children: [
-              TextSpan(
-                text: value,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              if (suffix != null)
+          const SizedBox(height: SetflowSpacing.xs),
+          RichText(
+            text: TextSpan(
+              style: TextStyle(color: theme.colorScheme.onSurface),
+              children: [
                 TextSpan(
-                  text: ' $suffix',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: SetflowColors.secondaryText,
+                  text: value,
+                  style: text.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-            ],
+                if (suffix != null)
+                  TextSpan(
+                    text: ' $suffix',
+                    style: text.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _EntryRow extends StatelessWidget {
@@ -582,39 +584,42 @@ class _EntryRow extends StatelessWidget {
   final Color avatarColor;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      CircleAvatar(
-        backgroundColor: avatarColor.withValues(alpha: .18),
-        child: Text(
-          name.characters.first,
-          style: const TextStyle(fontWeight: FontWeight.w900),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
+    return Row(
+      children: [
+        CircleAvatar(
+          backgroundColor: avatarColor.withValues(alpha: .18),
+          child: Text(
+            name.characters.first,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
         ),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 11,
-                color: SetflowColors.secondaryText,
+        const SizedBox(width: SetflowSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: SetflowSpacing.xxs),
+              Text(
+                subtitle,
+                style: text.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      const SizedBox(width: 8),
-      Text(
-        trailing,
-        style: TextStyle(fontWeight: FontWeight.w900, color: trailingColor),
-      ),
-    ],
-  );
+        const SizedBox(width: SetflowSpacing.sm),
+        Text(
+          trailing,
+          style: TextStyle(fontWeight: FontWeight.w900, color: trailingColor),
+        ),
+      ],
+    );
+  }
 }
 
 class _ProgressEntry extends StatelessWidget {
@@ -645,11 +650,11 @@ class _ProgressEntry extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: 7),
+      const SizedBox(height: SetflowSpacing.sm),
       LinearProgressIndicator(
         value: value,
         minHeight: 8,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(SetflowRadii.xs),
         color: color,
         backgroundColor: color.withValues(alpha: .12),
       ),

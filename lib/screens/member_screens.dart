@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../app_state.dart';
 import '../theme.dart';
+import '../widgets/charts.dart';
 import '../widgets/common.dart';
+import '../widgets/kinetic.dart';
+import '../widgets/motion.dart';
 import 'detail_screens.dart';
 import 'member_social_detail_screens.dart';
 import 'workout_screens.dart';
@@ -38,18 +40,40 @@ class _MemberShellState extends State<MemberShell> {
 
     return Scaffold(
       body: IndexedStack(index: index, children: pages),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: SetflowNavBar(
         selectedIndex: index,
-        onDestinationSelected: (value) => setState(() => index = value),
-        destinations: [
-          for (var i = 0; i < destinations.length; i++)
-            NavigationDestination(
-              icon: Icon(destinations[i].$1),
-              selectedIcon: Icon(destinations[i].$2),
-              label: destinations[i].$3,
-            ),
+        onSelected: (value) => setState(() => index = value),
+        items: [
+          for (final d in destinations)
+            SetflowNavItem(icon: d.$1, selectedIcon: d.$2, label: d.$3),
         ],
       ),
+    );
+  }
+}
+
+/// Constrains a pilot screen to a comfortable reading width on wide
+/// viewports while staying edge-to-edge on phones.
+class _CenteredContent extends StatelessWidget {
+  const _CenteredContent({required this.child});
+
+  static const _wideBreakpoint = 600.0;
+  static const _contentMaxWidth = 560.0;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth <= _wideBreakpoint) return child;
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }
@@ -73,204 +97,238 @@ class _CalendarScreenState extends State<CalendarScreen> {
       6,
       (index) => days.sublist(index * 7, index * 7 + 7),
     );
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
+    final scheme = theme.colorScheme;
 
     return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 10, 12, 8),
-            child: Row(
-              children: [
-                PopupMenuButton<int>(
-                  onSelected: (value) =>
-                      setState(() => month = DateTime(month.year, value)),
-                  itemBuilder: (_) => List.generate(
-                    12,
-                    (i) =>
-                        PopupMenuItem(value: i + 1, child: Text('${i + 1}월')),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        DateFormat('yyyy.MM').format(month),
-                        style: const TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: SetflowColors.secondaryText,
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: '운동 통계',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const DashboardScreen()),
-                  ),
-                  icon: const Icon(Icons.bar_chart_rounded),
-                ),
-                IconButton(
-                  tooltip: '설정',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  ),
-                  icon: const Icon(Icons.menu_rounded),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: [
-                for (var i = 0; i < 7; i++)
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        ['일', '월', '화', '수', '목', '금', '토'][i],
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: i == 0
-                              ? Colors.redAccent
-                              : i == 6
-                              ? Colors.blueAccent
-                              : SetflowColors.secondaryText,
-                        ),
-                      ),
-                    ),
-                  ),
-                const SizedBox(
-                  width: 44,
-                  child: Center(
-                    child: Text(
-                      '주간',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: SetflowColors.disabled,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 20),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final height = (constraints.maxHeight - 46) / 6;
-                return GestureDetector(
-                  onVerticalDragEnd: (details) {
-                    final forward = (details.primaryVelocity ?? 0) < 0;
-                    setState(
-                      () => month = DateTime(
-                        month.year,
-                        month.month + (forward ? 1 : -1),
-                      ),
-                    );
-                  },
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
+      child: _CenteredContent(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.xl,
+                SetflowSpacing.md,
+                SetflowSpacing.xl,
+                0,
+              ),
+              child: Row(
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                    onTap: () => _showMonthPicker(context),
                     child: Padding(
-                      key: ValueKey('${month.year}-${month.month}'),
-                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
-                      child: Column(
+                      padding: const EdgeInsets.all(SetflowSpacing.xs),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
                         children: [
-                          for (final week in weeks)
-                            SizedBox(
-                              height: height,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  for (final day in week)
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(2),
-                                        child: _CalendarCell(
-                                          date: day,
-                                          session: state
-                                              .sessions[state.dateOnly(day)],
-                                          inMonth: day.month == month.month,
-                                          isToday: DateUtils.isSameDay(
-                                            day,
-                                            DateTime.now(),
-                                          ),
-                                          onTap: () =>
-                                              _handleDayTap(context, day),
-                                          onLongPress: () =>
-                                              _showDayMenu(context, day),
-                                        ),
-                                      ),
-                                    ),
-                                  SizedBox(
-                                    width: 44,
-                                    child: _WeeklySummary(week: week),
-                                  ),
-                                ],
-                              ),
+                          Text('${month.month}월', style: text.displayMedium),
+                          const SizedBox(width: SetflowSpacing.sm),
+                          Text(
+                            '${month.year}',
+                            style: text.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: context.setflowColors.disabled,
                             ),
-                          if (copySource != null)
-                            Container(
-                              margin: const EdgeInsets.only(top: 6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: dark
-                                    ? Colors.white12
-                                    : SetflowColors.ink,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.copy_rounded,
-                                    color: SetflowColors.primary,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Expanded(
-                                    child: Text(
-                                      '복사할 날짜를 선택해주세요',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                  GestureDetector(
-                                    onTap: () =>
-                                        setState(() => copySource = null),
-                                    child: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          ),
+                          const SizedBox(width: SetflowSpacing.xs),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 18,
+                            color: context.setflowColors.disabled,
+                          ),
                         ],
                       ),
                     ),
                   ),
-                );
-              },
+                  const Spacer(),
+                  AppIconButton(
+                    icon: Icons.bar_chart_rounded,
+                    tooltip: '운동 통계',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DashboardScreen(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: SetflowSpacing.sm),
+                  AppIconButton(
+                    icon: Icons.menu_rounded,
+                    tooltip: '설정',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            _WeekHero(weeks: weeks),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.lg,
+                SetflowSpacing.xl,
+                SetflowSpacing.lg,
+                SetflowSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  for (var i = 0; i < 7; i++)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          ['일', '월', '화', '수', '목', '금', '토'][i],
+                          style: text.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: i == 0
+                                ? scheme.error.withValues(alpha: .55)
+                                : i == 6
+                                ? context.setflowColors.blue.withValues(
+                                    alpha: .55,
+                                  )
+                                : context.setflowColors.disabled,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // 6 week rows + 5 hairline total rows between them.
+                  const hairlineHeight = 18.0;
+                  final height =
+                      (constraints.maxHeight -
+                          5 * hairlineHeight -
+                          SetflowSpacing.sm) /
+                      6;
+                  return GestureDetector(
+                    onVerticalDragEnd: (details) {
+                      // Require a deliberate fling; otherwise ordinary taps that
+                      // drift a few pixels get misread as month navigation.
+                      final velocity = details.primaryVelocity ?? 0;
+                      if (velocity.abs() < 300) return;
+                      final forward = velocity < 0;
+                      setState(
+                        () => month = DateTime(
+                          month.year,
+                          month.month + (forward ? 1 : -1),
+                        ),
+                      );
+                    },
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 260),
+                      child: Padding(
+                        key: ValueKey('${month.year}-${month.month}'),
+                        padding: const EdgeInsets.fromLTRB(
+                          SetflowSpacing.lg,
+                          0,
+                          SetflowSpacing.lg,
+                          SetflowSpacing.sm,
+                        ),
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < weeks.length; i++) ...[
+                              SizedBox(
+                                height: height,
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (final day in weeks[i])
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(
+                                            SetflowSpacing.xxs,
+                                          ),
+                                          child: _CalendarCell(
+                                            date: day,
+                                            session: state
+                                                .sessions[state.dateOnly(day)],
+                                            inMonth: day.month == month.month,
+                                            isToday: DateUtils.isSameDay(
+                                              day,
+                                              DateTime.now(),
+                                            ),
+                                            onTap: () =>
+                                                _handleDayTap(context, day),
+                                            onLongPress: () =>
+                                                _showDayMenu(context, day),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              if (i < weeks.length - 1)
+                                SizedBox(
+                                  height: hairlineHeight,
+                                  child: _WeekHairline(week: weeks[i]),
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            if (copySource != null)
+              Container(
+                margin: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.lg,
+                  0,
+                  SetflowSpacing.lg,
+                  SetflowSpacing.sm,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SetflowSpacing.lg,
+                  vertical: SetflowSpacing.md,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.inverseSurface,
+                  borderRadius: BorderRadius.circular(SetflowRadii.md),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.copy_rounded, color: scheme.primary, size: 18),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        '복사할 날짜를 선택해주세요',
+                        style: text.labelMedium?.copyWith(
+                          color: scheme.onInverseSurface,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => copySource = null),
+                      child: Icon(
+                        Icons.close,
+                        color: scheme.onInverseSurface,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _showMonthPicker(BuildContext context) async {
+    final selected = await showModalBottomSheet<DateTime>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _MonthPickerSheet(initial: month),
+    );
+    if (selected != null) setState(() => month = selected);
   }
 
   void _handleDayTap(BuildContext context, DateTime day) {
@@ -285,82 +343,59 @@ class _CalendarScreenState extends State<CalendarScreen> {
     ).push(MaterialPageRoute(builder: (_) => DailyWorkoutScreen(date: day)));
   }
 
-  void _showDayMenu(BuildContext context, DateTime day) {
+  Future<void> _showDayMenu(BuildContext context, DateTime day) async {
     final state = AppScope.of(context);
     final session = state.sessions[state.dateOnly(day)];
     if (session == null || session.exercises.isEmpty) return;
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: Text(
-                  '${day.month}월 ${day.day}일 운동',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.copy_rounded),
-                title: const Text('루틴 복사'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  setState(() => copySource = day);
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: SetflowColors.red,
-                ),
-                title: const Text(
-                  '기록 삭제',
-                  style: TextStyle(color: SetflowColors.red),
-                ),
-                onTap: () async {
-                  Navigator.pop(sheetContext);
-                  final confirmed = await _confirmDeleteDay(context, day);
-                  if (!confirmed || !context.mounted) return;
-                  state.deleteSession(day);
-                  AppSnackbar.success(context, '운동 기록을 삭제했어요.');
-                },
-              ),
-            ],
-          ),
+    final action = await showAppActionSheet<String>(
+      context,
+      title: '${day.month}월 ${day.day}일 운동',
+      actions: const [
+        SheetAction(icon: Icons.copy_rounded, label: '루틴 복사', value: 'copy'),
+        SheetAction(
+          icon: Icons.delete_outline_rounded,
+          label: '기록 삭제',
+          value: 'delete',
+          destructive: true,
         ),
-      ),
+      ],
     );
+    if (action == null || !context.mounted) return;
+    if (action == 'copy') {
+      setState(() => copySource = day);
+    } else if (action == 'delete') {
+      final confirmed = await _confirmDeleteDay(context, day);
+      if (!confirmed || !context.mounted) return;
+      state.deleteSession(day);
+      AppSnackbar.success(context, '운동 기록을 삭제했어요.');
+    }
   }
 
   Future<bool> _confirmDeleteDay(BuildContext context, DateTime day) async {
     return await showDialog<bool>(
           context: context,
-          builder: (dialogContext) => AlertDialog(
-            icon: const Icon(
-              Icons.delete_outline_rounded,
-              color: SetflowColors.red,
-            ),
-            title: const Text('운동 기록을 삭제할까요?'),
-            content: Text('${day.month}월 ${day.day}일의 운동과 세트 기록이 모두 삭제됩니다.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('취소'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: SetflowColors.red,
-                  foregroundColor: Colors.white,
+          builder: (dialogContext) {
+            final scheme = Theme.of(dialogContext).colorScheme;
+            return AlertDialog(
+              icon: Icon(Icons.delete_outline_rounded, color: scheme.error),
+              title: const Text('운동 기록을 삭제할까요?'),
+              content: Text('${day.month}월 ${day.day}일의 운동과 세트 기록이 모두 삭제됩니다.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('취소'),
                 ),
-                child: const Text('삭제'),
-              ),
-            ],
-          ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: scheme.error,
+                    foregroundColor: scheme.onError,
+                  ),
+                  child: const Text('삭제'),
+                ),
+              ],
+            );
+          },
         ) ??
         false;
   }
@@ -369,6 +404,115 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final first = DateTime(target.year, target.month, 1);
     final start = first.subtract(Duration(days: first.weekday % 7));
     return List.generate(42, (index) => start.add(Duration(days: index)));
+  }
+}
+
+class _MonthPickerSheet extends StatefulWidget {
+  const _MonthPickerSheet({required this.initial});
+
+  final DateTime initial;
+
+  @override
+  State<_MonthPickerSheet> createState() => _MonthPickerSheetState();
+}
+
+class _MonthPickerSheetState extends State<_MonthPickerSheet> {
+  late int year = widget.initial.year;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
+    final scheme = theme.colorScheme;
+    final now = DateTime.now();
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.xl,
+          0,
+          SetflowSpacing.xl,
+          SetflowSpacing.xl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: () => setState(() => year--),
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: SetflowSpacing.lg,
+                  ),
+                  child: Text(
+                    '$year년',
+                    style: text.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() => year++),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 4,
+              mainAxisSpacing: SetflowSpacing.sm,
+              crossAxisSpacing: SetflowSpacing.sm,
+              childAspectRatio: 1.9,
+              children: [
+                for (var m = 1; m <= 12; m++)
+                  _monthCell(context, m, text, scheme, now),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _monthCell(
+    BuildContext context,
+    int m,
+    TextTheme text,
+    ColorScheme scheme,
+    DateTime now,
+  ) {
+    final isSelected = year == widget.initial.year && m == widget.initial.month;
+    final isThisMonth = year == now.year && m == now.month;
+    return Material(
+      color: isSelected ? scheme.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(SetflowRadii.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(SetflowRadii.sm),
+        onTap: () => Navigator.pop(context, DateTime(year, m)),
+        child: Container(
+          alignment: Alignment.center,
+          decoration: isThisMonth && !isSelected
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                  border: Border.all(color: scheme.primary, width: 1.4),
+                )
+              : null,
+          child: Text(
+            '$m월',
+            style: text.labelLarge?.copyWith(
+              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+              color: isSelected ? scheme.onPrimary : scheme.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -392,88 +536,77 @@ class _CalendarCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final completion = session?.completion ?? 0;
     final hasSession = (session?.totalSets ?? 0) > 0;
-    final Color background = !hasSession
-        ? (Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xFF29272B)
-              : SetflowColors.soft)
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    // Heatmap cell: quiet date numeral plus one 8px intensity dot —
+    // outlined = planned, dim volt = partial, solid volt = fully done.
+    final BoxDecoration? dot = !hasSession
+        ? null
         : completion >= 1
-        ? SetflowColors.teal
+        ? BoxDecoration(shape: BoxShape.circle, color: scheme.primary)
         : completion > 0
-        ? SetflowColors.orange
-        : const Color(0xFFE1E4E8);
-    final textColor = hasSession
-        ? Colors.white
-        : Theme.of(context).colorScheme.onSurface;
-    final muscles =
-        session?.exercises
-            .map((item) => item.template.muscle.characters.first)
-            .toSet()
-            .take(2)
-            .join() ??
-        '';
+        ? BoxDecoration(
+            shape: BoxShape.circle,
+            color: scheme.primary.withValues(alpha: .45),
+          )
+        : BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: scheme.onSurfaceVariant, width: 1.4),
+          );
+    final Color dayColor = date.weekday == DateTime.sunday
+        ? scheme.error
+        : date.weekday == DateTime.saturday
+        ? context.setflowColors.blue
+        : scheme.onSurface;
 
     return Opacity(
       opacity: inMonth ? 1 : .28,
       child: Material(
-        color: background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(17),
-          side: isToday && !hasSession
-              ? const BorderSide(color: SetflowColors.primary, width: 2)
-              : BorderSide.none,
-        ),
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(SetflowRadii.sm),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
+            padding: const EdgeInsets.symmetric(
+              vertical: SetflowSpacing.xs,
+              horizontal: SetflowSpacing.xxs,
+            ),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  '${date.day}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: date.weekday == DateTime.sunday
-                        ? Colors.redAccent
-                        : date.weekday == DateTime.saturday
-                        ? Colors.blueAccent
-                        : textColor,
-                  ),
-                ),
-                const Spacer(),
-                if (hasSession) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      muscles,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: DecoratedBox(
+                    // Today: a thin volt ring around the numeral only.
+                    decoration: isToday
+                        ? BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: scheme.primary,
+                              width: 1.6,
+                            ),
+                          )
+                        : const BoxDecoration(),
+                    child: Center(
+                      child: Text(
+                        '${date.day}',
+                        style: text.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: dayColor,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    session!.volume > 1000
-                        ? '${(session!.volume / 1000).toStringAsFixed(1)}t'
-                        : session!.volume.toStringAsFixed(0),
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 8,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+                ),
+                const SizedBox(height: SetflowSpacing.xs),
+                SizedBox(
+                  width: 8,
+                  height: 8,
+                  child: dot == null ? null : DecoratedBox(decoration: dot),
+                ),
               ],
             ),
           ),
@@ -483,8 +616,222 @@ class _CalendarCell extends StatelessWidget {
   }
 }
 
-class _WeeklySummary extends StatelessWidget {
-  const _WeeklySummary({required this.week});
+/// Hero stat block above the grid: the week's numbers are the screen's
+/// protagonist — streak pill, volt sets numeral · tonnage, 7-day sparkline.
+class _WeekHero extends StatelessWidget {
+  const _WeekHero({required this.weeks});
+
+  final List<List<DateTime>> weeks;
+
+  static const _dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+
+  /// Consecutive weeks (ending at [weekStart]'s week) with at least one
+  /// completed set.
+  static int _weekStreak(AppState state, DateTime weekStart) {
+    var streak = 0;
+    var start = state.dateOnly(weekStart);
+    for (var i = 0; i < 52; i++) {
+      var worked = false;
+      for (var d = 0; d < 7; d++) {
+        final session =
+            state.sessions[state.dateOnly(start.add(Duration(days: d)))];
+        if ((session?.completedSets ?? 0) > 0) {
+          worked = true;
+          break;
+        }
+      }
+      if (!worked) break;
+      streak++;
+      start = start.subtract(const Duration(days: 7));
+    }
+    return streak;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final week = weeks.firstWhere(
+      (week) => week.any((day) => DateUtils.isSameDay(day, DateTime.now())),
+      orElse: () => weeks.first,
+    );
+    final daySessions = [
+      for (final day in week) state.sessions[state.dateOnly(day)],
+    ];
+    final sets = daySessions.fold(
+      0,
+      (sum, item) => sum + (item?.completedSets ?? 0),
+    );
+    final volume = daySessions.fold<double>(
+      0,
+      (sum, item) => sum + (item?.volume ?? 0),
+    );
+    final dayVolumes = [for (final s in daySessions) s?.volume ?? 0.0];
+    final maxVolume = dayVolumes.fold<double>(0, (a, b) => a > b ? a : b);
+    final streak = _weekStreak(state, week.first);
+    final (volumeValue, volumeUnit) = volume > 1000
+        ? ((volume / 1000).toStringAsFixed(1), 't')
+        : (volume.toStringAsFixed(0), 'kg');
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
+    final scheme = theme.colorScheme;
+    final dim = context.setflowColors.disabled;
+
+    Color barColor(WorkoutSession? session) {
+      final completion = session?.completion ?? 0;
+      if ((session?.totalSets ?? 0) == 0 || completion == 0) {
+        return context.setflowColors.surfaceContainerHigh;
+      }
+      if (completion >= 1) return scheme.primary;
+      return scheme.primary.withValues(alpha: .45);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xl,
+        SetflowSpacing.lg,
+        SetflowSpacing.xl,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '이번 주',
+                style: text.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (streak > 0) ...[
+                const SizedBox(width: SetflowSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: SetflowSpacing.sm,
+                    vertical: SetflowSpacing.xxs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: .14),
+                    borderRadius: BorderRadius.circular(SetflowRadii.full),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.local_fire_department_rounded,
+                        size: 13,
+                        color: scheme.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$streak주 연속',
+                        style: text.bodySmall?.copyWith(
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.xs),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '$sets',
+                style: text.displayLarge?.copyWith(color: scheme.primary),
+              ),
+              const SizedBox(width: SetflowSpacing.xs),
+              Text(
+                '세트',
+                style: text.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: dim,
+                ),
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: dim),
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              Text(volumeValue, style: text.displayLarge),
+              const SizedBox(width: SetflowSpacing.xs),
+              Text(
+                volumeUnit,
+                style: text.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: dim,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+          SizedBox(
+            height: 34,
+            child: Row(
+              children: [
+                for (var i = 0; i < 7; i++) ...[
+                  if (i > 0) const SizedBox(width: 5),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: maxVolume <= 0
+                            ? .12
+                            : (dayVolumes[i] / maxVolume).clamp(.12, 1.0),
+                        child: Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: barColor(daySessions[i]),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(3),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.xs),
+          Row(
+            children: [
+              for (var i = 0; i < 7; i++) ...[
+                if (i > 0) const SizedBox(width: 5),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      _dayLabels[i],
+                      style: text.bodySmall?.copyWith(
+                        color: dim,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hairline between calendar weeks carrying that week's totals —
+/// aggregates live on the divider, not in a boxed side column.
+class _WeekHairline extends StatelessWidget {
+  const _WeekHairline({required this.week});
+
   final List<DateTime> week;
 
   @override
@@ -495,33 +842,43 @@ class _WeeklySummary extends StatelessWidget {
         .whereType<WorkoutSession>();
     final sets = sessions.fold(0, (sum, item) => sum + item.completedSets);
     final volume = sessions.fold<double>(0, (sum, item) => sum + item.volume);
-    return Container(
-      margin: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF29272B)
-            : SetflowColors.elevated,
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final dim = context.setflowColors.disabled;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.sm),
+      child: Row(
         children: [
-          Text(
-            '$sets',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-          ),
-          const Text(
-            '세트',
-            style: TextStyle(fontSize: 8, color: SetflowColors.secondaryText),
-          ),
-          if (volume > 0)
+          Expanded(child: Container(height: 1, color: scheme.outlineVariant)),
+          const SizedBox(width: SetflowSpacing.sm),
+          if (sets > 0)
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$sets세트',
+                    style: text.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  TextSpan(
+                    text:
+                        ' · ${volume > 1000 ? '${(volume / 1000).toStringAsFixed(1)}t' : '${volume.toStringAsFixed(0)}kg'}',
+                    style: text.bodySmall?.copyWith(
+                      color: dim,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
             Text(
-              volume > 1000
-                  ? '${(volume / 1000).toStringAsFixed(1)}t'
-                  : volume.toStringAsFixed(0),
-              style: const TextStyle(
-                fontSize: 8,
-                color: SetflowColors.secondaryText,
+              '—',
+              style: text.bodySmall?.copyWith(
+                color: dim,
+                fontWeight: FontWeight.w700,
               ),
             ),
         ],
@@ -530,201 +887,131 @@ class _WeeklySummary extends StatelessWidget {
   }
 }
 
-class RoutinesScreen extends StatelessWidget {
+class RoutinesScreen extends StatefulWidget {
   const RoutinesScreen({super.key});
+
+  @override
+  State<RoutinesScreen> createState() => _RoutinesScreenState();
+}
+
+class _RoutinesScreenState extends State<RoutinesScreen> {
+  static const _filters = ['전체', '초급', '중급', '상급'];
+  int filterIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final filter = _filters[filterIndex];
+    final routines = filter == '전체'
+        ? state.routines
+        : state.routines.where((item) => item.level == filter).toList();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('내 루틴'),
-        actions: [
-          IconButton(
-            onPressed: () => _createRoutine(context),
-            icon: const Icon(Icons.add_rounded),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-        children: [
-          Row(
+      body: SafeArea(
+        child: _CenteredContent(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  '저장된 루틴 ${state.routines.length}/4',
-                  style: const TextStyle(
-                    color: SetflowColors.secondaryText,
-                    fontWeight: FontWeight.w700,
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.xl,
+                  SetflowSpacing.md,
+                  SetflowSpacing.xl,
+                  0,
                 ),
-              ),
-              const Text(
-                '무료 플랜',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: SetflowColors.orange,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          for (final routine in state.routines)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: SetflowCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 12,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: routine.color,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                routine.name,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              Text(
-                                '${routine.exercises.length}개 운동 · ${routine.level}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: SetflowColors.secondaryText,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        PopupMenuButton<String>(
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'apply', child: Text('오늘 적용')),
-                            PopupMenuItem(value: 'edit', child: Text('수정')),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text(
-                                '삭제',
-                                style: TextStyle(color: SetflowColors.red),
-                              ),
-                            ),
-                          ],
-                          onSelected: (value) async {
-                            if (value == 'apply') {
-                              state.applyRoutine(routine, DateTime.now());
-                              AppSnackbar.success(
-                                context,
-                                '오늘 캘린더에 루틴을 적용했어요.',
-                              );
-                            } else if (value == 'edit') {
-                              AppSnackbar.info(
-                                context,
-                                '루틴 편집 화면은 운동 순서 편집 단계에서 연결됩니다.',
-                              );
-                            } else if (value == 'delete') {
-                              final confirmed =
-                                  await showDialog<bool>(
-                                    context: context,
-                                    builder: (dialogContext) => AlertDialog(
-                                      title: const Text('루틴을 삭제할까요?'),
-                                      content: Text(
-                                        '${routine.name} 루틴은 삭제 후 복구할 수 없습니다.',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(
-                                            dialogContext,
-                                            false,
-                                          ),
-                                          child: const Text('취소'),
-                                        ),
-                                        FilledButton(
-                                          onPressed: () => Navigator.pop(
-                                            dialogContext,
-                                            true,
-                                          ),
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: SetflowColors.red,
-                                            foregroundColor: Colors.white,
-                                          ),
-                                          child: const Text('삭제'),
-                                        ),
-                                      ],
-                                    ),
-                                  ) ??
-                                  false;
-                              if (confirmed && context.mounted) {
-                                state.removeRoutine(routine);
-                                AppSnackbar.success(context, '루틴을 삭제했어요.');
-                              }
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
                     Text(
-                      routine.description,
-                      style: const TextStyle(
-                        color: SetflowColors.secondaryText,
-                        height: 1.4,
+                      '루틴',
+                      style: text.headlineLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 7,
-                      children: routine.exercises
-                          .map(
-                            (item) => Chip(
-                              label: Text(
-                                item.name,
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          )
-                          .toList(),
+                    const Spacer(),
+                    AppIconButton(
+                      icon: Icons.add_rounded,
+                      tooltip: '새 루틴 만들기',
+                      onTap: () => _createRoutine(context),
                     ),
                   ],
                 ),
               ),
-            ),
-          if (state.routines.isEmpty)
-            EmptyState(
-              icon: Icons.playlist_add_rounded,
-              title: '저장된 루틴이 없어요',
-              message: '새 루틴을 만들거나 전문가 루틴을 저장해보세요.',
-              actionLabel: '새 루틴 만들기',
-              onAction: () => _createRoutine(context),
-            ),
-          OutlinedButton.icon(
-            onPressed: state.routines.length >= 4
-                ? () => AppSnackbar.info(context, '무료 플랜은 루틴을 4개까지 저장할 수 있어요.')
-                : () => _createRoutine(context),
-            icon: const Icon(Icons.add),
-            label: const Text('새 루틴 만들기'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(54),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.xl,
+                  SetflowSpacing.lg,
+                  SetflowSpacing.xl,
+                  0,
+                ),
+                child: SegPills(
+                  items: _filters,
+                  selectedIndex: filterIndex,
+                  onChanged: (index) => setState(() => filterIndex = index),
+                ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.xl,
+                  SetflowSpacing.md,
+                  SetflowSpacing.xl,
+                  0,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '저장된 루틴 ${state.routines.length}/4',
+                        style: text.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    StatusChip(
+                      label: '무료 플랜',
+                      color: context.setflowColors.warning,
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    SetflowSpacing.xl,
+                    SetflowSpacing.md,
+                    SetflowSpacing.xl,
+                    SetflowSpacing.section,
+                  ),
+                  children: [
+                    if (state.routines.isEmpty)
+                      EmptyState(
+                        icon: Icons.playlist_add_rounded,
+                        title: '저장된 루틴이 없어요',
+                        message: '새 루틴을 만들거나 전문가 루틴을 저장해보세요.',
+                        actionLabel: '새 루틴 만들기',
+                        onAction: () => _createRoutine(context),
+                      )
+                    else if (routines.isEmpty)
+                      const EmptyState(
+                        icon: Icons.filter_list_off_rounded,
+                        title: '조건에 맞는 루틴이 없어요',
+                        message: '다른 난이도 필터를 선택해보세요.',
+                      ),
+                    for (final routine in routines)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: SetflowSpacing.md,
+                        ),
+                        child: _RoutineCard(routine: routine),
+                      ),
+                    _GhostCreateCard(onTap: () => _createRoutine(context)),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -751,6 +1038,289 @@ class RoutinesScreen extends StatelessWidget {
   }
 }
 
+/// Rich action card: what the routine contains and a "start now" action,
+/// visible without opening anything.
+class _RoutineCard extends StatelessWidget {
+  const _RoutineCard({required this.routine});
+
+  final RoutineData routine;
+
+  /// Sets created per exercise when a routine is applied (see
+  /// AppState.addExercise) and a rough per-set pace for the time estimate.
+  static const _setsPerExercise = 3;
+  static const _minutesPerSet = 3.5;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
+    final scheme = theme.colorScheme;
+    final dim = context.setflowColors.disabled;
+    final exerciseCount = routine.exercises.length;
+    final setCount = exerciseCount * _setsPerExercise;
+    final minutes = (setCount * _minutesPerSet).round();
+    final chipNames = routine.exercises.take(3).toList();
+    final overflow = exerciseCount - chipNames.length;
+
+    TextSpan metaItem(String value, String label) => TextSpan(
+      children: [
+        TextSpan(
+          text: value,
+          style: text.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        TextSpan(
+          text: label,
+          style: text.labelMedium?.copyWith(
+            color: scheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+
+    return SetflowCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  routine.name,
+                  style: text.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              Text(
+                routine.level,
+                style: text.bodySmall?.copyWith(
+                  color: dim,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: SetflowSpacing.xs),
+              InkWell(
+                borderRadius: BorderRadius.circular(SetflowRadii.full),
+                onTap: () => _showMenu(context),
+                child: Padding(
+                  padding: const EdgeInsets.all(SetflowSpacing.xs),
+                  child: Icon(Icons.more_horiz_rounded, size: 20, color: dim),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          Text.rich(
+            TextSpan(
+              children: [
+                metaItem('$exerciseCount', ' 운동'),
+                const TextSpan(text: '   '),
+                metaItem('$setCount', ' 세트'),
+                const TextSpan(text: '   '),
+                TextSpan(
+                  text: '약 ',
+                  style: text.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                metaItem('$minutes', '분'),
+              ],
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          Wrap(
+            spacing: SetflowSpacing.xs + SetflowSpacing.xxs,
+            runSpacing: SetflowSpacing.xs + SetflowSpacing.xxs,
+            children: [
+              for (final exercise in chipNames)
+                _ExerciseChip(label: exercise.name),
+              if (overflow > 0)
+                _ExerciseChip(label: '+$overflow', dimmed: true),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+          Material(
+            color: scheme.primary.withValues(alpha: .14),
+            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(SetflowRadii.sm),
+              onTap: () => _startNow(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: SetflowSpacing.md,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.play_arrow_rounded,
+                      size: 18,
+                      color: scheme.primary,
+                    ),
+                    const SizedBox(width: SetflowSpacing.xs),
+                    Text(
+                      '바로 시작',
+                      style: text.labelLarge?.copyWith(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startNow(BuildContext context) {
+    final state = AppScope.of(context);
+    final today = DateTime.now();
+    state.applyRoutine(routine, today);
+    AppSnackbar.success(context, '오늘 캘린더에 루틴을 적용했어요.');
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => DailyWorkoutScreen(date: today)));
+  }
+
+  Future<void> _showMenu(BuildContext context) async {
+    final state = AppScope.of(context);
+    final action = await showAppActionSheet<String>(
+      context,
+      title: routine.name,
+      actions: const [
+        SheetAction(icon: Icons.today_rounded, label: '오늘 적용', value: 'apply'),
+        SheetAction(icon: Icons.edit_rounded, label: '수정', value: 'edit'),
+        SheetAction(
+          icon: Icons.delete_outline_rounded,
+          label: '삭제',
+          value: 'delete',
+          destructive: true,
+        ),
+      ],
+    );
+    if (action == null || !context.mounted) return;
+    switch (action) {
+      case 'apply':
+        state.applyRoutine(routine, DateTime.now());
+        AppSnackbar.success(context, '오늘 캘린더에 루틴을 적용했어요.');
+      case 'edit':
+        AppSnackbar.info(context, '루틴 편집 화면은 운동 순서 편집 단계에서 연결됩니다.');
+      case 'delete':
+        final confirmed =
+            await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) {
+                final dialogScheme = Theme.of(dialogContext).colorScheme;
+                return AlertDialog(
+                  title: const Text('루틴을 삭제할까요?'),
+                  content: Text('${routine.name} 루틴은 삭제 후 복구할 수 없습니다.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('취소'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: dialogScheme.error,
+                        foregroundColor: dialogScheme.onError,
+                      ),
+                      child: const Text('삭제'),
+                    ),
+                  ],
+                );
+              },
+            ) ??
+            false;
+        if (confirmed && context.mounted) {
+          state.removeRoutine(routine);
+          AppSnackbar.success(context, '루틴을 삭제했어요.');
+        }
+    }
+  }
+}
+
+/// Small bordered chip for a routine's exercise contents.
+class _ExerciseChip extends StatelessWidget {
+  const _ExerciseChip({required this.label, this.dimmed = false});
+
+  final String label;
+  final bool dimmed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SetflowSpacing.sm + SetflowSpacing.xxs,
+        vertical: SetflowSpacing.xs + 1,
+      ),
+      decoration: BoxDecoration(
+        color: context.setflowColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(SetflowRadii.xs),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: dimmed
+              ? context.setflowColors.disabled
+              : theme.colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+/// Dashed-feel ghost card that creates a new routine.
+class _GhostCreateCard extends StatelessWidget {
+  const _GhostCreateCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dim = context.setflowColors.disabled;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(SetflowRadii.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.xl),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(SetflowRadii.lg),
+            border: Border.all(color: theme.colorScheme.outline),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_rounded, size: 18, color: dim),
+              const SizedBox(width: SetflowSpacing.sm),
+              Text(
+                '새 루틴 만들기',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: dim,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class MarketScreen extends StatefulWidget {
   const MarketScreen({super.key});
 
@@ -759,6 +1329,8 @@ class MarketScreen extends StatefulWidget {
 }
 
 class _MarketScreenState extends State<MarketScreen> {
+  static const _filters = ['전체', '체중 감량', '근육 증가', '초급', '중급'];
+
   final searchController = TextEditingController();
   String filter = '전체';
   String sort = '인기순';
@@ -767,6 +1339,27 @@ class _MarketScreenState extends State<MarketScreen> {
   void dispose() {
     searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickSort() async {
+    final selected = await showAppActionSheet<String>(
+      context,
+      title: '정렬',
+      actions: const [
+        SheetAction(
+          icon: Icons.local_fire_department_outlined,
+          label: '인기순',
+          value: '인기순',
+        ),
+        SheetAction(icon: Icons.schedule_rounded, label: '최신순', value: '최신순'),
+        SheetAction(
+          icon: Icons.sort_by_alpha_rounded,
+          label: '이름순',
+          value: '이름순',
+        ),
+      ],
+    );
+    if (selected != null && mounted) setState(() => sort = selected);
   }
 
   @override
@@ -793,169 +1386,193 @@ class _MarketScreenState extends State<MarketScreen> {
     } else if (sort == '최신순') {
       routines.sort((a, b) => b.id.compareTo(a.id));
     }
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('전문가 루틴'),
-        actions: [
-          PopupMenuButton<String>(
-            tooltip: '정렬',
-            initialValue: sort,
-            onSelected: (value) => setState(() => sort = value),
-            itemBuilder: (_) => ['인기순', '최신순', '이름순']
-                .map((item) => PopupMenuItem(value: item, child: Text(item)))
-                .toList(),
-            icon: const Icon(Icons.swap_vert_rounded),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
-        children: [
-          AppTextField(
-            controller: searchController,
-            onChanged: (_) => setState(() {}),
-            prefixIcon: const Icon(Icons.search),
-            hint: '목표, 운동, 트레이너 검색',
-          ),
-          const SizedBox(height: 14),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: ['전체', '체중 감량', '근육 증가', '초급', '중급']
-                  .map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(item),
-                        selected: filter == item,
-                        onSelected: (_) => setState(() => filter = item),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: 22),
-          SectionTitle(
-            query.isEmpty && filter == '전체'
-                ? '지금 인기 있는 루틴'
-                : '검색 결과 ${routines.length}개',
-          ),
-          const SizedBox(height: 10),
-          if (routines.isEmpty)
-            EmptyState(
-              icon: Icons.search_off_rounded,
-              title: '조건에 맞는 루틴이 없어요',
-              message: '검색어나 필터를 바꿔 다시 찾아보세요.',
-              actionLabel: '검색 초기화',
-              onAction: () => setState(() {
-                searchController.clear();
-                filter = '전체';
-              }),
-            ),
-          for (final routine in routines)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 13),
-              child: SetflowCard(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ExpertRoutineDetailScreen(routine: routine),
-                  ),
+      body: SafeArea(
+        child: _CenteredContent(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.xl,
+                  SetflowSpacing.md,
+                  SetflowSpacing.xl,
+                  0,
                 ),
-                padding: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Container(
-                      height: 118,
-                      decoration: BoxDecoration(
-                        color: routine.color.withValues(alpha: .14),
-                      ),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            right: 18,
-                            bottom: 12,
-                            child: Icon(
-                              Icons.fitness_center_rounded,
-                              size: 72,
-                              color: routine.color.withValues(alpha: .38),
-                            ),
-                          ),
-                          Positioned(
-                            left: 16,
-                            top: 14,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: routine.color,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                routine.level,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                    Text(
+                      '전문가 루틴',
+                      style: text.headlineLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            routine.name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            routine.description,
-                            style: const TextStyle(
-                              color: SetflowColors.secondaryText,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.verified_rounded,
-                                color: SetflowColors.blue,
-                                size: 17,
-                              ),
-                              const SizedBox(width: 5),
-                              Expanded(
-                                child: Text(
-                                  routine.author,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              const Icon(Icons.chevron_right),
-                            ],
-                          ),
-                        ],
-                      ),
+                    const Spacer(),
+                    AppIconButton(
+                      icon: Icons.swap_vert_rounded,
+                      tooltip: '정렬',
+                      onTap: _pickSort,
                     ),
                   ],
                 ),
               ),
-            ),
-        ],
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    SetflowSpacing.xl,
+                    SetflowSpacing.lg,
+                    SetflowSpacing.xl,
+                    SetflowSpacing.section,
+                  ),
+                  children: [
+                    AppTextField(
+                      controller: searchController,
+                      onChanged: (_) => setState(() {}),
+                      prefixIcon: const Icon(Icons.search),
+                      hint: '목표, 운동, 트레이너 검색',
+                    ),
+                    const SizedBox(height: SetflowSpacing.lg),
+                    SegPills(
+                      items: _filters,
+                      selectedIndex: _filters.indexOf(filter),
+                      onChanged: (index) =>
+                          setState(() => filter = _filters[index]),
+                    ),
+                    const SizedBox(height: SetflowSpacing.xxl),
+                    SectionTitle(
+                      query.isEmpty && filter == '전체'
+                          ? '지금 인기 있는 루틴'
+                          : '검색 결과 ${routines.length}개',
+                    ),
+                    const SizedBox(height: SetflowSpacing.md),
+                    if (routines.isEmpty)
+                      EmptyState(
+                        icon: Icons.search_off_rounded,
+                        title: '조건에 맞는 루틴이 없어요',
+                        message: '검색어나 필터를 바꿔 다시 찾아보세요.',
+                        actionLabel: '검색 초기화',
+                        onAction: () => setState(() {
+                          searchController.clear();
+                          filter = '전체';
+                        }),
+                      ),
+                    for (final routine in routines)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: SetflowSpacing.md,
+                        ),
+                        child: SetflowCard(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ExpertRoutineDetailScreen(routine: routine),
+                            ),
+                          ),
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                height: 118,
+                                decoration: BoxDecoration(
+                                  color: routine.color.withValues(alpha: .14),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      right: 18,
+                                      bottom: 12,
+                                      child: Icon(
+                                        Icons.fitness_center_rounded,
+                                        size: 72,
+                                        color: routine.color.withValues(
+                                          alpha: .38,
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      left: 16,
+                                      top: 14,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: SetflowSpacing.sm,
+                                          vertical: SetflowSpacing.xs,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: routine.color,
+                                          borderRadius: BorderRadius.circular(
+                                            SetflowRadii.xs,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          routine.level,
+                                          style: text.bodySmall?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(
+                                  SetflowSpacing.lg,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      routine.name,
+                                      style: text.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: SetflowSpacing.xs),
+                                    Text(
+                                      routine.description,
+                                      style: text.labelMedium?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    const SizedBox(height: SetflowSpacing.md),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.verified_rounded,
+                                          color: context.setflowColors.blue,
+                                          size: 17,
+                                        ),
+                                        const SizedBox(
+                                          width: SetflowSpacing.xs,
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            routine.author,
+                                            style: text.labelMedium?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        const Icon(Icons.chevron_right),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -979,6 +1596,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
     }
   }
 
+  Future<void> _pickSort() async {
+    final selected = await showAppActionSheet<String>(
+      context,
+      title: '게시물 정렬',
+      actions: const [
+        SheetAction(icon: Icons.schedule_rounded, label: '최신순', value: '최신순'),
+        SheetAction(
+          icon: Icons.favorite_outline_rounded,
+          label: '좋아요순',
+          value: '좋아요순',
+        ),
+        SheetAction(
+          icon: Icons.chat_bubble_outline_rounded,
+          label: '댓글순',
+          value: '댓글순',
+        ),
+      ],
+    );
+    if (selected != null && mounted) setState(() => sort = selected);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -991,91 +1629,120 @@ class _CommunityScreenState extends State<CommunityScreen> {
       default:
         posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('동기부여'),
-        actions: [
-          PopupMenuButton<String>(
-            tooltip: '게시물 정렬',
-            initialValue: sort,
-            onSelected: (value) => setState(() => sort = value),
-            itemBuilder: (_) => ['최신순', '좋아요순', '댓글순']
-                .map((item) => PopupMenuItem(value: item, child: Text(item)))
-                .toList(),
-            icon: const Icon(Icons.swap_vert_rounded),
-          ),
-        ],
-      ),
-      body: posts.isEmpty
-          ? EmptyState(
-              icon: Icons.photo_library_outlined,
-              title: '아직 게시물이 없어요',
-              message: '첫 운동 기록을 공유하고 서로 응원해보세요.',
-              actionLabel: '첫 게시물 작성',
-              onAction: _compose,
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.fromLTRB(2, 4, 2, 100),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 2,
-                mainAxisSpacing: 2,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.xl,
+                SetflowSpacing.md,
+                SetflowSpacing.xl,
+                SetflowSpacing.md,
               ),
-              itemCount: posts.length,
-              itemBuilder: (_, index) {
-                final post = posts[index];
-                return Semantics(
-                  button: true,
-                  label: '${post.author}의 게시물, ${post.content}',
-                  child: Material(
-                    color: post.color.withValues(alpha: .18),
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => CommunityPostDetailScreen(post: post),
-                        ),
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Center(
-                            child: Icon(post.icon, size: 50, color: post.color),
-                          ),
-                          Positioned(
-                            left: 7,
-                            right: 7,
-                            bottom: 6,
-                            child: Text(
-                              post.metric,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          if (post.isMine)
-                            const Positioned(
-                              top: 6,
-                              right: 6,
-                              child: Icon(
-                                Icons.person_rounded,
-                                size: 15,
-                                color: SetflowColors.ink,
-                              ),
-                            ),
-                        ],
-                      ),
+              child: Row(
+                children: [
+                  Text(
+                    '동기부여',
+                    style: text.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                );
-              },
+                  const Spacer(),
+                  AppIconButton(
+                    icon: Icons.swap_vert_rounded,
+                    tooltip: '게시물 정렬',
+                    onTap: _pickSort,
+                  ),
+                ],
+              ),
             ),
+            Expanded(
+              child: posts.isEmpty
+                  ? EmptyState(
+                      icon: Icons.photo_library_outlined,
+                      title: '아직 게시물이 없어요',
+                      message: '첫 운동 기록을 공유하고 서로 응원해보세요.',
+                      actionLabel: '첫 게시물 작성',
+                      onAction: _compose,
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(
+                        SetflowSpacing.xxs,
+                        SetflowSpacing.xs,
+                        SetflowSpacing.xxs,
+                        100,
+                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 2,
+                            mainAxisSpacing: 2,
+                          ),
+                      itemCount: posts.length,
+                      itemBuilder: (_, index) {
+                        final post = posts[index];
+                        return Semantics(
+                          button: true,
+                          label: '${post.author}의 게시물, ${post.content}',
+                          child: Material(
+                            color: post.color.withValues(alpha: .18),
+                            child: InkWell(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      CommunityPostDetailScreen(post: post),
+                                ),
+                              ),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Center(
+                                    child: Icon(
+                                      post.icon,
+                                      size: 50,
+                                      color: post.color,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    left: 7,
+                                    right: 7,
+                                    bottom: 6,
+                                    child: Text(
+                                      post.metric,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: text.bodySmall?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                  if (post.isMine)
+                                    Positioned(
+                                      top: 6,
+                                      right: 6,
+                                      child: Icon(
+                                        Icons.person_rounded,
+                                        size: 15,
+                                        color: scheme.onSurface,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _compose,
-        backgroundColor: SetflowColors.ink,
-        foregroundColor: Colors.white,
         child: const Icon(Icons.add_rounded),
       ),
     );
@@ -1097,157 +1764,163 @@ class CoachingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('코칭')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: SetflowColors.primary.withValues(alpha: .18),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: const Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: SetflowColors.primary,
-                  child: Icon(
-                    Icons.support_agent_rounded,
-                    color: SetflowColors.ink,
-                  ),
-                ),
-                SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '내 기록을 전문가와 연결하세요',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        '상담 답변을 확인하고 1:1 코칭까지 이어갈 수 있어요.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: SetflowColors.secondaryText,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          SectionTitle('내 상담 ${state.consultations.length}건'),
-          const SizedBox(height: 10),
-          if (state.consultations.isEmpty)
-            EmptyState(
-              icon: Icons.support_agent_rounded,
-              title: '진행 중인 상담이 없어요',
-              message: '운동 목표와 고민을 전문가에게 질문해보세요.',
-              actionLabel: '새 상담 신청',
-              onAction: () => _newConsult(context),
-            )
-          else
-            for (final consultation in state.consultations)
-              Padding(
-                padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
-                child: SetflowCard(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ConsultationDetailScreen(consultation: consultation),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const CircleAvatar(
-                            backgroundColor: Color(0xFFE8F0FF),
-                            child: Icon(
-                              Icons.person_rounded,
-                              color: SetflowColors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: SetflowSpacing.md),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  consultation.trainerName,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                Text(
-                                  consultation.specialty,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: SetflowColors.secondaryText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          _ConsultationBadge(status: consultation.status),
-                        ],
-                      ),
-                      const Divider(height: 28),
-                      Text(
-                        consultation.question,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(height: 1.45),
-                      ),
-                    ],
-                  ),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.xl,
+                SetflowSpacing.md,
+                SetflowSpacing.xl,
+                0,
+              ),
+              child: Text(
+                '코칭',
+                style: text.headlineLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-          const SizedBox(height: 4),
-          OutlinedButton.icon(
-            onPressed: () => _newConsult(context),
-            icon: const Icon(Icons.edit_note_rounded),
-            label: const Text('새 상담 신청'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(54),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
             ),
-          ),
-          const SizedBox(height: 26),
-          const SectionTitle('코칭 보호 정책'),
-          const SizedBox(height: 8),
-          const SetflowCard(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.shield_outlined, color: SetflowColors.green),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '운동 일지 작성 후 72시간 안에 피드백을 받지 못하면 중도 해지 요청이 활성화됩니다.',
-                    style: TextStyle(
-                      color: SetflowColors.secondaryText,
-                      height: 1.5,
+            Expanded(
+              child: ListView(
+                padding: SetflowInsets.pageList,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(SetflowSpacing.xl),
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: .14),
+                      borderRadius: BorderRadius.circular(SetflowRadii.xl),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: scheme.primary,
+                          child: Icon(
+                            Icons.support_agent_rounded,
+                            color: scheme.onPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: SetflowSpacing.lg),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '내 기록을 전문가와 연결하세요',
+                                style: text.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: SetflowSpacing.xs),
+                              Text(
+                                '상담 답변을 확인하고 1:1 코칭까지 이어갈 수 있어요.',
+                                style: text.labelMedium?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: SetflowSpacing.xxl),
+                  SectionTitle('내 상담 ${state.consultations.length}건'),
+                  const SizedBox(height: SetflowSpacing.md),
+                  if (state.consultations.isEmpty)
+                    EmptyState(
+                      icon: Icons.support_agent_rounded,
+                      title: '진행 중인 상담이 없어요',
+                      message: '운동 목표와 고민을 전문가에게 질문해보세요.',
+                      actionLabel: '새 상담 신청',
+                      onAction: () => _newConsult(context),
+                    )
+                  else
+                    for (final consultation in state.consultations)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: SetflowSpacing.md,
+                        ),
+                        child: SetflowCard(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ConsultationDetailScreen(
+                                consultation: consultation,
+                              ),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  TintedIconBadge(
+                                    icon: Icons.person_rounded,
+                                    color: context.setflowColors.blue,
+                                  ),
+                                  const SizedBox(width: SetflowSpacing.md),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          consultation.trainerName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                        Text(
+                                          consultation.specialty,
+                                          style: text.labelMedium?.copyWith(
+                                            color: scheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  _ConsultationBadge(
+                                    status: consultation.status,
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 28),
+                              Text(
+                                consultation.question,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(height: 1.45),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  const SizedBox(height: SetflowSpacing.xs),
+                  AppButton(
+                    variant: AppButtonVariant.outlined,
+                    icon: Icons.edit_note_rounded,
+                    label: '새 상담 신청',
+                    onPressed: () => _newConsult(context),
+                  ),
+                  const SizedBox(height: SetflowSpacing.xxl),
+                  const SectionTitle('코칭 보호 정책'),
+                  const SizedBox(height: SetflowSpacing.sm),
+                  InfoBanner(
+                    message: '운동 일지 작성 후 72시간 안에 피드백을 받지 못하면 중도 해지 요청이 활성화됩니다.',
+                    icon: Icons.shield_outlined,
+                    color: context.setflowColors.success,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1261,25 +1934,11 @@ class _ConsultationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      ConsultationStatus.waiting => ('답변 대기', SetflowColors.orange),
-      ConsultationStatus.answered => ('상담 완료', SetflowColors.green),
-      ConsultationStatus.coaching => ('코칭 중', SetflowColors.blue),
+      ConsultationStatus.waiting => ('답변 대기', context.setflowColors.orange),
+      ConsultationStatus.answered => ('상담 완료', context.setflowColors.success),
+      ConsultationStatus.coaching => ('코칭 중', context.setflowColors.blue),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(SetflowRadii.sm),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
+    return StatusChip(label: label, color: color);
   }
 }
 
@@ -1288,90 +1947,111 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('운동 대시보드')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
-        children: [
+        padding: SetflowInsets.pageListTight,
+        children: Reveal.list([
+          // Hero: this week's training summary as a data-viz card.
+          const TrainingHeroCard(
+            kicker: '이번 주 트레이닝',
+            value: '12.8',
+            unit: 't',
+            delta: '12%',
+            deltaUp: true,
+            streak: '7일 연속',
+            spark: [7.2, 6.5, 8.1, 7.8, 9.4, 8.9, 10.2, 9.6, 11.1, 12.8],
+            weekValues: [1.8, 0, 1.5, 2.2, 0, 1.3, 0.9],
+            weekLabels: ['월', '화', '수', '목', '금', '토', '일'],
+            weekHighlight: 5,
+            ringValue: 0.86,
+            ringTop: '86%',
+            ringBottom: '완료율',
+          ),
+          const SizedBox(height: SetflowSpacing.md),
           Row(
-            children: const [
+            children: [
               MetricCard(
-                label: '이번 주',
-                value: '4',
+                label: '이번 달 운동',
+                value: '18',
                 suffix: '회',
-                icon: Icons.calendar_today,
-                tint: SetflowColors.teal,
+                icon: Icons.event_available_rounded,
+                tint: scheme.primary,
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: SetflowSpacing.md),
               MetricCard(
-                label: '총 볼륨',
-                value: '12.8',
-                suffix: 't',
-                icon: Icons.monitor_weight_outlined,
-                tint: SetflowColors.orange,
+                label: '평균 세션',
+                value: '58',
+                suffix: '분',
+                icon: Icons.timer_outlined,
+                tint: context.setflowColors.teal,
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: const [
-              MetricCard(
-                label: '연속 기록',
-                value: '7',
-                suffix: '일',
-                icon: Icons.local_fire_department,
-                tint: SetflowColors.red,
+          const SizedBox(height: SetflowSpacing.section),
+          const KineticLabel('훈련 기록 · 최근 10주', tick: true),
+          const SizedBox(height: SetflowSpacing.md),
+          SetflowCard(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ContributionGrid(
+                color: scheme.primary,
+                emptyColor: context.setflowColors.surfaceContainerHigh,
+                intensities: const [
+                  [0.4, 0, 0.8, 0, 0.6, 0.3, 0],
+                  [0.7, 0.5, 0, 0.9, 0, 0.4, 0.2],
+                  [0, 0.6, 0.5, 0.7, 0.3, 0, 0.8],
+                  [0.5, 0, 0.9, 0.4, 0.6, 0.7, 0],
+                  [0.8, 0.3, 0, 0.5, 0.9, 0, 0.4],
+                  [0.6, 0.7, 0.4, 0, 0.5, 0.8, 0.3],
+                  [0, 0.9, 0.6, 0.7, 0, 0.4, 0.5],
+                  [0.7, 0.5, 0.8, 0.3, 0.6, 0, 0.9],
+                  [0.4, 0, 0.6, 0.9, 0.5, 0.7, 0],
+                  [0.9, 0.6, 0.4, 0.5, 0.8, 0.3, 0.7],
+                ],
               ),
-              SizedBox(width: 10),
-              MetricCard(
-                label: '완료율',
-                value: '86',
-                suffix: '%',
-                icon: Icons.check_circle_outline,
-                tint: SetflowColors.blue,
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: SetflowSpacing.xxl),
           SetflowCard(
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const BodyCompositionScreen()),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: Color(0xFFE0FAF7),
-                  child: Icon(
-                    Icons.accessibility_new,
-                    color: SetflowColors.teal,
-                  ),
+                TintedIconBadge(
+                  icon: Icons.accessibility_new,
+                  color: context.setflowColors.teal,
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         '체성분 변화',
-                        style: TextStyle(fontWeight: FontWeight.w900),
+                        style: text.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                       Text(
                         '체중 70.9kg · 골격근량 32.5kg',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: SetflowColors.secondaryText,
+                        style: text.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right),
+                const Icon(Icons.chevron_right),
               ],
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('주간 볼륨'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           SetflowCard(
             child: SizedBox(
               height: 170,
@@ -1381,7 +2061,9 @@ class DashboardScreen extends StatelessWidget {
                   for (var i = 0; i < 7; i++)
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: SetflowSpacing.xs,
+                        ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
@@ -1401,22 +2083,22 @@ class DashboardScreen extends StatelessWidget {
                                   child: Container(
                                     decoration: BoxDecoration(
                                       color: i == 5
-                                          ? SetflowColors.primary
-                                          : SetflowColors.teal.withValues(
-                                              alpha: .7,
-                                            ),
-                                      borderRadius: BorderRadius.circular(7),
+                                          ? scheme.primary
+                                          : context.setflowColors.teal
+                                                .withValues(alpha: .7),
+                                      borderRadius: BorderRadius.circular(
+                                        SetflowRadii.xs,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: SetflowSpacing.sm),
                             Text(
                               ['월', '화', '수', '목', '금', '토', '일'][i],
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: SetflowColors.secondaryText,
+                              style: text.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1427,28 +2109,28 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('1RM 성장'),
-          const SizedBox(height: 10),
-          const SetflowCard(
+          const SizedBox(height: SetflowSpacing.md),
+          SetflowCard(
             child: ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                backgroundColor: Color(0xFFFFF4CB),
-                child: Icon(Icons.trending_up, color: SetflowColors.orange),
+              leading: TintedIconBadge(
+                icon: Icons.trending_up,
+                color: context.setflowColors.orange,
               ),
-              title: Text(
+              title: const Text(
                 '바벨 벤치 프레스',
                 style: TextStyle(fontWeight: FontWeight.w900),
               ),
-              subtitle: Text('최근 4주 +7.5kg'),
+              subtitle: const Text('최근 4주 +7.5kg'),
               trailing: Text(
                 '72.5kg',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                style: text.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
           ),
-        ],
+        ]),
       ),
     );
   }
@@ -1460,17 +2142,18 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
+        padding: SetflowInsets.pageListTight,
         children: [
-          const ListTile(
+          ListTile(
             title: Text(
               '계정 & 개인화',
-              style: TextStyle(
-                fontSize: 13,
-                color: SetflowColors.secondaryText,
+              style: text.labelMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1521,12 +2204,11 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const Divider(height: 30),
-          const ListTile(
+          ListTile(
             title: Text(
               '운동 기록',
-              style: TextStyle(
-                fontSize: 13,
-                color: SetflowColors.secondaryText,
+              style: text.labelMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1562,12 +2244,11 @@ class SettingsScreen extends StatelessWidget {
             onChanged: (_) => state.toggleTheme(),
           ),
           const Divider(height: 30),
-          const ListTile(
+          ListTile(
             title: Text(
               '데모 워크스페이스',
-              style: TextStyle(
-                fontSize: 13,
-                color: SetflowColors.secondaryText,
+              style: text.labelMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1598,11 +2279,8 @@ class SettingsScreen extends StatelessWidget {
           ),
           const Divider(height: 30),
           ListTile(
-            leading: const Icon(Icons.logout, color: SetflowColors.red),
-            title: const Text(
-              '로그아웃',
-              style: TextStyle(color: SetflowColors.red),
-            ),
+            leading: Icon(Icons.logout, color: scheme.error),
+            title: Text('로그아웃', style: TextStyle(color: scheme.error)),
             onTap: () {
               Navigator.pop(context);
               state.logout();

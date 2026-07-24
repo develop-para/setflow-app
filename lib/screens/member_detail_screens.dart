@@ -49,7 +49,12 @@ class MemberDetailScreen extends StatelessWidget {
         body: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.xxl,
+                SetflowSpacing.lg,
+                SetflowSpacing.xxl,
+                SetflowSpacing.md,
+              ),
               child: _MemberSummaryHeader(
                 person: person,
                 latestVolume: latestVolume,
@@ -83,38 +88,37 @@ class _MemberSummaryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Row(
           children: [
             CircleAvatar(
               radius: 26,
-              backgroundColor: SetflowColors.primary.withValues(alpha: .2),
+              backgroundColor: scheme.primary.withValues(alpha: .2),
               child: Text(
                 person.$1.characters.first,
-                style: const TextStyle(
-                  fontSize: 19,
+                style: text.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w900,
                 ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: SetflowSpacing.lg),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     person.$1,
-                    style: const TextStyle(
-                      fontSize: 19,
+                    style: text.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   Text(
                     '${person.$2} · 마지막 기록 ${person.$3}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: SetflowColors.secondaryText,
+                    style: text.labelMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -122,7 +126,7 @@ class _MemberSummaryHeader extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: SetflowSpacing.lg),
         Row(
           children: [
             MetricCard(
@@ -131,16 +135,16 @@ class _MemberSummaryHeader extends StatelessWidget {
               suffix: '%',
               icon: Icons.check_circle_outline,
               tint: person.$4 >= 80
-                  ? SetflowColors.green
-                  : SetflowColors.orange,
+                  ? context.setflowColors.success
+                  : context.setflowColors.orange,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: SetflowSpacing.md),
             MetricCard(
               label: '최근 볼륨',
               value: latestVolume.toStringAsFixed(1),
               suffix: 't',
               icon: Icons.monitor_weight_outlined,
-              tint: SetflowColors.blue,
+              tint: context.setflowColors.blue,
             ),
           ],
         ),
@@ -172,6 +176,8 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
     ];
     final recent = widget.sessions.values.toList()
       ..sort((a, b) => b.date.compareTo(a.date));
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
 
     return ListView(
       padding: SetflowInsets.pageListTight,
@@ -187,10 +193,7 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
               child: Text(
                 DateFormat('yyyy.MM').format(month),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                ),
+                style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
             IconButton(
@@ -216,9 +219,9 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                 ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: SetflowSpacing.lg),
         const SectionTitle('최근 운동 기록'),
-        const SizedBox(height: 8),
+        const SizedBox(height: SetflowSpacing.sm),
         if (recent.isEmpty)
           const EmptyState(
             icon: Icons.event_busy,
@@ -228,7 +231,7 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
         else
           for (final session in recent.take(5))
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
               child: SetflowCard(
                 child: Row(
                   children: [
@@ -240,12 +243,11 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                             '${DateFormat('MM.dd').format(session.date)} (${_weekdayLabel(session.date)})',
                             style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: SetflowSpacing.xs),
                           Text(
                             '${session.exercises.length}개 종목 · ${session.totalSets}세트 · ${session.volume.toStringAsFixed(1)}t',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: SetflowColors.secondaryText,
+                            style: text.labelMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -256,8 +258,8 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         color: session.completion >= .8
-                            ? SetflowColors.green
-                            : SetflowColors.orange,
+                            ? context.setflowColors.success
+                            : context.setflowColors.orange,
                       ),
                     ),
                   ],
@@ -278,21 +280,23 @@ class _MemberCalendarCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isToday = DateUtils.isSameDay(date, DateTime.now());
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(SetflowSpacing.xxs),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(SetflowRadii.sm),
           border: isToday
-              ? Border.all(color: SetflowColors.primary, width: 1.4)
+              ? Border.all(color: scheme.primary, width: 1.4)
               : null,
         ),
         alignment: Alignment.center,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('${date.day}', style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 2),
+            Text('${date.day}', style: text.labelMedium),
+            const SizedBox(height: SetflowSpacing.xxs),
             if (session != null)
               Container(
                 width: 5,
@@ -300,8 +304,8 @@ class _MemberCalendarCell extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: session!.completion >= .8
-                      ? SetflowColors.green
-                      : SetflowColors.orange,
+                      ? context.setflowColors.success
+                      : context.setflowColors.orange,
                 ),
               ),
           ],
@@ -325,13 +329,15 @@ class _MemberRoutineTab extends StatelessWidget {
         message: '이 회원에게 배정된 루틴이 없습니다.',
       );
     }
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      padding: SetflowInsets.pageList,
       itemCount: routines.length,
       itemBuilder: (_, index) {
         final routine = routines[index];
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
           child: SetflowCard(
             child: Row(
               children: [
@@ -340,37 +346,34 @@ class _MemberRoutineTab extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     color: routine.color,
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(SetflowRadii.xs),
                   ),
                 ),
-                const SizedBox(width: 11),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         routine.name,
-                        style: const TextStyle(
+                        style: text.titleMedium?.copyWith(
                           fontWeight: FontWeight.w900,
-                          fontSize: 15,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: SetflowSpacing.xxs),
                       Text(
                         routine.description,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: SetflowColors.secondaryText,
+                        style: text.labelMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: SetflowSpacing.xs),
                       Text(
                         '${routine.level} · ${routine.exercises.length}개 종목',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: SetflowColors.disabled,
+                        style: text.bodySmall?.copyWith(
+                          color: context.setflowColors.disabled,
                         ),
                       ),
                     ],
@@ -396,50 +399,50 @@ class _MemberCommunityTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      padding: SetflowInsets.pageList,
       itemCount: _posts.length,
       itemBuilder: (_, index) {
         final post = _posts[index];
         return Padding(
-          padding: const EdgeInsets.only(bottom: 11),
+          padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
           child: SetflowCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   post.$1,
-                  style: const TextStyle(
+                  style: text.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
-                    fontSize: 15,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: SetflowSpacing.xs),
                 Text(
                   post.$2,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: SetflowColors.secondaryText,
+                  style: text.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: SetflowSpacing.md),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.favorite_border,
                       size: 16,
-                      color: SetflowColors.secondaryText,
+                      color: scheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 4),
-                    Text('${post.$3}', style: const TextStyle(fontSize: 12)),
-                    const SizedBox(width: 14),
-                    const Icon(
+                    const SizedBox(width: SetflowSpacing.xs),
+                    Text('${post.$3}', style: text.labelMedium),
+                    const SizedBox(width: SetflowSpacing.lg),
+                    Icon(
                       Icons.mode_comment_outlined,
                       size: 16,
-                      color: SetflowColors.secondaryText,
+                      color: scheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 4),
-                    Text('${post.$4}', style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: SetflowSpacing.xs),
+                    Text('${post.$4}', style: text.labelMedium),
                   ],
                 ),
               ],
@@ -458,8 +461,10 @@ class _MemberLibraryTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      padding: SetflowInsets.pageList,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 10,
@@ -470,11 +475,11 @@ class _MemberLibraryTab extends StatelessWidget {
       itemBuilder: (_, index) {
         final exercise = exercises[index];
         return SetflowCard(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(SetflowSpacing.md),
           child: Row(
             children: [
-              Icon(exercise.icon, color: SetflowColors.primary, size: 20),
-              const SizedBox(width: 8),
+              Icon(exercise.icon, color: scheme.primary, size: 20),
+              const SizedBox(width: SetflowSpacing.sm),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -482,18 +487,16 @@ class _MemberLibraryTab extends StatelessWidget {
                   children: [
                     Text(
                       exercise.name,
-                      style: const TextStyle(
+                      style: text.labelMedium?.copyWith(
                         fontWeight: FontWeight.w800,
-                        fontSize: 12,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       exercise.muscle,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: SetflowColors.secondaryText,
+                      style: text.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ],

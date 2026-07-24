@@ -50,9 +50,11 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '새 루틴 만들기',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: SetflowSpacing.xl),
             AppTextField(
@@ -145,7 +147,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
       body: Form(
         key: formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
           children: [
             _WorkoutVisualPreview(
               hasImage: hasImage,
@@ -239,7 +241,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
                   _ShareTarget(
                     icon: Icons.chat_bubble_rounded,
                     label: '카카오톡',
-                    color: SetflowColors.primary,
+                    color: Theme.of(context).colorScheme.primary,
                     onTap: () =>
                         AppSnackbar.info(context, '게시 후 카카오톡으로 공유할 수 있어요.'),
                   ),
@@ -253,7 +255,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
                   _ShareTarget(
                     icon: Icons.download_rounded,
                     label: '저장',
-                    color: SetflowColors.green,
+                    color: context.setflowColors.success,
                     onTap: () =>
                         AppSnackbar.info(context, '게시 후 이미지로 저장할 수 있어요.'),
                   ),
@@ -322,10 +324,10 @@ class _WorkoutVisualPreview extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: SetflowSpacing.lg),
-              const Text(
+              Text(
                 '운동 결과 사진을 올려보세요.',
-                style: TextStyle(
-                  color: SetflowColors.secondaryText,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -336,9 +338,9 @@ class _WorkoutVisualPreview extends StatelessWidget {
     }
 
     final color = switch (visualKey) {
-      'streak' => SetflowColors.teal,
+      'streak' => context.setflowColors.teal,
       'tip' => context.setflowColors.info,
-      _ => SetflowColors.orange,
+      _ => context.setflowColors.orange,
     };
     final icon = switch (visualKey) {
       'streak' => Icons.local_fire_department_rounded,
@@ -439,13 +441,12 @@ class _MediaButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon),
-              const SizedBox(height: 4),
+              const SizedBox(height: SetflowSpacing.xs),
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),
@@ -469,7 +470,7 @@ class _PreviewLabel extends StatelessWidget {
         margin: const EdgeInsets.all(SetflowSpacing.md),
         padding: const EdgeInsets.symmetric(
           horizontal: SetflowSpacing.sm,
-          vertical: 6,
+          vertical: SetflowSpacing.sm,
         ),
         decoration: BoxDecoration(
           color: Colors.black54,
@@ -478,9 +479,8 @@ class _PreviewLabel extends StatelessWidget {
         child: Text(
           text,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Colors.white,
-            fontSize: 11,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -513,23 +513,80 @@ class _ShareTarget extends StatelessWidget {
           width: 62,
           child: Column(
             children: [
-              CircleAvatar(
-                radius: 23,
-                backgroundColor: color.withValues(alpha: .16),
-                child: Icon(icon, color: color),
-              ),
-              const SizedBox(height: 6),
+              TintedIconBadge(icon: icon, color: color, size: 46),
+              const SizedBox(height: SetflowSpacing.sm),
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Rich action card meta line (pattern language item 4): bold tabular
+/// numerals for exercise/set count and estimated duration.
+class _RoutineMetaRow extends StatelessWidget {
+  const _RoutineMetaRow({
+    required this.exerciseCount,
+    required this.setCount,
+    required this.estimatedMinutes,
+  });
+
+  final int exerciseCount;
+  final int setCount;
+  final int estimatedMinutes;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final labelStyle = text.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: colors.onSurfaceVariant,
+    );
+    final numeralStyle = text.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w900,
+      color: colors.onSurface,
+    );
+    return Wrap(
+      spacing: SetflowSpacing.md,
+      runSpacing: SetflowSpacing.xs,
+      children: [
+        Text.rich(
+          TextSpan(
+            style: labelStyle,
+            children: [
+              TextSpan(text: '$exerciseCount', style: numeralStyle),
+              const TextSpan(text: ' 운동'),
+            ],
+          ),
+        ),
+        Text.rich(
+          TextSpan(
+            style: labelStyle,
+            children: [
+              TextSpan(text: '$setCount', style: numeralStyle),
+              const TextSpan(text: ' 세트'),
+            ],
+          ),
+        ),
+        Text.rich(
+          TextSpan(
+            style: labelStyle,
+            children: [
+              const TextSpan(text: '약 '),
+              TextSpan(text: '$estimatedMinutes', style: numeralStyle),
+              const TextSpan(text: '분'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -578,7 +635,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
         children: [
           Container(
             height: 210,
@@ -605,20 +662,25 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           const SizedBox(height: SetflowSpacing.md),
           Text(
             routine.name,
-            style: const TextStyle(
-              fontSize: 27,
+            style: Theme.of(context).textTheme.displayMedium?.copyWith(
               height: 1.2,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: SetflowSpacing.md),
+          const SizedBox(height: SetflowSpacing.sm),
+          _RoutineMetaRow(
+            exerciseCount: routine.exercises.length,
+            setCount: routine.exercises.length * 3,
+            estimatedMinutes: routine.exercises.length * 12,
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
           SetflowCard(
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: routine.color.withValues(alpha: .14),
-                  child: Icon(Icons.person_rounded, color: routine.color),
+                TintedIconBadge(
+                  icon: Icons.person_rounded,
+                  color: routine.color,
+                  size: 48,
                 ),
                 const SizedBox(width: SetflowSpacing.md),
                 Expanded(
@@ -636,19 +698,18 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(
+                          const SizedBox(width: SetflowSpacing.xs),
+                          Icon(
                             Icons.verified_rounded,
                             size: 17,
-                            color: SetflowColors.blue,
+                            color: context.setflowColors.blue,
                           ),
                         ],
                       ),
-                      const Text(
+                      Text(
                         '전문 루틴 12개 · 코칭 340회',
-                        style: TextStyle(
-                          color: SetflowColors.secondaryText,
-                          fontSize: 11,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -660,8 +721,8 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           const SizedBox(height: SetflowSpacing.lg),
           Text(
             routine.description,
-            style: const TextStyle(
-              color: SetflowColors.secondaryText,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               height: 1.6,
             ),
           ),
@@ -718,20 +779,21 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                           ),
                           Text(
                             routine.exercises[index].muscle,
-                            style: const TextStyle(
-                              color: SetflowColors.secondaryText,
-                              fontSize: 11,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
                           ),
                         ],
                       ),
                     ),
-                    const Text(
+                    Text(
                       '3세트\n8~12회',
                       textAlign: TextAlign.right,
-                      style: TextStyle(
-                        color: SetflowColors.secondaryText,
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         height: 1.4,
                       ),
                     ),
@@ -740,12 +802,16 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
               ),
             ),
           const SizedBox(height: SetflowSpacing.xl),
-          const Row(
+          Row(
             children: [
-              Expanded(child: SectionTitle('생생한 후기')),
-              Icon(Icons.star_rounded, color: SetflowColors.orange, size: 18),
-              SizedBox(width: 3),
-              Text('4.9 (128)'),
+              const Expanded(child: SectionTitle('생생한 후기')),
+              Icon(
+                Icons.star_rounded,
+                color: context.setflowColors.orange,
+                size: 18,
+              ),
+              const SizedBox(width: SetflowSpacing.xs),
+              const Text('4.9 (128)'),
             ],
           ),
           const SizedBox(height: SetflowSpacing.sm),
@@ -757,13 +823,15 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
             author: '헬린이 탈출기',
             content: '초보자가 놓치기 쉬운 포인트가 잘 정리되어 있습니다.',
           ),
-          const SizedBox(height: SetflowSpacing.xl),
-          AppButton(
-            label: '내 루틴으로 저장',
-            icon: Icons.download_rounded,
-            onPressed: () => _import(context),
-          ),
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+        child: AppButton(
+          label: '내 루틴으로 저장',
+          icon: Icons.download_rounded,
+          onPressed: () => _import(context),
+        ),
       ),
     );
   }
@@ -781,21 +849,43 @@ class _RoutineReview extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       title: Text(
         author,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: SetflowSpacing.xs),
           Text(content),
         ],
       ),
@@ -859,6 +949,22 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
     }
   }
 
+  Future<void> _showPostMenu(BuildContext context) async {
+    final action = await showAppActionSheet<String>(
+      context,
+      title: '게시물 메뉴',
+      actions: const [
+        SheetAction(
+          icon: Icons.flag_outlined,
+          label: '신고하기',
+          value: 'report',
+          destructive: true,
+        ),
+      ],
+    );
+    if (action == 'report' && mounted) _reportPost();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -867,14 +973,10 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
       appBar: AppBar(
         title: const Text('게시물'),
         actions: [
-          PopupMenuButton<String>(
+          IconButton(
             tooltip: '게시물 메뉴',
-            onSelected: (value) {
-              if (value == 'report') _reportPost();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'report', child: Text('신고하기')),
-            ],
+            onPressed: () => _showPostMenu(context),
+            icon: const Icon(Icons.more_vert_rounded),
           ),
         ],
       ),
@@ -917,8 +1019,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                     children: [
                       Text(
                         post.content,
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           height: 1.55,
                           fontWeight: FontWeight.w600,
                         ),
@@ -926,8 +1027,8 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                       const SizedBox(height: SetflowSpacing.sm),
                       Text(
                         post.metric,
-                        style: const TextStyle(
-                          color: SetflowColors.secondaryText,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -944,13 +1045,15 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                               post.isLiked
                                   ? Icons.favorite_rounded
                                   : Icons.favorite_border_rounded,
-                              color: post.isLiked ? SetflowColors.red : null,
+                              color: post.isLiked
+                                  ? Theme.of(context).colorScheme.error
+                                  : null,
                             ),
                           ),
                           Text('${post.likes}'),
                           const SizedBox(width: SetflowSpacing.md),
                           const Icon(Icons.chat_bubble_outline_rounded),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: SetflowSpacing.sm),
                           Text('${post.comments.length}'),
                           const Spacer(),
                           IconButton(
@@ -987,7 +1090,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                             subtitle: Text(comment.content),
                             trailing: Text(
                               _relativeTime(comment.createdAt),
-                              style: const TextStyle(fontSize: 10),
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ),
                     ],
@@ -1101,12 +1204,11 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
       body: Form(
         key: formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
           children: [
-            const Text(
+            Text(
               '현재 상태를 자세히 알려주시면\n더 정확한 답변을 받을 수 있어요.',
-              style: TextStyle(
-                fontSize: 24,
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                 height: 1.25,
                 fontWeight: FontWeight.w900,
               ),
@@ -1220,7 +1322,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                   onPressed: () => setDialogState(() => rating = index),
                   icon: Icon(
                     index <= rating ? Icons.star_rounded : Icons.star_border,
-                    color: SetflowColors.orange,
+                    color: context.setflowColors.orange,
                   ),
                 ),
             ],
@@ -1246,19 +1348,23 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final consultation = widget.consultation;
+    final (statusLabel, statusColor) = _consultationStatusChip(
+      context,
+      consultation.status,
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('상담 상세')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
         children: [
           Row(
             children: [
-              _StatusChip(status: consultation.status),
+              StatusChip(label: statusLabel, color: statusColor),
               const SizedBox(width: SetflowSpacing.sm),
               Text(
                 '${DateFormat('yyyy.MM.dd').format(consultation.createdAt)} 신청',
-                style: const TextStyle(
-                  color: SetflowColors.secondaryText,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1302,12 +1408,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      const CircleAvatar(
-                        backgroundColor: Color(0xFFE8F0FF),
-                        child: Icon(
-                          Icons.person_rounded,
-                          color: SetflowColors.blue,
-                        ),
+                      TintedIconBadge(
+                        icon: Icons.person_rounded,
+                        color: context.setflowColors.blue,
+                        size: 40,
                       ),
                       const SizedBox(width: SetflowSpacing.sm),
                       Expanded(
@@ -1322,17 +1426,19 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                             ),
                             Text(
                               consultation.specialty,
-                              style: const TextStyle(
-                                color: SetflowColors.secondaryText,
-                                fontSize: 12,
-                              ),
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.verified_rounded,
-                        color: SetflowColors.blue,
+                        color: context.setflowColors.blue,
                       ),
                     ],
                   ),
@@ -1351,27 +1457,26 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '4주 1:1 비동기 코칭',
-                      style: TextStyle(
-                        fontSize: 18,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
+                    const SizedBox(height: SetflowSpacing.sm),
+                    Text(
                       '맞춤 루틴 · 주 1회 피드백 · 72시간 응답 보장',
-                      style: TextStyle(color: SetflowColors.secondaryText),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: SetflowSpacing.lg),
                     Row(
                       children: [
-                        const Text(
+                        Text(
                           '149,000원',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                          ),
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const Spacer(),
                         AppButton(
@@ -1385,27 +1490,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                 ),
               )
             else ...[
-              Container(
-                padding: const EdgeInsets.all(SetflowSpacing.lg),
-                decoration: BoxDecoration(
-                  color: SetflowColors.green.withValues(alpha: .1),
-                  borderRadius: BorderRadius.circular(SetflowRadii.lg),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.verified_user_outlined,
-                      color: SetflowColors.green,
-                    ),
-                    SizedBox(width: SetflowSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        '코칭이 진행 중입니다. 결제 금액은 에스크로로 안전하게 보호됩니다.',
-                        style: TextStyle(height: 1.45),
-                      ),
-                    ),
-                  ],
-                ),
+              InfoBanner(
+                message: '코칭이 진행 중입니다. 결제 금액은 에스크로로 안전하게 보호됩니다.',
+                icon: Icons.verified_user_outlined,
+                color: context.setflowColors.success,
               ),
               const SizedBox(height: SetflowSpacing.md),
               AppButton(
@@ -1423,35 +1511,14 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final ConsultationStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      ConsultationStatus.waiting => ('답변 대기', SetflowColors.orange),
-      ConsultationStatus.answered => ('상담 완료', SetflowColors.green),
-      ConsultationStatus.coaching => ('코칭 중', context.setflowColors.info),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(SetflowRadii.sm),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
+(String, Color) _consultationStatusChip(
+  BuildContext context,
+  ConsultationStatus status,
+) => switch (status) {
+  ConsultationStatus.waiting => ('답변 대기', context.setflowColors.orange),
+  ConsultationStatus.answered => ('상담 완료', context.setflowColors.success),
+  ConsultationStatus.coaching => ('코칭 중', context.setflowColors.info),
+};
 
 class _ConsultField extends StatelessWidget {
   const _ConsultField({
@@ -1473,19 +1540,18 @@ class _ConsultField extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: SetflowColors.secondaryText,
-              fontSize: 11,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: SetflowSpacing.xs),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(SetflowSpacing.md),
             decoration: BoxDecoration(
               color: highlighted
-                  ? SetflowColors.primary.withValues(alpha: .12)
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: .12)
                   : context.setflowColors.surfaceContainerLow,
               borderRadius: BorderRadius.circular(SetflowRadii.md),
             ),

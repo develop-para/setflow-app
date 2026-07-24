@@ -4,6 +4,13 @@ import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
+/// Volt and other bright accents need dark text, not [HeroStatBanner]'s
+/// white default — pick whichever reads legibly against [background].
+Color _heroForeground(Color background) =>
+    ThemeData.estimateBrightnessForColor(background) == Brightness.dark
+    ? Colors.white
+    : Colors.black;
+
 class BodyCompositionScreen extends StatefulWidget {
   const BodyCompositionScreen({super.key});
 
@@ -21,6 +28,8 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
   @override
   Widget build(BuildContext context) {
     final latest = entries.last;
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('체성분 관리'),
@@ -33,18 +42,20 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
+        padding: SetflowInsets.pageListTight,
         children: [
+          // Hero stat block: 체중 is the screen's key number, so it leads as
+          // a solid banner; 골격근량/체지방률 stay as quieter secondary cards.
+          HeroStatBanner(
+            caption: '체중',
+            value: '${latest.weight.toStringAsFixed(1)}kg',
+            color: theme.colorScheme.primary,
+            foreground: _heroForeground(theme.colorScheme.primary),
+            note: '지난 측정 대비 -1.5kg',
+          ),
+          const SizedBox(height: SetflowSpacing.md),
           Row(
             children: [
-              MetricCard(
-                label: '체중',
-                value: latest.weight.toStringAsFixed(1),
-                suffix: 'kg',
-                icon: Icons.monitor_weight_outlined,
-                tint: SetflowColors.blue,
-              ),
-              const SizedBox(width: 10),
               MetricCard(
                 label: '골격근량',
                 value: latest.muscle.toStringAsFixed(1),
@@ -52,11 +63,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                 icon: Icons.fitness_center,
                 tint: SetflowColors.teal,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
+              const SizedBox(width: SetflowSpacing.md),
               MetricCard(
                 label: '체지방률',
                 value: latest.fat.toStringAsFixed(1),
@@ -64,19 +71,11 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                 icon: Icons.water_drop_outlined,
                 tint: SetflowColors.orange,
               ),
-              const SizedBox(width: 10),
-              const MetricCard(
-                label: '최근 변화',
-                value: '-1.5',
-                suffix: 'kg',
-                icon: Icons.trending_down,
-                tint: SetflowColors.green,
-              ),
             ],
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('체중 변화'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           SetflowCard(
             child: SizedBox(
               height: 170,
@@ -86,33 +85,31 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                   for (var i = 0; i < entries.length; i++)
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             Text(
                               '${entries[i].weight}',
-                              style: const TextStyle(
-                                fontSize: 11,
+                              style: text.bodySmall?.copyWith(
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
-                            const SizedBox(height: 5),
+                            const SizedBox(height: SetflowSpacing.xs),
                             Container(
                               height: 76 + i * 18,
                               decoration: BoxDecoration(
                                 color: i == entries.length - 1
                                     ? SetflowColors.primary
                                     : SetflowColors.teal.withValues(alpha: .55),
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(SetflowRadii.sm),
                               ),
                             ),
-                            const SizedBox(height: 7),
+                            const SizedBox(height: SetflowSpacing.sm),
                             Text(
                               entries[i].date,
-                              style: const TextStyle(
-                                fontSize: 9,
-                                color: SetflowColors.secondaryText,
+                              style: text.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -123,18 +120,15 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('측정 기록'),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           for (final entry in entries.reversed)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFE8F0FF),
-                child: Icon(
-                  Icons.analytics_outlined,
-                  color: SetflowColors.blue,
-                ),
+              leading: const TintedIconBadge(
+                icon: Icons.analytics_outlined,
+                color: SetflowColors.blue,
               ),
               title: Text(
                 entry.date,
@@ -151,7 +145,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addEntry(context),
         backgroundColor: SetflowColors.primary,
-        foregroundColor: SetflowColors.ink,
+        foregroundColor: theme.colorScheme.onPrimary,
         icon: const Icon(Icons.add),
         label: const Text('직접 입력'),
       ),
@@ -168,20 +162,22 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       showDragHandle: true,
       builder: (sheetContext) => Padding(
         padding: EdgeInsets.fromLTRB(
-          20,
-          4,
-          20,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
+          SetflowSpacing.xl,
+          SetflowSpacing.xs,
+          SetflowSpacing.xl,
+          MediaQuery.viewInsetsOf(sheetContext).bottom + SetflowSpacing.xxl,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '체성분 직접 입력',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              style: Theme.of(sheetContext).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: SetflowSpacing.xl),
             Row(
               children: [
                 Expanded(
@@ -191,7 +187,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                     decoration: const InputDecoration(labelText: '체중(kg)'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: TextField(
                     controller: muscle,
@@ -201,13 +197,13 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: SetflowSpacing.md),
             TextField(
               controller: fat,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: '체지방률(%)'),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: SetflowSpacing.xl),
             PrimaryButton(
               label: '기록 저장',
               onPressed: () {
@@ -249,6 +245,7 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('게시물 작성'),
@@ -262,47 +259,47 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
           InkWell(
             onTap: () =>
                 showMessage(context, '기기 사진 선택기는 네이티브 권한 연결 후 활성화됩니다.'),
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(SetflowRadii.lg),
             child: Container(
               height: 220,
               decoration: BoxDecoration(
-                color: SetflowColors.soft,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Theme.of(context).dividerColor),
+                color: context.setflowColors.surfaceContainer,
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
+                border: Border.all(color: theme.dividerColor),
               ),
-              child: const Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
                     Icons.add_photo_alternate_outlined,
                     size: 42,
-                    color: SetflowColors.disabled,
+                    color: context.setflowColors.disabled,
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: SetflowSpacing.md),
                   Text(
                     '운동 사진 추가',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: SetflowColors.secondaryText,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: SetflowSpacing.xl),
           TextField(
             controller: controller,
             onChanged: (_) => setState(() {}),
             maxLines: 5,
             decoration: const InputDecoration(hintText: '오늘 운동은 어땠나요?'),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: SetflowSpacing.xl),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text(
@@ -313,22 +310,23 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
             value: includeWorkout,
             onChanged: (value) => setState(() => includeWorkout = value),
           ),
-          const SizedBox(height: 8),
-          const Text('워터마크', style: TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 9),
-          Wrap(
-            spacing: 8,
-            children: ['오운완', 'Setflow', '기록 없음']
-                .map(
-                  (item) => ChoiceChip(
-                    label: Text(item),
-                    selected: watermark == item,
-                    onSelected: (_) => setState(() => watermark = item),
-                  ),
-                )
-                .toList(),
+          const SizedBox(height: SetflowSpacing.sm),
+          LabeledField(
+            label: '워터마크',
+            child: Wrap(
+              spacing: SetflowSpacing.sm,
+              children: ['오운완', 'Setflow', '기록 없음']
+                  .map(
+                    (item) => ChoiceChip(
+                      label: Text(item),
+                      selected: watermark == item,
+                      onSelected: (_) => setState(() => watermark = item),
+                    ),
+                  )
+                  .toList(),
+            ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: SetflowSpacing.xxl),
           PrimaryButton(
             label: '게시하기',
             onPressed: controller.text.trim().isEmpty
@@ -354,20 +352,22 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Scaffold(
       appBar: AppBar(title: const Text('김코치 상담')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
-          const SetflowCard(
+          SetflowCard(
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Color(0xFFE8F0FF),
-                  child: Icon(Icons.person, color: SetflowColors.blue),
+                const TintedIconBadge(
+                  icon: Icons.person,
+                  color: SetflowColors.blue,
+                  size: 56,
                 ),
-                SizedBox(width: 13),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,13 +376,12 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                         children: [
                           Text(
                             '김코치',
-                            style: TextStyle(
-                              fontSize: 17,
+                            style: text.titleLarge?.copyWith(
                               fontWeight: FontWeight.w900,
                             ),
                           ),
-                          SizedBox(width: 5),
-                          Icon(
+                          const SizedBox(width: SetflowSpacing.xs),
+                          const Icon(
                             Icons.verified,
                             color: SetflowColors.blue,
                             size: 17,
@@ -391,9 +390,8 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                       ),
                       Text(
                         '응답 평균 2시간 · 평점 4.9',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: SetflowColors.secondaryText,
+                        style: text.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -402,7 +400,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: SetflowSpacing.xl),
           const _MessageBubble(
             text: '주 3회 운동이 가능한데 무릎이 불편해도 진행할 수 있을까요?',
             mine: true,
@@ -411,31 +409,29 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
             text: '가능합니다. 스쿼트 깊이와 중량을 조절하고, 레그 익스텐션 대신 둔근 중심 동작으로 구성해드릴게요.',
             mine: false,
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           if (!purchased)
             SetflowCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '4주 1:1 비동기 코칭',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                    style: text.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                   ),
-                  const SizedBox(height: 5),
-                  const Text(
+                  const SizedBox(height: SetflowSpacing.xs),
+                  Text(
                     '맞춤 루틴 · 주 1회 피드백 · 72시간 응답 보장',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: SetflowColors.secondaryText,
+                    style: text.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: SetflowSpacing.lg),
                   Row(
                     children: [
-                      const Text(
+                      Text(
                         '149,000원',
-                        style: TextStyle(
-                          fontSize: 21,
+                        style: text.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -451,33 +447,12 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
               ),
             )
           else ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: SetflowColors.green.withValues(alpha: .1),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.verified_user_outlined,
-                    color: SetflowColors.green,
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '코칭이 시작되었습니다. 결제 금액은 에스크로로 안전하게 보호됩니다.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.4,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            const InfoBanner(
+              message: '코칭이 시작되었습니다. 결제 금액은 에스크로로 안전하게 보호됩니다.',
+              icon: Icons.verified_user_outlined,
+              color: SetflowColors.green,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: SetflowSpacing.lg),
             PrimaryButton(
               label: feedbackSent ? '피드백 전송 완료' : '코칭 만족도 남기기',
               onPressed: feedbackSent ? null : () => _feedback(context),
@@ -551,22 +526,29 @@ class _MessageBubble extends StatelessWidget {
   final String text;
   final bool mine;
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-    child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      constraints: const BoxConstraints(maxWidth: 300),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: mine ? SetflowColors.primary : SetflowColors.soft,
-        borderRadius: BorderRadius.circular(18),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: SetflowSpacing.md),
+        constraints: const BoxConstraints(maxWidth: 300),
+        padding: const EdgeInsets.all(SetflowSpacing.lg),
+        decoration: BoxDecoration(
+          color: mine ? SetflowColors.primary : context.setflowColors.surfaceContainer,
+          borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+            color: mine ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
+          ),
+        ),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(height: 1.45, fontWeight: FontWeight.w600),
-      ),
-    ),
-  );
+    );
+  }
 }
 
 enum SettingSection { account, workout, notifications, privacy, display }
@@ -595,63 +577,63 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
+        padding: SetflowInsets.pageList,
         children: switch (widget.section) {
           SettingSection.account => [
-            const SetflowCard(
+            SetflowCard(
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Color(0xFFFFF4CB),
-                    child: Icon(Icons.person, color: SetflowColors.orange),
+                  const TintedIconBadge(
+                    icon: Icons.person,
+                    color: SetflowColors.orange,
+                    size: 56,
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: SetflowSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '운동초보',
-                          style: TextStyle(
-                            fontSize: 17,
+                          style: text.titleLarge?.copyWith(
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         Text(
                           '무료 플랜 · 루틴 2/4',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: SetflowColors.secondaryText,
+                          style: text.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  Icon(Icons.edit_outlined),
+                  const Icon(Icons.edit_outlined),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: SetflowSpacing.lg),
             const TextField(
               decoration: InputDecoration(labelText: '닉네임'),
               controller: null,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: SetflowSpacing.md),
             const TextField(
               decoration: InputDecoration(labelText: '몸무게', hintText: '70.9kg'),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: SetflowSpacing.md),
             const TextField(
               decoration: InputDecoration(
                 labelText: '운동 목표',
                 hintText: '근육 증가',
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: SetflowSpacing.xl),
             PrimaryButton(
               label: '프로필 저장',
               onPressed: () => showMessage(context, '프로필을 저장했습니다.'),
@@ -750,17 +732,26 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             ),
           ],
           SettingSection.display => [
-            RadioGroup<bool>(
-              groupValue: state.isDarkMode,
-              onChanged: (isDarkMode) {
-                if (isDarkMode != null && isDarkMode != state.isDarkMode) {
-                  state.toggleTheme();
-                }
+            RadioGroup<ThemeMode>(
+              groupValue: state.themeMode,
+              onChanged: (mode) {
+                if (mode != null) state.setThemeMode(mode);
               },
               child: const Column(
                 children: [
-                  RadioListTile<bool>(title: Text('라이트 모드'), value: false),
-                  RadioListTile<bool>(title: Text('다크 모드'), value: true),
+                  RadioListTile<ThemeMode>(
+                    title: Text('시스템 설정 따름'),
+                    subtitle: Text('기기 설정에 맞춰 자동 전환'),
+                    value: ThemeMode.system,
+                  ),
+                  RadioListTile<ThemeMode>(
+                    title: Text('라이트 모드'),
+                    value: ThemeMode.light,
+                  ),
+                  RadioListTile<ThemeMode>(
+                    title: Text('다크 모드'),
+                    value: ThemeMode.dark,
+                  ),
                 ],
               ),
             ),

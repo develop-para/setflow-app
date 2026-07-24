@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../theme.dart';
+import '../widgets/brand.dart';
 import '../widgets/common.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -33,10 +34,17 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.xxl,
+            SetflowSpacing.page,
+            SetflowSpacing.xxl,
+            SetflowSpacing.section,
+          ),
           child: FadeTransition(
             opacity: CurvedAnimation(parent: controller, curve: Curves.easeOut),
             child: SlideTransition(
@@ -49,63 +57,57 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   ),
               child: Column(
                 children: [
-                  Container(
-                    width: 96,
-                    height: 96,
+                  DecoratedBox(
                     decoration: BoxDecoration(
-                      color: SetflowColors.primary,
-                      borderRadius: BorderRadius.circular(32),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x24000000),
-                          blurRadius: 18,
-                          offset: Offset(0, 8),
-                        ),
-                      ],
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: theme.brightness == Brightness.dark
+                          ? null
+                          : SetflowShadows.level2,
                     ),
-                    child: const Icon(
-                      Icons.rocket_launch_rounded,
-                      size: 48,
-                      color: Color(0xFFFF4F75),
+                    child: SetflowMark(
+                      size: 96,
+                      background: theme.colorScheme.primary,
+                      color: SetflowColors.ink,
+                      radius: 28,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Setflow',
-                    style: TextStyle(fontSize: 31, fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
+                  const SizedBox(height: SetflowSpacing.section),
+                  Text('Setflow', style: text.displayLarge),
+                  const SizedBox(height: SetflowSpacing.md),
+                  Text(
                     '환영합니다!\n어떤 사용자로 시작하시겠어요?',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: SetflowColors.secondaryText,
+                    style: text.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                       height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: SetflowSpacing.page),
                   _RoleTile(
                     icon: Icons.person_outline_rounded,
                     title: '일반 회원',
                     subtitle: '나만의 운동 기록 관리',
-                    accent: SetflowColors.primary,
+                    actionLabel: '시작하기',
+                    accent: theme.colorScheme.primary,
                     onTap: () => _openMemberSetup(context),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: SetflowSpacing.lg),
                   _RoleTile(
                     icon: Icons.fitness_center_rounded,
                     title: '트레이너',
                     subtitle: '회원 관리 및 수익 창출',
-                    accent: SetflowColors.blue,
+                    actionLabel: '시작하기',
+                    accent: context.setflowColors.blue,
                     onTap: () => _openBusinessSetup(context, UserRole.trainer),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: SetflowSpacing.lg),
                   _RoleTile(
                     icon: Icons.apartment_rounded,
                     title: '헬스장 / 센터장',
                     subtitle: '소속 트레이너 및 매출 관리',
-                    accent: SetflowColors.purple,
+                    actionLabel: '시작하기',
+                    accent: context.setflowColors.purple,
                     onTap: () => _openBusinessSetup(context, UserRole.gym),
                   ),
                 ],
@@ -136,11 +138,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 }
 
+/// Rich action card for the role picker — icon badge + title/meta up top,
+/// full-width tinted action row on the bottom (mockup's "바로 시작" pattern).
 class _RoleTile extends StatelessWidget {
   const _RoleTile({
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.actionLabel,
     required this.accent,
     required this.onTap,
   });
@@ -148,53 +153,73 @@ class _RoleTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final String actionLabel;
   final Color accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SetflowCard(
       onTap: onTap,
-      padding: const EdgeInsets.all(18),
-      child: Row(
+      padding: const EdgeInsets.all(SetflowSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: .09),
-              shape: BoxShape.circle,
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Icon(icon, color: accent, size: 28),
+          Row(
+            children: [
+              TintedIconBadge(
+                icon: icon,
+                color: accent,
+                size: 52,
+                iconSize: 25,
+              ),
+              const SizedBox(width: SetflowSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: text.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: SetflowSpacing.xs),
+                    Text(
+                      subtitle,
+                      style: text.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: SetflowSpacing.lg),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.md),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
+                  actionLabel,
+                  style: text.labelLarge?.copyWith(
+                    color: accent,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: SetflowColors.secondaryText,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                const SizedBox(width: SetflowSpacing.xs),
+                Icon(Icons.arrow_forward_rounded, size: 16, color: accent),
               ],
             ),
-          ),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: SetflowColors.disabled,
           ),
         ],
       ),
@@ -221,6 +246,12 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   bool isSubmitting = false;
   String? submitError;
 
+  bool get _bodyProfileFilled =>
+      heightController.text.isNotEmpty ||
+      weightController.text.isNotEmpty ||
+      ageController.text.isNotEmpty ||
+      gender != null;
+
   @override
   void dispose() {
     heightController.dispose();
@@ -231,6 +262,7 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cta = _bottomCta(context);
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -283,49 +315,90 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: cta == null
+          ? null
+          : SafeArea(
+              child: Padding(padding: SetflowInsets.bottomAction, child: cta),
+            ),
     );
   }
 
+  /// Sticky volt CTA pinned under the scroll area — one dominant action per
+  /// step. The signup step has several equal-weight auth options, so it
+  /// keeps its buttons inline instead.
+  Widget? _bottomCta(BuildContext context) {
+    switch (step) {
+      case 0:
+        return PrimaryButton(
+          label: '저장',
+          icon: Icons.arrow_forward_rounded,
+          onPressed: () {
+            AppScope.of(context).setWeightUnit(unit);
+            setState(() => step = 1);
+          },
+        );
+      case 1:
+        return PrimaryButton(
+          label: '다음',
+          icon: Icons.arrow_forward_rounded,
+          onPressed: goals.isEmpty ? null : () => setState(() => step = 2),
+        );
+      case 2:
+        return PrimaryButton(
+          label: '저장',
+          icon: Icons.arrow_forward_rounded,
+          onPressed: _bodyProfileFilled
+              ? () {
+                  if (bodyFormKey.currentState?.validate() ?? false) {
+                    setState(() => step = 3);
+                  }
+                }
+              : null,
+        );
+      default:
+        return null;
+    }
+  }
+
   Widget _preferences(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('preferences'),
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.md,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: SetflowColors.primary,
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: const Icon(
-              Icons.rocket_launch_rounded,
-              size: 43,
-              color: Color(0xFFFF4F75),
-            ),
+          SetflowMark(
+            size: 88,
+            background: theme.colorScheme.primary,
+            color: SetflowColors.ink,
+            radius: 26,
           ),
-          const SizedBox(height: 28),
-          const Text(
-            'Setflow',
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 12),
-          const Text(
+          const SizedBox(height: SetflowSpacing.section),
+          Text('Setflow', style: text.displayLarge),
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '운동 흐름은 그대로,\n성장은 데이터로.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
+            style: text.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
               height: 1.45,
             ),
           ),
-          const SizedBox(height: 38),
-          const Align(
+          const SizedBox(height: SetflowSpacing.huge),
+          Align(
             alignment: Alignment.centerLeft,
-            child: Text('단위 선택', style: TextStyle(fontWeight: FontWeight.w900)),
+            child: Text(
+              '단위 선택',
+              style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'kg', label: Text('kg')),
@@ -337,16 +410,7 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
               minimumSize: WidgetStateProperty.all(const Size(150, 50)),
             ),
           ),
-          const SizedBox(height: 30),
-          PrimaryButton(
-            label: '저장',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: () {
-              AppScope.of(context).setWeightUnit(unit);
-              setState(() => step = 1);
-            },
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SetflowSpacing.section),
           TextButton(
             onPressed: _finish,
             child: const Text('이미 계정이 있으신가요? 로그인'),
@@ -358,35 +422,43 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
 
   Widget _goals(BuildContext context) {
     const options = [
-      ('🔥', '체중 감량', '체지방을 줄이고 다이어트'),
-      ('💪', '근육 증가', '근골격량을 늘려 탄탄하게'),
-      ('🏃', '체력 향상', '기초 체력과 지구력 증진'),
-      ('🌱', '건강 유지', '현재 상태를 안정적으로 유지'),
+      (Icons.whatshot_rounded, '체중 감량', '체지방을 줄이고 다이어트'),
+      (Icons.fitness_center_rounded, '근육 증가', '근골격량을 늘려 탄탄하게'),
+      (Icons.directions_run_rounded, '체력 향상', '기초 체력과 지구력 증진'),
+      (Icons.spa_rounded, '건강 유지', '현재 상태를 안정적으로 유지'),
     ];
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('goals'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.md,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '어떤 목표로\n운동하시나요?',
-            style: TextStyle(
-              fontSize: 29,
+            style: text.displayMedium?.copyWith(
               fontWeight: FontWeight.w900,
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 10),
-          const Text(
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '가장 중요한 목표를 최대 2개까지 선택해주세요.',
-            style: TextStyle(color: SetflowColors.secondaryText),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.section),
           ...options.map((option) {
             final selected = goals.contains(option.$2);
             return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
               child: SetflowCard(
                 onTap: () => setState(() {
                   if (selected) {
@@ -396,29 +468,43 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
                   }
                 }),
                 color: selected
-                    ? SetflowColors.primary.withValues(alpha: .14)
+                    ? theme.colorScheme.primary.withValues(alpha: .14)
                     : null,
                 child: Row(
                   children: [
-                    Text(option.$1, style: const TextStyle(fontSize: 28)),
-                    const SizedBox(width: 14),
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? theme.colorScheme.primary
+                            : context.setflowColors.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(SetflowRadii.md),
+                      ),
+                      child: Icon(
+                        option.$1,
+                        size: 24,
+                        color: selected
+                            ? SetflowColors.ink
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.lg),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             option.$2,
-                            style: const TextStyle(
+                            style: text.titleMedium?.copyWith(
                               fontWeight: FontWeight.w900,
-                              fontSize: 16,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: SetflowSpacing.xs),
                           Text(
                             option.$3,
-                            style: const TextStyle(
-                              color: SetflowColors.secondaryText,
-                              fontSize: 12,
+                            style: text.labelMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -427,140 +513,127 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
                     Icon(
                       selected ? Icons.check_circle : Icons.circle_outlined,
                       color: selected
-                          ? SetflowColors.primary
-                          : SetflowColors.disabled,
+                          ? theme.colorScheme.primary
+                          : context.setflowColors.disabled,
                     ),
                   ],
                 ),
               ),
             );
           }),
-          const SizedBox(height: 18),
-          PrimaryButton(
-            label: '다음',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: goals.isEmpty ? null : () => setState(() => step = 2),
-          ),
         ],
       ),
     );
   }
 
   Widget _bodyProfile(BuildContext context) {
-    final filled =
-        heightController.text.isNotEmpty ||
-        weightController.text.isNotEmpty ||
-        ageController.text.isNotEmpty ||
-        gender != null;
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Form(
       key: bodyFormKey,
       child: SingleChildScrollView(
         key: const ValueKey('bodyProfile'),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.xxl,
+          SetflowSpacing.md,
+          SetflowSpacing.xxl,
+          SetflowSpacing.section,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '현재 신체 정보를\n입력해주세요',
-              style: TextStyle(
-                fontSize: 29,
+              style: text.displayMedium?.copyWith(
                 fontWeight: FontWeight.w900,
                 height: 1.2,
               ),
             ),
-            const SizedBox(height: 10),
-            const Text(
-              '정확한 데이터 분석을 위해 필요해요.\n지금 모르는 정보는 나중에 입력할 수 있어요.',
-              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
-            ),
-            const SizedBox(height: 28),
-            const Text('나이', style: TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            AppTextField(
-              controller: ageController,
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-              hint: '예: 29세',
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              validator: (value) => _optionalNumberValidator(
-                value,
-                minimum: 14,
-                maximum: 100,
-                label: '나이',
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text('성별', style: TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'M', label: Text('남성')),
-                ButtonSegment(value: 'F', label: Text('여성')),
-                ButtonSegment(value: 'O', label: Text('기타')),
-              ],
-              selected: gender == null ? const {} : {gender!},
-              emptySelectionAllowed: true,
-              onSelectionChanged: (value) =>
-                  setState(() => gender = value.isEmpty ? null : value.first),
-            ),
-            const SizedBox(height: 20),
-            const Text('키', style: TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            AppTextField(
-              controller: heightController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: (_) => setState(() {}),
-              hint: '예: 175cm',
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'^\d{0,3}\.?\d{0,1}'),
-                ),
-              ],
-              validator: (value) => _optionalNumberValidator(
-                value,
-                minimum: 100,
-                maximum: 250,
-                label: '키',
-              ),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: SetflowSpacing.md),
             Text(
-              '체중 ($unit)',
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 8),
-            AppTextField(
-              controller: weightController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+              '정확한 데이터 분석을 위해 필요해요.\n지금 모르는 정보는 나중에 입력할 수 있어요.',
+              style: text.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
               ),
-              onChanged: (_) => setState(() {}),
-              hint: '예: 70$unit',
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'^\d{0,3}\.?\d{0,1}'),
+            ),
+            const SizedBox(height: SetflowSpacing.section),
+            LabeledField(
+              label: '나이',
+              child: AppTextField(
+                controller: ageController,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                hint: '예: 29세',
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                validator: (value) => _optionalNumberValidator(
+                  value,
+                  minimum: 14,
+                  maximum: 100,
+                  label: '나이',
                 ),
-              ],
-              validator: (value) => _optionalNumberValidator(
-                value,
-                minimum: unit == 'kg' ? 30 : 66,
-                maximum: unit == 'kg' ? 300 : 660,
-                label: '체중',
               ),
             ),
-            const SizedBox(height: 30),
-            PrimaryButton(
-              label: '저장',
-              icon: Icons.arrow_forward_rounded,
-              onPressed: filled
-                  ? () {
-                      if (bodyFormKey.currentState?.validate() ?? false) {
-                        setState(() => step = 3);
-                      }
-                    }
-                  : null,
+            const SizedBox(height: SetflowSpacing.xl),
+            LabeledField(
+              label: '성별',
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'M', label: Text('남성')),
+                  ButtonSegment(value: 'F', label: Text('여성')),
+                  ButtonSegment(value: 'O', label: Text('기타')),
+                ],
+                selected: gender == null ? const {} : {gender!},
+                emptySelectionAllowed: true,
+                onSelectionChanged: (value) =>
+                    setState(() => gender = value.isEmpty ? null : value.first),
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            LabeledField(
+              label: '키',
+              child: AppTextField(
+                controller: heightController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: (_) => setState(() {}),
+                hint: '예: 175cm',
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r'^\d{0,3}\.?\d{0,1}'),
+                  ),
+                ],
+                validator: (value) => _optionalNumberValidator(
+                  value,
+                  minimum: 100,
+                  maximum: 250,
+                  label: '키',
+                ),
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            LabeledField(
+              label: '체중 ($unit)',
+              child: AppTextField(
+                controller: weightController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: (_) => setState(() {}),
+                hint: '예: 70$unit',
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r'^\d{0,3}\.?\d{0,1}'),
+                  ),
+                ],
+                validator: (value) => _optionalNumberValidator(
+                  value,
+                  minimum: unit == 'kg' ? 30 : 66,
+                  maximum: unit == 'kg' ? 300 : 660,
+                  label: '체중',
+                ),
+              ),
             ),
           ],
         ),
@@ -569,30 +642,39 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   }
 
   Widget _signup(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('signup'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.md,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '가입하고 내 기록\n안전하게 보관하기',
-            style: TextStyle(
-              fontSize: 29,
+            style: text.displayMedium?.copyWith(
               fontWeight: FontWeight.w900,
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 10),
-          const Text(
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '클라우드 백업과 코칭 등 전체 기능을 사용하려면\n무료 회원가입이 필요해요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.section),
           if (submitError != null) ...[
             _OnboardingAlert(
               message: submitError!,
-              color: SetflowColors.red,
+              color: theme.colorScheme.error,
               icon: Icons.error_outline_rounded,
             ),
             const SizedBox(height: SetflowSpacing.lg),
@@ -602,36 +684,38 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             onPressed: () => _submitMember('카카오'),
             isLoading: isSubmitting,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           AppButton(
             label: '구글로 시작하기',
             onPressed: () => _submitMember('구글'),
             variant: AppButtonVariant.outlined,
             isLoading: isSubmitting,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           AppButton(
             label: 'Apple로 시작하기',
             onPressed: () => _submitMember('Apple'),
             variant: AppButtonVariant.outlined,
             isLoading: isSubmitting,
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: SetflowSpacing.xl),
           Center(
             child: TextButton(
               onPressed: isSubmitting ? null : () => _submitMember('이메일'),
               child: const Text('이메일로 가입하기'),
             ),
           ),
-          const SizedBox(height: 22),
-          Divider(color: Theme.of(context).dividerColor),
-          const SizedBox(height: 16),
-          const Text(
+          const SizedBox(height: SetflowSpacing.xxl),
+          Divider(color: theme.dividerColor),
+          const SizedBox(height: SetflowSpacing.lg),
+          Text(
             '우선 기기에만 저장할까요?',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: SetflowColors.secondaryText),
+            style: text.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           AppButton(
             label: '가입 없이 바로 시작',
             onPressed: isSubmitting ? null : _finish,
@@ -715,6 +799,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   bool isSubmitting = false;
   String? submitError;
 
+  bool get _businessFilled =>
+      nameController.text.trim().isNotEmpty &&
+      numberController.text.trim().isNotEmpty;
+
   @override
   void dispose() {
     nameController.dispose();
@@ -737,6 +825,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       _GymStep.hometax => 3,
       _GymStep.complete => 4,
     };
+    final cta = _businessBottomCta(context);
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -767,41 +856,128 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: cta == null
+          ? null
+          : SafeArea(
+              child: Padding(padding: SetflowInsets.bottomAction, child: cta),
+            ),
     );
   }
 
+  /// Sticky volt CTA shared by both wizards — null on steps with an
+  /// embedded demo control instead of a single dominant next action.
+  Widget? _businessBottomCta(BuildContext context) {
+    if (widget.role != UserRole.trainer) {
+      final bizNumber = numberController.text.trim();
+      return switch (gymStep) {
+        _GymStep.register => PrimaryButton(
+          label: '다음',
+          icon: Icons.arrow_forward_rounded,
+          onPressed: _businessFilled
+              ? () {
+                  if (businessFormKey.currentState?.validate() ?? false) {
+                    setState(() => gymStep = _GymStep.docs);
+                  }
+                }
+              : null,
+        ),
+        _GymStep.docs => AppButton(
+          label: '서류 제출하기',
+          icon: Icons.arrow_forward_rounded,
+          isLoading: isSubmitting,
+          onPressed: gymDocUploaded ? _submitGymDocuments : null,
+        ),
+        _GymStep.hometax => gymHometaxVerified
+            ? PrimaryButton(
+                label: '다음',
+                icon: Icons.arrow_forward_rounded,
+                onPressed: () => setState(() => gymStep = _GymStep.complete),
+              )
+            : AppButton(
+                label: '홈택스 인증하기',
+                icon: Icons.fact_check_rounded,
+                isLoading: isSubmitting,
+                onPressed: bizNumber.isEmpty ? null : _verifyHometax,
+              ),
+        _GymStep.complete => AppButton(
+          label: '센터 운영 시작하기',
+          icon: Icons.rocket_launch_rounded,
+          onPressed: () => _completeBusiness('센터 등록이 완료됐어요.'),
+        ),
+      };
+    }
+    return switch (trainerStep) {
+      _TrainerStep.register => PrimaryButton(
+        label: '다음',
+        icon: Icons.arrow_forward_rounded,
+        onPressed: _businessFilled
+            ? () {
+                if (businessFormKey.currentState?.validate() ?? false) {
+                  setState(() => trainerStep = _TrainerStep.docs);
+                }
+              }
+            : null,
+      ),
+      _TrainerStep.docs => AppButton(
+        label: '서류 제출하기',
+        icon: Icons.arrow_forward_rounded,
+        isLoading: isSubmitting,
+        onPressed: uploadedDocs.length >= 2 ? _submitTrainerDocuments : null,
+      ),
+      _TrainerStep.pending => null,
+      _TrainerStep.rejected => PrimaryButton(
+        label: '다시 제출하기',
+        icon: Icons.refresh_rounded,
+        onPressed: () => setState(() {
+          uploadedDocs.clear();
+          trainerStep = _TrainerStep.docs;
+        }),
+      ),
+      _TrainerStep.complete => AppButton(
+        label: '코칭 시작하기',
+        icon: Icons.rocket_launch_rounded,
+        onPressed: () => _completeBusiness('트레이너 등록이 완료됐어요.'),
+      ),
+    };
+  }
+
   Widget _gymRegister(BuildContext context) {
-    final filled =
-        nameController.text.trim().isNotEmpty &&
-        numberController.text.trim().isNotEmpty;
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Form(
       key: businessFormKey,
       child: SingleChildScrollView(
         key: const ValueKey('gymRegister'),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.xxl,
+          SetflowSpacing.md,
+          SetflowSpacing.xxl,
+          SetflowSpacing.section,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: SetflowColors.purple.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.apartment, color: SetflowColors.purple),
+            TintedIconBadge(
+              icon: Icons.apartment,
+              color: context.setflowColors.purple,
+              size: 64,
+              square: true,
+              iconSize: 24,
             ),
-            const SizedBox(height: 22),
-            const Text(
+            const SizedBox(height: SetflowSpacing.xxl),
+            Text(
               '헬스장 등록하기',
-              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+              style: text.displayMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            const SizedBox(height: SetflowSpacing.sm),
+            Text(
               '센터 운영과 회원 관리를 한곳에서 시작하세요.',
-              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+              style: text.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: SetflowSpacing.section),
             AppTextField(
               controller: nameController,
               onChanged: (_) => setState(() {}),
@@ -810,7 +986,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               textInputAction: TextInputAction.next,
               validator: (value) => _requiredValidator(value, '헬스장명'),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.lg),
             AppTextField(
               controller: numberController,
               onChanged: (_) => setState(() {}),
@@ -820,18 +996,6 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               validator: _gymNumberValidator,
             ),
-            const SizedBox(height: 30),
-            PrimaryButton(
-              label: '다음',
-              icon: Icons.arrow_forward_rounded,
-              onPressed: filled
-                  ? () {
-                      if (businessFormKey.currentState?.validate() ?? false) {
-                        setState(() => gymStep = _GymStep.docs);
-                      }
-                    }
-                  : null,
-            ),
           ],
         ),
       ),
@@ -839,26 +1003,35 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _gymDocs(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('gymDocs'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.md,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '사업자등록증을\n제출해주세요',
-            style: TextStyle(
-              fontSize: 27,
+            style: text.displayMedium?.copyWith(
               fontWeight: FontWeight.w900,
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 10),
-          const Text(
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '원활한 정산과 안전한 센터 운영을 위해 필요해요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.section),
           SetflowCard(
             onTap: () => setState(() => gymDocUploaded = !gymDocUploaded),
             child: Row(
@@ -868,71 +1041,41 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                       ? Icons.check_circle
                       : Icons.upload_file_rounded,
                   color: gymDocUploaded
-                      ? SetflowColors.green
-                      : SetflowColors.purple,
+                      ? context.setflowColors.success
+                      : context.setflowColors.purple,
                 ),
-                const SizedBox(width: 12),
-                const Expanded(
+                const SizedBox(width: SetflowSpacing.md),
+                Expanded(
                   child: Text(
                     '사업자등록증',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                    style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ),
                 Text(
                   gymDocUploaded ? '업로드됨' : '업로드',
-                  style: TextStyle(
+                  style: text.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: gymDocUploaded
-                        ? SetflowColors.green
-                        : SetflowColors.secondaryText,
+                        ? context.setflowColors.success
+                        : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 22),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: SetflowColors.soft,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.verified_user_outlined,
-                  size: 20,
-                  color: SetflowColors.green,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 제출 상태를 전환해보세요.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.45,
-                      color: SetflowColors.secondaryText,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: SetflowSpacing.xxl),
+          InfoBanner(
+            message: '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 제출 상태를 전환해보세요.',
+            icon: Icons.verified_user_outlined,
+            color: context.setflowColors.success,
           ),
-          const SizedBox(height: 30),
-          if (submitError != null) ...[
+          const SizedBox(height: SetflowSpacing.section),
+          if (submitError != null)
             _OnboardingAlert(
               message: submitError!,
-              color: SetflowColors.red,
+              color: theme.colorScheme.error,
               icon: Icons.error_outline_rounded,
             ),
-            const SizedBox(height: SetflowSpacing.lg),
-          ],
-          AppButton(
-            label: '서류 제출하기',
-            icon: Icons.arrow_forward_rounded,
-            isLoading: isSubmitting,
-            onPressed: gymDocUploaded ? _submitGymDocuments : null,
-          ),
         ],
       ),
     );
@@ -940,56 +1083,62 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
 
   Widget _gymHometax(BuildContext context) {
     final bizNumber = numberController.text.trim();
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('gymHometax'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.md,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: SetflowColors.purple.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.account_balance_rounded,
-              color: SetflowColors.purple,
-            ),
+          TintedIconBadge(
+            icon: Icons.account_balance_rounded,
+            color: context.setflowColors.purple,
+            size: 64,
+            square: true,
+            iconSize: 24,
           ),
-          const SizedBox(height: 22),
-          const Text(
+          const SizedBox(height: SetflowSpacing.xxl),
+          Text(
             '홈택스 사업자 인증',
-            style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            style: text.displayMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
-          const SizedBox(height: 8),
-          const Text(
+          const SizedBox(height: SetflowSpacing.sm),
+          Text(
             '국세청 홈택스와 연동하여 사업자 상태를 실시간으로 확인해요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.section),
           SetflowCard(
             child: Row(
               children: [
-                const Icon(Icons.business_rounded, color: SetflowColors.purple),
-                const SizedBox(width: 12),
+                Icon(Icons.business_rounded, color: context.setflowColors.purple),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         '사업자등록번호',
-                        style: TextStyle(
-                          fontSize: 11,
+                        style: text.bodySmall?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: SetflowColors.secondaryText,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: SetflowSpacing.xxs),
                       Text(
                         bizNumber.isEmpty ? '미입력' : bizNumber,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: text.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ],
                   ),
@@ -997,80 +1146,43 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           if (!gymHometaxVerified)
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: SetflowColors.soft,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.info_outline_rounded,
-                    size: 20,
-                    color: SetflowColors.purple,
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '안전한 코칭 환경을 위해 실제 영업 중인 사업자만 인증됩니다. 데모에서는 버튼을 누르면 바로 인증됩니다.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.45,
-                        color: SetflowColors.secondaryText,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            InfoBanner(
+              message: '안전한 코칭 환경을 위해 실제 영업 중인 사업자만 인증됩니다. 데모에서는 버튼을 누르면 바로 인증됩니다.',
+              icon: Icons.info_outline_rounded,
+              color: context.setflowColors.purple,
             )
           else
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(SetflowSpacing.lg),
               decoration: BoxDecoration(
-                color: SetflowColors.green.withValues(alpha: .1),
-                borderRadius: BorderRadius.circular(16),
+                color: context.setflowColors.success.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(SetflowRadii.md),
                 border: Border.all(
-                  color: SetflowColors.green.withValues(alpha: .25),
+                  color: context.setflowColors.success.withValues(alpha: .25),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(
                     Icons.check_circle_rounded,
                     size: 20,
-                    color: SetflowColors.green,
+                    color: context.setflowColors.success,
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: SetflowSpacing.md),
                   Expanded(
                     child: Text(
                       '인증 완료! 국세청 홈택스 기준 정상 영업 중인 사업자입니다.',
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: text.labelMedium?.copyWith(
                         height: 1.45,
                         fontWeight: FontWeight.w700,
-                        color: SetflowColors.secondaryText,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
-          const SizedBox(height: 30),
-          if (!gymHometaxVerified)
-            AppButton(
-              label: '홈택스 인증하기',
-              icon: Icons.fact_check_rounded,
-              isLoading: isSubmitting,
-              onPressed: bizNumber.isEmpty ? null : _verifyHometax,
-            )
-          else
-            PrimaryButton(
-              label: '다음',
-              icon: Icons.arrow_forward_rounded,
-              onPressed: () => setState(() => gymStep = _GymStep.complete),
             ),
         ],
       ),
@@ -1078,40 +1190,44 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _gymComplete(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('gymComplete'),
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         children: [
           Container(
             width: 96,
             height: 96,
             decoration: BoxDecoration(
-              color: SetflowColors.primary,
+              color: theme.colorScheme.primary,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.verified_rounded,
               size: 48,
-              color: SetflowColors.ink,
+              color: theme.colorScheme.onPrimary,
             ),
           ),
-          const SizedBox(height: 28),
-          const Text(
+          const SizedBox(height: SetflowSpacing.section),
+          Text(
             '가입 심사 완료!',
-            style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            style: text.displayMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
-          const SizedBox(height: 12),
-          const Text(
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '센터 인증이 성공적으로 완료되었습니다.\n지금 바로 회원과 트레이너 관리를 시작해보세요!',
             textAlign: TextAlign.center,
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
-          ),
-          const SizedBox(height: 32),
-          AppButton(
-            label: '센터 운영 시작하기',
-            icon: Icons.rocket_launch_rounded,
-            onPressed: () => _completeBusiness('센터 등록이 완료됐어요.'),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -1125,6 +1241,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       _TrainerStep.pending => 3,
       _TrainerStep.rejected || _TrainerStep.complete => 4,
     };
+    final cta = _businessBottomCta(context);
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -1156,44 +1273,51 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: cta == null
+          ? null
+          : SafeArea(
+              child: Padding(padding: SetflowInsets.bottomAction, child: cta),
+            ),
     );
   }
 
   Widget _trainerRegister(BuildContext context) {
-    final filled =
-        nameController.text.trim().isNotEmpty &&
-        numberController.text.trim().isNotEmpty;
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Form(
       key: businessFormKey,
       child: SingleChildScrollView(
         key: const ValueKey('trainerRegister'),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.xxl,
+          SetflowSpacing.md,
+          SetflowSpacing.xxl,
+          SetflowSpacing.section,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: SetflowColors.blue.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(
-                Icons.fitness_center,
-                color: SetflowColors.blue,
-              ),
+            TintedIconBadge(
+              icon: Icons.fitness_center,
+              color: context.setflowColors.blue,
+              size: 64,
+              square: true,
+              iconSize: 24,
             ),
-            const SizedBox(height: 22),
-            const Text(
+            const SizedBox(height: SetflowSpacing.xxl),
+            Text(
               '트레이너로 시작하기',
-              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+              style: text.displayMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            const SizedBox(height: SetflowSpacing.sm),
+            Text(
               '인증 배지로 신뢰받는 코칭을 시작하세요.',
-              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+              style: text.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: SetflowSpacing.section),
             AppTextField(
               controller: nameController,
               onChanged: (_) => setState(() {}),
@@ -1202,25 +1326,13 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               textInputAction: TextInputAction.next,
               validator: (value) => _requiredValidator(value, '이름'),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.lg),
             AppTextField(
               controller: numberController,
               onChanged: (_) => setState(() {}),
               label: '자격증 번호',
               hint: '예: 생활스포츠지도사 123456',
               validator: _trainerNumberValidator,
-            ),
-            const SizedBox(height: 30),
-            PrimaryButton(
-              label: '다음',
-              icon: Icons.arrow_forward_rounded,
-              onPressed: filled
-                  ? () {
-                      if (businessFormKey.currentState?.validate() ?? false) {
-                        setState(() => trainerStep = _TrainerStep.docs);
-                      }
-                    }
-                  : null,
             ),
           ],
         ),
@@ -1230,30 +1342,39 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
 
   Widget _trainerDocs(BuildContext context) {
     const docLabels = ['자격증 서류 (국가/민간)', '신분증 사본 (필수)'];
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('trainerDocs'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.md,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '인증 서류를\n제출해주세요',
-            style: TextStyle(
-              fontSize: 27,
+            style: text.displayMedium?.copyWith(
               fontWeight: FontWeight.w900,
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 10),
-          const Text(
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '신뢰할 수 있는 코칭 환경을 위해 최소 2종의 서류가 필요해요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.section),
           ...List.generate(docLabels.length, (index) {
             final uploaded = uploadedDocs.contains(index);
             return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
               child: SetflowCard(
                 onTap: () => setState(() {
                   if (uploaded) {
@@ -1267,23 +1388,25 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     Icon(
                       uploaded ? Icons.check_circle : Icons.upload_file_rounded,
                       color: uploaded
-                          ? SetflowColors.green
-                          : SetflowColors.blue,
+                          ? context.setflowColors.success
+                          : context.setflowColors.blue,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: SetflowSpacing.md),
                     Expanded(
                       child: Text(
                         docLabels[index],
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: text.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     Text(
                       uploaded ? '업로드됨' : '업로드',
-                      style: TextStyle(
+                      style: text.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: uploaded
-                            ? SetflowColors.green
-                            : SetflowColors.secondaryText,
+                            ? context.setflowColors.success
+                            : theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1291,113 +1414,82 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ),
             );
           }),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: SetflowColors.soft,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.verified_user_outlined,
-                  size: 20,
-                  color: SetflowColors.green,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 서류 제출 상태를 전환해보세요.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.45,
-                      color: SetflowColors.secondaryText,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          InfoBanner(
+            message: '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 서류 제출 상태를 전환해보세요.',
+            icon: Icons.verified_user_outlined,
+            color: context.setflowColors.success,
           ),
-          const SizedBox(height: 30),
-          if (submitError != null) ...[
+          const SizedBox(height: SetflowSpacing.section),
+          if (submitError != null)
             _OnboardingAlert(
               message: submitError!,
-              color: SetflowColors.red,
+              color: theme.colorScheme.error,
               icon: Icons.error_outline_rounded,
             ),
-            const SizedBox(height: SetflowSpacing.lg),
-          ],
-          AppButton(
-            label: '서류 제출하기',
-            icon: Icons.arrow_forward_rounded,
-            isLoading: isSubmitting,
-            onPressed: uploadedDocs.length >= 2
-                ? _submitTrainerDocuments
-                : null,
-          ),
         ],
       ),
     );
   }
 
   Widget _trainerPending(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('trainerPending'),
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.xxl,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: SetflowColors.blue.withValues(alpha: .12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.search_rounded,
-              size: 40,
-              color: SetflowColors.blue,
-            ),
+          TintedIconBadge(
+            icon: Icons.search_rounded,
+            color: context.setflowColors.blue,
+            size: 88,
+            iconSize: 40,
           ),
-          const SizedBox(height: 24),
-          const Text(
+          const SizedBox(height: SetflowSpacing.xxl),
+          Text(
             '서류 심사가\n진행 중입니다',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 25,
+            style: text.headlineLarge?.copyWith(
               fontWeight: FontWeight.w900,
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 12),
-          const Text(
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '제출해주신 서류를 확인하고 있어요.\n영업일 기준 3일 이내 완료될 예정입니다.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: SetflowSpacing.section),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(SetflowSpacing.lg),
             decoration: BoxDecoration(
-              color: SetflowColors.soft,
-              borderRadius: BorderRadius.circular(18),
+              color: context.setflowColors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(SetflowRadii.lg),
             ),
             child: Column(
               children: [
-                const Text(
+                Text(
                   '데모 시뮬레이션',
-                  style: TextStyle(fontWeight: FontWeight.w900),
+                  style: text.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                 ),
-                const SizedBox(height: 4),
-                const Text(
+                const SizedBox(height: SetflowSpacing.xs),
+                Text(
                   '심사 결과를 직접 선택해보세요.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: SetflowColors.secondaryText,
+                  style: text.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 Row(
                   children: [
                     Expanded(
@@ -1410,17 +1502,17 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: SetflowSpacing.md),
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () =>
                             setState(() => trainerStep = _TrainerStep.rejected),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 54),
-                          foregroundColor: SetflowColors.red,
-                          side: const BorderSide(color: SetflowColors.red),
+                          foregroundColor: theme.colorScheme.error,
+                          side: BorderSide(color: theme.colorScheme.error),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(SetflowRadii.lg),
                           ),
                         ),
                         child: const Text('심사 반려'),
@@ -1437,63 +1529,56 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _trainerRejected(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('trainerRejected'),
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.xxl,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: SetflowColors.red.withValues(alpha: .1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.error_outline_rounded,
-              size: 38,
-              color: SetflowColors.red,
-            ),
+          TintedIconBadge(
+            icon: Icons.error_outline_rounded,
+            color: theme.colorScheme.error,
+            size: 80,
+            iconSize: 38,
           ),
-          const SizedBox(height: 24),
-          const Text(
+          const SizedBox(height: SetflowSpacing.xxl),
+          Text(
             '서류 심사 반려',
-            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900),
+            style: text.headlineLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
-          const SizedBox(height: 12),
-          const Text(
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '제출해주신 서류에 보완이 필요한 부분이 있어\n부득이하게 심사가 반려되었습니다.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(SetflowSpacing.lg),
             decoration: BoxDecoration(
-              color: SetflowColors.red.withValues(alpha: .06),
-              borderRadius: BorderRadius.circular(16),
+              color: theme.colorScheme.error.withValues(alpha: .06),
+              borderRadius: BorderRadius.circular(SetflowRadii.md),
               border: Border.all(
-                color: SetflowColors.red.withValues(alpha: .2),
+                color: theme.colorScheme.error.withValues(alpha: .2),
               ),
             ),
-            child: const Text(
+            child: Text(
               '반려 사유: 제출된 서류의 이미지가 흐려 식별이 어렵습니다. 선명하게 재촬영하여 업로드해주세요.',
-              style: TextStyle(
-                fontSize: 12,
+              style: text.labelMedium?.copyWith(
                 height: 1.5,
-                color: SetflowColors.secondaryText,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ),
-          const SizedBox(height: 30),
-          PrimaryButton(
-            label: '다시 제출하기',
-            icon: Icons.refresh_rounded,
-            onPressed: () => setState(() {
-              uploadedDocs.clear();
-              trainerStep = _TrainerStep.docs;
-            }),
           ),
         ],
       ),
@@ -1501,40 +1586,44 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _trainerComplete(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return SingleChildScrollView(
       key: const ValueKey('trainerComplete'),
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+        SetflowSpacing.xxl,
+        SetflowSpacing.section,
+      ),
       child: Column(
         children: [
           Container(
             width: 96,
             height: 96,
             decoration: BoxDecoration(
-              color: SetflowColors.primary,
+              color: theme.colorScheme.primary,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.verified_rounded,
               size: 48,
-              color: SetflowColors.ink,
+              color: theme.colorScheme.onPrimary,
             ),
           ),
-          const SizedBox(height: 28),
-          const Text(
+          const SizedBox(height: SetflowSpacing.section),
+          Text(
             '심사 완료!',
-            style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            style: text.displayMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
-          const SizedBox(height: 12),
-          const Text(
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
             '서류 심사가 성공적으로 완료되었습니다.\n공식 인증 배지와 함께 코칭을 시작해보세요!',
             textAlign: TextAlign.center,
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
-          ),
-          const SizedBox(height: 32),
-          AppButton(
-            label: '코칭 시작하기',
-            icon: Icons.rocket_launch_rounded,
-            onPressed: () => _completeBusiness('트레이너 등록이 완료됐어요.'),
+            style: text.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
         ],
       ),
@@ -1664,8 +1753,10 @@ class _OnboardingProgress extends StatelessWidget {
             child: AnimatedContainer(
               duration: SetflowMotion.micro,
               curve: Curves.easeOut,
-              height: 4,
-              margin: EdgeInsets.only(right: index == total - 1 ? 0 : 6),
+              height: SetflowSpacing.xs,
+              margin: EdgeInsets.only(
+                right: index == total - 1 ? 0 : SetflowSpacing.sm,
+              ),
               decoration: BoxDecoration(
                 color: active
                     ? theme.colorScheme.primary
@@ -1695,27 +1786,7 @@ class _OnboardingAlert extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       liveRegion: true,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(SetflowSpacing.md),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .1),
-          borderRadius: BorderRadius.circular(SetflowRadii.md),
-          border: Border.all(color: color.withValues(alpha: .24)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: SetflowSpacing.sm),
-            Expanded(
-              child: Text(
-                message,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: InfoBanner(message: message, icon: icon, color: color),
     );
   }
 }

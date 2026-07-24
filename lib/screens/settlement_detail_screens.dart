@@ -87,58 +87,40 @@ class SettlementRefundsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final items = _items;
     final pendingTotal = items
         .where((item) => item.status == _RefundStatus.pending)
         .fold<int>(0, (sum, item) => sum + item.amount);
+    final pendingCount = items
+        .where((item) => item.status == _RefundStatus.pending)
+        .length;
 
     return Scaffold(
       appBar: AppBar(title: Text(_admin ? '환불 및 분쟁 관리' : '환불 및 미정산 내역')),
       body: ListView(
         padding: SetflowInsets.pageList,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: SetflowColors.red,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '심사·처리 대기 중인 환불 금액',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${_formatAmount(pendingTotal)}원',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 27,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _admin
-                      ? '승인/거절 처리에 따라 담당 코치 정산액이 조정됩니다.'
-                      : '환불 통보일로부터 7일 이내 이의 제기가 가능합니다.',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+          _DarkStatBanner(
+            caption: '심사·처리 대기 중인 환불 금액',
+            value: _formatAmount(pendingTotal),
+            unit: '원',
+            note: _admin
+                ? '승인/거절 처리에 따라 담당 코치 정산액이 조정됩니다.'
+                : '환불 통보일로부터 7일 이내 이의 제기가 가능합니다.',
+            badge: pendingCount > 0
+                ? StatusChip(
+                    label: '$pendingCount건 대기',
+                    color: context.setflowColors.orange,
+                  )
+                : null,
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('환불 접수 내역'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           for (final item in items)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
               child: SetflowCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,14 +133,16 @@ class SettlementRefundsPage extends StatelessWidget {
                           ),
                           child: Text(
                             item.date,
-                            style: const TextStyle(
-                              fontSize: 10,
+                            style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w900,
                               color: SetflowColors.red,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
                             ),
                           ),
                         ),
-                        const SizedBox(width: 11),
+                        const SizedBox(width: SetflowSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,48 +155,47 @@ class SettlementRefundsPage extends StatelessWidget {
                               ),
                               Text(
                                 item.detail,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: SetflowColors.secondaryText,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        _StatusChip(status: item.status),
+                        _refundStatusChip(context, item.status),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: SetflowSpacing.md),
                     Container(
-                      padding: const EdgeInsets.all(11),
+                      padding: const EdgeInsets.all(SetflowSpacing.md),
                       decoration: BoxDecoration(
-                        color: SetflowColors.soft,
-                        borderRadius: BorderRadius.circular(14),
+                        color: context.setflowColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(SetflowRadii.md),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             '사유: ${item.reason}',
-                            style: const TextStyle(
-                              fontSize: 11,
+                            style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w700,
-                              color: SetflowColors.secondaryText,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: SetflowSpacing.sm),
                           Text(
                             '-${_formatAmount(item.amount)}원',
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
                               color: SetflowColors.red,
+                              fontFeatures: [FontFeature.tabularFigures()],
                             ),
                           ),
                         ],
                       ),
                     ),
                     if (item.status == _RefundStatus.pending) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: SetflowSpacing.md),
                       if (_admin)
                         Row(
                           children: [
@@ -225,7 +208,7 @@ class SettlementRefundsPage extends StatelessWidget {
                                 child: const Text('환불 거절'),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: SetflowSpacing.sm),
                             Expanded(
                               child: FilledButton(
                                 onPressed: () => showMessage(
@@ -282,34 +265,21 @@ class _RefundItem {
   final String reason;
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-  final _RefundStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      _RefundStatus.pending => ('심사 대기', SetflowColors.orange),
-      _RefundStatus.completed => ('처리 완료', SetflowColors.secondaryText),
-      _RefundStatus.disputed => ('분쟁 중', SetflowColors.red),
+StatusChip _refundStatusChip(BuildContext context, _RefundStatus status) =>
+    switch (status) {
+      _RefundStatus.pending => StatusChip(
+        label: '심사 대기',
+        color: context.setflowColors.orange,
+      ),
+      _RefundStatus.completed => StatusChip(
+        label: '처리 완료',
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+      _RefundStatus.disputed => const StatusChip(
+        label: '분쟁 중',
+        color: SetflowColors.red,
+      ),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          color: color,
-        ),
-      ),
-    );
-  }
-}
 
 /// [SettlementPage]에서 진입하는 트레이너별 정산 분배 상세 화면 (gym/admin 전용).
 class TrainerSettlementBreakdownPage extends StatelessWidget {
@@ -349,6 +319,7 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final totalShare = _trainers.fold<int>(0, (sum, t) => sum + t.share);
 
     return Scaffold(
@@ -358,76 +329,61 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
       body: ListView(
         padding: SetflowInsets.pageList,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: SetflowColors.blue,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '이번 달 코치 총 분배액',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${_formatAmount(totalShare)}원',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 27,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+          _DarkStatBanner(
+            caption: '이번 달 코치 총 분배액',
+            value: _formatAmount(totalShare),
+            unit: '원',
+            badge: StatusChip(
+              label: '${_trainers.length}명',
+              color: context.setflowColors.blue,
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('직급별 수수료 배분 비율'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           Row(
             children: [
               for (final grade in _grades) ...[
                 Expanded(
                   child: SetflowCard(
                     padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 6,
+                      vertical: SetflowSpacing.md,
+                      horizontal: SetflowSpacing.sm,
                     ),
                     child: Column(
                       children: [
                         Text(
                           grade.$1,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 10,
+                          style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: SetflowColors.secondaryText,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: SetflowSpacing.xs),
                         Text(
                           '${grade.$2}%',
-                          style: const TextStyle(
-                            fontSize: 15,
+                          style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w900,
+                            fontFeatures: const [
+                              FontFeature.tabularFigures(),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                if (grade != _grades.last) const SizedBox(width: 6),
+                if (grade != _grades.last) const SizedBox(width: SetflowSpacing.sm),
               ],
             ],
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('소속 코치 분배 내역'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           for (final trainer in _trainers)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
               child: SetflowCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,15 +391,14 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
                     Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor: SetflowColors.blue.withValues(
-                            alpha: .15,
-                          ),
+                          backgroundColor: context.setflowColors.blue
+                              .withValues(alpha: .15),
                           child: Text(
                             trainer.name.characters.first,
                             style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
                         ),
-                        const SizedBox(width: 11),
+                        const SizedBox(width: SetflowSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,12 +409,14 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              const SizedBox(height: 3),
+                              const SizedBox(height: SetflowSpacing.xs),
                               Text(
                                 '${trainer.grade} · 배분율 ${trainer.ratio}%',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: SetflowColors.secondaryText,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
                                 ),
                               ),
                             ],
@@ -467,53 +424,55 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: SetflowSpacing.md),
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(SetflowSpacing.md),
                       decoration: BoxDecoration(
-                        color: SetflowColors.soft,
-                        borderRadius: BorderRadius.circular(14),
+                        color: context.setflowColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(SetflowRadii.md),
                       ),
                       child: Column(
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text(
+                              Text(
                                 '발생 매출',
-                                style: TextStyle(
-                                  fontSize: 12,
+                                style: theme.textTheme.labelMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  color: SetflowColors.secondaryText,
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               Text(
                                 '${_formatAmount(trainer.generated)}원',
-                                style: const TextStyle(
-                                  fontSize: 12,
+                                style: theme.textTheme.labelMedium?.copyWith(
                                   fontWeight: FontWeight.w900,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: SetflowSpacing.sm),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text(
+                              Text(
                                 '최종 분배액',
-                                style: TextStyle(
-                                  fontSize: 13,
+                                style: theme.textTheme.labelMedium?.copyWith(
                                   fontWeight: FontWeight.w900,
-                                  color: SetflowColors.blue,
+                                  color: context.setflowColors.blue,
                                 ),
                               ),
                               Text(
                                 '${_formatAmount(trainer.share)}원',
-                                style: const TextStyle(
-                                  fontSize: 13,
+                                style: theme.textTheme.labelMedium?.copyWith(
                                   fontWeight: FontWeight.w900,
-                                  color: SetflowColors.blue,
+                                  color: context.setflowColors.blue,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
                                 ),
                               ),
                             ],
@@ -557,6 +516,89 @@ String _formatAmount(int value) {
   return buffer.toString();
 }
 
+/// Athletic hero-stat block (pattern 1): muted label row with an optional
+/// [StatusChip]/count badge, then a huge volt tabular numeral with a small
+/// dim unit beside it, and an optional note line. Used in place of
+/// [HeroStatBanner]'s solid brand fill so every settlement page reads
+/// consistently on the dark-athletic elevated card surface.
+class _DarkStatBanner extends StatelessWidget {
+  const _DarkStatBanner({
+    required this.caption,
+    required this.value,
+    this.unit,
+    this.note,
+    this.badge,
+  });
+
+  final String caption;
+  final String value;
+  final String? unit;
+  final String? note;
+  final Widget? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SetflowCard(
+      color: context.setflowColors.surfaceContainerHigh,
+      padding: const EdgeInsets.all(SetflowSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                caption,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: SetflowSpacing.sm),
+                badge!,
+              ],
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.xs),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: theme.textTheme.displayMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (unit != null) ...[
+                const SizedBox(width: SetflowSpacing.xs),
+                Text(
+                  unit!,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (note != null) ...[
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(
+              note!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// [SettlementPage]에서 진입하는 수수료 정산 상세 화면 (admin 전용).
 /// 사업자/트레이너별 매출·수수료율·수수료액 리스트와 합계를 보여준다.
 class SettlementCommissionPage extends StatelessWidget {
@@ -572,6 +614,7 @@ class SettlementCommissionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final totalRevenue = _items.fold<int>(0, (sum, i) => sum + i.revenue);
     final totalCommission = _items.fold<int>(0, (sum, i) => sum + i.commission);
 
@@ -580,77 +623,35 @@ class SettlementCommissionPage extends StatelessWidget {
       body: ListView(
         padding: SetflowInsets.pageList,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: SetflowColors.ink,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '이번 달 플랫폼 수수료 합계',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${_formatAmount(totalCommission)}원',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 27,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '총 매출 ${_formatAmount(totalRevenue)}원 기준 산정',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+          _DarkStatBanner(
+            caption: '이번 달 플랫폼 수수료 합계',
+            value: _formatAmount(totalCommission),
+            unit: '원',
+            note: '총 매출 ${_formatAmount(totalRevenue)}원 기준 산정',
+            badge: StatusChip(
+              label: '${_items.length}건',
+              color: context.setflowColors.purple,
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('사업자·트레이너별 수수료 내역'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           for (final item in _items)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
               child: SetflowCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                (item.type == '트레이너'
-                                        ? SetflowColors.blue
-                                        : SetflowColors.purple)
-                                    .withValues(alpha: .12),
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          child: Text(
-                            item.type,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: item.type == '트레이너'
-                                  ? SetflowColors.blue
-                                  : SetflowColors.purple,
-                            ),
-                          ),
+                        StatusChip(
+                          label: item.type,
+                          color: item.type == '트레이너'
+                              ? context.setflowColors.blue
+                              : context.setflowColors.purple,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: SetflowSpacing.sm),
                         Expanded(
                           child: Text(
                             item.name,
@@ -659,20 +660,20 @@ class SettlementCommissionPage extends StatelessWidget {
                         ),
                         Text(
                           '수수료율 ${item.rate}%',
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: SetflowColors.secondaryText,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: SetflowSpacing.md),
                     Container(
-                      padding: const EdgeInsets.all(11),
+                      padding: const EdgeInsets.all(SetflowSpacing.md),
                       decoration: BoxDecoration(
-                        color: SetflowColors.soft,
-                        borderRadius: BorderRadius.circular(14),
+                        color: context.setflowColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(SetflowRadii.md),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -680,19 +681,20 @@ class SettlementCommissionPage extends StatelessWidget {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 '발생 매출',
-                                style: TextStyle(
-                                  fontSize: 11,
+                                style: theme.textTheme.bodySmall?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  color: SetflowColors.secondaryText,
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               Text(
                                 '${_formatAmount(item.revenue)}원',
-                                style: const TextStyle(
-                                  fontSize: 13,
+                                style: theme.textTheme.labelMedium?.copyWith(
                                   fontWeight: FontWeight.w900,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
                                 ),
                               ),
                             ],
@@ -700,20 +702,20 @@ class SettlementCommissionPage extends StatelessWidget {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              const Text(
+                              Text(
                                 '플랫폼 수수료',
-                                style: TextStyle(
-                                  fontSize: 11,
+                                style: theme.textTheme.bodySmall?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  color: SetflowColors.secondaryText,
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               Text(
                                 '${_formatAmount(item.commission)}원',
-                                style: const TextStyle(
-                                  fontSize: 13,
+                                style: theme.textTheme.labelMedium?.copyWith(
                                   fontWeight: FontWeight.w900,
-                                  color: SetflowColors.ink,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
                                 ),
                               ),
                             ],
@@ -725,45 +727,46 @@ class SettlementCommissionPage extends StatelessWidget {
                 ),
               ),
             ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('합계'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           SetflowCard(
             child: Column(
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       '총 매출',
-                      style: TextStyle(
-                        color: SetflowColors.secondaryText,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
                       '${_formatAmount(totalRevenue)}원',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: SetflowSpacing.sm),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       '총 플랫폼 수수료',
-                      style: TextStyle(
-                        fontSize: 15,
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     Text(
                       '${_formatAmount(totalCommission)}원',
-                      style: const TextStyle(
-                        fontSize: 15,
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
-                        color: SetflowColors.ink,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
@@ -795,6 +798,11 @@ class _CommissionItem {
 
 /// [SettlementPage]에서 진입하는 최종 정산 확정 화면 (admin 전용).
 /// 지급 대상 리스트와 "확정" 액션(데모 상태 토글)을 제공한다.
+///
+/// Athletic patterns 3 + 5: rows stay quiet until they're the next
+/// actionable item (surface-2 highlight); a single sticky volt CTA at the
+/// bottom drives that item through its two steps, with a confirmation
+/// dialog before the irreversible final step and a success snackbar after.
 class SettlementFinalConfirmPage extends StatefulWidget {
   const SettlementFinalConfirmPage({required this.role, super.key});
   final UserRole role;
@@ -818,146 +826,192 @@ class _SettlementFinalConfirmPageState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final pendingCount = _items
         .where((item) => item.status != _PayoutStatus.confirmed)
         .length;
     final pendingAmount = _items
         .where((item) => item.status != _PayoutStatus.confirmed)
         .fold<int>(0, (sum, item) => sum + item.amount);
+    final nextIndex = _items.indexWhere(
+      (item) => item.status != _PayoutStatus.confirmed,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('최종 정산 확정')),
-      body: ListView(
-        padding: SetflowInsets.pageList,
+      body: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: SetflowColors.ink,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: ListView(
+              padding: SetflowInsets.pageList,
               children: [
-                const Text(
-                  '확정 대기 중인 지급액',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                _DarkStatBanner(
+                  caption: '확정 대기 중인 지급액',
+                  value: _formatAmount(pendingAmount),
+                  unit: '원',
+                  badge: pendingCount > 0
+                      ? StatusChip(
+                          label: '$pendingCount건 대기',
+                          color: context.setflowColors.orange,
+                        )
+                      : null,
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  '${_formatAmount(pendingAmount)}원',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 27,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '대기 중인 지급 대상 $pendingCount건',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          const SectionTitle('지급 대상 목록'),
-          const SizedBox(height: 10),
-          for (var i = 0; i < _items.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: SetflowCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _items[i].name,
-                            style: const TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                        ),
-                        _PayoutStatusChip(status: _items[i].status),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(11),
-                      decoration: BoxDecoration(
-                        color: SetflowColors.soft,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                const SizedBox(height: SetflowSpacing.xxl),
+                const SectionTitle('지급 대상 목록'),
+                const SizedBox(height: SetflowSpacing.md),
+                for (var i = 0; i < _items.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+                    child: SetflowCard(
+                      color: i == nextIndex
+                          ? context.setflowColors.surfaceContainer
+                          : null,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '지급 계좌: ${_items[i].account}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: SetflowColors.secondaryText,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _items[i].name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              _payoutStatusChip(context, _items[i].status),
+                            ],
+                          ),
+                          const SizedBox(height: SetflowSpacing.md),
+                          Container(
+                            padding: const EdgeInsets.all(SetflowSpacing.md),
+                            decoration: BoxDecoration(
+                              color: context.setflowColors.surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(
+                                SetflowRadii.md,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '지급 계좌: ${_items[i].account}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: SetflowSpacing.sm),
+                                Text(
+                                  '${_formatAmount(_items[i].amount)}원',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${_formatAmount(_items[i].amount)}원',
-                            style: const TextStyle(fontWeight: FontWeight.w900),
-                          ),
+                          if (_items[i].status == _PayoutStatus.confirmed) ...[
+                            const SizedBox(height: SetflowSpacing.md),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: SetflowColors.green,
+                                ),
+                                const SizedBox(width: SetflowSpacing.sm),
+                                Text(
+                                  '최종 정산이 확정되었습니다.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: SetflowColors.green,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    switch (_items[i].status) {
-                      _PayoutStatus.pending => SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: () => setState(
-                            () => _items[i].status = _PayoutStatus.processing,
-                          ),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: SetflowColors.blue,
-                          ),
-                          child: const Text('입금 처리 시작'),
-                        ),
-                      ),
-                      _PayoutStatus.processing => SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: () => setState(
-                            () => _items[i].status = _PayoutStatus.confirmed,
-                          ),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: SetflowColors.ink,
-                          ),
-                          child: const Text('최종 정산 확정'),
-                        ),
-                      ),
-                      _PayoutStatus.confirmed => const Row(
-                        children: [
-                          Icon(Icons.check_circle, color: SetflowColors.green),
-                          SizedBox(width: 7),
-                          Text(
-                            '최종 정산이 확정되었습니다.',
-                            style: TextStyle(
-                              color: SetflowColors.green,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    },
-                  ],
-                ),
+                  ),
+              ],
+            ),
+          ),
+          if (nextIndex != -1)
+            Padding(
+              padding: SetflowInsets.bottomAction,
+              child: PrimaryButton(
+                label: _items[nextIndex].status == _PayoutStatus.pending
+                    ? '${_items[nextIndex].name} 입금 처리 시작'
+                    : '${_items[nextIndex].name} 최종 정산 확정',
+                onPressed: () => _advance(nextIndex),
+              ),
+            )
+          else
+            Padding(
+              padding: SetflowInsets.bottomAction,
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: SetflowColors.green),
+                  const SizedBox(width: SetflowSpacing.sm),
+                  Text(
+                    '전체 정산이 확정되었습니다.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: SetflowColors.green,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
       ),
     );
+  }
+
+  Future<void> _advance(int index) async {
+    final item = _items[index];
+    if (item.status == _PayoutStatus.pending) {
+      setState(() => item.status = _PayoutStatus.processing);
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('최종 정산을 확정할까요?'),
+        content: Text(
+          '${item.name}님에게 ${_formatAmount(item.amount)}원을 지급 처리합니다. '
+          '확정 후에는 되돌릴 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(
+              '확정',
+              style: TextStyle(
+                color: Theme.of(dialogContext).colorScheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      setState(() => item.status = _PayoutStatus.confirmed);
+      if (context.mounted) {
+        AppSnackbar.success(context, '${item.name}님 정산을 확정했어요.');
+      }
+    }
   }
 }
 
@@ -976,31 +1030,18 @@ class _PayoutItem {
   _PayoutStatus status = _PayoutStatus.pending;
 }
 
-class _PayoutStatusChip extends StatelessWidget {
-  const _PayoutStatusChip({required this.status});
-  final _PayoutStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      _PayoutStatus.pending => ('확정 대기', SetflowColors.orange),
-      _PayoutStatus.processing => ('처리 중', SetflowColors.blue),
-      _PayoutStatus.confirmed => ('확정 완료', SetflowColors.green),
+StatusChip _payoutStatusChip(BuildContext context, _PayoutStatus status) =>
+    switch (status) {
+      _PayoutStatus.pending => StatusChip(
+        label: '확정 대기',
+        color: context.setflowColors.orange,
+      ),
+      _PayoutStatus.processing => StatusChip(
+        label: '처리 중',
+        color: context.setflowColors.blue,
+      ),
+      _PayoutStatus.confirmed => const StatusChip(
+        label: '확정 완료',
+        color: SetflowColors.green,
+      ),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          color: color,
-        ),
-      ),
-    );
-  }
-}

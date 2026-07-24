@@ -43,7 +43,8 @@ void main() {
   });
 
   testWidgets(
-    'set editor validates direct input and deletes with confirmation',
+    'set editor sheet opens from a set row, validates direct input, and '
+    'deletes with confirmation',
     (tester) async {
       final date = DateTime(2026, 7, 23);
       final state = AppState();
@@ -64,6 +65,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // Tapping the row (not the check control) opens the athletic bottom
+      // sheet editor — the PopupMenu-era inline steppers are gone.
+      await tester.tap(find.text('40kg').first);
+      await tester.pumpAndSettle();
+      expect(find.text('바벨 벤치 프레스 · 1번째 세트'), findsOneWidget);
+
       await tester.tap(find.text('40').first);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), '1200');
@@ -76,7 +83,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(exercise.sets.first.weight, 42.5);
 
-      await tester.drag(find.byType(Dismissible).first, const Offset(-360, 0));
+      // Destructive delete now lives in the sheet, confirmed with the same
+      // themed AlertDialog as before.
+      await tester.tap(find.text('세트 삭제'));
       await tester.pumpAndSettle();
       expect(find.text('1세트를 삭제할까요?'), findsOneWidget);
       await tester.tap(find.text('삭제'));
@@ -94,7 +103,7 @@ void main() {
     final repository = MemoryAppRepository(
       initialSnapshot: const AppSnapshot(
         role: UserRole.member,
-        isDarkMode: false,
+        themeMode: ThemeMode.light,
         weightUnit: 'kg',
         restDefaultSeconds: 90,
         sessions: {},

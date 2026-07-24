@@ -14,22 +14,22 @@ abstract final class SetflowTheme {
     final semantic = isDark
         ? SetflowSemanticColors.dark
         : SetflowSemanticColors.light;
-    final surface = isDark ? const Color(0xFF181719) : SetflowColors.surface;
-    final onSurface = isDark ? const Color(0xFFF7F7F7) : SetflowColors.ink;
-    final outline = isDark ? const Color(0xFF343236) : SetflowColors.divider;
+    final surface = isDark ? const Color(0xFF100F0D) : SetflowColors.surface;
+    final onSurface = isDark ? const Color(0xFFF6F5F2) : SetflowColors.ink;
+    final outline = isDark ? const Color(0xFF302C26) : SetflowColors.divider;
 
     final scheme =
         ColorScheme.fromSeed(
           seedColor: SetflowColors.primary,
           brightness: brightness,
         ).copyWith(
-          primary: isDark ? const Color(0xFFFFD53D) : SetflowColors.primary,
-          onPrimary: SetflowColors.ink,
+          primary: SetflowColors.primary,
+          onPrimary: const Color(0xFF111214),
           primaryContainer: isDark
-              ? const Color(0xFF4A3B00)
+              ? const Color(0xFF3D3400)
               : const Color(0xFFFFF1BE),
           onPrimaryContainer: isDark
-              ? const Color(0xFFFFE9A0)
+              ? const Color(0xFFFFE566)
               : const Color(0xFF4A3B00),
           secondary: semantic.teal,
           onSecondary: SetflowColors.ink,
@@ -39,12 +39,12 @@ abstract final class SetflowTheme {
           surfaceContainerHigh: semantic.surfaceContainerHigh,
           onSurface: onSurface,
           onSurfaceVariant: isDark
-              ? const Color(0xFFA1A1AA)
+              ? const Color(0xFF9C968C)
               : SetflowColors.secondaryText,
           outline: outline,
           outlineVariant: isDark
-              ? const Color(0xFF2A282C)
-              : const Color(0xFFEEF0F2),
+              ? const Color(0xFF242019)
+              : const Color(0xFFEDE9E1),
           error: SetflowColors.red,
           onError: Colors.white,
         );
@@ -56,6 +56,7 @@ abstract final class SetflowTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
+      fontFamily: 'Pretendard',
       colorScheme: scheme,
       scaffoldBackgroundColor: surface,
       canvasColor: surface,
@@ -83,8 +84,8 @@ abstract final class SetflowTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: textTheme.headlineMedium,
-        toolbarHeight: 60,
+        titleTextStyle: textTheme.headlineLarge,
+        toolbarHeight: 64,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -125,11 +126,15 @@ abstract final class SetflowTheme {
           foregroundColor: scheme.onPrimary,
           disabledBackgroundColor: semantic.surfaceContainerHigh,
           disabledForegroundColor: semantic.disabled,
-          minimumSize: const Size(48, 52),
+          minimumSize: const Size(48, 56),
           padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.xl),
-          shape: RoundedRectangleBorder(borderRadius: radius16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+          ),
           textStyle: textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w800,
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .2,
           ),
         ),
       ),
@@ -145,11 +150,19 @@ abstract final class SetflowTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: onSurface,
-          minimumSize: const Size(48, 52),
-          side: BorderSide(color: scheme.outline),
+          minimumSize: const Size(48, 56),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF3A3D44) : SetflowColors.ink,
+            width: 1.5,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.xl),
-          shape: RoundedRectangleBorder(borderRadius: radius16),
-          textStyle: textTheme.labelLarge,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+          ),
+          textStyle: textTheme.labelLarge?.copyWith(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       cardTheme: CardThemeData(
@@ -188,19 +201,32 @@ abstract final class SetflowTheme {
           color: scheme.onSurfaceVariant,
         ),
       ),
+      // Kinetic signature: a solid black bar in BOTH themes with a yellow
+      // active pill — the athletic-brand bottom nav (Nike Training / Gymshark).
       navigationBarTheme: NavigationBarThemeData(
-        height: 64,
-        backgroundColor: semantic.surfaceContainerLow,
+        height: 66,
+        backgroundColor: SetflowColors.inkBlock,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: scheme.primaryContainer,
+        indicatorColor: SetflowColors.primary,
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SetflowRadii.sm),
+        ),
         elevation: 0,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        labelTextStyle: WidgetStatePropertyAll(textTheme.labelMedium),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return textTheme.labelSmall?.copyWith(
+            color: selected ? Colors.white : Colors.white54,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+            letterSpacing: .2,
+          );
+        }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           return IconThemeData(
+            size: 24,
             color: states.contains(WidgetState.selected)
-                ? scheme.onPrimaryContainer
-                : scheme.onSurfaceVariant,
+                ? SetflowColors.ink
+                : Colors.white60,
           );
         }),
       ),
@@ -246,30 +272,146 @@ abstract final class SetflowTheme {
         linearTrackColor: semantic.surfaceContainerHigh,
         circularTrackColor: semantic.surfaceContainerHigh,
       ),
+      // Branded styles for stock widgets so nothing renders with raw
+      // Material defaults ("system design").
+      checkboxTheme: CheckboxThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        side: BorderSide(color: scheme.outline, width: 1.6),
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? semantic.teal
+              : Colors.transparent,
+        ),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+        splashRadius: 18,
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.outline,
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: const WidgetStatePropertyAll(Colors.white),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? scheme.primary
+              : semantic.surfaceContainerHigh,
+        ),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: scheme.primary,
+        inactiveTrackColor: semantic.surfaceContainerHigh,
+        thumbColor: scheme.primary,
+        overlayColor: scheme.primary.withValues(alpha: .12),
+        trackHeight: 6,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+        valueIndicatorColor: isDark ? const Color(0xFFF7F7F7) : SetflowColors.ink,
+        valueIndicatorTextStyle: textTheme.labelMedium?.copyWith(
+          color: isDark ? SetflowColors.ink : Colors.white,
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: SegmentedButton.styleFrom(
+          backgroundColor: semantic.surfaceContainer,
+          foregroundColor: scheme.onSurfaceVariant,
+          selectedBackgroundColor: scheme.primary,
+          selectedForegroundColor: scheme.onPrimary,
+          side: BorderSide.none,
+          shape: RoundedRectangleBorder(borderRadius: radius16),
+          textStyle: textTheme.labelLarge,
+          padding: const EdgeInsets.symmetric(
+            horizontal: SetflowSpacing.lg,
+            vertical: SetflowSpacing.md,
+          ),
+        ),
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: scheme.onSurface,
+        unselectedLabelColor: scheme.onSurfaceVariant,
+        labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+        unselectedLabelStyle: textTheme.labelLarge,
+        indicatorColor: scheme.primary,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        overlayColor: WidgetStatePropertyAll(
+          scheme.primary.withValues(alpha: .08),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: semantic.surfaceContainerLow,
+        surfaceTintColor: Colors.transparent,
+        elevation: 12,
+        shadowColor: const Color(0x33000000),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+        textStyle: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 500),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFFF7F7F7) : SetflowColors.ink,
+          borderRadius: BorderRadius.circular(SetflowRadii.sm),
+        ),
+        textStyle: textTheme.labelMedium?.copyWith(
+          color: isDark ? SetflowColors.ink : Colors.white,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: SetflowSpacing.md,
+          vertical: SetflowSpacing.sm,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        elevation: 4,
+        highlightElevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        ),
+      ),
     );
   }
 
   static TextTheme _textTheme(Color color) {
-    TextStyle style(double size, FontWeight weight, double height) => TextStyle(
+    TextStyle style(
+      double size,
+      FontWeight weight,
+      double height, {
+      double letterSpacing = 0,
+      bool tabular = false,
+    }) => TextStyle(
+      fontFamily: 'Pretendard',
       color: color,
       fontSize: size,
       fontWeight: weight,
       height: height,
-      letterSpacing: 0,
+      letterSpacing: letterSpacing,
+      fontFeatures: tabular ? const [FontFeature.tabularFigures()] : null,
     );
 
     return TextTheme(
-      displayLarge: style(32, FontWeight.w900, 1.15),
-      displayMedium: style(28, FontWeight.w800, 1.2),
-      headlineLarge: style(24, FontWeight.w800, 1.25),
-      headlineMedium: style(20, FontWeight.w800, 1.3),
-      titleLarge: style(18, FontWeight.w700, 1.3),
+      // Kinetic type scale — big confident numerals are the signature, with a
+      // sharp jump down to editorial labels. Displays run heavy, tight, and
+      // tabular so counters don't jitter; labels are the small-caps kickers.
+      displayLarge: style(52, FontWeight.w900, 1.02, letterSpacing: -2, tabular: true),
+      displayMedium: style(38, FontWeight.w900, 1.05, letterSpacing: -1.2, tabular: true),
+      displaySmall: style(28, FontWeight.w900, 1.1, letterSpacing: -.6, tabular: true),
+      headlineLarge: style(24, FontWeight.w800, 1.18, letterSpacing: -.4, tabular: true),
+      headlineMedium: style(20, FontWeight.w800, 1.25, letterSpacing: -.2, tabular: true),
+      titleLarge: style(18, FontWeight.w800, 1.3, letterSpacing: -.2),
       titleMedium: style(16, FontWeight.w700, 1.4),
       bodyLarge: style(15, FontWeight.w500, 1.5),
       bodyMedium: style(14, FontWeight.w500, 1.5),
-      labelLarge: style(14, FontWeight.w700, 1.2),
-      labelMedium: style(12, FontWeight.w600, 1.3),
-      bodySmall: style(11, FontWeight.w500, 1.3),
+      labelLarge: style(13.5, FontWeight.w800, 1.2, letterSpacing: .2),
+      labelMedium: style(12, FontWeight.w700, 1.3, letterSpacing: .4),
+      labelSmall: style(11, FontWeight.w800, 1.2, letterSpacing: 1.0),
+      bodySmall: style(11.5, FontWeight.w500, 1.35),
     );
   }
 }

@@ -3,6 +3,44 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
+/// Pushed-screen header: back [AppIconButton] + big w900 title, athletic
+/// pattern language item 6. Kept private per file (see spec: don't share).
+class _AdminHeader extends StatelessWidget {
+  const _AdminHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.lg,
+        SetflowSpacing.sm,
+        SetflowSpacing.lg,
+        SetflowSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          AppIconButton(
+            icon: Icons.arrow_back_rounded,
+            tooltip: '뒤로',
+            onTap: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: SetflowSpacing.md),
+          Expanded(
+            child: Text(
+              title,
+              style: text.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 운영자 시스템 관리 허브. 랭킹/OCR/요금제/금칙어/로그 개별 화면으로 진입한다.
 class AdminSystemScreen extends StatelessWidget {
   const AdminSystemScreen({super.key});
@@ -37,57 +75,60 @@ class AdminSystemScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('시스템 관리')),
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
-        itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          final item = _items[index];
-          return SetflowCard(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => _screenFor(index)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: item.$2.withValues(alpha: .15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(item.$1, color: item.$2),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.$3,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _AdminHeader(title: '시스템 관리'),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                itemCount: _items.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: SetflowSpacing.sm),
+                itemBuilder: (context, index) {
+                  final item = _items[index];
+                  return SetflowCard(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => _screenFor(index)),
+                    ),
+                    child: Row(
+                      children: [
+                        TintedIconBadge(
+                          icon: item.$1,
+                          color: item.$2,
+                          square: true,
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.$4,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: SetflowColors.secondaryText,
+                        const SizedBox(width: SetflowSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item.$3, style: text.titleMedium),
+                              const SizedBox(height: SetflowSpacing.xs),
+                              Text(
+                                item.$4,
+                                style: text.labelMedium?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right, color: SetflowColors.disabled),
-              ],
+                        Icon(
+                          Icons.chevron_right,
+                          color: context.setflowColors.disabled,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -128,96 +169,112 @@ class _AdminSystemRankingScreenState extends State<AdminSystemRankingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('랭킹 관리')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
-        children: [
-          const SectionTitle('현재 트렌딩 순위'),
-          const SizedBox(height: 10),
-          SetflowCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                for (final item in _ranking)
-                  ListTile(
-                    leading: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: item.$1 <= 3
-                          ? SetflowColors.primary
-                          : SetflowColors.soft,
-                      child: Text(
-                        '${item.$1}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    title: Text(
-                      item.$2,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    subtitle: Text(item.$3),
-                    trailing: Text(
-                      '${item.$4}점',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: SetflowColors.blue,
-                      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _AdminHeader(title: '랭킹 관리'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                children: [
+                  const SectionTitle('현재 트렌딩 순위'),
+                  const SizedBox(height: SetflowSpacing.md),
+                  SetflowCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        for (final item in _ranking)
+                          ListTile(
+                            leading: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: item.$1 <= 3
+                                  ? Theme.of(context).colorScheme.primary
+                                  : context.setflowColors.surfaceContainerLow,
+                              child: Text(
+                                '${item.$1}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              item.$2,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            subtitle: Text(item.$3),
+                            trailing: Text(
+                              '${item.$4}점',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: context.setflowColors.blue,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-              ],
+                  const SizedBox(height: SetflowSpacing.xxl),
+                  const SectionTitle('가중치 파라미터'),
+                  const SizedBox(height: SetflowSpacing.md),
+                  SetflowCard(
+                    child: Column(
+                      children: [
+                        _WeightSlider(
+                          label: '조회수 (W_view)',
+                          value: _viewWeight,
+                          max: 10,
+                          onChanged: (value) =>
+                              setState(() => _viewWeight = value),
+                        ),
+                        const SizedBox(height: SetflowSpacing.lg),
+                        _WeightSlider(
+                          label: '댓글수 (W_comment)',
+                          value: _commentWeight,
+                          max: 20,
+                          onChanged: (value) =>
+                              setState(() => _commentWeight = value),
+                        ),
+                        const SizedBox(height: SetflowSpacing.lg),
+                        _WeightSlider(
+                          label: '상담요청 (W_consult)',
+                          value: _consultWeight,
+                          max: 50,
+                          onChanged: (value) =>
+                              setState(() => _consultWeight = value),
+                        ),
+                        const SizedBox(height: SetflowSpacing.lg),
+                        _WeightSlider(
+                          label: '코칭결제 (W_purchase)',
+                          value: _purchaseWeight,
+                          max: 200,
+                          onChanged: (value) =>
+                              setState(() => _purchaseWeight = value),
+                        ),
+                        const SizedBox(height: SetflowSpacing.lg),
+                        _WeightSlider(
+                          label: 'Time Decay (Gravity)',
+                          value: _gravity,
+                          max: 3,
+                          onChanged: (value) =>
+                              setState(() => _gravity = value),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.xl),
+                  PrimaryButton(
+                    label: '파라미터 저장',
+                    icon: Icons.save_outlined,
+                    onPressed: () =>
+                        showMessage(context, '랭킹 가중치를 저장하고 재계산을 예약했습니다. (데모)'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          const SectionTitle('가중치 파라미터'),
-          const SizedBox(height: 10),
-          SetflowCard(
-            child: Column(
-              children: [
-                _WeightSlider(
-                  label: '조회수 (W_view)',
-                  value: _viewWeight,
-                  max: 10,
-                  onChanged: (value) => setState(() => _viewWeight = value),
-                ),
-                const SizedBox(height: 16),
-                _WeightSlider(
-                  label: '댓글수 (W_comment)',
-                  value: _commentWeight,
-                  max: 20,
-                  onChanged: (value) => setState(() => _commentWeight = value),
-                ),
-                const SizedBox(height: 16),
-                _WeightSlider(
-                  label: '상담요청 (W_consult)',
-                  value: _consultWeight,
-                  max: 50,
-                  onChanged: (value) => setState(() => _consultWeight = value),
-                ),
-                const SizedBox(height: 16),
-                _WeightSlider(
-                  label: '코칭결제 (W_purchase)',
-                  value: _purchaseWeight,
-                  max: 200,
-                  onChanged: (value) =>
-                      setState(() => _purchaseWeight = value),
-                ),
-                const SizedBox(height: 16),
-                _WeightSlider(
-                  label: 'Time Decay (Gravity)',
-                  value: _gravity,
-                  max: 3,
-                  onChanged: (value) => setState(() => _gravity = value),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          PrimaryButton(
-            label: '파라미터 저장',
-            icon: Icons.save_outlined,
-            onPressed: () =>
-                showMessage(context, '랭킹 가중치를 저장하고 재계산을 예약했습니다. (데모)'),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -246,18 +303,16 @@ class _WeightSlider extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
             Text(
               value.toStringAsFixed(1),
-              style: const TextStyle(
-                fontSize: 13,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w900,
-                color: SetflowColors.blue,
+                color: context.setflowColors.blue,
               ),
             ),
           ],
@@ -286,106 +341,124 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('OCR 검수')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
-        children: [
-          Row(
-            children: [
-              MetricCard(
-                label: '검수 대기',
-                value: '${_queue.length}',
-                suffix: '건',
-                icon: Icons.hourglass_empty,
-                tint: SetflowColors.orange,
-              ),
-              const SizedBox(width: 10),
-              const MetricCard(
-                label: '이번주 처리',
-                value: '132',
-                suffix: '건',
-                icon: Icons.task_alt,
-                tint: SetflowColors.green,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const SectionTitle('낮은 신뢰도 검수 대기열'),
-          const SizedBox(height: 10),
-          if (_queue.isEmpty)
-            const EmptyState(
-              icon: Icons.done_all,
-              title: '검수할 항목이 없습니다',
-              message: '신뢰도가 낮은 OCR 인식 결과가 접수되면 이곳에 표시됩니다.',
-            )
-          else
-            for (final item in _queue)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 11),
-                child: SetflowCard(
-                  child: Row(
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _AdminHeader(title: 'OCR 검수'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                children: [
+                  Row(
                     children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: SetflowColors.teal.withValues(alpha: .15),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.image_search,
-                          color: SetflowColors.teal,
-                        ),
+                      MetricCard(
+                        label: '검수 대기',
+                        value: '${_queue.length}',
+                        suffix: '건',
+                        icon: Icons.hourglass_empty,
+                        tint: context.setflowColors.orange,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${item.type} · ${item.member}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '인식 신뢰도 ${item.confidence}%',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: item.confidence < 60
-                                    ? SetflowColors.red
-                                    : SetflowColors.secondaryText,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '승인',
-                        onPressed: () => _resolve(item.id, '승인'),
-                        icon: const Icon(
-                          Icons.check_circle_outline,
-                          color: SetflowColors.green,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '반려',
-                        onPressed: () => _resolve(item.id, '반려'),
-                        icon: const Icon(
-                          Icons.cancel_outlined,
-                          color: SetflowColors.red,
-                        ),
+                      const SizedBox(width: SetflowSpacing.md),
+                      MetricCard(
+                        label: '이번주 처리',
+                        value: '132',
+                        suffix: '건',
+                        icon: Icons.task_alt,
+                        tint: context.setflowColors.success,
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: SetflowSpacing.xxl),
+                  const SectionTitle('낮은 신뢰도 검수 대기열'),
+                  const SizedBox(height: SetflowSpacing.md),
+                  if (_queue.isEmpty)
+                    const EmptyState(
+                      icon: Icons.done_all,
+                      title: '검수할 항목이 없습니다',
+                      message: '신뢰도가 낮은 OCR 인식 결과가 접수되면 이곳에 표시됩니다.',
+                    )
+                  else
+                    for (final item in _queue)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: SetflowSpacing.md,
+                        ),
+                        child: SetflowCard(
+                          child: Row(
+                            children: [
+                              TintedIconBadge(
+                                icon: Icons.image_search,
+                                color: context.setflowColors.teal,
+                                square: true,
+                              ),
+                              const SizedBox(width: SetflowSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${item.type} · ${item.member}',
+                                      style: text.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: SetflowSpacing.xs),
+                                    Text(
+                                      '인식 신뢰도 ${item.confidence}%',
+                                      style: text.bodySmall?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: item.confidence < 60
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.error
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              AppIconButton(
+                                icon: Icons.more_horiz_rounded,
+                                tooltip: '검수 처리',
+                                onTap: () =>
+                                    _chooseResolution(context, item.id),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                ],
               ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _chooseResolution(BuildContext context, String id) async {
+    final action = await showAppActionSheet<String>(
+      context,
+      title: '검수 결과 처리',
+      actions: [
+        const SheetAction(
+          icon: Icons.check_circle_outline,
+          label: '승인',
+          value: '승인',
+        ),
+        const SheetAction(
+          icon: Icons.cancel_outlined,
+          label: '반려',
+          value: '반려',
+          destructive: true,
+        ),
+      ],
+    );
+    if (action != null && mounted) _resolve(id, action);
   }
 
   void _resolve(String id, String action) {
@@ -399,8 +472,7 @@ class AdminSystemPlansScreen extends StatefulWidget {
   const AdminSystemPlansScreen({super.key});
 
   @override
-  State<AdminSystemPlansScreen> createState() =>
-      _AdminSystemPlansScreenState();
+  State<AdminSystemPlansScreen> createState() => _AdminSystemPlansScreenState();
 }
 
 class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
@@ -423,65 +495,91 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('요금제 관리')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
-        children: [
-          for (final plan in _plans)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 11),
-              child: SetflowCard(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            plan.name,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _AdminHeader(title: '요금제 관리'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                children: [
+                  for (final plan in _plans)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+                      child: SetflowCard(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    plan.name,
+                                    style: text.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: SetflowSpacing.xs),
+                                  Text(
+                                    '${plan.price} · ${plan.desc}',
+                                    style: text.labelMedium?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${plan.price} · ${plan.desc}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: SetflowColors.secondaryText,
+                            AppIconButton(
+                              icon: Icons.more_horiz_rounded,
+                              tooltip: '플랜 메뉴',
+                              onTap: () => _choosePlanAction(context, plan),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                    IconButton(
-                      tooltip: '편집',
-                      onPressed: () => _openEditor(plan: plan),
-                      icon: const Icon(Icons.edit_outlined),
-                    ),
-                    IconButton(
-                      tooltip: '삭제',
-                      onPressed: () => _confirmDelete(plan.id),
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: SetflowColors.red,
-                      ),
-                    ),
-                  ],
-                ),
+                  const SizedBox(height: SetflowSpacing.md),
+                  PrimaryButton(
+                    label: '새 플랜 추가',
+                    icon: Icons.add,
+                    onPressed: () => _openEditor(),
+                  ),
+                ],
               ),
             ),
-          const SizedBox(height: 10),
-          PrimaryButton(
-            label: '새 플랜 추가',
-            icon: Icons.add,
-            onPressed: () => _openEditor(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _choosePlanAction(
+    BuildContext context,
+    ({String id, String name, String price, String desc}) plan,
+  ) async {
+    final action = await showAppActionSheet<String>(
+      context,
+      title: plan.name,
+      actions: const [
+        SheetAction(icon: Icons.edit_outlined, label: '편집', value: 'edit'),
+        SheetAction(
+          icon: Icons.delete_outline,
+          label: '삭제',
+          value: 'delete',
+          destructive: true,
+        ),
+      ],
+    );
+    if (!mounted) return;
+    if (action == 'edit') {
+      _openEditor(plan: plan);
+    } else if (action == 'delete') {
+      _confirmDelete(plan.id);
+    }
   }
 
   Future<void> _confirmDelete(String id) async {
@@ -497,7 +595,10 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('삭제', style: TextStyle(color: SetflowColors.red)),
+            child: Text(
+              '삭제',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -521,20 +622,11 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: '플랜 이름'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: priceController,
-              decoration: const InputDecoration(labelText: '가격'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: descController,
-              decoration: const InputDecoration(labelText: '설명'),
-            ),
+            AppTextField(controller: nameController, label: '플랜 이름'),
+            const SizedBox(height: SetflowSpacing.md),
+            AppTextField(controller: priceController, label: '가격'),
+            const SizedBox(height: SetflowSpacing.md),
+            AppTextField(controller: descController, label: '설명'),
           ],
         ),
         actions: [
@@ -549,9 +641,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
         ],
       ),
     );
-    if (saved == true &&
-        nameController.text.trim().isNotEmpty &&
-        mounted) {
+    if (saved == true && nameController.text.trim().isNotEmpty && mounted) {
       final entry = (
         id: plan?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: nameController.text.trim(),
@@ -568,7 +658,10 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
           if (index != -1) _plans[index] = entry;
         }
       });
-      showMessage(context, plan == null ? '플랜을 추가했습니다. (데모)' : '플랜을 수정했습니다. (데모)');
+      showMessage(
+        context,
+        plan == null ? '플랜을 추가했습니다. (데모)' : '플랜을 수정했습니다. (데모)',
+      );
     }
     nameController.dispose();
     priceController.dispose();
@@ -585,8 +678,7 @@ class AdminSystemKeywordsScreen extends StatefulWidget {
       _AdminSystemKeywordsScreenState();
 }
 
-class _AdminSystemKeywordsScreenState
-    extends State<AdminSystemKeywordsScreen> {
+class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
   final _controller = TextEditingController();
   final _keywords = ['불법약물', '스테로이드', '텔레그램', '대리결제', '카톡상담'];
 
@@ -598,93 +690,95 @@ class _AdminSystemKeywordsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('금칙어 관리')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
-        children: [
-          SetflowCard(
-            color: SetflowColors.red.withValues(alpha: .06),
-            child: const Row(
-              children: [
-                Icon(Icons.shield_outlined, color: SetflowColors.red),
-                SizedBox(width: 11),
-                Expanded(
-                  child: Text(
-                    '등록된 키워드가 포함된 게시글/댓글은 작성 즉시 자동 블라인드 처리됩니다.',
-                    style: TextStyle(fontSize: 12, height: 1.45),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  onSubmitted: (_) => _add(),
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.add),
-                    hintText: '추가할 금지 키워드 입력',
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _add,
-                style: FilledButton.styleFrom(
-                  backgroundColor: SetflowColors.ink,
-                  minimumSize: const Size(0, 54),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text('추가'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '등록된 키워드 ${_keywords.length}개',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              color: SetflowColors.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (_keywords.isEmpty)
-            const EmptyState(
-              icon: Icons.block_outlined,
-              title: '등록된 금지 키워드가 없습니다',
-              message: '위 입력창에서 새 키워드를 추가해 보세요.',
-            )
-          else
-            SetflowCard(
-              padding: EdgeInsets.zero,
-              child: Column(
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _AdminHeader(title: '금칙어 관리'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
                 children: [
-                  for (final keyword in _keywords)
-                    ListTile(
-                      title: Text(
-                        keyword,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                      trailing: IconButton(
-                        tooltip: '삭제',
-                        onPressed: () => _remove(keyword),
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: SetflowColors.red,
+                  InfoBanner(
+                    message: '등록된 키워드가 포함된 게시글/댓글은 작성 즉시 자동 블라인드 처리됩니다.',
+                    icon: Icons.shield_outlined,
+                    color: colors.error,
+                  ),
+                  const SizedBox(height: SetflowSpacing.lg),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          controller: _controller,
+                          onSubmitted: (_) => _add(),
+                          prefixIcon: const Icon(Icons.add),
+                          hint: '추가할 금지 키워드 입력',
                         ),
+                      ),
+                      const SizedBox(width: SetflowSpacing.sm),
+                      FilledButton(
+                        onPressed: _add,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: colors.inverseSurface,
+                          foregroundColor: colors.onInverseSurface,
+                          minimumSize: const Size(0, 52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.md,
+                            ),
+                          ),
+                        ),
+                        child: const Text('추가'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: SetflowSpacing.lg),
+                  Text(
+                    '등록된 키워드 ${_keywords.length}개',
+                    style: text.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.md),
+                  if (_keywords.isEmpty)
+                    const EmptyState(
+                      icon: Icons.block_outlined,
+                      title: '등록된 금지 키워드가 없습니다',
+                      message: '위 입력창에서 새 키워드를 추가해 보세요.',
+                    )
+                  else
+                    SetflowCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (final keyword in _keywords)
+                            ListTile(
+                              title: Text(
+                                keyword,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                tooltip: '삭제',
+                                onPressed: () => _remove(keyword),
+                                icon: Icon(
+                                  Icons.delete_outline,
+                                  color: colors.error,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                 ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -733,113 +827,106 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
     final filtered = _levelFilter == '전체'
         ? _logs
         : _logs.where((log) => log.$2 == _levelFilter).toList();
+    final text = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('시스템 로그')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
-        children: [
-          const Row(
-            children: [
-              MetricCard(
-                label: '업타임',
-                value: '99.98',
-                suffix: '%',
-                icon: Icons.cloud_done_outlined,
-                tint: SetflowColors.green,
-              ),
-              SizedBox(width: 10),
-              MetricCard(
-                label: '오류율',
-                value: '0.02',
-                suffix: '%',
-                icon: Icons.error_outline,
-                tint: SetflowColors.red,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final level in _levels)
-                FilterChip(
-                  label: Text(level),
-                  selected: _levelFilter == level,
-                  onSelected: (_) => setState(() => _levelFilter = level),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (filtered.isEmpty)
-            const EmptyState(
-              icon: Icons.check_circle_outline,
-              title: '해당 레벨의 로그가 없습니다',
-              message: '다른 필터를 선택해 보세요.',
-            )
-          else
-            for (final log in filtered)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 11),
-                child: SetflowCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _AdminHeader(title: '시스템 로그'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _logColor(log.$2).withValues(alpha: .12),
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: Text(
-                              log.$2,
-                              style: TextStyle(
-                                color: _logColor(log.$2),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            log.$3,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              color: SetflowColors.secondaryText,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            log.$1,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: SetflowColors.secondaryText,
-                            ),
-                          ),
-                        ],
+                      MetricCard(
+                        label: '업타임',
+                        value: '99.98',
+                        suffix: '%',
+                        icon: Icons.cloud_done_outlined,
+                        tint: context.setflowColors.success,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        log.$4,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      const SizedBox(width: SetflowSpacing.md),
+                      MetricCard(
+                        label: '오류율',
+                        value: '0.02',
+                        suffix: '%',
+                        icon: Icons.error_outline,
+                        tint: colors.error,
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: SetflowSpacing.xl),
+                  SegPills(
+                    items: _levels,
+                    selectedIndex: _levels.indexOf(_levelFilter),
+                    onChanged: (index) =>
+                        setState(() => _levelFilter = _levels[index]),
+                  ),
+                  const SizedBox(height: SetflowSpacing.lg),
+                  if (filtered.isEmpty)
+                    const EmptyState(
+                      icon: Icons.check_circle_outline,
+                      title: '해당 레벨의 로그가 없습니다',
+                      message: '다른 필터를 선택해 보세요.',
+                    )
+                  else
+                    for (final log in filtered)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: SetflowSpacing.md,
+                        ),
+                        child: SetflowCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  StatusChip(
+                                    label: log.$2,
+                                    color: _logColor(context, log.$2),
+                                  ),
+                                  const SizedBox(width: SetflowSpacing.sm),
+                                  Text(
+                                    log.$3,
+                                    style: text.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: colors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    log.$1,
+                                    style: text.bodySmall?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: SetflowSpacing.sm),
+                              Text(
+                                log.$4,
+                                style: text.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                ],
               ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Color _logColor(String level) => switch (level) {
-    'ERROR' => SetflowColors.red,
-    'WARN' => SetflowColors.orange,
-    _ => SetflowColors.green,
+  Color _logColor(BuildContext context, String level) => switch (level) {
+    'ERROR' => Theme.of(context).colorScheme.error,
+    'WARN' => context.setflowColors.orange,
+    _ => context.setflowColors.success,
   };
 }

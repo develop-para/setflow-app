@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/kinetic.dart';
+import '../widgets/motion.dart';
 import 'admin_content_screens.dart';
 import 'admin_system_screens.dart';
 import 'business_detail_screens.dart';
@@ -27,7 +29,7 @@ class _BusinessShellState extends State<BusinessShell> {
 
   @override
   Widget build(BuildContext context) {
-    final config = _roleConfig(widget.role);
+    final config = _roleConfig(context, widget.role);
     final pages = switch (widget.role) {
       UserRole.trainer => const [
         TrainerHome(),
@@ -52,19 +54,14 @@ class _BusinessShellState extends State<BusinessShell> {
 
     return Scaffold(
       body: IndexedStack(index: index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        height: 64,
+      bottomNavigationBar: SetflowNavBar(
         selectedIndex: index,
-        indicatorColor: config.color.withValues(alpha: .14),
-        onDestinationSelected: (value) {
-          HapticFeedback.selectionClick();
-          setState(() => index = value);
-        },
-        destinations: [
+        onSelected: (value) => setState(() => index = value),
+        items: [
           for (final item in config.nav)
-            NavigationDestination(
-              icon: Icon(item.$1),
-              selectedIcon: Icon(_selectedBusinessIcon(item.$1)),
+            SetflowNavItem(
+              icon: item.$1,
+              selectedIcon: _selectedBusinessIcon(item.$1),
               label: item.$2,
             ),
         ],
@@ -113,6 +110,7 @@ Color _businessKindColor(BuildContext context, String kind) {
 }
 
 ({String title, Color color, List<(IconData, String)> nav}) _roleConfig(
+  BuildContext context,
   UserRole role,
 ) {
   return switch (role) {
@@ -138,7 +136,9 @@ Color _businessKindColor(BuildContext context, String kind) {
     ),
     UserRole.admin => (
       title: '운영 관리자',
-      color: SetflowColors.ink,
+      // Neutral/monochrome role identity: adapts so the nav indicator tint
+      // stays visible on both a light and a near-black dark surface.
+      color: Theme.of(context).colorScheme.onSurface,
       nav: const [
         (Icons.dashboard_outlined, '현황'),
         (Icons.manage_accounts_outlined, '유저'),
@@ -169,7 +169,7 @@ class _BusinessHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final eyebrowColor = theme.brightness == Brightness.dark
         ? accent
-        : Color.lerp(accent, SetflowColors.ink, .35)!;
+        : Color.lerp(accent, theme.colorScheme.onSurface, .35)!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         SetflowSpacing.xxl,
@@ -190,7 +190,7 @@ class _BusinessHeader extends StatelessWidget {
                     color: eyebrowColor,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: SetflowSpacing.xs),
                 Text(
                   title,
                   style: theme.textTheme.headlineLarge?.copyWith(
@@ -200,71 +200,69 @@ class _BusinessHeader extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
+          AppIconButton(
             tooltip: '새로고침',
-            onPressed: onRefresh,
-            icon: const Icon(Icons.refresh_rounded),
+            icon: Icons.refresh_rounded,
+            onTap: onRefresh,
           ),
-          IconButton(
-            tooltip: '알림',
-            onPressed: () => _showNotifications(context, accent),
-            icon: Badge(
-              isLabelVisible: unreadCount > 0,
-              label: Text('$unreadCount'),
-              child: const Icon(Icons.notifications_none_rounded),
+          const SizedBox(width: SetflowSpacing.sm),
+          Badge(
+            isLabelVisible: unreadCount > 0,
+            label: Text('$unreadCount'),
+            child: AppIconButton(
+              tooltip: '알림',
+              icon: Icons.notifications_none_rounded,
+              onTap: () => _showNotifications(context, accent),
             ),
           ),
-          PopupMenuButton<String>(
+          const SizedBox(width: SetflowSpacing.sm),
+          AppIconButton(
             tooltip: '더보기',
-            onSelected: (value) {
-              final role = AppScope.of(context).role;
-              if (value == 'tools') {
-                _showWorkspaceMenu(context);
-              } else if (value == 'workspace') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => WorkspaceScreen(role: role),
-                  ),
-                );
-              } else if (value == 'settings') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => BusinessSettingsListScreen(role: role),
-                  ),
-                );
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'tools',
-                child: ListTile(
-                  leading: Icon(Icons.grid_view_rounded),
-                  title: Text('운영 메뉴'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'workspace',
-                child: ListTile(
-                  leading: Icon(Icons.dashboard_customize_outlined),
-                  title: Text('PC 워크스페이스'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'settings',
-                child: ListTile(
-                  leading: Icon(Icons.settings_outlined),
-                  title: Text('설정'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
-            icon: const Icon(Icons.more_vert_rounded),
+            icon: Icons.more_vert_rounded,
+            onTap: () => _showMoreMenu(context),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _showMoreMenu(BuildContext context) async {
+    final role = AppScope.of(context).role;
+    final value = await showAppActionSheet<String>(
+      context,
+      title: '더보기',
+      actions: const [
+        SheetAction(
+          icon: Icons.grid_view_rounded,
+          label: '운영 메뉴',
+          value: 'tools',
+        ),
+        SheetAction(
+          icon: Icons.dashboard_customize_outlined,
+          label: 'PC 워크스페이스',
+          value: 'workspace',
+        ),
+        SheetAction(
+          icon: Icons.settings_outlined,
+          label: '설정',
+          value: 'settings',
+        ),
+      ],
+    );
+    if (value == null || !context.mounted) return;
+    if (value == 'tools') {
+      _showWorkspaceMenu(context);
+    } else if (value == 'workspace') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => WorkspaceScreen(role: role)));
+    } else if (value == 'settings') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BusinessSettingsListScreen(role: role),
+        ),
+      );
+    }
   }
 
   void _showNotifications(BuildContext context, Color accent) {
@@ -321,7 +319,12 @@ class _BusinessHeader extends StatelessWidget {
         builder: (_, controller) => SafeArea(
           child: ListView(
             controller: controller,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            padding: const EdgeInsets.fromLTRB(
+              SetflowSpacing.lg,
+              0,
+              SetflowSpacing.lg,
+              SetflowSpacing.xl,
+            ),
             children: [
               const ListTile(
                 title: Text(
@@ -344,7 +347,7 @@ class _BusinessHeader extends StatelessWidget {
                     );
                   },
                 ),
-              const Divider(height: 28),
+              const Divider(height: SetflowSpacing.xxl),
               const ListTile(
                 title: Text(
                   '데모 워크스페이스 전환',
@@ -385,10 +388,13 @@ class _BusinessHeader extends StatelessWidget {
               ),
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.logout, color: SetflowColors.red),
-                title: const Text(
+                leading: Icon(
+                  Icons.logout,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
                   '로그아웃',
-                  style: TextStyle(color: SetflowColors.red),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -460,9 +466,9 @@ class _BusinessHomeFrameState extends State<_BusinessHomeFrame> {
                 ).colorScheme.errorContainer.withValues(alpha: .5),
                 borderRadius: BorderRadius.circular(SetflowRadii.md),
                 child: ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.cloud_off_rounded,
-                    color: SetflowColors.red,
+                    color: Theme.of(context).colorScheme.error,
                   ),
                   title: const Text(
                     '운영 데이터 저장에 실패했어요.',
@@ -512,7 +518,8 @@ class _BusinessHomeFrameState extends State<_BusinessHomeFrame> {
                           SetflowSpacing.xxl,
                           SetflowSpacing.xxl,
                         ),
-                        children: widget.children,
+                        // Staggered entrance for every business dashboard.
+                        children: Reveal.list(widget.children),
                       ),
                     ),
             ),
@@ -532,6 +539,7 @@ class _BusinessNotificationSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final text = Theme.of(context).textTheme;
     final notifications = state
         .dashboardFor(role)
         .notifications
@@ -550,10 +558,12 @@ class _BusinessNotificationSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     '알림',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                    style: text.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 if (notifications.isNotEmpty)
@@ -589,21 +599,22 @@ class _BusinessNotificationSheet extends StatelessWidget {
                       ),
                       background: Container(
                         alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 18),
-                        color: SetflowColors.red.withValues(alpha: .1),
-                        child: const Icon(
+                        padding: const EdgeInsets.only(
+                          right: SetflowSpacing.xl,
+                        ),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.error.withValues(alpha: .1),
+                        child: Icon(
                           Icons.done_rounded,
-                          color: SetflowColors.red,
+                          color: Theme.of(context).colorScheme.error,
                         ),
                       ),
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          backgroundColor: accent.withValues(alpha: .12),
-                          child: Icon(
-                            _businessKindIcon(notification.kind),
-                            color: accent,
-                          ),
+                        leading: TintedIconBadge(
+                          icon: _businessKindIcon(notification.kind),
+                          color: accent,
                         ),
                         title: Text(
                           notification.title,
@@ -636,72 +647,25 @@ class TrainerHome extends StatelessWidget {
       accent: accent,
       role: UserRole.trainer,
       children: [
-        Container(
-          padding: const EdgeInsets.all(SetflowSpacing.xl),
-          decoration: BoxDecoration(
-            color: accent,
-            borderRadius: BorderRadius.circular(SetflowRadii.lg),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Icon(Icons.verified_rounded, color: Colors.white),
-                        SizedBox(width: 7),
-                        Flexible(
-                          child: Text(
-                            '인증 트레이너',
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'PRO',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 20),
-              Text(
-                '이번 달 예상 수익',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-              SizedBox(height: 4),
-              Text(
-                facts['revenue'] ?? '0원',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                facts['revenueChange'] ?? '비교 데이터 없음',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
+        // Hero: this month's business summary as a data-viz card — revenue
+        // numeral, trend sparkline, monthly bars, and a settlement goal ring.
+        TrainingHeroCard(
+          kicker: '이번 달 예상 수익',
+          value: (facts['revenue'] ?? '0원').replaceAll('원', ''),
+          unit: '원',
+          animateValue: false,
+          delta: '12.4%',
+          deltaUp: true,
+          deltaCaption: '지난달 대비',
+          spark: const [1.6, 1.8, 1.5, 2.0, 2.2, 2.1, 2.35, 2.28, 2.4, 2.48],
+          weekValues: const [1.9, 2.3, 2.1, 2.48],
+          weekLabels: const ['1주', '2주', '3주', '4주'],
+          weekHighlight: 3,
+          ringValue: 0.78,
+          ringTop: '78%',
+          ringBottom: '월 목표',
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: SetflowSpacing.md),
         Row(
           children: [
             MetricCard(
@@ -751,13 +715,13 @@ class TrainerHome extends StatelessWidget {
                 value: facts['routineViews'] ?? '0',
                 change: facts['routineViewsChange'] ?? '-',
               ),
-              const Divider(height: 26),
+              const Divider(height: SetflowSpacing.xxl),
               _PerformanceRow(
                 label: '상담 전환',
                 value: facts['consultationConversion'] ?? '0%',
                 change: facts['consultationConversionChange'] ?? '-',
               ),
-              const Divider(height: 26),
+              const Divider(height: SetflowSpacing.xxl),
               _PerformanceRow(
                 label: '가져가기',
                 value: facts['routineImports'] ?? '0회',
@@ -785,45 +749,25 @@ class GymHome extends StatelessWidget {
       accent: accent,
       role: UserRole.gym,
       children: [
-        Container(
-          padding: const EdgeInsets.all(SetflowSpacing.xl),
-          decoration: BoxDecoration(
-            color: accent,
-            borderRadius: BorderRadius.circular(SetflowRadii.lg),
-          ),
-          child: Row(
-            children: [
-              const CircleAvatar(
-                radius: 27,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.apartment_rounded, color: Colors.white),
-              ),
-              const SizedBox(width: SetflowSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '사업자 인증 완료',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      facts['plan'] ?? '기본 플랜',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.verified_rounded, color: Colors.white),
-            ],
-          ),
+        // Hero: this month's center revenue as a data-viz card.
+        TrainingHeroCard(
+          kicker: '이번 달 매출',
+          value: facts['revenue'] ?? '0',
+          unit: '백만원',
+          delta: '9.2%',
+          deltaUp: true,
+          deltaCaption: '지난달 대비',
+          streak: facts['plan'] ?? '기본 플랜',
+          streakIcon: Icons.verified_rounded,
+          spark: const [12.1, 13.4, 12.8, 14.2, 15.6, 15.1, 16.8, 17.2, 17.9, 18.4],
+          weekValues: const [14.2, 16.1, 17.0, 18.4],
+          weekLabels: const ['1주', '2주', '3주', '4주'],
+          weekHighlight: 3,
+          ringValue: 0.82,
+          ringTop: '82%',
+          ringBottom: '가동률',
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: SetflowSpacing.md),
         Row(
           children: [
             MetricCard(
@@ -835,25 +779,17 @@ class GymHome extends StatelessWidget {
             ),
             const SizedBox(width: SetflowSpacing.md),
             MetricCard(
-              label: '이번 달 매출',
-              value: facts['revenue'] ?? '0',
-              suffix: '백만원',
-              icon: Icons.trending_up,
-              tint: context.setflowColors.success,
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            MetricCard(
               label: '소속 트레이너',
               value: facts['trainers'] ?? '0',
               suffix: '명',
               icon: Icons.badge_outlined,
               tint: context.setflowColors.purple,
             ),
-            const SizedBox(width: SetflowSpacing.md),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.lg),
+        Row(
+          children: [
             MetricCard(
               label: '신규 상담',
               value: facts['consultations'] ?? '0',
@@ -893,13 +829,13 @@ class GymHome extends StatelessWidget {
                 detail: facts['trainer1Detail'] ?? '데이터 없음',
                 color: context.setflowColors.blue,
               ),
-              const Divider(height: 22),
+              const Divider(height: SetflowSpacing.xxl),
               _PersonRow(
                 name: facts['trainer2Name'] ?? '-',
                 detail: facts['trainer2Detail'] ?? '데이터 없음',
                 color: context.setflowColors.teal,
               ),
-              const Divider(height: 22),
+              const Divider(height: SetflowSpacing.xxl),
               _PersonRow(
                 name: facts['trainer3Name'] ?? '-',
                 detail: facts['trainer3Detail'] ?? '데이터 없음',
@@ -926,34 +862,35 @@ class AdminHome extends StatelessWidget {
       accent: Theme.of(context).colorScheme.onPrimaryContainer,
       role: UserRole.admin,
       children: [
+        // Hero: platform ops summary as a data-viz card — total users, growth
+        // trend, weekly signups, and an SLA-compliance ring.
+        TrainingHeroCard(
+          kicker: '전체 사용자',
+          value: facts['users'] ?? '0',
+          unit: '명',
+          animateValue: false,
+          delta: '5.6%',
+          deltaUp: true,
+          deltaCaption: '지난주 대비',
+          streak: '심사 대기 ${facts['reviews'] ?? '0'}',
+          streakIcon: Icons.fact_check_outlined,
+          spark: const [6.8, 7.1, 7.4, 7.6, 7.9, 8.0, 8.15, 8.28, 8.36, 8.42],
+          weekValues: const [120, 86, 140, 98, 165, 72, 110],
+          weekLabels: const ['월', '화', '수', '목', '금', '토', '일'],
+          weekHighlight: 4,
+          ringValue: 0.91,
+          ringTop: '91%',
+          ringBottom: 'SLA 준수',
+        ),
+        const SizedBox(height: SetflowSpacing.md),
         Row(
           children: [
-            MetricCard(
-              label: '전체 사용자',
-              value: facts['users'] ?? '0',
-              suffix: '명',
-              icon: Icons.groups_outlined,
-              tint: context.setflowColors.blue,
-            ),
-            const SizedBox(width: SetflowSpacing.md),
             MetricCard(
               label: '활성 코칭',
               value: facts['coaching'] ?? '0',
               suffix: '건',
               icon: Icons.handshake_outlined,
               tint: context.setflowColors.teal,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            MetricCard(
-              label: '심사 대기',
-              value: facts['reviews'] ?? '0',
-              suffix: '건',
-              icon: Icons.fact_check_outlined,
-              tint: context.setflowColors.orange,
             ),
             const SizedBox(width: SetflowSpacing.md),
             MetricCard(
@@ -995,13 +932,13 @@ class AdminHome extends StatelessWidget {
                 value: _percentageFact(facts, 'redSla'),
                 color: Theme.of(context).colorScheme.error,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: SetflowSpacing.xl),
               _ProgressRow(
                 label: 'Orange 신고 · 24시간',
                 value: _percentageFact(facts, 'orangeSla'),
                 color: context.setflowColors.orange,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: SetflowSpacing.xl),
               _ProgressRow(
                 label: '인증 심사 · 3영업일',
                 value: _percentageFact(facts, 'reviewSla'),
@@ -1021,13 +958,13 @@ class AdminHome extends StatelessWidget {
                 status: facts['apiStatus'] ?? '확인 필요',
                 color: context.setflowColors.success,
               ),
-              const Divider(height: 24),
+              const Divider(height: SetflowSpacing.xxl),
               _StatusRow(
                 label: 'OCR 서비스',
                 status: facts['ocrStatus'] ?? '확인 필요',
                 color: context.setflowColors.success,
               ),
-              const Divider(height: 24),
+              const Divider(height: SetflowSpacing.xxl),
               _StatusRow(
                 label: '정산 배치',
                 status: facts['settlementStatus'] ?? '확인 필요',
@@ -1043,17 +980,20 @@ class AdminHome extends StatelessWidget {
           onTap: () => Navigator.of(
             context,
           ).push(MaterialPageRoute(builder: (_) => const AdminSystemScreen())),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.tune_outlined, color: SetflowColors.primary),
-              SizedBox(width: 11),
-              Expanded(
+              Icon(
+                Icons.tune_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              const Expanded(
                 child: Text(
                   '랭킹 · OCR · 요금제 · 금칙어 · 로그 관리',
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
-              Icon(Icons.chevron_right, color: SetflowColors.disabled),
+              Icon(Icons.chevron_right, color: context.setflowColors.disabled),
             ],
           ),
         ),
@@ -1083,6 +1023,58 @@ void _openBusinessTask(
     _ => WorkspaceScreen(role: role),
   };
   Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+}
+
+/// Athletic tab-root header: big w900 title, optional badge, right-aligned
+/// [AppIconButton] actions. Replaces the default AppBar look for screens
+/// that live directly in [BusinessShell]'s bottom navigation.
+class _TabHeader extends StatelessWidget {
+  const _TabHeader({required this.title, this.badge, this.actions = const []});
+
+  final String title;
+  final String? badge;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xxl,
+        SetflowSpacing.lg,
+        SetflowSpacing.xxl,
+        SetflowSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (badge != null) ...[
+                  const SizedBox(width: SetflowSpacing.sm),
+                  Badge(label: Text(badge!)),
+                ],
+              ],
+            ),
+          ),
+          for (final action in actions) ...[
+            const SizedBox(width: SetflowSpacing.sm),
+            action,
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class PeoplePage extends StatefulWidget {
@@ -1115,86 +1107,118 @@ class _PeoplePageState extends State<PeoplePage> {
     final state = AppScope.of(context);
     final filtered = people.where((item) => item.$1.contains(query)).toList();
     return Scaffold(
-      appBar: AppBar(title: Text(gym ? '전체 회원' : '관리 회원')),
-      body: Column(
-        children: [
-          Padding(
-            padding: SetflowInsets.pageHeader,
-            child: AppTextField(
-              controller: searchController,
-              onChanged: (value) => setState(() => query = value),
-              prefixIcon: const Icon(Icons.search),
-              hint: '회원 이름 검색',
-              suffixIcon: query.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: '검색어 지우기',
-                      onPressed: () {
+      body: SafeArea(
+        child: Column(
+          children: [
+            _TabHeader(title: gym ? '전체 회원' : '관리 회원'),
+            Padding(
+              padding: SetflowInsets.pageHeader,
+              child: AppTextField(
+                controller: searchController,
+                onChanged: (value) => setState(() => query = value),
+                prefixIcon: const Icon(Icons.search),
+                hint: '회원 이름 검색',
+                suffixIcon: query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '검색어 지우기',
+                        onPressed: () {
+                          searchController.clear();
+                          setState(() => query = '');
+                        },
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? EmptyState(
+                      icon: Icons.person_search_outlined,
+                      title: '검색 결과가 없어요',
+                      message: '다른 이름으로 검색하거나 검색어를 초기화해주세요.',
+                      actionLabel: '검색 초기화',
+                      onAction: () {
                         searchController.clear();
                         setState(() => query = '');
                       },
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-            ),
-          ),
-          Expanded(
-            child: filtered.isEmpty
-                ? EmptyState(
-                    icon: Icons.person_search_outlined,
-                    title: '검색 결과가 없어요',
-                    message: '다른 이름으로 검색하거나 검색어를 초기화해주세요.',
-                    actionLabel: '검색 초기화',
-                    onAction: () {
-                      searchController.clear();
-                      setState(() => query = '');
-                    },
-                  )
-                : ListView.builder(
-                    padding: SetflowInsets.pageListTight,
-                    itemCount: filtered.length,
-                    itemBuilder: (_, index) {
-                      final person = filtered[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
-                        child: SetflowCard(
-                          onTap: () => _showMember(context, person),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 24,
-                                backgroundColor: [
-                                  SetflowColors.primary,
-                                  SetflowColors.teal,
-                                  SetflowColors.purple,
-                                  SetflowColors.blue,
-                                ][index % 4].withValues(alpha: .2),
-                                child: Text(
-                                  person.$1.characters.first,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
+                    )
+                  : ListView.builder(
+                      padding: SetflowInsets.pageListTight,
+                      itemCount: filtered.length,
+                      itemBuilder: (_, index) {
+                        final person = filtered[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: SetflowSpacing.md,
+                          ),
+                          child: SetflowCard(
+                            onTap: () => _showMember(context, person),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: [
+                                    Theme.of(context).colorScheme.primary,
+                                    context.setflowColors.teal,
+                                    context.setflowColors.purple,
+                                    context.setflowColors.blue,
+                                  ][index % 4].withValues(alpha: .2),
+                                  child: Text(
+                                    person.$1.characters.first,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 13),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                const SizedBox(width: SetflowSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        person.$1,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                      ),
+                                      const SizedBox(height: SetflowSpacing.xs),
+                                      Text(
+                                        gym
+                                            ? '${person.$2} · 담당 ${state.dashboardFor(UserRole.gym).facts['memberAssignment.${person.$1}'] ?? '미배정'}'
+                                            : '${person.$2} · 마지막 기록 ${person.$3}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Text(
-                                      person.$1,
-                                      style: const TextStyle(
-                                        fontSize: 16,
+                                      '${person.$4}%',
+                                      style: TextStyle(
                                         fontWeight: FontWeight.w900,
+                                        color: person.$4 >= 80
+                                            ? context.setflowColors.success
+                                            : context.setflowColors.orange,
                                       ),
                                     ),
-                                    const SizedBox(height: 3),
                                     Text(
-                                      gym
-                                          ? '${person.$2} · 담당 ${state.dashboardFor(UserRole.gym).facts['memberAssignment.${person.$1}'] ?? '미배정'}'
-                                          : '${person.$2} · 마지막 기록 ${person.$3}',
+                                      '완료율',
                                       style: Theme.of(context)
                                           .textTheme
-                                          .labelMedium
+                                          .bodySmall
                                           ?.copyWith(
                                             color: Theme.of(
                                               context,
@@ -1203,52 +1227,27 @@ class _PeoplePageState extends State<PeoplePage> {
                                     ),
                                   ],
                                 ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    '${person.$4}%',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      color: person.$4 >= 80
-                                          ? context.setflowColors.success
-                                          : context.setflowColors.orange,
-                                    ),
-                                  ),
-                                  Text(
-                                    '완료율',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.chevron_right,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                            ],
+                                const SizedBox(width: SetflowSpacing.xs),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: gym
           ? FloatingActionButton(
               tooltip: '회원 초대',
               onPressed: () => _showInviteSheet(context),
-              backgroundColor: SetflowColors.purple,
-              foregroundColor: Colors.white,
               child: const Icon(Icons.person_add_alt_1),
             )
           : null,
@@ -1276,31 +1275,30 @@ class _PeoplePageState extends State<PeoplePage> {
               children: [
                 CircleAvatar(
                   radius: 30,
-                  backgroundColor: SetflowColors.primary.withValues(alpha: .2),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .2),
                   child: Text(
                     person.$1.characters.first,
-                    style: const TextStyle(
-                      fontSize: 22,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: SetflowSpacing.lg),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         person.$1,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       Text(
                         person.$2,
-                        style: const TextStyle(
-                          color: SetflowColors.secondaryText,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -1308,7 +1306,7 @@ class _PeoplePageState extends State<PeoplePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.lg),
             OutlinedButton.icon(
               onPressed: () {
                 Navigator.pop(sheetContext);
@@ -1324,7 +1322,7 @@ class _PeoplePageState extends State<PeoplePage> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(SetflowRadii.md),
                 ),
               ),
             ),
@@ -1337,12 +1335,12 @@ class _PeoplePageState extends State<PeoplePage> {
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(SetflowRadii.md),
                   ),
                 ),
               ),
             ],
-            const SizedBox(height: 22),
+            const SizedBox(height: SetflowSpacing.xxl),
             Row(
               children: [
                 MetricCard(
@@ -1350,21 +1348,21 @@ class _PeoplePageState extends State<PeoplePage> {
                   value: '${person.$4}',
                   suffix: '%',
                   icon: Icons.check_circle_outline,
-                  tint: SetflowColors.teal,
+                  tint: context.setflowColors.teal,
                 ),
-                const SizedBox(width: 10),
-                const MetricCard(
+                const SizedBox(width: SetflowSpacing.md),
+                MetricCard(
                   label: '최근 볼륨',
                   value: '4.8',
                   suffix: 't',
                   icon: Icons.monitor_weight_outlined,
-                  tint: SetflowColors.orange,
+                  tint: context.setflowColors.orange,
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: SetflowSpacing.xxl),
             const SectionTitle('최근 운동 기록'),
-            const SizedBox(height: 8),
+            const SizedBox(height: SetflowSpacing.sm),
             const SetflowCard(
               child: Column(
                 children: [
@@ -1390,7 +1388,7 @@ class _PeoplePageState extends State<PeoplePage> {
                 ],
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: SetflowSpacing.xl),
             Form(
               key: formKey,
               child: AppTextField(
@@ -1406,7 +1404,7 @@ class _PeoplePageState extends State<PeoplePage> {
                 },
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.lg),
             PrimaryButton(
               label: '피드백 보내기',
               onPressed: () {
@@ -1557,128 +1555,147 @@ class RoutineManagerPage extends StatelessWidget {
     final state = AppScope.of(context);
     final routines = [...state.marketRoutines, ...state.routines];
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('루틴 관리'),
-        actions: [
-          IconButton(
-            tooltip: '새 루틴 작성',
-            onPressed: () => _showRoutineCreate(context, role),
-            icon: const Icon(Icons.add),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: SetflowInsets.pageList,
-        children: [
-          const Row(
-            children: [
-              MetricCard(
-                label: '전체 조회',
-                value: '3,482',
-                icon: Icons.visibility_outlined,
-                tint: SetflowColors.blue,
-              ),
-              SizedBox(width: 8),
-              MetricCard(
-                label: '상담 전환',
-                value: '8.6',
-                suffix: '%',
-                icon: Icons.trending_up,
-                tint: SetflowColors.green,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          for (final routine in routines)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: SetflowCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: routine.color,
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                        ),
-                        const SizedBox(width: 11),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                routine.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const Text(
-                                '승인 · 마켓 노출 중',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: SetflowColors.green,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.more_vert),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _MiniMetric(label: '조회', value: '1,284'),
-                        _MiniMetric(label: '상담', value: '42'),
-                        _MiniMetric(label: '가져가기', value: '94'),
-                        _MiniMetric(label: '랭킹', value: '#12'),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => RoutineStatsPage(routine: routine),
-                        ),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.bar_chart_rounded,
-                            size: 16,
-                            color: SetflowColors.blue,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            '통계 보기',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: SetflowColors.blue,
-                            ),
-                          ),
-                          Spacer(),
-                          Icon(
-                            Icons.chevron_right,
-                            size: 16,
-                            color: SetflowColors.disabled,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _TabHeader(
+              title: '루틴 관리',
+              actions: [
+                AppIconButton(
+                  tooltip: '새 루틴 작성',
+                  icon: Icons.add,
+                  onTap: () => _showRoutineCreate(context, role),
                 ),
+              ],
+            ),
+            Expanded(
+              child: ListView(
+                padding: SetflowInsets.pageList,
+                children: [
+                  Row(
+                    children: [
+                      MetricCard(
+                        label: '전체 조회',
+                        value: '3,482',
+                        icon: Icons.visibility_outlined,
+                        tint: context.setflowColors.blue,
+                      ),
+                      const SizedBox(width: SetflowSpacing.sm),
+                      MetricCard(
+                        label: '상담 전환',
+                        value: '8.6',
+                        suffix: '%',
+                        icon: Icons.trending_up,
+                        tint: context.setflowColors.success,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: SetflowSpacing.xl),
+                  for (final routine in routines)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+                      child: SetflowCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 10,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: routine.color,
+                                    borderRadius: BorderRadius.circular(
+                                      SetflowRadii.xs,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: SetflowSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        routine.name,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                      ),
+                                      Text(
+                                        '승인 · 마켓 노출 중',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color:
+                                                  context.setflowColors.success,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.more_vert),
+                              ],
+                            ),
+                            const Divider(height: SetflowSpacing.xxl),
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _MiniMetric(label: '조회', value: '1,284'),
+                                _MiniMetric(label: '상담', value: '42'),
+                                _MiniMetric(label: '가져가기', value: '94'),
+                                _MiniMetric(label: '랭킹', value: '#12'),
+                              ],
+                            ),
+                            const SizedBox(height: SetflowSpacing.md),
+                            InkWell(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      RoutineStatsPage(routine: routine),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.bar_chart_rounded,
+                                    size: 16,
+                                    color: context.setflowColors.blue,
+                                  ),
+                                  const SizedBox(width: SetflowSpacing.sm),
+                                  Text(
+                                    '통계 보기',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          color: context.setflowColors.blue,
+                                        ),
+                                  ),
+                                  const Spacer(),
+                                  Icon(
+                                    Icons.chevron_right,
+                                    size: 16,
+                                    color: context.setflowColors.disabled,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1800,152 +1817,142 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
         .toList();
     final unreadCount = items.length - answered.length;
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
+      body: SafeArea(
+        child: Column(
           children: [
-            const Text('상담 수신함'),
-            if (unreadCount > 0) ...[
-              const SizedBox(width: SetflowSpacing.sm),
-              Badge(label: Text('$unreadCount')),
-            ],
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: '상담 리타겟',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ConsultationRetargetScreen(role: widget.role),
-              ),
-            ),
-            icon: const Icon(Icons.campaign_outlined),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: SetflowInsets.pageHeader,
-            child: Row(
-              children: [
-                FilterChip(
-                  label: const Text('전체'),
-                  selected: !unreadOnly,
-                  onSelected: (_) => setState(() => unreadOnly = false),
-                ),
-                const SizedBox(width: SetflowSpacing.sm),
-                FilterChip(
-                  label: Text('미답변 $unreadCount'),
-                  selected: unreadOnly,
-                  onSelected: (_) => setState(() => unreadOnly = true),
+            _TabHeader(
+              title: '상담 수신함',
+              badge: unreadCount > 0 ? '$unreadCount' : null,
+              actions: [
+                AppIconButton(
+                  tooltip: '상담 리타겟',
+                  icon: Icons.campaign_outlined,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          ConsultationRetargetScreen(role: widget.role),
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-          Expanded(
-            child: visible.isEmpty
-                ? EmptyState(
-                    icon: Icons.mark_email_read_outlined,
-                    title: '미답변 상담이 없어요',
-                    message: '현재 도착한 상담에 모두 답변했습니다.',
-                    actionLabel: '전체 상담 보기',
-                    onAction: () => setState(() => unreadOnly = false),
-                  )
-                : ListView.builder(
-                    padding: SetflowInsets.pageListTight,
-                    itemCount: visible.length,
-                    itemBuilder: (_, visibleIndex) {
-                      final index = visible[visibleIndex].$1;
-                      final item = visible[visibleIndex].$2;
-                      final done = answered.contains(index);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
-                        child: SetflowCard(
-                          onTap: () => _answer(context, index, item),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: done
-                                    ? context.setflowColors.surfaceContainer
-                                    : Theme.of(
-                                        context,
-                                      ).colorScheme.primaryContainer,
-                                child: Icon(
-                                  done
-                                      ? Icons.mark_email_read_outlined
-                                      : Icons.mark_email_unread_outlined,
-                                  color: done
-                                      ? Theme.of(
+            Padding(
+              padding: SetflowInsets.pageHeader,
+              child: SegPills(
+                items: ['전체', '미답변 $unreadCount'],
+                selectedIndex: unreadOnly ? 1 : 0,
+                onChanged: (index) => setState(() => unreadOnly = index == 1),
+              ),
+            ),
+            Expanded(
+              child: visible.isEmpty
+                  ? EmptyState(
+                      icon: Icons.mark_email_read_outlined,
+                      title: '미답변 상담이 없어요',
+                      message: '현재 도착한 상담에 모두 답변했습니다.',
+                      actionLabel: '전체 상담 보기',
+                      onAction: () => setState(() => unreadOnly = false),
+                    )
+                  : ListView.builder(
+                      padding: SetflowInsets.pageListTight,
+                      itemCount: visible.length,
+                      itemBuilder: (_, visibleIndex) {
+                        final index = visible[visibleIndex].$1;
+                        final item = visible[visibleIndex].$2;
+                        final done = answered.contains(index);
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: SetflowSpacing.md,
+                          ),
+                          child: SetflowCard(
+                            onTap: () => _answer(context, index, item),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: done
+                                      ? context.setflowColors.surfaceContainer
+                                      : Theme.of(
                                           context,
-                                        ).colorScheme.onSurfaceVariant
-                                      : context.setflowColors.orange,
+                                        ).colorScheme.primaryContainer,
+                                  child: Icon(
+                                    done
+                                        ? Icons.mark_email_read_outlined
+                                        : Icons.mark_email_unread_outlined,
+                                    color: done
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant
+                                        : context.setflowColors.orange,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          item.$1,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 7),
-                                        if (!done)
-                                          Container(
-                                            width: 7,
-                                            height: 7,
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.error,
-                                              shape: BoxShape.circle,
+                                const SizedBox(width: SetflowSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            item.$1,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w900,
                                             ),
                                           ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      item.$2,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelMedium
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
+                                          const SizedBox(
+                                            width: SetflowSpacing.sm,
                                           ),
-                                    ),
-                                    Text(
-                                      item.$3,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ],
+                                          if (!done)
+                                            Container(
+                                              width: 7,
+                                              height: 7,
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.error,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: SetflowSpacing.xs),
+                                      Text(
+                                        item.$2,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                      Text(
+                                        item.$3,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              const Icon(Icons.chevron_right),
-                            ],
+                                const Icon(Icons.chevron_right),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1964,9 +1971,9 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
       builder: (sheetContext) => Padding(
         padding: EdgeInsets.fromLTRB(
           SetflowSpacing.xxl,
-          4,
+          SetflowSpacing.xs,
           SetflowSpacing.xxl,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
+          MediaQuery.viewInsetsOf(sheetContext).bottom + SetflowSpacing.xxl,
         ),
         child: Form(
           key: formKey,
@@ -1979,14 +1986,14 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                   '${item.$1}님의 상담',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: SetflowSpacing.sm),
                 Text(
                   '${item.$2} · ${item.$3}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: SetflowSpacing.xl),
                 AppTextField(
                   controller: controller,
                   maxLines: 4,
@@ -1999,7 +2006,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 AppButton(
                   label: doneLabel(
                     AppScope.of(
@@ -2067,165 +2074,163 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
       return matchesQuery && matchesFilter;
     }).toList();
 
+    const filterValues = ['all', 'excellent', 'attention'];
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('소속 트레이너'),
-        actions: [
-          IconButton(
-            tooltip: '트레이너 초대',
-            onPressed: _showInviteSheet,
-            icon: const Icon(Icons.person_add_alt_1),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: SetflowInsets.pageHeader,
-            child: Column(
-              children: [
-                AppTextField(
-                  controller: searchController,
-                  onChanged: (value) => setState(() => query = value),
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  hint: '트레이너 이름 검색',
-                  suffixIcon: query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: '검색어 지우기',
-                          onPressed: _resetSearch,
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                ),
-                const SizedBox(height: SetflowSpacing.md),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _trainerFilterChip('all', '전체 ${trainers.length}'),
-                      const SizedBox(width: SetflowSpacing.sm),
-                      _trainerFilterChip('excellent', '우수 성과'),
-                      const SizedBox(width: SetflowSpacing.sm),
-                      _trainerFilterChip('attention', '피드백 필요'),
-                    ],
-                  ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _TabHeader(
+              title: '소속 트레이너',
+              actions: [
+                AppIconButton(
+                  tooltip: '트레이너 초대',
+                  icon: Icons.person_add_alt_1,
+                  onTap: _showInviteSheet,
                 ),
               ],
             ),
-          ),
-          Expanded(
-            child: visible.isEmpty
-                ? EmptyState(
-                    icon: Icons.manage_search_rounded,
-                    title: '조건에 맞는 트레이너가 없어요',
-                    message: '검색어와 성과 필터를 초기화한 뒤 다시 확인해주세요.',
-                    actionLabel: '검색·필터 초기화',
-                    onAction: () {
-                      _resetSearch();
-                      setState(() => filter = 'all');
-                    },
-                  )
-                : ListView.builder(
-                    padding: SetflowInsets.pageListTight,
-                    itemCount: visible.length,
-                    itemBuilder: (_, visibleIndex) {
-                      final index = visible[visibleIndex].$1;
-                      final trainer = visible[visibleIndex].$2;
-                      final accentColor = [
-                        SetflowColors.blue,
-                        SetflowColors.teal,
-                        SetflowColors.orange,
-                        SetflowColors.purple,
-                      ][index % 4];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
-                        child: SetflowCard(
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => TrainerPerformancePage(
-                                name: trainer.$1,
-                                membersLabel: trainer.$2,
-                                feedbackRate: '${trainer.$3}%',
-                                rating: trainer.$4,
-                                accentColor: accentColor,
+            Padding(
+              padding: SetflowInsets.pageHeader,
+              child: Column(
+                children: [
+                  AppTextField(
+                    controller: searchController,
+                    onChanged: (value) => setState(() => query = value),
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    hint: '트레이너 이름 검색',
+                    suffixIcon: query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '검색어 지우기',
+                            onPressed: _resetSearch,
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.md),
+                  SegPills(
+                    items: ['전체 ${trainers.length}', '우수 성과', '피드백 필요'],
+                    selectedIndex: filterValues.indexOf(filter),
+                    onChanged: (index) =>
+                        setState(() => filter = filterValues[index]),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: visible.isEmpty
+                  ? EmptyState(
+                      icon: Icons.manage_search_rounded,
+                      title: '조건에 맞는 트레이너가 없어요',
+                      message: '검색어와 성과 필터를 초기화한 뒤 다시 확인해주세요.',
+                      actionLabel: '검색·필터 초기화',
+                      onAction: () {
+                        _resetSearch();
+                        setState(() => filter = 'all');
+                      },
+                    )
+                  : ListView.builder(
+                      padding: SetflowInsets.pageListTight,
+                      itemCount: visible.length,
+                      itemBuilder: (_, visibleIndex) {
+                        final index = visible[visibleIndex].$1;
+                        final trainer = visible[visibleIndex].$2;
+                        final accentColor = [
+                          context.setflowColors.blue,
+                          context.setflowColors.teal,
+                          context.setflowColors.orange,
+                          context.setflowColors.purple,
+                        ][index % 4];
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: SetflowSpacing.md,
+                          ),
+                          child: SetflowCard(
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => TrainerPerformancePage(
+                                  name: trainer.$1,
+                                  membersLabel: trainer.$2,
+                                  feedbackRate: '${trainer.$3}%',
+                                  rating: trainer.$4,
+                                  accentColor: accentColor,
+                                ),
                               ),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 24,
-                                backgroundColor: accentColor.withValues(
-                                  alpha: .16,
-                                ),
-                                child: Text(
-                                  trainer.$1.characters.first,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: accentColor.withValues(
+                                    alpha: .16,
+                                  ),
+                                  child: Text(
+                                    trainer.$1.characters.first,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      trainer.$1,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
+                                const SizedBox(width: SetflowSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        trainer.$1,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w900,
+                                            ),
                                       ),
+                                      Text(
+                                        '관리 회원 ${trainer.$2} · 피드백 ${trainer.$3}%',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  children: [
+                                    Icon(
+                                      Icons.star_rounded,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      size: 19,
                                     ),
                                     Text(
-                                      '관리 회원 ${trainer.$2} · 피드백 ${trainer.$3}%',
+                                      '${trainer.$4}',
                                       style: Theme.of(context)
                                           .textTheme
-                                          .labelMedium
+                                          .bodySmall
                                           ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
+                                            fontWeight: FontWeight.w900,
                                           ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              Column(
-                                children: [
-                                  const Icon(
-                                    Icons.star_rounded,
-                                    color: SetflowColors.primary,
-                                    size: 19,
-                                  ),
-                                  Text(
-                                    '${trainer.$4}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.chevron_right),
-                            ],
+                                const SizedBox(width: SetflowSpacing.xs),
+                                const Icon(Icons.chevron_right),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _trainerFilterChip(String value, String label) {
-    return FilterChip(
-      label: Text(label),
-      selected: filter == value,
-      onSelected: (_) => setState(() => filter = value),
     );
   }
 
@@ -2330,200 +2335,213 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       return matchesQuery && matchesFilter;
     }).toList();
 
+    const filterValues = ['all', 'active', 'blocked', 'premium'];
     return Scaffold(
-      appBar: AppBar(title: const Text('회원 관리')),
-      body: Column(
-        children: [
-          Padding(
-            padding: SetflowInsets.pageHeader,
-            child: Column(
-              children: [
-                AppTextField(
-                  controller: searchController,
-                  onChanged: (value) => setState(() => query = value),
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  hint: '닉네임 또는 이메일 검색',
-                  suffixIcon: query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: '검색어 지우기',
-                          onPressed: _resetAdminUserFilters,
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                ),
-                const SizedBox(height: SetflowSpacing.md),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _adminUserFilterChip('all', '전체 ${users.length}'),
-                      const SizedBox(width: SetflowSpacing.sm),
-                      _adminUserFilterChip('active', '정상 이용'),
-                      const SizedBox(width: SetflowSpacing.sm),
-                      _adminUserFilterChip('blocked', '이용 제한'),
-                      const SizedBox(width: SetflowSpacing.sm),
-                      _adminUserFilterChip('premium', '프리미엄'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: visible.isEmpty
-                ? EmptyState(
-                    icon: Icons.person_search_outlined,
-                    title: '조건에 맞는 회원이 없어요',
-                    message: '검색어와 계정 상태 필터를 초기화해주세요.',
-                    actionLabel: '검색·필터 초기화',
-                    onAction: _resetAdminUserFilters,
-                  )
-                : ListView.builder(
-                    padding: SetflowInsets.pageListTight,
-                    itemCount: visible.length,
-                    itemBuilder: (_, visibleIndex) {
-                      final index = visible[visibleIndex].$1;
-                      final user = visible[visibleIndex].$2;
-                      final blocked = state.isAdminUserBlocked(
-                        user.$2,
-                        fallback: index == 2,
-                      );
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
-                        child: SetflowCard(
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    child: Text(user.$1.characters.first),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Wrap(
-                                          spacing: 7,
-                                          runSpacing: 4,
-                                          crossAxisAlignment:
-                                              WrapCrossAlignment.center,
-                                          children: [
-                                            Text(
-                                              user.$1,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                            _statusPill(
-                                              label: user.$3,
-                                              color: user.$3 == '프리미엄'
-                                                  ? SetflowColors.orange
-                                                  : Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                            ),
-                                          ],
-                                        ),
-                                        Text(
-                                          user.$2,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.onSurfaceVariant,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  PopupMenuButton<String>(
-                                    tooltip: '회원 관리 메뉴',
-                                    onSelected: (value) async {
-                                      if (value == 'view') {
-                                        _showAdminUserDetails(
-                                          user,
-                                          blocked,
-                                          index,
-                                        );
-                                      } else {
-                                        await _confirmAdminUserRestriction(
-                                          user,
-                                          blocked,
-                                        );
-                                      }
-                                    },
-                                    itemBuilder: (_) => [
-                                      const PopupMenuItem(
-                                        value: 'view',
-                                        child: Text('상세 보기'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'block',
-                                        child: Text(
-                                          blocked ? '제재 해제' : '계정 제재',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const Divider(height: 24),
-                              Row(
-                                children: [
-                                  Text(
-                                    '가입일 2026.0${index + 3}.12',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                  const Spacer(),
-                                  Container(
-                                    width: 7,
-                                    height: 7,
-                                    decoration: BoxDecoration(
-                                      color: blocked
-                                          ? Theme.of(context).colorScheme.error
-                                          : context.setflowColors.success,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    blocked ? '이용 제한' : '정상 이용',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: blocked
-                                          ? Theme.of(context).colorScheme.error
-                                          : context.setflowColors.success,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _TabHeader(title: '회원 관리'),
+            Padding(
+              padding: SetflowInsets.pageHeader,
+              child: Column(
+                children: [
+                  AppTextField(
+                    controller: searchController,
+                    onChanged: (value) => setState(() => query = value),
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    hint: '닉네임 또는 이메일 검색',
+                    suffixIcon: query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '검색어 지우기',
+                            onPressed: _resetAdminUserFilters,
+                            icon: const Icon(Icons.close_rounded),
                           ),
-                        ),
-                      );
-                    },
                   ),
-          ),
-        ],
+                  const SizedBox(height: SetflowSpacing.md),
+                  SegPills(
+                    items: ['전체 ${users.length}', '정상 이용', '이용 제한', '프리미엄'],
+                    selectedIndex: filterValues.indexOf(filter),
+                    onChanged: (index) =>
+                        setState(() => filter = filterValues[index]),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: visible.isEmpty
+                  ? EmptyState(
+                      icon: Icons.person_search_outlined,
+                      title: '조건에 맞는 회원이 없어요',
+                      message: '검색어와 계정 상태 필터를 초기화해주세요.',
+                      actionLabel: '검색·필터 초기화',
+                      onAction: _resetAdminUserFilters,
+                    )
+                  : ListView.builder(
+                      padding: SetflowInsets.pageListTight,
+                      itemCount: visible.length,
+                      itemBuilder: (_, visibleIndex) {
+                        final index = visible[visibleIndex].$1;
+                        final user = visible[visibleIndex].$2;
+                        final blocked = state.isAdminUserBlocked(
+                          user.$2,
+                          fallback: index == 2,
+                        );
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: SetflowSpacing.md,
+                          ),
+                          child: SetflowCard(
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      child: Text(user.$1.characters.first),
+                                    ),
+                                    const SizedBox(width: SetflowSpacing.md),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Wrap(
+                                            spacing: SetflowSpacing.sm,
+                                            runSpacing: SetflowSpacing.xs,
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
+                                            children: [
+                                              Text(
+                                                user.$1,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                              StatusChip(
+                                                label: user.$3,
+                                                color: user.$3 == '프리미엄'
+                                                    ? context
+                                                          .setflowColors
+                                                          .orange
+                                                    : Theme.of(context)
+                                                          .colorScheme
+                                                          .onSurfaceVariant,
+                                              ),
+                                            ],
+                                          ),
+                                          Text(
+                                            user.$2,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    AppIconButton(
+                                      tooltip: '회원 관리 메뉴',
+                                      icon: Icons.more_vert_rounded,
+                                      onTap: () async {
+                                        final value =
+                                            await showAppActionSheet<String>(
+                                              context,
+                                              title: user.$1,
+                                              actions: [
+                                                const SheetAction(
+                                                  icon: Icons.person_outline,
+                                                  label: '상세 보기',
+                                                  value: 'view',
+                                                ),
+                                                SheetAction(
+                                                  icon: blocked
+                                                      ? Icons.lock_open_outlined
+                                                      : Icons.block_outlined,
+                                                  label: blocked
+                                                      ? '제재 해제'
+                                                      : '계정 제재',
+                                                  value: 'block',
+                                                  destructive: !blocked,
+                                                ),
+                                              ],
+                                            );
+                                        if (value == null || !context.mounted) {
+                                          return;
+                                        }
+                                        if (value == 'view') {
+                                          _showAdminUserDetails(
+                                            user,
+                                            blocked,
+                                            index,
+                                          );
+                                        } else {
+                                          await _confirmAdminUserRestriction(
+                                            user,
+                                            blocked,
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: SetflowSpacing.xxl),
+                                Row(
+                                  children: [
+                                    Text(
+                                      '가입일 2026.0${index + 3}.12',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      width: 7,
+                                      height: 7,
+                                      decoration: BoxDecoration(
+                                        color: blocked
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.error
+                                            : context.setflowColors.success,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: SetflowSpacing.xs),
+                                    Text(
+                                      blocked ? '이용 제한' : '정상 이용',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: blocked
+                                                ? Theme.of(
+                                                    context,
+                                                  ).colorScheme.error
+                                                : context.setflowColors.success,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _adminUserFilterChip(String value, String label) {
-    return FilterChip(
-      label: Text(label),
-      selected: filter == value,
-      onSelected: (_) => setState(() => filter = value),
     );
   }
 
@@ -2632,36 +2650,18 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                 child: Column(
                   children: [
                     _infoRow(label: '이용 플랜', value: user.$3),
-                    const Divider(height: 24),
+                    const Divider(height: SetflowSpacing.xxl),
                     _infoRow(
                       label: '계정 상태',
                       value: blocked ? '이용 제한' : '정상 이용',
                     ),
-                    const Divider(height: 24),
+                    const Divider(height: SetflowSpacing.xxl),
                     _infoRow(label: '가입일', value: '2026.0${index + 3}.12'),
                   ],
                 ),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _statusPill({required String label, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(SetflowRadii.sm),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
         ),
       ),
     );
@@ -2721,221 +2721,202 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
       ('트레이너', '정수빈', 'NASM-CPT · 신분증'),
     ];
     return Scaffold(
-      appBar: AppBar(title: const Text('인증 심사 큐')),
-      body: Column(
-        children: [
-          SizedBox(
-            height: 116,
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
-              scrollDirection: Axis.horizontal,
-              itemCount: _contentReviewEntries.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final entry = _contentReviewEntries[index];
-                return SizedBox(
-                  width: 132,
-                  child: SetflowCard(
-                    padding: const EdgeInsets.all(12),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => _contentReviewScreenFor(index),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(entry.$1, color: entry.$2),
-                        const SizedBox(height: 8),
-                        Text(
-                          entry.$3,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          entry.$4,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: SetflowColors.secondaryText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          if (latestAudit != null)
-            Padding(
-              padding: SetflowInsets.pageHeader,
-              child: SetflowCard(
-                padding: const EdgeInsets.all(SetflowSpacing.md),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.history_rounded,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: SetflowSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        '최근 처리 · $latestAudit',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                    ),
-                  ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _TabHeader(title: '인증 심사 큐'),
+            SizedBox(
+              height: 116,
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.xxl,
+                  SetflowSpacing.md,
+                  SetflowSpacing.xxl,
+                  SetflowSpacing.xs,
                 ),
+                scrollDirection: Axis.horizontal,
+                itemCount: _contentReviewEntries.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(width: SetflowSpacing.md),
+                itemBuilder: (context, index) {
+                  final entry = _contentReviewEntries[index];
+                  return SizedBox(
+                    width: 132,
+                    child: SetflowCard(
+                      padding: const EdgeInsets.all(SetflowSpacing.md),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => _contentReviewScreenFor(index),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(entry.$1, color: entry.$2),
+                          const SizedBox(height: SetflowSpacing.sm),
+                          Text(
+                            entry.$3,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: SetflowSpacing.xxs),
+                          Text(
+                            entry.$4,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-          Expanded(
-            child: ListView.builder(
-              padding: SetflowInsets.pageList,
-              itemCount: queue.length,
-              itemBuilder: (_, index) {
-                final item = queue[index];
-                final reviewId = 'review_$index';
-                final status = state.adminReviewStatus(reviewId);
-                final done = status != 'pending';
-                final approved = status == 'approved';
-                final rejectReason = state
-                    .dashboardFor(UserRole.admin)
-                    .facts['adminReview.$reviewId.reason'];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: SetflowCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    (item.$1 == '트레이너'
-                                            ? SetflowColors.blue
-                                            : SetflowColors.purple)
-                                        .withValues(alpha: .12),
-                                borderRadius: BorderRadius.circular(7),
-                              ),
-                              child: Text(
-                                item.$1,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  color: item.$1 == '트레이너'
-                                      ? SetflowColors.blue
-                                      : SetflowColors.purple,
-                                ),
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              approved
-                                  ? '승인 완료'
-                                  : status == 'rejected'
-                                  ? '반려 완료'
-                                  : 'D-2',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
-                                color: approved
-                                    ? context.setflowColors.success
-                                    : status == 'rejected'
-                                    ? Theme.of(context).colorScheme.error
-                                    : context.setflowColors.orange,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          item.$2,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.$3,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: SetflowColors.secondaryText,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (!done)
+            if (latestAudit != null)
+              Padding(
+                padding: SetflowInsets.pageHeader,
+                child: InfoBanner(
+                  message: '최근 처리 · $latestAudit',
+                  icon: Icons.history_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                padding: SetflowInsets.pageList,
+                itemCount: queue.length,
+                itemBuilder: (_, index) {
+                  final item = queue[index];
+                  final reviewId = 'review_$index';
+                  final status = state.adminReviewStatus(reviewId);
+                  final done = status != 'pending';
+                  final approved = status == 'approved';
+                  final rejectReason = state
+                      .dashboardFor(UserRole.admin)
+                      .facts['adminReview.$reviewId.reason'];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+                    child: SetflowCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Row(
                             children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () =>
-                                      _rejectReview(reviewId, item.$2),
-                                  child: const Text('거절'),
-                                ),
+                              StatusChip(
+                                label: item.$1,
+                                color: item.$1 == '트레이너'
+                                    ? context.setflowColors.blue
+                                    : context.setflowColors.purple,
                               ),
-                              const SizedBox(width: 9),
-                              Expanded(
-                                child: FilledButton(
-                                  onPressed: () => _approveReview(
-                                    reviewId,
-                                    item.$2,
-                                    item.$3,
-                                  ),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: SetflowColors.ink,
-                                  ),
-                                  child: const Text('승인'),
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          Row(
-                            children: [
-                              Icon(
+                              const Spacer(),
+                              Text(
                                 approved
-                                    ? Icons.check_circle
-                                    : Icons.cancel_rounded,
-                                color: approved
-                                    ? context.setflowColors.success
-                                    : Theme.of(context).colorScheme.error,
-                              ),
-                              const SizedBox(width: 7),
-                              Expanded(
-                                child: Text(
-                                  approved
-                                      ? '인증 배지를 발급했습니다.'
-                                      : '반려 사유 · ${rejectReason ?? '서류 확인 필요'}',
-                                  style: TextStyle(
-                                    color: approved
-                                        ? context.setflowColors.success
-                                        : Theme.of(context).colorScheme.error,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
+                                    ? '승인 완료'
+                                    : status == 'rejected'
+                                    ? '반려 완료'
+                                    : 'D-2',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: approved
+                                          ? context.setflowColors.success
+                                          : status == 'rejected'
+                                          ? Theme.of(context).colorScheme.error
+                                          : context.setflowColors.orange,
+                                    ),
                               ),
                             ],
                           ),
-                      ],
+                          const SizedBox(height: SetflowSpacing.md),
+                          Text(
+                            item.$2,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: SetflowSpacing.xs),
+                          Text(
+                            item.$3,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: SetflowSpacing.lg),
+                          if (!done)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () =>
+                                        _rejectReview(reviewId, item.$2),
+                                    child: const Text('거절'),
+                                  ),
+                                ),
+                                const SizedBox(width: SetflowSpacing.sm),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: () => _approveReview(
+                                      reviewId,
+                                      item.$2,
+                                      item.$3,
+                                    ),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.inverseSurface,
+                                      foregroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.onInverseSurface,
+                                    ),
+                                    child: const Text('승인'),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            Row(
+                              children: [
+                                Icon(
+                                  approved
+                                      ? Icons.check_circle
+                                      : Icons.cancel_rounded,
+                                  color: approved
+                                      ? context.setflowColors.success
+                                      : Theme.of(context).colorScheme.error,
+                                ),
+                                const SizedBox(width: SetflowSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    approved
+                                        ? '인증 배지를 발급했습니다.'
+                                        : '반려 사유 · ${rejectReason ?? '서류 확인 필요'}',
+                                    style: TextStyle(
+                                      color: approved
+                                          ? context.setflowColors.success
+                                          : Theme.of(context).colorScheme.error,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3060,328 +3041,207 @@ class _SettlementPageState extends State<SettlementPage> {
       return matchesQuery && matchesFilter;
     }).toList();
     return Scaffold(
-      appBar: AppBar(title: Text(admin ? '정산 처리' : '정산 및 매출')),
-      body: ListView(
-        padding: SetflowInsets.pageList,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: admin ? SetflowColors.ink : const Color(0xFF5635A5),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  admin ? '이번 주 정산 예정' : '이번 달 정산 예정',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  admin ? '48,620,000원' : '14,280,000원',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 27,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  '에스크로 보호 적용 중',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          AppTextField(
-            controller: searchController,
-            onChanged: (value) => setState(() => query = value),
-            prefixIcon: const Icon(Icons.search_rounded),
-            hint: '코칭 유형·트레이너·회원 검색',
-            suffixIcon: query.isEmpty
-                ? null
-                : IconButton(
-                    tooltip: '검색어 지우기',
-                    onPressed: () {
-                      searchController.clear();
-                      setState(() => query = '');
-                    },
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-          ),
-          const SizedBox(height: SetflowSpacing.md),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _settlementFilterChip('all', '전체'),
-                const SizedBox(width: SetflowSpacing.sm),
-                _settlementFilterChip('scheduled', '정산 예정'),
-                const SizedBox(width: SetflowSpacing.sm),
-                _settlementFilterChip('hold', '검토 필요'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          const SectionTitle('정산 내역'),
-          const SizedBox(height: 10),
-          if (settlements.isEmpty)
-            EmptyState(
-              icon: Icons.receipt_long_outlined,
-              title: '조건에 맞는 정산 내역이 없어요',
-              message: '검색어와 상태 필터를 초기화한 뒤 다시 확인해주세요.',
-              actionLabel: '검색·필터 초기화',
-              onAction: () {
-                searchController.clear();
-                setState(() {
-                  query = '';
-                  filter = 'all';
-                });
-              },
-            )
-          else
-            for (final item in settlements)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: SetflowCard(
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor:
-                            (item.$1 == '환불 보류'
-                                    ? SetflowColors.red
-                                    : SetflowColors.green)
-                                .withValues(alpha: .12),
-                        child: Icon(
-                          item.$1 == '환불 보류'
-                              ? Icons.pause_circle_outline
-                              : Icons.payments_outlined,
-                          color: item.$1 == '환불 보류'
-                              ? SetflowColors.red
-                              : SetflowColors.green,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.$1,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            Text(
-                              item.$2,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: SetflowColors.secondaryText,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            item.$3,
-                            style: const TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                          Text(
-                            item.$4,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: SetflowColors.secondaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          const SizedBox(height: 22),
-          const SectionTitle('정산 상세 보기'),
-          const SizedBox(height: 10),
-          SetflowCard(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SettlementRefundsPage(role: role),
-              ),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: SetflowColors.red.withValues(alpha: .12),
-                  child: const Icon(
-                    Icons.receipt_long_outlined,
-                    color: SetflowColors.red,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '환불 내역',
-                        style: TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                      Text(
-                        '환불 요청 및 처리 이력 확인',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: SetflowColors.secondaryText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right, size: 18),
-              ],
-            ),
-          ),
-          if (role != UserRole.trainer) ...[
-            const SizedBox(height: 10),
-            SetflowCard(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => TrainerSettlementBreakdownPage(role: role),
-                ),
-              ),
-              child: Row(
+      body: SafeArea(
+        child: Column(
+          children: [
+            _TabHeader(title: admin ? '정산 처리' : '정산 및 매출'),
+            Expanded(
+              child: ListView(
+                padding: SetflowInsets.pageList,
                 children: [
-                  CircleAvatar(
-                    backgroundColor: SetflowColors.blue.withValues(alpha: .12),
-                    child: const Icon(
-                      Icons.groups_outlined,
-                      color: SetflowColors.blue,
+                  HeroStatBanner(
+                    caption: admin ? '이번 주 정산 예정' : '이번 달 정산 예정',
+                    value: admin ? '48,620,000원' : '14,280,000원',
+                    note: '에스크로 보호 적용 중',
+                    // Admin gets a neutral dark-athletic surface instead of a fixed
+                    // ink fill, so it stays legible against both a light and the
+                    // new near-black default background. The non-admin branch keeps
+                    // its saturated purple fill, which reads fine in either theme.
+                    color: admin
+                        ? context.setflowColors.surfaceContainerHigh
+                        : context.setflowColors.purple,
+                    foreground: admin
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Colors.white,
+                  ),
+                  const SizedBox(height: SetflowSpacing.xxl),
+                  AppTextField(
+                    controller: searchController,
+                    onChanged: (value) => setState(() => query = value),
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    hint: '코칭 유형·트레이너·회원 검색',
+                    suffixIcon: query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '검색어 지우기',
+                            onPressed: () {
+                              searchController.clear();
+                              setState(() => query = '');
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.md),
+                  SegPills(
+                    items: const ['전체', '정산 예정', '검토 필요'],
+                    selectedIndex: const [
+                      'all',
+                      'scheduled',
+                      'hold',
+                    ].indexOf(filter),
+                    onChanged: (index) => setState(
+                      () => filter = const ['all', 'scheduled', 'hold'][index],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '트레이너별 정산',
-                          style: TextStyle(fontWeight: FontWeight.w900),
+                  const SizedBox(height: SetflowSpacing.xxl),
+                  const SectionTitle('정산 내역'),
+                  const SizedBox(height: SetflowSpacing.md),
+                  if (settlements.isEmpty)
+                    EmptyState(
+                      icon: Icons.receipt_long_outlined,
+                      title: '조건에 맞는 정산 내역이 없어요',
+                      message: '검색어와 상태 필터를 초기화한 뒤 다시 확인해주세요.',
+                      actionLabel: '검색·필터 초기화',
+                      onAction: () {
+                        searchController.clear();
+                        setState(() {
+                          query = '';
+                          filter = 'all';
+                        });
+                      },
+                    )
+                  else
+                    for (final item in settlements)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: SetflowSpacing.md,
                         ),
-                        Text(
-                          '소속 코치 매출·분배 내역',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: SetflowColors.secondaryText,
+                        child: SetflowCard(
+                          child: Row(
+                            children: [
+                              TintedIconBadge(
+                                icon: item.$1 == '환불 보류'
+                                    ? Icons.pause_circle_outline
+                                    : Icons.payments_outlined,
+                                color: item.$1 == '환불 보류'
+                                    ? Theme.of(context).colorScheme.error
+                                    : context.setflowColors.success,
+                              ),
+                              const SizedBox(width: SetflowSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.$1,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    Text(
+                                      item.$2,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    item.$3,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  Text(
+                                    item.$4,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
+                  const SizedBox(height: SetflowSpacing.xxl),
+                  const SectionTitle('정산 상세 보기'),
+                  const SizedBox(height: SetflowSpacing.md),
+                  _SettlementLinkCard(
+                    icon: Icons.receipt_long_outlined,
+                    color: Theme.of(context).colorScheme.error,
+                    title: '환불 내역',
+                    subtitle: '환불 요청 및 처리 이력 확인',
+                    actionLabel: '환불 내역 보기',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SettlementRefundsPage(role: role),
+                      ),
                     ),
                   ),
-                  const Icon(Icons.chevron_right, size: 18),
+                  if (role != UserRole.trainer) ...[
+                    const SizedBox(height: SetflowSpacing.md),
+                    _SettlementLinkCard(
+                      icon: Icons.groups_outlined,
+                      color: context.setflowColors.blue,
+                      title: '트레이너별 정산',
+                      subtitle: '소속 코치 매출·분배 내역',
+                      actionLabel: '트레이너별 정산 보기',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              TrainerSettlementBreakdownPage(role: role),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (admin) ...[
+                    const SizedBox(height: SetflowSpacing.md),
+                    _SettlementLinkCard(
+                      icon: Icons.percent_outlined,
+                      color: context.setflowColors.purple,
+                      title: '수수료 정산',
+                      subtitle: '사업자·트레이너별 수수료 산정 내역',
+                      actionLabel: '수수료 정산 보기',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => SettlementCommissionPage(role: role),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: SetflowSpacing.md),
+                    _SettlementLinkCard(
+                      icon: Icons.task_alt_outlined,
+                      color: context.setflowColors.success,
+                      title: '최종 정산 확정',
+                      subtitle: '지급 대상 확정 및 처리 상태 관리',
+                      actionLabel: '최종 정산 확정하기',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              SettlementFinalConfirmPage(role: role),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ],
-          if (admin) ...[
-            const SizedBox(height: 10),
-            SetflowCard(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SettlementCommissionPage(role: role),
-                ),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: SetflowColors.purple.withValues(
-                      alpha: .12,
-                    ),
-                    child: const Icon(
-                      Icons.percent_outlined,
-                      color: SetflowColors.purple,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '수수료 정산',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        Text(
-                          '사업자·트레이너별 수수료 산정 내역',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: SetflowColors.secondaryText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, size: 18),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            SetflowCard(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SettlementFinalConfirmPage(role: role),
-                ),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: SetflowColors.green.withValues(alpha: .12),
-                    child: const Icon(
-                      Icons.task_alt_outlined,
-                      color: SetflowColors.green,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '최종 정산 확정',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        Text(
-                          '지급 대상 확정 및 처리 상태 관리',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: SetflowColors.secondaryText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, size: 18),
-                ],
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
-    );
-  }
-
-  Widget _settlementFilterChip(String value, String label) {
-    return FilterChip(
-      label: Text(label),
-      selected: filter == value,
-      onSelected: (_) => setState(() => filter = value),
     );
   }
 }
@@ -3406,11 +3266,8 @@ class _ActionTile extends StatelessWidget {
     onTap: onTap,
     child: Row(
       children: [
-        CircleAvatar(
-          backgroundColor: color.withValues(alpha: .13),
-          child: Icon(icon, color: color),
-        ),
-        const SizedBox(width: 12),
+        TintedIconBadge(icon: icon, color: color),
+        const SizedBox(width: SetflowSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3418,9 +3275,8 @@ class _ActionTile extends StatelessWidget {
               Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: SetflowColors.secondaryText,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -3434,6 +3290,89 @@ class _ActionTile extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Rich action-card treatment for settlement shortcuts: [TintedIconBadge]
+/// header row plus a full-width volt-faint action row, matching the
+/// athletic mockup's "바로 시작" tinted CTA footer.
+class _SettlementLinkCard extends StatelessWidget {
+  const _SettlementLinkCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.actionLabel,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final String actionLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final volt = Theme.of(context).colorScheme.primary;
+    return SetflowCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              TintedIconBadge(icon: icon, color: color),
+              const SizedBox(width: SetflowSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    Text(
+                      subtitle,
+                      style: text.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.sm),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: volt.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  actionLabel,
+                  style: text.labelMedium?.copyWith(
+                    color: volt,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.xs),
+                Icon(Icons.arrow_forward_rounded, size: 14, color: volt),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PerformanceRow extends StatelessWidget {
@@ -3451,22 +3390,23 @@ class _PerformanceRow extends StatelessWidget {
       Expanded(
         child: Text(
           label,
-          style: const TextStyle(
-            color: SetflowColors.secondaryText,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w700,
           ),
         ),
       ),
       Text(
         value,
-        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+        style: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
       ),
-      const SizedBox(width: 10),
+      const SizedBox(width: SetflowSpacing.md),
       Text(
         change,
-        style: const TextStyle(
-          color: SetflowColors.green,
-          fontSize: 11,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: context.setflowColors.success,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -3493,7 +3433,7 @@ class _PersonRow extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
-      const SizedBox(width: 11),
+      const SizedBox(width: SetflowSpacing.md),
       Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3501,9 +3441,8 @@ class _PersonRow extends StatelessWidget {
             Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
             Text(
               detail,
-              style: const TextStyle(
-                fontSize: 11,
-                color: SetflowColors.secondaryText,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -3541,11 +3480,11 @@ class _ProgressRow extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: 7),
+      const SizedBox(height: SetflowSpacing.sm),
       LinearProgressIndicator(
         value: value,
         minHeight: 8,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(SetflowRadii.xs),
         color: color,
         backgroundColor: color.withValues(alpha: .12),
       ),
@@ -3570,14 +3509,13 @@ class _StatusRow extends StatelessWidget {
         height: 9,
         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
-      const SizedBox(width: 10),
+      const SizedBox(width: SetflowSpacing.md),
       Expanded(
         child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
       ),
       Text(
         status,
-        style: TextStyle(
-          fontSize: 12,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: color,
           fontWeight: FontWeight.w900,
         ),
@@ -3595,14 +3533,15 @@ class _MiniMetric extends StatelessWidget {
     children: [
       Text(
         value,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
       ),
-      const SizedBox(height: 3),
+      const SizedBox(height: SetflowSpacing.xs),
       Text(
         label,
-        style: const TextStyle(
-          fontSize: 10,
-          color: SetflowColors.secondaryText,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     ],

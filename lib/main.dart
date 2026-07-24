@@ -6,6 +6,7 @@ import 'app_state.dart';
 import 'data/app_repository.dart';
 import 'data/hive_app_repository.dart';
 import 'screens/business_screens.dart';
+import 'screens/kinetic_preview.dart';
 import 'screens/member_screens.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
@@ -38,7 +39,10 @@ class _SetflowAppState extends State<SetflowApp> {
   @override
   void initState() {
     super.initState();
-    state = AppState(repository: widget.repository);
+    state = AppState(
+      repository: widget.repository,
+      debugRoleOverride: Uri.base.queryParameters['role'],
+    );
     unawaited(state.initialize());
   }
 
@@ -59,7 +63,9 @@ class _SetflowAppState extends State<SetflowApp> {
           debugShowCheckedModeBanner: false,
           theme: SetflowTheme.light,
           darkTheme: SetflowTheme.dark,
-          themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          themeMode: state.themeMode,
+          // Fill the viewport; screens own their responsive layout. The rest
+          // timer overlays every route so it survives navigation.
           builder: (context, child) => Stack(
             children: [
               child ?? const SizedBox.shrink(),
@@ -70,12 +76,18 @@ class _SetflowAppState extends State<SetflowApp> {
                   bottom: 84,
                   child: SafeArea(
                     top: false,
-                    child: GlobalRestTimerOverlay(
-                      seconds: state.restRemaining,
-                      totalSeconds: state.restDefaultSeconds,
-                      onAddTime: () =>
-                          state.startRestTimer(state.restRemaining + 30),
-                      onCancel: state.cancelRestTimer,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 400),
+                        child: GlobalRestTimerOverlay(
+                          seconds: state.restRemaining,
+                          totalSeconds: state.restDefaultSeconds,
+                          onAddTime: () => state.startRestTimer(
+                            state.restRemaining + 30,
+                          ),
+                          onCancel: state.cancelRestTimer,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -101,6 +113,11 @@ class _RootScreenState extends State<RootScreen> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    // Design-QA hook: `?preview=kinetic` renders the Kinetic gallery. Web-only,
+    // no effect on the shipping app.
+    if (Uri.base.queryParameters['preview'] == 'kinetic') {
+      return const KineticPreviewScreen();
+    }
     final Widget page = switch (state.role) {
       UserRole.guest => const WelcomeScreen(),
       UserRole.member => const MemberShell(),
@@ -109,32 +126,16 @@ class _RootScreenState extends State<RootScreen> {
       UserRole.admin => const BusinessShell(role: UserRole.admin),
     };
 
-    return ColoredBox(
-      color: Theme.of(context).colorScheme.surfaceContainerLowest,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 432),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              boxShadow: const [
-                BoxShadow(color: Color(0x18000000), blurRadius: 32),
-              ],
-            ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              child: _showSplash || !state.isInitialized
-                  ? SplashScreen(
-                      key: const ValueKey('splash'),
-                      onFinished: () => setState(() => _showSplash = false),
-                    )
-                  : KeyedSubtree(key: ValueKey(state.role), child: page),
-            ),
-          ),
-        ),
-      ),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: _showSplash || !state.isInitialized
+          ? SplashScreen(
+              key: const ValueKey('splash'),
+              onFinished: () => setState(() => _showSplash = false),
+            )
+          : KeyedSubtree(key: ValueKey(state.role), child: page),
     );
   }
 }

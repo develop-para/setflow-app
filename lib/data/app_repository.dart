@@ -1,9 +1,11 @@
+import 'package:flutter/material.dart' show ThemeMode;
+
 import '../models.dart';
 
 class AppSnapshot {
   const AppSnapshot({
     required this.role,
-    required this.isDarkMode,
+    required this.themeMode,
     required this.weightUnit,
     required this.restDefaultSeconds,
     required this.sessions,
@@ -14,7 +16,7 @@ class AppSnapshot {
   });
 
   final UserRole role;
-  final bool isDarkMode;
+  final ThemeMode themeMode;
   final String weightUnit;
   final int restDefaultSeconds;
   final Map<DateTime, WorkoutSession> sessions;

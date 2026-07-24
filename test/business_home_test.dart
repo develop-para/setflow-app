@@ -164,7 +164,7 @@ void main() {
     final repository = MemoryAppRepository(
       initialSnapshot: AppSnapshot(
         role: UserRole.trainer,
-        isDarkMode: false,
+        themeMode: ThemeMode.light,
         weightUnit: 'kg',
         restDefaultSeconds: 90,
         sessions: const {},
@@ -211,17 +211,19 @@ void main() {
       repository: repository,
     );
 
+    // Theme defaults to system, which resolves to light in the test harness.
     expect(find.text('밝은 화면 사용 중'), findsOneWidget);
     await tester.tap(find.text('다크 모드'));
     await tester.pump();
     expect(state.isDarkMode, isTrue);
+    expect(state.themeMode, ThemeMode.dark);
     expect(find.text('어두운 화면 사용 중'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 350));
 
     final restored = AppState(repository: repository);
     await restored.initialize();
     addTearDown(restored.dispose);
-    expect(restored.isDarkMode, isTrue);
+    expect(restored.themeMode, ThemeMode.dark);
   });
 }
 

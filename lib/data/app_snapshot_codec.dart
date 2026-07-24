@@ -6,14 +6,24 @@ import '../models.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 3;
+  // v4: dark athletic rebrand. v5: tri-state theme (system/light/dark) —
+  // v4 snapshots keep their explicit choice, pre-v4 land on system.
+  static const schemaVersion = 5;
+
+  static ThemeMode _themeModeFromName(String? name) {
+    return switch (name) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+  }
 
   static String encode(AppSnapshot snapshot) {
     return jsonEncode({
       'schemaVersion': schemaVersion,
       'preferences': {
         'role': snapshot.role.name,
-        'isDarkMode': snapshot.isDarkMode,
+        'themeMode': snapshot.themeMode.name,
         'weightUnit': snapshot.weightUnit,
         'restDefaultSeconds': snapshot.restDefaultSeconds,
       },
@@ -34,7 +44,7 @@ abstract final class AppSnapshotCodec {
     try {
       final root = jsonDecode(source) as Map<String, dynamic>;
       final version = (root['schemaVersion'] as num?)?.toInt();
-      if (version != 1 && version != 2 && version != schemaVersion) {
+      if (version == null || version < 1 || version > schemaVersion) {
         return null;
       }
       final preferences = root['preferences'] as Map<String, dynamic>? ?? {};
@@ -83,7 +93,15 @@ abstract final class AppSnapshotCodec {
           .firstOrNull;
       return AppSnapshot(
         role: role ?? UserRole.guest,
-        isDarkMode: preferences['isDarkMode'] as bool? ?? false,
+        // v5+ stores an explicit themeMode; v4 stored a bool (respect it);
+        // pre-v4 predates the choice entirely, so fall back to system.
+        themeMode: version >= 5
+            ? _themeModeFromName(preferences['themeMode'] as String?)
+            : version == 4
+            ? ((preferences['isDarkMode'] as bool? ?? true)
+                  ? ThemeMode.dark
+                  : ThemeMode.light)
+            : ThemeMode.system,
         weightUnit: preferences['weightUnit'] as String? ?? 'kg',
         restDefaultSeconds:
             (preferences['restDefaultSeconds'] as num?)?.toInt() ?? 90,

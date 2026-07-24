@@ -18,7 +18,7 @@ void main() {
       final date = DateTime(2026, 7, 23);
       final snapshot = AppSnapshot(
         role: UserRole.member,
-        isDarkMode: true,
+        themeMode: ThemeMode.dark,
         weightUnit: 'lb',
         restDefaultSeconds: 120,
         sessions: {
@@ -114,7 +114,7 @@ void main() {
       final decoded = AppSnapshotCodec.decode(encoded, catalog)!;
 
       expect(decoded.role, UserRole.member);
-      expect(decoded.isDarkMode, isTrue);
+      expect(decoded.themeMode, ThemeMode.dark);
       expect(decoded.weightUnit, 'lb');
       expect(decoded.restDefaultSeconds, 120);
       expect(
@@ -191,7 +191,7 @@ void main() {
     await state.initialize();
 
     state.chooseRole(UserRole.trainer);
-    state.toggleTheme();
+    state.setThemeMode(ThemeMode.light);
     state.setWeightUnit('lb');
     state.setRestDefaultSeconds(120);
     state.createRoutine('저장 테스트', '앱 재시작 후에도 유지');
@@ -201,7 +201,10 @@ void main() {
     await restored.initialize();
 
     expect(restored.role, UserRole.trainer);
-    expect(restored.isDarkMode, isTrue);
+    // Theme follows the system by default; the explicit light choice above
+    // must survive a restart.
+    expect(restored.themeMode, ThemeMode.light);
+    expect(restored.isDarkMode, isFalse);
     expect(restored.weightUnit, 'lb');
     expect(restored.restDefaultSeconds, 120);
     expect(restored.routines.any((item) => item.name == '저장 테스트'), isTrue);

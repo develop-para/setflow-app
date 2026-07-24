@@ -23,118 +23,114 @@ class RoutineStatsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Scaffold(
       appBar: AppBar(title: Text('${routine.name} 통계')),
       body: ListView(
         padding: SetflowInsets.pageList,
         children: [
           SetflowCard(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 10,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: routine.color,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        routine.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: routine.color,
+                        shape: BoxShape.circle,
                       ),
-                      Text(
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Expanded(
+                      child: Text(
                         '${routine.author} · ${routine.level}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: SetflowColors.secondaryText,
+                        style: text.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                Text(
+                  '조회수',
+                  style: text.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                const SizedBox(height: SetflowSpacing.xs),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      NumberFormat('#,###').format(_views),
+                      style: text.displayLarge?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Text(
+                      '회',
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.md),
+                    Text(
+                      NumberFormat('#,###').format(_saves),
+                      style: text.headlineLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.xs),
+                    Text(
+                      '저장',
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SetflowSpacing.lg),
+                _Sparkline(values: _trend, color: theme.colorScheme.primary),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          const SectionTitle('성과 지표'),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              MetricCard(
-                label: '조회수',
-                value: NumberFormat('#,###').format(_views),
-                icon: Icons.visibility_outlined,
-                tint: SetflowColors.blue,
-              ),
-              const SizedBox(width: 8),
-              MetricCard(
-                label: '저장수',
-                value: NumberFormat('#,###').format(_saves),
-                icon: Icons.bookmark_outline,
-                tint: SetflowColors.purple,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.xl),
+          const SectionTitle('세부 지표'),
+          const SizedBox(height: SetflowSpacing.md),
           Row(
             children: [
               MetricCard(
                 label: '적용수',
                 value: NumberFormat('#,###').format(_applies),
                 icon: Icons.play_circle_outline,
-                tint: SetflowColors.teal,
+                tint: context.setflowColors.teal,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SetflowSpacing.sm),
               MetricCard(
                 label: '상담 전환율',
                 value: _conversion.toStringAsFixed(1),
                 suffix: '%',
                 icon: Icons.trending_up,
-                tint: SetflowColors.green,
+                tint: context.setflowColors.success,
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          const SectionTitle('최근 7일 조회 추이'),
-          const SizedBox(height: 10),
-          SetflowCard(
-            child: _TrendChart(values: _trend, color: routine.color),
-          ),
-          const SizedBox(height: 20),
-          const SectionTitle('마켓 노출 랭킹'),
-          const SizedBox(height: 10),
-          SetflowCard(
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.emoji_events_outlined,
-                  color: SetflowColors.orange,
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    '현재 순위',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                Text(
-                  '#$_ranking',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: SetflowSpacing.md),
+          _HairlineStat(
+            icon: Icons.emoji_events_outlined,
+            label: '마켓 노출 랭킹',
+            value: '#$_ranking',
+            tint: context.setflowColors.orange,
           ),
         ],
       ),
@@ -173,146 +169,151 @@ class TrainerPerformancePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     return Scaffold(
       appBar: AppBar(title: Text('$name 성과')),
       body: ListView(
         padding: SetflowInsets.pageList,
         children: [
           SetflowCard(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: accentColor.withValues(alpha: .16),
-                  child: Text(
-                    name.characters.first,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 17,
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 15,
+                      backgroundColor: accentColor.withValues(alpha: .16),
+                      child: Text(
+                        name.characters.first,
+                        style: text.labelLarge?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const Text(
-                        '소속 코치 성과 리포트',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: SetflowColors.secondaryText,
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: text.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                    ],
+                    ),
+                    StatusChip(
+                      label: '$rating',
+                      icon: Icons.star_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                Text(
+                  '상담 전환율',
+                  style: text.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                Column(
+                const SizedBox(height: SetflowSpacing.xs),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
                   children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      color: SetflowColors.primary,
-                      size: 20,
-                    ),
                     Text(
-                      '$rating',
-                      style: const TextStyle(
-                        fontSize: 12,
+                      _conversionRate.toStringAsFixed(1),
+                      style: text.displayLarge?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Text(
+                      '%',
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.md),
+                    Text(
+                      membersLabel,
+                      style: text.headlineLarge?.copyWith(
                         fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.xs),
+                    Text(
+                      '담당',
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: SetflowSpacing.lg),
+                _Sparkline(values: _trend, color: theme.colorScheme.primary),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          const SectionTitle('성과 지표'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.xl),
+          const SectionTitle('세부 지표'),
+          const SizedBox(height: SetflowSpacing.md),
           Row(
             children: [
-              MetricCard(
-                label: '담당 회원',
-                value: membersLabel,
-                icon: Icons.groups_outlined,
-                tint: SetflowColors.blue,
-              ),
-              const SizedBox(width: 8),
               MetricCard(
                 label: '매출',
                 value: NumberFormat('#,###').format(_revenue),
                 suffix: '원',
                 icon: Icons.payments_outlined,
-                tint: SetflowColors.green,
+                tint: context.setflowColors.success,
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              MetricCard(
-                label: '상담 전환율',
-                value: _conversionRate.toStringAsFixed(1),
-                suffix: '%',
-                icon: Icons.trending_up,
-                tint: SetflowColors.teal,
-              ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SetflowSpacing.sm),
               MetricCard(
                 label: '상담 건수',
                 value: '$_consultations',
                 icon: Icons.forum_outlined,
-                tint: SetflowColors.purple,
+                tint: context.setflowColors.purple,
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const SectionTitle('피드백 이행률'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.md),
           SetflowCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         '회원 피드백 이행률',
-                        style: TextStyle(fontWeight: FontWeight.w800),
+                        style: text.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     Text(
                       feedbackRate,
-                      style: TextStyle(
+                      style: text.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: accentColor,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: SetflowSpacing.sm),
                 LinearProgressIndicator(
                   value: _feedbackValue.clamp(0, 1),
                   minHeight: 8,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(SetflowRadii.sm),
                   color: accentColor,
                   backgroundColor: accentColor.withValues(alpha: .12),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          const SectionTitle('최근 상담 전환 추이'),
-          const SizedBox(height: 10),
-          SetflowCard(
-            child: _TrendChart(values: _trend, color: accentColor),
           ),
         ],
       ),
@@ -320,47 +321,101 @@ class TrainerPerformancePage extends StatelessWidget {
   }
 }
 
-class _TrendChart extends StatelessWidget {
-  const _TrendChart({required this.values, required this.color});
+/// Quiet aggregate row on a hairline top divider — mockup's weekly-total
+/// pattern applied to a single stat instead of a boxed side column.
+class _HairlineStat extends StatelessWidget {
+  const _HairlineStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.tint,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.md),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: tint),
+          const SizedBox(width: SetflowSpacing.sm),
+          Expanded(
+            child: Text(
+              label,
+              style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Text(
+            value,
+            style: text.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: tint,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Mini bar sparkline for hero stat blocks — full volt above 66% of the
+/// series max, dimmed volt above 33%, quiet surface below that.
+class _Sparkline extends StatelessWidget {
+  const _Sparkline({required this.values, required this.color});
   final List<int> values;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
+    final quiet = context.setflowColors.surfaceContainerHigh;
     final maxValue = values.reduce((a, b) => a > b ? a : b).clamp(1, 1 << 30);
     return SizedBox(
-      height: 110,
+      height: 34,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          for (var i = 0; i < values.length; i++)
+          for (final value in values)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      height: 84 * values[i] / maxValue,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: .75),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${i + 1}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: SetflowColors.secondaryText,
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SetflowSpacing.xxs,
                 ),
+                child: _bar(value / maxValue, quiet),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _bar(double ratio, Color quiet) {
+    final barColor = ratio >= .66
+        ? color
+        : ratio >= .33
+        ? color.withValues(alpha: .45)
+        : quiet;
+    return FractionallySizedBox(
+      heightFactor: ratio.clamp(.08, 1),
+      alignment: Alignment.bottomCenter,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: barColor,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(SetflowRadii.xs),
+          ),
+        ),
       ),
     );
   }

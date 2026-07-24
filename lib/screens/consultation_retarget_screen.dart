@@ -34,7 +34,7 @@ enum _DaysFilter { all, sevenPlus, fourteenPlus, thirtyPlus }
 class _ConsultationRetargetScreenState
     extends State<ConsultationRetargetScreen> {
   final _messageController = TextEditingController(
-    text: '회원님, 지난 상담 이후 궁금하신 점은 없으셨나요? 지금 등록하시면 특별 혜택을 드려요! 💪',
+    text: '회원님, 지난 상담 이후 궁금하신 점은 없으셨나요? 지금 등록하시면 특별 혜택을 드려요.',
   );
   _DaysFilter _filter = _DaysFilter.all;
   final _quotaTotal = 30;
@@ -67,6 +67,8 @@ class _ConsultationRetargetScreenState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = theme.textTheme;
     final gym = widget.role == UserRole.gym;
     final visible = _visible;
     final selectableVisible = visible.where((t) => t.optIn).toList();
@@ -99,64 +101,68 @@ class _ConsultationRetargetScreenState
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.campaign_outlined,
-                      color: SetflowColors.orange,
+                      size: 15,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: SetflowSpacing.xs),
                     Text(
                       '${gym ? '짐' : '트레이너'} 이번 달 발송 현황',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: text.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  '$_quotaUsed / $_quotaTotal건',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
+                const SizedBox(height: SetflowSpacing.xs),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      '$_quotaUsed',
+                      style: text.displayLarge?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.xs),
+                    Text(
+                      '/ $_quotaTotal건',
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: SetflowSpacing.md),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(SetflowRadii.sm),
                   child: LinearProgressIndicator(
                     value: _quotaUsed / _quotaTotal,
                     minHeight: 8,
-                    backgroundColor: SetflowColors.elevated,
-                    color: SetflowColors.primary,
+                    backgroundColor: context.setflowColors.surfaceContainerHigh,
+                    color: theme.colorScheme.primary,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SetflowSpacing.lg),
           const SectionTitle('상담 후 미등록 회원'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children:
-                [
-                      ('전체', _DaysFilter.all),
-                      ('7일 경과', _DaysFilter.sevenPlus),
-                      ('14일 경과', _DaysFilter.fourteenPlus),
-                      ('30일 경과', _DaysFilter.thirtyPlus),
-                    ]
-                    .map(
-                      (option) => FilterChip(
-                        label: Text(option.$1),
-                        selected: _filter == option.$2,
-                        onSelected: (_) => setState(() => _filter = option.$2),
-                      ),
-                    )
-                    .toList(),
+          const SizedBox(height: SetflowSpacing.sm),
+          SegPills(
+            items: const ['전체', '7일 경과', '14일 경과', '30일 경과'],
+            selectedIndex: _DaysFilter.values.indexOf(_filter),
+            onChanged: (index) =>
+                setState(() => _filter = _DaysFilter.values[index]),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           if (visible.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
+              padding: EdgeInsets.symmetric(vertical: SetflowSpacing.section),
               child: EmptyState(
                 icon: Icons.filter_alt_off_outlined,
                 title: '대상 회원이 없어요',
@@ -166,7 +172,7 @@ class _ConsultationRetargetScreenState
           else
             ...visible.map(
               (target) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
                 child: SetflowCard(
                   onTap: target.optIn
                       ? () => setState(() => target.selected = !target.selected)
@@ -181,7 +187,7 @@ class _ConsultationRetargetScreenState
                               )
                             : null,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: SetflowSpacing.xs),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,41 +196,24 @@ class _ConsultationRetargetScreenState
                               children: [
                                 Text(
                                   target.name,
-                                  style: const TextStyle(
+                                  style: text.bodyLarge?.copyWith(
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
                                 if (!target.optIn) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: SetflowColors.red.withValues(
-                                        alpha: .12,
-                                      ),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Text(
-                                      '수신 거부',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w900,
-                                        color: SetflowColors.red,
-                                      ),
-                                    ),
+                                  const SizedBox(width: SetflowSpacing.sm),
+                                  StatusChip(
+                                    label: '수신 거부',
+                                    color: theme.colorScheme.error,
                                   ),
                                 ],
                               ],
                             ),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: SetflowSpacing.xs),
                             Text(
                               '상담 후 ${target.daysSince}일 경과',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: SetflowColors.secondaryText,
+                              style: text.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -233,11 +222,11 @@ class _ConsultationRetargetScreenState
                       IconButton(
                         tooltip: '개별 재접근',
                         onPressed: target.optIn
-                            ? () => _sendTo([target])
+                            ? () => _openComposer([target])
                             : null,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.send_outlined,
-                          color: SetflowColors.blue,
+                          color: context.setflowColors.blue,
                         ),
                       ),
                     ],
@@ -270,42 +259,51 @@ class _ConsultationRetargetScreenState
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          SetflowSpacing.xxl,
-          4,
-          SetflowSpacing.xxl,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${recipients.length}명에게 재상담 안내',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              recipients.map((t) => t.name).join(', '),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: SetflowColors.secondaryText),
-            ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: _messageController,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: '발송 메시지'),
-            ),
-            const SizedBox(height: 16),
-            PrimaryButton(
-              label: '발송하기',
-              onPressed: () => _sendTo(recipients, sheetContext: sheetContext),
-            ),
-          ],
-        ),
-      ),
+      builder: (sheetContext) {
+        final sheetTheme = Theme.of(sheetContext);
+        final sheetText = sheetTheme.textTheme;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            SetflowSpacing.xxl,
+            SetflowSpacing.xs,
+            SetflowSpacing.xxl,
+            MediaQuery.viewInsetsOf(sheetContext).bottom + SetflowSpacing.xxl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${recipients.length}명에게 재상담 안내',
+                style: sheetText.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              Text(
+                recipients.map((t) => t.name).join(', '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: sheetText.bodyMedium?.copyWith(
+                  color: sheetTheme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.xl),
+              TextField(
+                controller: _messageController,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: '발송 메시지'),
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
+              PrimaryButton(
+                label: '발송하기',
+                onPressed: () =>
+                    _sendTo(recipients, sheetContext: sheetContext),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
