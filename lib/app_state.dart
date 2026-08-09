@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
 import 'models.dart';
+import 'services/custom_auth_service.dart';
 
 export 'models.dart';
 
@@ -174,6 +175,7 @@ class AppState extends ChangeNotifier {
   }
 
   void logout() {
+    unawaited(CustomAuthService.instance.signOut());
     role = UserRole.guest;
     cancelRestTimer();
     _schedulePersist();
@@ -462,13 +464,84 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void assignBusinessMember({
-    required String memberName,
-    required String trainerName,
+  void assignBusinessMember({required String memberName, String? trainerName}) {
+    final facts = dashboardFor(UserRole.gym).facts;
+    if (trainerName == null) {
+      facts.remove('memberAssignment.$memberName');
+    } else {
+      facts['memberAssignment.$memberName'] = trainerName;
+    }
+    facts['memberAssignmentAt.$memberName'] = DateTime.now().toIso8601String();
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void markBusinessNotificationRead(UserRole role, String notificationId) {
+    for (final notification in dashboardFor(role).notifications) {
+      if (notification.id == notificationId) {
+        notification.isRead = true;
+        break;
+      }
+    }
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void completeGymOnboarding({
+    required String displayName,
+    required String businessNumber,
   }) {
     final facts = dashboardFor(UserRole.gym).facts;
-    facts['memberAssignment.$memberName'] = trainerName;
-    facts['memberAssignmentAt.$memberName'] = DateTime.now().toIso8601String();
+    facts['displayName'] = displayName;
+    facts['businessNumber'] = businessNumber;
+    facts['businessVerified'] = 'true';
+    facts.putIfAbsent('planId', () => 'basic');
+    facts.putIfAbsent('plan', () => 'Basic');
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void updateBusinessProfile({
+    required UserRole role,
+    required String displayName,
+    required String keyword,
+    required String intro,
+  }) {
+    final facts = dashboardFor(role).facts;
+    facts['displayName'] = displayName;
+    facts[role == UserRole.gym ? 'location' : 'keyword'] = keyword;
+    facts['intro'] = intro;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setBusinessPlan({
+    required UserRole role,
+    required String planId,
+    required String planName,
+  }) {
+    final facts = dashboardFor(role).facts;
+    facts['planId'] = planId;
+    facts['plan'] = planName;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  bool businessNotificationPreference(
+    UserRole role,
+    String key, {
+    required bool fallback,
+  }) {
+    final value = dashboardFor(role).facts['notification.$key'];
+    return value == null ? fallback : value == 'true';
+  }
+
+  void setBusinessNotificationPreference(
+    UserRole role,
+    String key,
+    bool value,
+  ) {
+    dashboardFor(role).facts['notification.$key'] = '$value';
     _schedulePersist();
     notifyListeners();
   }
@@ -762,10 +835,15 @@ class AppState extends ChangeNotifier {
         role: UserRole.gym,
         facts: {
           'displayName': '모션짐 강남점',
+          'businessVerified': 'true',
+          'businessNumber': '1234567890',
+          'planId': 'enterprise',
           'plan': '엔터프라이즈 플랜',
-          'members': '84',
+          'location': '서울 강남구 테헤란로 123',
+          'intro': '운동에 집중할 수 있는 코칭 중심 피트니스 센터입니다.',
+          'members': '4',
           'revenue': '18.4',
-          'trainers': '6',
+          'trainers': '4',
           'consultations': '9',
           'trainer1Name': '김코치',
           'trainer1Detail': '회원 18명 · 피드백 98%',

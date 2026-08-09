@@ -30,21 +30,34 @@ class MemberDetailScreen extends StatelessWidget {
         ? 0.0
         : recentSessions.first.volume;
     final routines = [...state.routines, ...state.marketRoutines];
+    final isGym = role == UserRole.gym;
+    final tabs = isGym
+        ? const [Tab(text: '기록'), Tab(text: '루틴'), Tab(text: '피드백')]
+        : const [
+            Tab(text: '캘린더'),
+            Tab(text: '루틴'),
+            Tab(text: '커뮤니티'),
+            Tab(text: '라이브러리'),
+          ];
+    final tabViews = isGym
+        ? <Widget>[
+            _MemberCalendarTab(sessions: state.sessions),
+            _MemberRoutineTab(routines: routines),
+            _MemberFeedbackTab(memberName: person.$1),
+          ]
+        : <Widget>[
+            _MemberCalendarTab(sessions: state.sessions),
+            _MemberRoutineTab(routines: routines),
+            const _MemberCommunityTab(),
+            _MemberLibraryTab(exercises: state.exercises),
+          ];
 
     return DefaultTabController(
-      length: 4,
+      length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
           title: Text('${person.$1} 상세'),
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(text: '캘린더'),
-              Tab(text: '루틴'),
-              Tab(text: '커뮤니티'),
-              Tab(text: '라이브러리'),
-            ],
-          ),
+          bottom: TabBar(isScrollable: true, tabs: tabs),
         ),
         body: Column(
           children: [
@@ -55,19 +68,70 @@ class MemberDetailScreen extends StatelessWidget {
                 latestVolume: latestVolume,
               ),
             ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _MemberCalendarTab(sessions: state.sessions),
-                  _MemberRoutineTab(routines: routines),
-                  const _MemberCommunityTab(),
-                  _MemberLibraryTab(exercises: state.exercises),
-                ],
-              ),
-            ),
+            Expanded(child: TabBarView(children: tabViews)),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MemberFeedbackTab extends StatelessWidget {
+  const _MemberFeedbackTab({required this.memberName});
+
+  final String memberName;
+
+  @override
+  Widget build(BuildContext context) {
+    final facts = AppScope.of(context).dashboardFor(UserRole.gym).facts;
+    final feedback = facts['memberFeedback.$memberName'];
+    final trainer = facts['memberAssignment.$memberName'] ?? '미배정';
+    return ListView(
+      padding: SetflowInsets.pageListTight,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(SetflowSpacing.md),
+          decoration: BoxDecoration(
+            color: context.setflowColors.purple.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(SetflowRadii.md),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.shield_outlined, color: context.setflowColors.purple),
+              const SizedBox(width: SetflowSpacing.sm),
+              const Expanded(
+                child: Text(
+                  '센터에는 회원이 공유에 동의한 기록만 표시됩니다.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: SetflowSpacing.lg),
+        SetflowCard(
+          child: Column(
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.badge_outlined),
+                title: const Text('담당자'),
+                trailing: Text(
+                  trainer,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.chat_bubble_outline_rounded),
+                title: const Text('최근 피드백'),
+                subtitle: Text(feedback ?? '아직 작성된 피드백이 없어요.'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

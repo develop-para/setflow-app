@@ -16,104 +16,107 @@ class BusinessSettingsListScreen extends StatelessWidget {
     final state = AppScope.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          SetflowSpacing.xxl,
-          SetflowSpacing.xs,
-          SetflowSpacing.xxl,
-          SetflowSpacing.xxl,
-        ),
-        children: [
-          const ListTile(
-            title: Text(
-              '계정',
-              style: TextStyle(
-                fontSize: 13,
-                color: SetflowColors.secondaryText,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+      body: _SettingsWidth(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.xxl,
+            SetflowSpacing.xs,
+            SetflowSpacing.xxl,
+            SetflowSpacing.xxl,
           ),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: Text(_isGym ? '센터 프로필 편집' : '프로필 편집'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => BusinessProfileEditScreen(role: role),
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.workspace_premium_outlined),
-            title: const Text('요금제'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => BusinessSettingsPlanScreen(role: role),
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.notifications_none),
-            title: const Text('알림 설정'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => BusinessSettingsNotificationsScreen(role: role),
-              ),
-            ),
-          ),
-          if (!_isGym)
-            ListTile(
-              leading: const Icon(Icons.verified_outlined),
-              title: const Text('인증 뱃지 갱신'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const BusinessBadgeRenewScreen(),
+          children: [
+            const ListTile(
+              title: Text(
+                '계정',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: SetflowColors.secondaryText,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ),
-          const Divider(height: SetflowSpacing.section),
-          const ListTile(
-            title: Text(
-              '화면',
-              style: TextStyle(
-                fontSize: 13,
-                color: SetflowColors.secondaryText,
-                fontWeight: FontWeight.w900,
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: Text(_isGym ? '센터 프로필 편집' : '프로필 편집'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => BusinessProfileEditScreen(role: role),
+                ),
               ),
             ),
-          ),
-          SwitchListTile(
-            secondary: Icon(
-              state.isDarkMode
-                  ? Icons.dark_mode_rounded
-                  : Icons.light_mode_rounded,
-            ),
-            title: const Text('다크 모드'),
-            subtitle: Text(state.isDarkMode ? '어두운 화면 사용 중' : '밝은 화면 사용 중'),
-            value: state.isDarkMode,
-            onChanged: (_) => state.toggleTheme(),
-          ),
-          const Divider(height: 30),
-          ListTile(
-            leading: const Icon(
-              Icons.person_off_outlined,
-              color: SetflowColors.red,
-            ),
-            title: Text(
-              _isGym ? '헬스장 탈퇴' : '탈퇴',
-              style: const TextStyle(color: SetflowColors.red),
-            ),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => BusinessSettingsWithdrawScreen(role: role),
+            ListTile(
+              leading: const Icon(Icons.workspace_premium_outlined),
+              title: const Text('요금제'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => BusinessSettingsPlanScreen(role: role),
+                ),
               ),
             ),
-          ),
-        ],
+            ListTile(
+              leading: const Icon(Icons.notifications_none),
+              title: const Text('알림 설정'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      BusinessSettingsNotificationsScreen(role: role),
+                ),
+              ),
+            ),
+            if (!_isGym)
+              ListTile(
+                leading: const Icon(Icons.verified_outlined),
+                title: const Text('인증 뱃지 갱신'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const BusinessBadgeRenewScreen(),
+                  ),
+                ),
+              ),
+            const Divider(height: SetflowSpacing.section),
+            const ListTile(
+              title: Text(
+                '화면',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: SetflowColors.secondaryText,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            SwitchListTile(
+              secondary: Icon(
+                state.isDarkMode
+                    ? Icons.dark_mode_rounded
+                    : Icons.light_mode_rounded,
+              ),
+              title: const Text('다크 모드'),
+              subtitle: Text(state.isDarkMode ? '어두운 화면 사용 중' : '밝은 화면 사용 중'),
+              value: state.isDarkMode,
+              onChanged: (_) => state.toggleTheme(),
+            ),
+            const Divider(height: 30),
+            ListTile(
+              leading: const Icon(
+                Icons.person_off_outlined,
+                color: SetflowColors.red,
+              ),
+              title: Text(
+                _isGym ? '헬스장 탈퇴' : '탈퇴',
+                style: const TextStyle(color: SetflowColors.red),
+              ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => BusinessSettingsWithdrawScreen(role: role),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -133,7 +136,20 @@ class _BusinessSettingsPlanScreenState
     extends State<BusinessSettingsPlanScreen> {
   bool get _isGym => widget.role == UserRole.gym;
 
-  late String _currentPlanId = _isGym ? 'basic' : 'starter';
+  String? _currentPlanId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_currentPlanId != null) return;
+    final facts = AppScope.of(context).dashboardFor(widget.role).facts;
+    _currentPlanId =
+        facts['planId'] ??
+        ((facts['plan']?.toLowerCase().contains('enterprise') ?? false) ||
+                (facts['plan']?.contains('엔터프라이즈') ?? false)
+            ? 'enterprise'
+            : (_isGym ? 'basic' : 'starter'));
+  }
 
   List<({String id, String name, String price, Color tint, List<String> perks})>
   get _plans => _isGym
@@ -195,108 +211,149 @@ class _BusinessSettingsPlanScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('요금제')),
-      body: ListView(
-        padding: SetflowInsets.pageList,
-        children: [
-          for (final plan in _plans) ...[
-            SetflowCard(
-              color: plan.id == _currentPlanId
-                  ? plan.tint.withValues(alpha: .08)
-                  : null,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: plan.tint.withValues(alpha: .15),
-                          borderRadius: BorderRadius.circular(14),
+      body: _SettingsWidth(
+        child: ListView(
+          padding: SetflowInsets.pageList,
+          children: [
+            for (final plan in _plans) ...[
+              SetflowCard(
+                color: plan.id == _currentPlanId
+                    ? plan.tint.withValues(alpha: .08)
+                    : null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: plan.tint.withValues(alpha: .15),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.workspace_premium,
+                            color: plan.tint,
+                          ),
                         ),
-                        child: Icon(Icons.workspace_premium, color: plan.tint),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              plan.name,
-                              style: const TextStyle(
-                                fontSize: 16,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                plan.name,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              Text(
+                                plan.price,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: SetflowColors.secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (plan.id == _currentPlanId)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: plan.tint,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              '현재 플랜',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
-                            Text(
-                              plan.price,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: SetflowColors.secondaryText,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    for (final perk in plan.perks)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 16,
+                              color: plan.tint,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                perk,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      if (plan.id == _currentPlanId)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: plan.tint,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            '현재 플랜',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
+                    if (plan.id != _currentPlanId) ...[
+                      const SizedBox(height: 6),
+                      PrimaryButton(
+                        label: plan.id == 'enterprise' ? '문의' : '변경',
+                        onPressed: () async {
+                          if (plan.id == 'enterprise') {
+                            showMessage(context, '담당자가 플랜 상담을 도와드릴게요.');
+                            return;
+                          }
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('요금제 변경'),
+                              content: Text('${plan.name} 요금제로 변경할까요?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, false),
+                                  child: const Text('취소'),
+                                ),
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, true),
+                                  child: const Text('변경'),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  for (final perk in plan.perks)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        children: [
-                          Icon(Icons.check_circle, size: 16, color: plan.tint),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              perk,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
+                          );
+                          if (confirmed != true || !context.mounted) return;
+                          AppScope.of(context).setBusinessPlan(
+                            role: widget.role,
+                            planId: plan.id,
+                            planName: _isGym ? '${plan.name} 플랜' : plan.name,
+                          );
+                          setState(() => _currentPlanId = plan.id);
+                          AppSnackbar.success(
+                            context,
+                            '${plan.name} 요금제로 변경했어요.',
+                          );
+                        },
                       ),
-                    ),
-                  if (plan.id != _currentPlanId) ...[
-                    const SizedBox(height: 6),
-                    PrimaryButton(
-                      label: '${plan.name} 플랜으로 변경',
-                      onPressed: () {
-                        setState(() => _currentPlanId = plan.id);
-                        showMessage(context, '${plan.name} 플랜으로 변경되었습니다. (데모)');
-                      },
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
+              const SizedBox(height: 14),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -318,68 +375,117 @@ class _BusinessSettingsNotificationsScreenState
   bool _feedback = true;
   bool _settlement = false;
   bool _marketing = false;
+  bool _loaded = false;
 
   bool get _isGym => widget.role == UserRole.gym;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loaded) return;
+    final state = AppScope.of(context);
+    _primaryActivity = state.businessNotificationPreference(
+      widget.role,
+      'primary',
+      fallback: true,
+    );
+    _feedback = state.businessNotificationPreference(
+      widget.role,
+      'feedback',
+      fallback: true,
+    );
+    _settlement = state.businessNotificationPreference(
+      widget.role,
+      'settlement',
+      fallback: false,
+    );
+    _marketing = state.businessNotificationPreference(
+      widget.role,
+      'marketing',
+      fallback: false,
+    );
+    _loaded = true;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('알림 설정')),
-      body: ListView(
-        padding: SetflowInsets.pageList,
-        children: [
-          const ListTile(
-            title: Text(
-              '활동 알림',
-              style: TextStyle(
-                fontSize: 13,
-                color: SetflowColors.secondaryText,
-                fontWeight: FontWeight.w900,
+      body: _SettingsWidth(
+        child: ListView(
+          padding: SetflowInsets.pageList,
+          children: [
+            const ListTile(
+              title: Text(
+                '활동 알림',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: SetflowColors.secondaryText,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.chat_bubble_outline),
-            title: Text(_isGym ? '신규 회원 문의' : '신규 상담 요청'),
-            subtitle: Text(_isGym ? '센터 등록/이용 문의 알림' : '새로운 회원의 코칭 문의 알림'),
-            value: _primaryActivity,
-            onChanged: (value) => setState(() => _primaryActivity = value),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.fitness_center),
-            title: Text(_isGym ? '트레이너 활동 알림' : '회원 운동 기록 및 피드백'),
-            subtitle: Text(_isGym ? '소속 트레이너 활동 현황 알림' : '코칭 중인 회원의 새로운 활동'),
-            value: _feedback,
-            onChanged: (value) => setState(() => _feedback = value),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.payments_outlined),
-            title: const Text('정산 및 환불 현황'),
-            subtitle: const Text('주기적인 정산 금액 및 분쟁 알림'),
-            value: _settlement,
-            onChanged: (value) => setState(() => _settlement = value),
-          ),
-          const Divider(height: 30),
-          const ListTile(
-            title: Text(
-              '이벤트 및 혜택',
-              style: TextStyle(
-                fontSize: 13,
-                color: SetflowColors.secondaryText,
-                fontWeight: FontWeight.w900,
+            SwitchListTile(
+              secondary: const Icon(Icons.chat_bubble_outline),
+              title: Text(_isGym ? '신규 회원 문의' : '신규 상담 요청'),
+              subtitle: Text(_isGym ? '센터 등록/이용 문의 알림' : '새로운 회원의 코칭 문의 알림'),
+              value: _primaryActivity,
+              onChanged: (value) => _setPreference('primary', value),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.fitness_center),
+              title: Text(_isGym ? '트레이너 활동 알림' : '회원 운동 기록 및 피드백'),
+              subtitle: Text(_isGym ? '소속 트레이너 활동 현황 알림' : '코칭 중인 회원의 새로운 활동'),
+              value: _feedback,
+              onChanged: (value) => _setPreference('feedback', value),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.payments_outlined),
+              title: const Text('정산 및 환불 현황'),
+              subtitle: const Text('주기적인 정산 금액 및 분쟁 알림'),
+              value: _settlement,
+              onChanged: (value) => _setPreference('settlement', value),
+            ),
+            const Divider(height: 30),
+            const ListTile(
+              title: Text(
+                '이벤트 및 혜택',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: SetflowColors.secondaryText,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.card_giftcard_outlined),
-            title: const Text('마케팅 정보 수신 동의'),
-            subtitle: const Text('플랫폼 이벤트 및 혜택 안내'),
-            value: _marketing,
-            onChanged: (value) => setState(() => _marketing = value),
-          ),
-        ],
+            SwitchListTile(
+              secondary: const Icon(Icons.card_giftcard_outlined),
+              title: const Text('마케팅 정보 수신 동의'),
+              subtitle: const Text('플랫폼 이벤트 및 혜택 안내'),
+              value: _marketing,
+              onChanged: (value) => _setPreference('marketing', value),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _setPreference(String key, bool value) {
+    setState(() {
+      switch (key) {
+        case 'primary':
+          _primaryActivity = value;
+        case 'feedback':
+          _feedback = value;
+        case 'settlement':
+          _settlement = value;
+        case 'marketing':
+          _marketing = value;
+      }
+    });
+    AppScope.of(
+      context,
+    ).setBusinessNotificationPreference(widget.role, key, value);
   }
 }
 
@@ -767,17 +873,27 @@ class BusinessProfileEditScreen extends StatefulWidget {
 class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
   bool get _isGym => widget.role == UserRole.gym;
 
-  late final _nameController = TextEditingController(
-    text: _isGym ? '낼도돌파 피트니스 강남점' : '김코치',
-  );
-  late final _keywordController = TextEditingController(
-    text: _isGym ? '서울 강남구 테헤란로 123' : '바디프로필 전문가',
-  );
-  late final _introController = TextEditingController(
-    text: _isGym
-        ? '최고의 시설과 실력 있는 강사진이 함께하는 프리미엄 피트니스 센터입니다.'
-        : '3년 연속 바디프로필 전문 메이커입니다. 어렵지 않게 즐기면서 목표를 이뤄드릴게요!',
-  );
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _keywordController;
+  late TextEditingController _introController;
+  bool _loaded = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loaded) return;
+    final facts = AppScope.of(context).dashboardFor(widget.role).facts;
+    _nameController = TextEditingController(
+      text: facts['displayName'] ?? (_isGym ? '센터' : '트레이너'),
+    );
+    _keywordController = TextEditingController(
+      text:
+          facts[_isGym ? 'location' : 'keyword'] ?? (_isGym ? '' : '바디프로필 전문가'),
+    );
+    _introController = TextEditingController(text: facts['intro'] ?? '');
+    _loaded = true;
+  }
 
   @override
   void dispose() {
@@ -795,20 +911,28 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              showMessage(context, '프로필이 저장되었습니다. (데모)');
+              if (!(_formKey.currentState?.validate() ?? false)) return;
+              AppScope.of(context).updateBusinessProfile(
+                role: widget.role,
+                displayName: _nameController.text.trim(),
+                keyword: _keywordController.text.trim(),
+                intro: _introController.text.trim(),
+              );
+              AppSnackbar.success(context, '프로필을 저장했어요.');
               Navigator.of(context).pop();
             },
             child: const Text('저장'),
           ),
         ],
       ),
-      body: ListView(
-        padding: SetflowInsets.pageForm,
-        children: [
-          Center(
-            child: Stack(
-              children: [
-                CircleAvatar(
+      body: _SettingsWidth(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: SetflowInsets.pageForm,
+            children: [
+              Center(
+                child: CircleAvatar(
                   radius: 48,
                   backgroundColor:
                       (_isGym ? SetflowColors.purple : SetflowColors.blue)
@@ -819,44 +943,71 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
                     color: _isGym ? SetflowColors.purple : SetflowColors.blue,
                   ),
                 ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: SetflowColors.primary,
-                    child: const Icon(
-                      Icons.camera_alt_outlined,
-                      size: 16,
-                      color: SetflowColors.ink,
-                    ),
-                  ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                _isGym ? '센터 이름' : '이름',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _nameController,
+                validator: (value) => (value?.trim().isEmpty ?? true)
+                    ? '${_isGym ? '센터 이름' : '이름'}을 입력해주세요.'
+                    : null,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                _isGym ? '위치' : '한 줄 키워드',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _keywordController,
+                validator: (value) => (value?.trim().isEmpty ?? true)
+                    ? '${_isGym ? '위치' : '키워드'}를 입력해주세요.'
+                    : null,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                _isGym ? '센터 소개' : '자기소개',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _introController,
+                maxLines: 4,
+                maxLength: 150,
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          Text(
-            _isGym ? '센터 이름' : '이름',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          TextField(controller: _nameController),
-          const SizedBox(height: 18),
-          Text(
-            _isGym ? '위치' : '한 줄 키워드',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          TextField(controller: _keywordController),
-          const SizedBox(height: 18),
-          Text(
-            _isGym ? '센터 소개' : '자기소개',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          TextField(controller: _introController, maxLines: 4, maxLength: 150),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsWidth extends StatelessWidget {
+  const _SettingsWidth({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: child,
       ),
     );
   }
