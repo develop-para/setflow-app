@@ -151,22 +151,26 @@ class _AppButtonState extends State<AppButton> {
       ),
     };
 
-    final scaled = Semantics(
-      label: widget.semanticLabel,
-      button: true,
-      enabled: _enabled,
-      child: Listener(
-        onPointerDown: (_) => _setPressed(true),
-        onPointerUp: (_) => _setPressed(false),
-        onPointerCancel: (_) => _setPressed(false),
-        child: AnimatedScale(
-          scale: _pressed ? .98 : 1,
-          duration: SetflowMotion.micro,
-          curve: Curves.easeOut,
-          child: button,
-        ),
+    final interaction = Listener(
+      onPointerDown: (_) => _setPressed(true),
+      onPointerUp: (_) => _setPressed(false),
+      onPointerCancel: (_) => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed ? .98 : 1,
+        duration: SetflowMotion.micro,
+        curve: Curves.easeOut,
+        child: button,
       ),
     );
+    final scaled = widget.semanticLabel == null
+        ? interaction
+        : Semantics(
+            label: widget.semanticLabel,
+            button: true,
+            enabled: _enabled,
+            excludeSemantics: true,
+            child: interaction,
+          );
     return widget.expanded
         ? SizedBox(width: double.infinity, child: scaled)
         : scaled;
@@ -300,6 +304,7 @@ class MetricCard extends StatelessWidget {
     required this.icon,
     required this.tint,
     this.suffix,
+    this.onTap,
     super.key,
   });
 
@@ -308,12 +313,14 @@ class MetricCard extends StatelessWidget {
   final String? suffix;
   final IconData icon;
   final Color tint;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Expanded(
       child: SetflowCard(
+        onTap: onTap,
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

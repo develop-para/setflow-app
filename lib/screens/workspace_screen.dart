@@ -16,15 +16,14 @@ class WorkspaceScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final config = _workspaceConfig(role);
     return Scaffold(
-      appBar: AppBar(
-        leading: const BackButton(),
-        title: Text(config.title),
-      ),
+      appBar: AppBar(leading: const BackButton(), title: Text(config.title)),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final columns = width >= 1180 ? 3 : (width >= 760 ? 2 : 1);
+            final contentWidth = constraints.maxWidth - 48;
+            final columns = contentWidth >= 1180
+                ? 3
+                : (contentWidth >= 760 ? 2 : 1);
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
               child: Column(
@@ -39,7 +38,7 @@ class WorkspaceScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '데스크톱 워크스페이스 데모 · 넓은 화면에서 다단으로 배치됩니다.',
+                    '주요 운영 지표를 한 화면에서 확인하세요.',
                     style: const TextStyle(
                       fontSize: 12,
                       color: SetflowColors.secondaryText,
@@ -47,13 +46,13 @@ class WorkspaceScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   _ResponsiveGrid(
-                    width: width,
+                    width: contentWidth,
                     columns: columns,
                     children: config.stats,
                   ),
                   const SizedBox(height: 24),
                   _ResponsiveGrid(
-                    width: width,
+                    width: contentWidth,
                     columns: columns,
                     children: config.panels,
                   ),
@@ -70,12 +69,12 @@ class WorkspaceScreen extends StatelessWidget {
   _workspaceConfig(UserRole role) {
     return switch (role) {
       UserRole.gym => (
-        title: '헬스장 워크스페이스',
+        title: 'PC 요약',
         subtitle: '모션짐 강남점 운영 현황',
         stats: const [
           _StatTile(
             label: '전체 회원',
-            value: '84',
+            value: '4',
             suffix: '명',
             icon: Icons.groups_outlined,
             tint: SetflowColors.teal,
@@ -89,7 +88,7 @@ class WorkspaceScreen extends StatelessWidget {
           ),
           _StatTile(
             label: '소속 트레이너',
-            value: '6',
+            value: '4',
             suffix: '명',
             icon: Icons.badge_outlined,
             tint: SetflowColors.purple,
@@ -488,10 +487,7 @@ class _ResponsiveGrid extends StatelessWidget {
       return Column(
         children: [
           for (final child in children)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: child,
-            ),
+            Padding(padding: const EdgeInsets.only(bottom: 14), child: child),
         ],
       );
     }
@@ -501,8 +497,7 @@ class _ResponsiveGrid extends StatelessWidget {
       spacing: gap,
       runSpacing: gap,
       children: [
-        for (final child in children)
-          SizedBox(width: itemWidth, child: child),
+        for (final child in children) SizedBox(width: itemWidth, child: child),
       ],
     );
   }

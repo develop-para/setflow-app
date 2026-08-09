@@ -38,7 +38,7 @@ class _BusinessShellState extends State<BusinessShell> {
       UserRole.gym => const [
         GymHome(),
         PeoplePage(role: UserRole.gym),
-        TrainerManagementPage(),
+        GymOperationsPage(),
         SettlementPage(role: UserRole.gym),
       ],
       UserRole.admin => const [
@@ -83,6 +83,7 @@ IconData _selectedBusinessIcon(IconData icon) {
     Icons.payments_outlined => Icons.payments_rounded,
     Icons.manage_accounts_outlined => Icons.manage_accounts_rounded,
     Icons.fact_check_outlined => Icons.fact_check_rounded,
+    Icons.grid_view_outlined => Icons.grid_view_rounded,
     _ => icon,
   };
 }
@@ -132,7 +133,7 @@ Color _businessKindColor(BuildContext context, String kind) {
       nav: const [
         (Icons.dashboard_outlined, '홈'),
         (Icons.people_outline, '회원'),
-        (Icons.badge_outlined, '트레이너'),
+        (Icons.grid_view_outlined, '운영'),
         (Icons.payments_outlined, '정산'),
       ],
     ),
@@ -239,7 +240,7 @@ class _BusinessHeader extends StatelessWidget {
                 value: 'tools',
                 child: ListTile(
                   leading: Icon(Icons.grid_view_rounded),
-                  title: Text('운영 메뉴'),
+                  title: Text('빠른 이동'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -247,7 +248,7 @@ class _BusinessHeader extends StatelessWidget {
                 value: 'workspace',
                 child: ListTile(
                   leading: Icon(Icons.dashboard_customize_outlined),
-                  title: Text('PC 워크스페이스'),
+                  title: Text('PC 요약'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -281,6 +282,10 @@ class _BusinessHeader extends StatelessWidget {
 
   void _showWorkspaceMenu(BuildContext context) {
     final state = AppScope.of(context);
+    if (state.role == UserRole.gym) {
+      _showGymQuickMenu(context, state);
+      return;
+    }
     final tools = switch (state.role) {
       UserRole.trainer => const [
         (Icons.person_outline, '프로필 편집', BusinessTool.profile),
@@ -290,13 +295,7 @@ class _BusinessHeader extends StatelessWidget {
         (Icons.notifications_none, '알림 설정', BusinessTool.notifications),
         (Icons.person_off_outlined, '계정 탈퇴', BusinessTool.withdraw),
       ],
-      UserRole.gym => const [
-        (Icons.apartment_outlined, '헬스장 프로필', BusinessTool.profile),
-        (Icons.replay_outlined, '환불 및 미정산', BusinessTool.refunds),
-        (Icons.workspace_premium_outlined, '플랜 관리', BusinessTool.plan),
-        (Icons.notifications_none, '알림 설정', BusinessTool.notifications),
-        (Icons.person_off_outlined, '계정 탈퇴', BusinessTool.withdraw),
-      ],
+      UserRole.gym => const <(IconData, String, BusinessTool)>[],
       UserRole.admin => const [
         (Icons.verified_outlined, '배지 발급 관리', BusinessTool.badges),
         (Icons.report_outlined, '커뮤니티 신고 큐', BusinessTool.contentReports),
@@ -397,6 +396,66 @@ class _BusinessHeader extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showGymQuickMenu(BuildContext context, AppState state) {
+    final destinations = <(IconData, String, Widget)>[
+      const (Icons.people_outline, '회원', PeoplePage(role: UserRole.gym)),
+      const (
+        Icons.chat_bubble_outline,
+        '상담',
+        ConsultationQueuePage(role: UserRole.gym),
+      ),
+      const (Icons.badge_outlined, '트레이너', TrainerManagementPage()),
+      const (
+        Icons.fitness_center_outlined,
+        '루틴',
+        RoutineManagerPage(role: UserRole.gym),
+      ),
+      const (Icons.payments_outlined, '정산', SettlementPage(role: UserRole.gym)),
+    ];
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+          children: [
+            const ListTile(
+              title: Text(
+                '빠른 이동',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+            for (final item in destinations)
+              ListTile(
+                leading: Icon(item.$1),
+                title: Text(item.$2),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute<void>(builder: (_) => item.$3));
+                },
+              ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: SetflowColors.red),
+              title: const Text(
+                '로그아웃',
+                style: TextStyle(color: SetflowColors.red),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                state.logout();
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -583,17 +642,17 @@ class _BusinessNotificationSheet extends StatelessWidget {
                     return Dismissible(
                       key: ValueKey(notification.title),
                       direction: DismissDirection.endToStart,
-                      onDismissed: (_) => state.dismissBusinessNotification(
+                      onDismissed: (_) => state.markBusinessNotificationRead(
                         role,
                         notification.id,
                       ),
                       background: Container(
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 18),
-                        color: SetflowColors.red.withValues(alpha: .1),
+                        color: context.setflowColors.teal.withValues(alpha: .1),
                         child: const Icon(
                           Icons.done_rounded,
-                          color: SetflowColors.red,
+                          color: SetflowColors.teal,
                         ),
                       ),
                       child: ListTile(
@@ -610,6 +669,23 @@ class _BusinessNotificationSheet extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.w900),
                         ),
                         subtitle: Text(notification.subtitle),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () {
+                          final navigator = Navigator.of(context);
+                          state.markBusinessNotificationRead(
+                            role,
+                            notification.id,
+                          );
+                          navigator.pop();
+                          navigator.push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => _businessNotificationPage(
+                                role,
+                                notification.kind,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     );
                   },
@@ -620,6 +696,29 @@ class _BusinessNotificationSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _businessNotificationPage(UserRole role, String kind) {
+  if (role == UserRole.gym) {
+    return switch (kind) {
+      'member' => const PeoplePage(role: UserRole.gym),
+      'warning' => const TrainerManagementPage(),
+      'settlement' => const SettlementPage(role: UserRole.gym),
+      _ => const ConsultationQueuePage(role: UserRole.gym),
+    };
+  }
+  if (role == UserRole.trainer) {
+    return switch (kind) {
+      'timer' => const PeoplePage(role: UserRole.trainer),
+      'settlement' => const SettlementPage(role: UserRole.trainer),
+      _ => const ConsultationQueuePage(role: UserRole.trainer),
+    };
+  }
+  return switch (kind) {
+    'review' => const AdminUsersPage(),
+    'settlement' => const SettlementPage(role: UserRole.admin),
+    _ => const AdminReviewPage(),
+  };
 }
 
 class TrainerHome extends StatelessWidget {
@@ -780,7 +879,7 @@ class GymHome extends StatelessWidget {
     final facts = dashboard.facts;
     final accent = context.setflowColors.purple;
     return _BusinessHomeFrame(
-      eyebrow: 'BUSINESS VERIFIED',
+      eyebrow: '센터 홈',
       title: facts['displayName'] ?? '센터',
       accent: accent,
       role: UserRole.gym,
@@ -832,6 +931,11 @@ class GymHome extends StatelessWidget {
               suffix: '명',
               icon: Icons.groups_outlined,
               tint: context.setflowColors.teal,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const PeoplePage(role: UserRole.gym),
+                ),
+              ),
             ),
             const SizedBox(width: SetflowSpacing.md),
             MetricCard(
@@ -840,6 +944,11 @@ class GymHome extends StatelessWidget {
               suffix: '백만원',
               icon: Icons.trending_up,
               tint: context.setflowColors.success,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SettlementPage(role: UserRole.gym),
+                ),
+              ),
             ),
           ],
         ),
@@ -852,6 +961,11 @@ class GymHome extends StatelessWidget {
               suffix: '명',
               icon: Icons.badge_outlined,
               tint: context.setflowColors.purple,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const TrainerManagementPage(),
+                ),
+              ),
             ),
             const SizedBox(width: SetflowSpacing.md),
             MetricCard(
@@ -860,6 +974,12 @@ class GymHome extends StatelessWidget {
               suffix: '건',
               icon: Icons.chat_bubble_outline,
               tint: context.setflowColors.orange,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      const ConsultationQueuePage(role: UserRole.gym),
+                ),
+              ),
             ),
           ],
         ),
@@ -886,6 +1006,11 @@ class GymHome extends StatelessWidget {
         const SectionTitle('트레이너 현황'),
         const SizedBox(height: SetflowSpacing.md),
         SetflowCard(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const TrainerManagementPage(),
+            ),
+          ),
           child: Column(
             children: [
               _PersonRow(
@@ -909,6 +1034,147 @@ class GymHome extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class GymOperationsPage extends StatelessWidget {
+  const GymOperationsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final facts = state.dashboardFor(UserRole.gym).facts;
+    final unassigned = const [
+      '박민지',
+      '이준호',
+      '최서연',
+      '정하늘',
+    ].where((name) => facts['memberAssignment.$name'] == null).length;
+    final routineCount = state.routines.length + state.marketRoutines.length;
+    return Scaffold(
+      appBar: AppBar(title: const Text('운영')),
+      body: ListView(
+        padding: SetflowInsets.pageList,
+        children: [
+          const SectionTitle('오늘'),
+          const SizedBox(height: SetflowSpacing.md),
+          Row(
+            children: [
+              MetricCard(
+                label: '미배정',
+                value: '$unassigned',
+                suffix: '명',
+                icon: Icons.person_add_alt_1_outlined,
+                tint: context.setflowColors.purple,
+                onTap: () =>
+                    _open(context, const PeoplePage(role: UserRole.gym)),
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              MetricCard(
+                label: '새 상담',
+                value: facts['consultations'] ?? '0',
+                suffix: '건',
+                icon: Icons.chat_bubble_outline_rounded,
+                tint: context.setflowColors.orange,
+                onTap: () => _open(
+                  context,
+                  const ConsultationQueuePage(role: UserRole.gym),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.xxl),
+          const SectionTitle('업무'),
+          const SizedBox(height: SetflowSpacing.md),
+          _OperationShortcut(
+            icon: Icons.chat_bubble_outline_rounded,
+            color: context.setflowColors.orange,
+            title: '상담',
+            subtitle: '문의 확인과 답변',
+            value: '${facts['consultations'] ?? '0'}건',
+            onTap: () =>
+                _open(context, const ConsultationQueuePage(role: UserRole.gym)),
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          _OperationShortcut(
+            icon: Icons.badge_outlined,
+            color: context.setflowColors.purple,
+            title: '트레이너',
+            subtitle: '담당 회원과 성과',
+            value: '${facts['trainers'] ?? '0'}명',
+            onTap: () => _open(context, const TrainerManagementPage()),
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          _OperationShortcut(
+            icon: Icons.fitness_center_outlined,
+            color: context.setflowColors.teal,
+            title: '루틴',
+            subtitle: '센터 루틴 관리',
+            value: '$routineCount개',
+            onTap: () =>
+                _open(context, const RoutineManagerPage(role: UserRole.gym)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _open(BuildContext context, Widget page) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+  }
+}
+
+class _OperationShortcut extends StatelessWidget {
+  const _OperationShortcut({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SetflowCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: color.withValues(alpha: .14),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: SetflowSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(width: SetflowSpacing.xs),
+          const Icon(Icons.chevron_right_rounded),
+        ],
+      ),
     );
   }
 }
@@ -1095,6 +1361,7 @@ class PeoplePage extends StatefulWidget {
 
 class _PeoplePageState extends State<PeoplePage> {
   String query = '';
+  String filter = 'all';
   final searchController = TextEditingController();
   final people = const [
     ('박민지', '근육 증가', '오늘', 92),
@@ -1113,28 +1380,56 @@ class _PeoplePageState extends State<PeoplePage> {
   Widget build(BuildContext context) {
     final gym = widget.role == UserRole.gym;
     final state = AppScope.of(context);
-    final filtered = people.where((item) => item.$1.contains(query)).toList();
+    final assignments = state.dashboardFor(UserRole.gym).facts;
+    final filtered = people.where((item) {
+      final matchesQuery = item.$1.contains(query.trim());
+      final matchesFilter = switch (filter) {
+        'unassigned' => assignments['memberAssignment.${item.$1}'] == null,
+        'attention' => item.$4 < 80,
+        _ => true,
+      };
+      return matchesQuery && matchesFilter;
+    }).toList();
     return Scaffold(
       appBar: AppBar(title: Text(gym ? '전체 회원' : '관리 회원')),
       body: Column(
         children: [
           Padding(
             padding: SetflowInsets.pageHeader,
-            child: AppTextField(
-              controller: searchController,
-              onChanged: (value) => setState(() => query = value),
-              prefixIcon: const Icon(Icons.search),
-              hint: '회원 이름 검색',
-              suffixIcon: query.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: '검색어 지우기',
-                      onPressed: () {
-                        searchController.clear();
-                        setState(() => query = '');
-                      },
-                      icon: const Icon(Icons.close_rounded),
+            child: Column(
+              children: [
+                AppTextField(
+                  controller: searchController,
+                  onChanged: (value) => setState(() => query = value),
+                  prefixIcon: const Icon(Icons.search),
+                  hint: '회원 이름 검색',
+                  suffixIcon: query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: '검색어 지우기',
+                          onPressed: () {
+                            searchController.clear();
+                            setState(() => query = '');
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                ),
+                if (gym) ...[
+                  const SizedBox(height: SetflowSpacing.md),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _memberFilterChip('all', '전체'),
+                        const SizedBox(width: SetflowSpacing.sm),
+                        _memberFilterChip('unassigned', '미배정'),
+                        const SizedBox(width: SetflowSpacing.sm),
+                        _memberFilterChip('attention', '확인 필요'),
+                      ],
                     ),
+                  ),
+                ],
+              ],
             ),
           ),
           Expanded(
@@ -1146,7 +1441,10 @@ class _PeoplePageState extends State<PeoplePage> {
                     actionLabel: '검색 초기화',
                     onAction: () {
                       searchController.clear();
-                      setState(() => query = '');
+                      setState(() {
+                        query = '';
+                        filter = 'all';
+                      });
                     },
                   )
                 : ListView.builder(
@@ -1244,14 +1542,24 @@ class _PeoplePageState extends State<PeoplePage> {
         ],
       ),
       floatingActionButton: gym
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
+              heroTag: 'gym-member-invite',
               tooltip: '회원 초대',
               onPressed: () => _showInviteSheet(context),
               backgroundColor: SetflowColors.purple,
               foregroundColor: Colors.white,
-              child: const Icon(Icons.person_add_alt_1),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('초대'),
             )
           : null,
+    );
+  }
+
+  Widget _memberFilterChip(String value, String label) {
+    return FilterChip(
+      label: Text(label),
+      selected: filter == value,
+      onSelected: (_) => setState(() => filter = value),
     );
   }
 
@@ -1331,7 +1639,12 @@ class _PeoplePageState extends State<PeoplePage> {
             if (widget.role == UserRole.gym) ...[
               const SizedBox(height: SetflowSpacing.sm),
               OutlinedButton.icon(
-                onPressed: () => _showAssignmentSheet(sheetContext, person.$1),
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) _showAssignmentSheet(context, person.$1);
+                  });
+                },
                 icon: const Icon(Icons.badge_outlined),
                 label: const Text('담당 트레이너 배정'),
                 style: OutlinedButton.styleFrom(
@@ -1430,13 +1743,18 @@ class _PeoplePageState extends State<PeoplePage> {
     BuildContext context,
     String memberName,
   ) async {
-    const trainers = ['김코치', '박트레이너', '이코치', '최코치'];
+    const trainers = [
+      ('김코치', 18, '근력'),
+      ('박트레이너', 15, '감량'),
+      ('이코치', 12, '체형'),
+      ('최코치', 9, '재활'),
+    ];
     final state = AppScope.of(context);
     var selected =
         state
             .dashboardFor(UserRole.gym)
             .facts['memberAssignment.$memberName'] ??
-        trainers.first;
+        trainers.first.$1;
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -1467,8 +1785,21 @@ class _PeoplePageState extends State<PeoplePage> {
                     prefixIcon: Icon(Icons.person_outline_rounded),
                   ),
                   items: [
+                    const DropdownMenuItem(value: '', child: Text('미배정')),
                     for (final trainer in trainers)
-                      DropdownMenuItem(value: trainer, child: Text(trainer)),
+                      DropdownMenuItem(
+                        value: trainer.$1,
+                        child: Row(
+                          children: [
+                            Text(trainer.$1),
+                            const SizedBox(width: SetflowSpacing.sm),
+                            Text(
+                              '${trainer.$2}/25명 · ${trainer.$3}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -1483,12 +1814,14 @@ class _PeoplePageState extends State<PeoplePage> {
                   onPressed: () {
                     state.assignBusinessMember(
                       memberName: memberName,
-                      trainerName: selected,
+                      trainerName: selected.isEmpty ? null : selected,
                     );
                     Navigator.pop(sheetContext);
                     AppSnackbar.success(
                       this.context,
-                      '$memberName 회원을 $selected 트레이너에게 배정했어요.',
+                      selected.isEmpty
+                          ? '$memberName 회원을 미배정으로 변경했어요.'
+                          : '$memberName 회원을 $selected 트레이너에게 배정했어요.',
                     );
                   },
                 ),
@@ -2069,7 +2402,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('소속 트레이너'),
+        title: const Text('트레이너'),
         actions: [
           IconButton(
             tooltip: '트레이너 초대',
@@ -2178,7 +2511,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                                       ),
                                     ),
                                     Text(
-                                      '관리 회원 ${trainer.$2} · 피드백 ${trainer.$3}%',
+                                      '회원 ${trainer.$2}/25명 · 피드백 ${trainer.$3}%',
                                       style: Theme.of(context)
                                           .textTheme
                                           .labelMedium
@@ -2266,7 +2599,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
               ),
               const SizedBox(height: SetflowSpacing.lg),
               AppButton(
-                label: '초대 링크 복사',
+                label: '링크 복사',
                 icon: Icons.copy_rounded,
                 onPressed: () async {
                   await Clipboard.setData(
@@ -3060,7 +3393,7 @@ class _SettlementPageState extends State<SettlementPage> {
       return matchesQuery && matchesFilter;
     }).toList();
     return Scaffold(
-      appBar: AppBar(title: Text(admin ? '정산 처리' : '정산 및 매출')),
+      appBar: AppBar(title: Text(admin ? '정산 처리' : '정산')),
       body: ListView(
         padding: SetflowInsets.pageList,
         children: [
@@ -3098,6 +3431,23 @@ class _SettlementPageState extends State<SettlementPage> {
               ],
             ),
           ),
+          if (!admin) ...[
+            const SizedBox(height: SetflowSpacing.md),
+            const SetflowCard(
+              padding: EdgeInsets.symmetric(
+                horizontal: SetflowSpacing.lg,
+                vertical: SetflowSpacing.md,
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: _SettlementFigure('매출', '18.4M')),
+                  Expanded(child: _SettlementFigure('코치', '3.8M')),
+                  Expanded(child: _SettlementFigure('보류', '0.32M')),
+                  Expanded(child: _SettlementFigure('입금', '14.28M')),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 22),
           AppTextField(
             controller: searchController,
@@ -3150,6 +3500,7 @@ class _SettlementPageState extends State<SettlementPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: SetflowCard(
+                  onTap: () => _showSettlementDetail(context, item),
                   child: Row(
                     children: [
                       CircleAvatar(
@@ -3209,7 +3560,7 @@ class _SettlementPageState extends State<SettlementPage> {
                 ),
               ),
           const SizedBox(height: 22),
-          const SectionTitle('정산 상세 보기'),
+          const SectionTitle('상세'),
           const SizedBox(height: 10),
           SetflowCard(
             onTap: () => Navigator.of(context).push(
@@ -3231,10 +3582,7 @@ class _SettlementPageState extends State<SettlementPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '환불 내역',
-                        style: TextStyle(fontWeight: FontWeight.w900),
-                      ),
+                      Text('환불', style: TextStyle(fontWeight: FontWeight.w900)),
                       Text(
                         '환불 요청 및 처리 이력 확인',
                         style: TextStyle(
@@ -3272,7 +3620,7 @@ class _SettlementPageState extends State<SettlementPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '트레이너별 정산',
+                          '코치별',
                           style: TextStyle(fontWeight: FontWeight.w900),
                         ),
                         Text(
@@ -3377,11 +3725,114 @@ class _SettlementPageState extends State<SettlementPage> {
     );
   }
 
+  void _showSettlementDetail(
+    BuildContext context,
+    (String, String, String, String, String) item,
+  ) {
+    final hold = item.$5 == 'hold';
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: SetflowInsets.pageForm,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.$1, style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: SetflowSpacing.lg),
+              _SettlementDetailRow(label: '대상', value: item.$2),
+              _SettlementDetailRow(label: '금액', value: item.$3),
+              _SettlementDetailRow(label: '상태', value: item.$4),
+              const SizedBox(height: SetflowSpacing.lg),
+              AppButton(
+                label: hold ? '검토' : '확인',
+                icon: hold ? Icons.receipt_long_outlined : Icons.done_rounded,
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  if (hold) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SettlementRefundsPage(role: role),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _settlementFilterChip(String value, String label) {
     return FilterChip(
       label: Text(label),
       selected: filter == value,
       onSelected: (_) => setState(() => filter = value),
+    );
+  }
+}
+
+class _SettlementFigure extends StatelessWidget {
+  const _SettlementFigure(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: SetflowSpacing.xs),
+        FittedBox(
+          child: Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettlementDetailRow extends StatelessWidget {
+  const _SettlementDetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 56,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

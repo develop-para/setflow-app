@@ -44,7 +44,27 @@ void main() {
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
     expect(find.text('4 / 4'), findsOneWidget);
-    expect(find.text('카카오로 시작하기'), findsOneWidget);
+    expect(find.text('카카오'), findsOneWidget);
+
+    await tester.tap(find.text('카카오'));
+    await tester.pumpAndSettle();
+    expect(find.text('준비 중'), findsOneWidget);
+    expect(find.text('카카오 로그인은 준비 중입니다.'), findsOneWidget);
+    await tester.tap(find.text('확인'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Apple'));
+    await tester.pumpAndSettle();
+    expect(find.text('Apple 로그인은 준비 중입니다.'), findsOneWidget);
+    await tester.tap(find.text('확인'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Google'));
+    await tester.pumpAndSettle();
+    expect(find.text('설정 필요'), findsOneWidget);
+    expect(find.text('Google 로그인 설정 후 사용할 수 있어요.'), findsOneWidget);
+    await tester.tap(find.text('확인'));
+    await tester.pumpAndSettle();
 
     state.dispose();
   });

@@ -1,0 +1,245 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1800" viewBox="0 0 2400 1800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F9FAFC"/>
+      <stop offset="1" stop-color="#EEF1F6"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#241F20"/>
+      <stop offset="1" stop-color="#353038"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#241F20" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#85818A"/>
+    </marker>
+    <style>
+      .root { font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; color: #241F20; }
+      .hero-kicker { color: #FFCA10; font-size: 24px; font-weight: 800; letter-spacing: 3px; }
+      .hero-title { color: #FFFFFF; font-size: 56px; font-weight: 900; line-height: 1.15; }
+      .hero-sub { color: #D8D5DA; font-size: 23px; font-weight: 500; line-height: 1.5; }
+      .version { display: inline-block; padding: 9px 15px; border-radius: 999px; color: #241F20; background: #FFCA10; font-size: 18px; font-weight: 900; }
+      .entry-label { font-size: 17px; font-weight: 900; color: #77727B; letter-spacing: 1.5px; }
+      .entry-title { font-size: 25px; font-weight: 900; margin-top: 5px; }
+      .entry-sub { font-size: 17px; color: #77727B; margin-top: 4px; }
+      .lane { height: 100%; display: flex; flex-direction: column; }
+      .lane-head { padding: 25px 27px 21px; border-radius: 28px 28px 0 0; }
+      .lane-role { font-size: 31px; font-weight: 900; line-height: 1.15; }
+      .lane-desc { font-size: 16px; font-weight: 700; opacity: .72; margin-top: 7px; }
+      .lane-body { padding: 22px 23px 24px; display: flex; flex-direction: column; gap: 15px; }
+      .section { border-radius: 19px; padding: 17px 18px; border: 1px solid #E5E7EC; background: #FFFFFF; }
+      .section-title { font-size: 17px; font-weight: 900; display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+      .num { width: 25px; height: 25px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; flex: 0 0 auto; }
+      .flow { font-size: 16px; font-weight: 800; line-height: 1.6; }
+      .muted { color: #77727B; font-weight: 650; }
+      .arrow { color: #AAA6AE; padding: 0 2px; }
+      .feature { display: grid; grid-template-columns: 94px 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid #ECEEF2; font-size: 15px; line-height: 1.45; }
+      .feature:first-of-type { border-top: 0; padding-top: 0; }
+      .feature:last-child { padding-bottom: 0; }
+      .feature b { font-size: 15px; font-weight: 900; }
+      .feature span { color: #5F5B63; font-weight: 650; }
+      .utility { margin-top: auto; border-radius: 18px; padding: 15px 17px; font-size: 14px; font-weight: 750; line-height: 1.55; }
+      .cross-title { font-size: 21px; font-weight: 900; }
+      .cross-text { font-size: 16px; color: #5F5B63; font-weight: 700; line-height: 1.55; margin-top: 5px; }
+      .footer { font-size: 14px; color: #77727B; font-weight: 650; }
+    </style>
+  </defs>
+
+  <rect width="2400" height="1800" fill="url(#bg)"/>
+  <circle cx="2240" cy="120" r="190" fill="#FFCA10" opacity="0.10"/>
+  <circle cx="2160" cy="40" r="78" fill="#10CEBD" opacity="0.12"/>
+
+  <!-- Header -->
+  <rect x="70" y="55" width="2260" height="205" rx="36" fill="url(#hero)" filter="url(#shadow)"/>
+  <rect x="70" y="55" width="17" height="205" rx="8" fill="#FFCA10"/>
+  <foreignObject x="125" y="87" width="1760" height="148">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root">
+      <div class="hero-kicker">SETFLOW · CURRENT IMPLEMENTATION</div>
+      <div class="hero-title">현재 프로젝트 사용자 플로우</div>
+      <div class="hero-sub">앱 실행부터 역할별 온보딩, 핵심 탭, 주요 상태 전이까지 · Flutter 구현 코드 기준</div>
+    </div>
+  </foreignObject>
+  <foreignObject x="2030" y="105" width="230" height="100">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root" style="text-align:right">
+      <span class="version">2026.08</span>
+      <div style="color:#BEBAC2;font-size:16px;font-weight:700;margin-top:15px;line-height:1.45">4 roles<br/>18+ core flows</div>
+    </div>
+  </foreignObject>
+
+  <!-- Shared entry flow -->
+  <path d="M 630 374 H 825" stroke="#85818A" stroke-width="5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 1190 374 H 1385" stroke="#85818A" stroke-width="5" fill="none" marker-end="url(#arrow)"/>
+  <rect x="165" y="306" width="465" height="136" rx="26" fill="#FFFFFF" stroke="#E3E5EA" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="825" y="306" width="365" height="136" rx="26" fill="#FFFFFF" stroke="#E3E5EA" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="1385" y="306" width="850" height="136" rx="26" fill="#FFFFFF" stroke="#FFCA10" stroke-width="4" filter="url(#shadow)"/>
+  <foreignObject x="200" y="333" width="400" height="90">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root">
+      <div class="entry-label">01 · APP START</div>
+      <div class="entry-title">앱 실행 · 로컬 상태 복원</div>
+      <div class="entry-sub">Hive 실패 시 메모리 저장소로 폴백</div>
+    </div>
+  </foreignObject>
+  <foreignObject x="860" y="333" width="300" height="90">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root">
+      <div class="entry-label">02 · SPLASH</div>
+      <div class="entry-title">스플래시</div>
+      <div class="entry-sub">초기화 완료 후 자동 전환</div>
+    </div>
+  </foreignObject>
+  <foreignObject x="1422" y="329" width="775" height="96">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root">
+      <div class="entry-label">03 · ROLE GATE</div>
+      <div class="entry-title">역할 선택</div>
+      <div class="entry-sub">일반 회원 · 트레이너 · 헬스장 / 센터장 <span style="color:#9B7A00;font-weight:900">(운영자는 내부 역할 전환)</span></div>
+    </div>
+  </foreignObject>
+
+  <!-- Branch connectors -->
+  <path d="M 1810 442 V 476 H 338 V 500" stroke="#B6B2BA" stroke-width="4" fill="none"/>
+  <path d="M 1810 476 H 913 V 500" stroke="#B6B2BA" stroke-width="4" fill="none"/>
+  <path d="M 1810 476 H 1488 V 500" stroke="#B6B2BA" stroke-width="4" fill="none"/>
+  <path d="M 1810 442 V 500 H 2063" stroke="#B6B2BA" stroke-width="4" fill="none"/>
+  <circle cx="338" cy="500" r="7" fill="#FFCA10"/>
+  <circle cx="913" cy="500" r="7" fill="#3B82F6"/>
+  <circle cx="1488" cy="500" r="7" fill="#8B5CF6"/>
+  <circle cx="2063" cy="500" r="7" fill="#241F20"/>
+
+  <!-- Lane cards -->
+  <rect x="70" y="500" width="535" height="1030" rx="28" fill="#FFFFFF" stroke="#E3E5EA" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="645" y="500" width="535" height="1030" rx="28" fill="#FFFFFF" stroke="#E3E5EA" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="1220" y="500" width="535" height="1030" rx="28" fill="#FFFFFF" stroke="#E3E5EA" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="1795" y="500" width="535" height="1030" rx="28" fill="#FFFFFF" stroke="#E3E5EA" stroke-width="2" filter="url(#shadow)"/>
+
+  <!-- Member lane -->
+  <foreignObject x="70" y="500" width="535" height="1030">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root lane">
+      <div class="lane-head" style="background:#FFCA10;color:#241F20">
+        <div class="lane-role">일반 회원</div>
+        <div class="lane-desc">운동 기록 → 루틴 → 소셜 → 코칭 → 성장 확인</div>
+      </div>
+      <div class="lane-body">
+        <div class="section" style="background:#FFFBEA;border-color:#F5DE7C">
+          <div class="section-title"><span class="num" style="background:#FFCA10">1</span> 4단계 온보딩</div>
+          <div class="flow">환경 설정 <span class="arrow">→</span> 목표 선택 <span class="arrow">→</span> 신체 정보<br/><span class="arrow">→</span> 가입 또는 <b>가입 없이 시작</b></div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="num" style="background:#FFF0A8">2</span> 5탭 MemberShell</div>
+          <div class="feature"><b>캘린더</b><span>날짜 선택 → 일일 운동 → 라이브러리 → 세트 편집·완료 → 전역 휴식 타이머</span></div>
+          <div class="feature"><b>내 루틴</b><span>생성 · 날짜에 적용 · 삭제<br/>무료 한도 4개</span></div>
+          <div class="feature"><b>전문가 루틴</b><span>검색·필터 → 상세 → 저장<br/>또는 상담 신청</span></div>
+          <div class="feature"><b>동기부여</b><span>3열 피드 → 게시물 상세<br/>작성 · 좋아요 · 댓글 · 신고</span></div>
+          <div class="feature"><b>코칭</b><span>상담 작성 → 답변 대기 → 코칭 시작 → 만족도 평가</span></div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="num" style="background:#FFF0A8">3</span> 기록 성장 루프</div>
+          <div class="flow">운동 완료 <span class="arrow">→</span> 캘린더 누적 <span class="arrow">→</span><br/>통계·체성분 확인 <span class="arrow">→</span> 다음 운동</div>
+        </div>
+        <div class="utility" style="background:#FFFBEA;color:#6E5700">보조 진입: 운동 통계 · 체성분 · 계정/알림/개인정보/디스플레이/휴식 타이머 설정 · 역할 전환 · 로그아웃</div>
+      </div>
+    </div>
+  </foreignObject>
+
+  <!-- Trainer lane -->
+  <foreignObject x="645" y="500" width="535" height="1030">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root lane">
+      <div class="lane-head" style="background:#EAF2FF;color:#1D4F9B;border-top:8px solid #3B82F6">
+        <div class="lane-role">트레이너</div>
+        <div class="lane-desc">인증 → 회원 관리 → 루틴 성과 → 상담 응답</div>
+      </div>
+      <div class="lane-body">
+        <div class="section" style="background:#F4F8FF;border-color:#BFD4FF">
+          <div class="section-title"><span class="num" style="background:#3B82F6;color:white">1</span> 인증 온보딩</div>
+          <div class="flow">정보 등록 <span class="arrow">→</span> 서류 2종 <span class="arrow">→</span> 심사 대기<br/><span class="arrow">→</span> 승인·완료 <span class="muted">/ 반려 → 재제출</span></div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="num" style="background:#DCEAFF;color:#1D4F9B">2</span> 4탭 BusinessShell</div>
+          <div class="feature"><b>홈</b><span>수익·회원·피드백 KPI<br/>업무 · 알림 · 새로고침</span></div>
+          <div class="feature"><b>회원</b><span>검색 → 회원 상세(캘린더·루틴·커뮤니티·기록) → 피드백</span></div>
+          <div class="feature"><b>루틴</b><span>루틴 생성·배포 → 조회·상담 전환 → 성과 통계</span></div>
+          <div class="feature"><b>상담</b><span>수신함 → 미답변 필터 → 답변 → 재상담 리타겟</span></div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="num" style="background:#DCEAFF;color:#1D4F9B">3</span> 코칭 운영 루프</div>
+          <div class="flow">상담 응답 <span class="arrow">→</span> 회원 기록 확인<br/><span class="arrow">→</span> 피드백 <span class="arrow">→</span> 성과·수익 확인</div>
+        </div>
+        <div class="utility" style="background:#F0F6FF;color:#24558E">더보기: PC 워크스페이스 · 운영 도구 · 프로필/플랜/배지/알림/탈퇴 설정 · 정산·수익 상세 · 역할 전환</div>
+      </div>
+    </div>
+  </foreignObject>
+
+  <!-- Gym lane -->
+  <foreignObject x="1220" y="500" width="535" height="1030">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root lane">
+      <div class="lane-head" style="background:#F2EDFF;color:#5E35B1;border-top:8px solid #8B5CF6">
+        <div class="lane-role">헬스장 · 센터장</div>
+        <div class="lane-desc">사업자 인증 → 배정 → 성과 관리 → 정산</div>
+      </div>
+      <div class="lane-body">
+        <div class="section" style="background:#F8F5FF;border-color:#D2C3FA">
+          <div class="section-title"><span class="num" style="background:#8B5CF6;color:white">1</span> 사업자 온보딩</div>
+          <div class="flow">센터 정보 <span class="arrow">→</span> 사업자등록증<br/><span class="arrow">→</span> 홈택스 인증 <span class="arrow">→</span> 등록 완료</div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="num" style="background:#E7DEFF;color:#5E35B1">2</span> 4탭 BusinessShell</div>
+          <div class="feature"><b>홈</b><span>회원·매출·트레이너·상담 KPI<br/>업무 · 알림 · 새로고침</span></div>
+          <div class="feature"><b>회원</b><span>검색 → 담당 트레이너 배정 → 회원 상세·피드백</span></div>
+          <div class="feature"><b>트레이너</b><span>검색·성과 필터 → 상세 성과<br/>초대 링크</span></div>
+          <div class="feature"><b>정산</b><span>에스크로 현황 → 환불 내역<br/>트레이너별 정산</span></div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="num" style="background:#E7DEFF;color:#5E35B1">3</span> 센터 운영 루프</div>
+          <div class="flow">회원 유입 <span class="arrow">→</span> 트레이너 배정<br/><span class="arrow">→</span> 피드백 모니터링 <span class="arrow">→</span> 정산</div>
+        </div>
+        <div class="utility" style="background:#F7F3FF;color:#6444A0">더보기: PC 워크스페이스 · 운영 도구 · 센터 프로필/플랜/알림/탈퇴 설정 · 수익/환불 상세 · 역할 전환</div>
+      </div>
+    </div>
+  </foreignObject>
+
+  <!-- Admin lane -->
+  <foreignObject x="1795" y="500" width="535" height="1030">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root lane">
+      <div class="lane-head" style="background:#EAE8EA;color:#241F20;border-top:8px solid #241F20">
+        <div class="lane-role">운영 관리자</div>
+        <div class="lane-desc">내부 역할 진입 → 심사·제재 → 정산 → 시스템 운영</div>
+      </div>
+      <div class="lane-body">
+        <div class="section" style="background:#F4F3F4;border-color:#CCC8CD">
+          <div class="section-title"><span class="num" style="background:#241F20;color:white">1</span> 내부 진입</div>
+          <div class="flow">일반 웰컴 화면에는 미노출<br/><span class="arrow">→</span> 역할 전환에서 <b>운영자 모드</b></div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="num" style="background:#E6E3E6">2</span> 4탭 BusinessShell</div>
+          <div class="feature"><b>현황</b><span>유저·코칭·심사·신고 KPI<br/>긴급 업무 · SLA · 시스템 상태</span></div>
+          <div class="feature"><b>유저</b><span>검색·필터 → 상세 → 제재·해제<br/>사업자 인증 심사</span></div>
+          <div class="feature"><b>심사</b><span>루틴 · 신고 · 제재 이력<br/>미성년 위험 알림 처리</span></div>
+          <div class="feature"><b>정산</b><span>환불·분쟁 → 수수료 관리<br/>최종 정산 확정</span></div>
+        </div>
+        <div class="section">
+          <div class="section-title"><span class="num" style="background:#E6E3E6">3</span> 시스템 운영</div>
+          <div class="flow">랭킹 파라미터 · OCR 한도 · 플랜/가격<br/>금칙어 사전 · 시스템 로그/업타임</div>
+        </div>
+        <div class="utility" style="background:#F1F0F2;color:#4E4A50">거버넌스: 승인·반려 확인 절차 · 제재 사유 검증 · 처리 상태 영속 · 감사 상태/이력 · PC 워크스페이스</div>
+      </div>
+    </div>
+  </foreignObject>
+
+  <!-- Cross-role loops -->
+  <rect x="70" y="1570" width="2260" height="150" rx="28" fill="#FFFFFF" stroke="#E3E5EA" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="70" y="1570" width="14" height="150" rx="7" fill="#10CEBD"/>
+  <foreignObject x="115" y="1597" width="2180" height="105">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root" style="display:grid;grid-template-columns:330px 1fr 1fr 1fr;gap:28px;align-items:center">
+      <div>
+        <div class="cross-title">역할 간 연결 루프</div>
+        <div class="cross-text">각 셸은 분리되어 있지만 데이터와 업무가 이어집니다.</div>
+      </div>
+      <div><div class="cross-title" style="font-size:17px;color:#8A6700">회원 ↔ 트레이너/센터</div><div class="cross-text">상담 신청·운동 기록 ↔ 답변·배정·피드백</div></div>
+      <div><div class="cross-title" style="font-size:17px;color:#5E35B1">사업자 ↔ 운영자</div><div class="cross-text">인증 제출·정산 ↔ 승인/반려·수수료·최종 확정</div></div>
+      <div><div class="cross-title" style="font-size:17px;color:#087D72">공통 상태</div><div class="cross-text">Hive 로컬 영속 · Repository 경계 · 다크 모드 · 알림 · 역할 전환</div></div>
+    </div>
+  </foreignObject>
+
+  <foreignObject x="75" y="1742" width="2250" height="40">
+    <div xmlns="http://www.w3.org/1999/xhtml" class="root footer">근거: lib/main.dart · lib/app_state.dart · lib/screens/** · docs/parity/** · Setflow UserJourneyMap/Router Definition/IA 문서 교차 확인</div>
+  </foreignObject>
+</svg>

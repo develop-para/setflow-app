@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../app_state.dart';
+import '../services/custom_auth_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/google_auth_button.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -211,6 +216,7 @@ class MemberSetupScreen extends StatefulWidget {
 
 class _MemberSetupScreenState extends State<MemberSetupScreen> {
   final bodyFormKey = GlobalKey<FormState>();
+  final authService = CustomAuthService.instance;
   String unit = 'kg';
   int step = 0;
   final goals = <String>{};
@@ -219,10 +225,26 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   final ageController = TextEditingController();
   String? gender;
   bool isSubmitting = false;
+  bool googleReady = false;
+  bool googleExchangeInProgress = false;
   String? submitError;
+  StreamSubscription<GoogleSignInAccount>? googleSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    googleSubscription = authService.googleAccounts.listen(
+      _completeGoogleSignIn,
+      onError: (Object error, StackTrace stackTrace) {
+        _handleGoogleError(error);
+      },
+    );
+    unawaited(_initializeGoogle());
+  }
 
   @override
   void dispose() {
+    unawaited(googleSubscription?.cancel());
     heightController.dispose();
     weightController.dispose();
     ageController.dispose();
@@ -241,7 +263,10 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
         title: Text('${step + 1} / 4'),
         actions: [
           if (step == 1)
-            TextButton(onPressed: _finish, child: const Text('건너뛰기')),
+            TextButton(
+              onPressed: () => setState(() => step = 2),
+              child: const Text('건너뛰기'),
+            ),
           if (step == 2)
             TextButton(
               onPressed: () => setState(() => step = 3),
@@ -348,7 +373,7 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
           ),
           const SizedBox(height: 16),
           TextButton(
-            onPressed: _finish,
+            onPressed: () => setState(() => step = 3),
             child: const Text('이미 계정이 있으신가요? 로그인'),
           ),
         ],
@@ -598,29 +623,28 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             const SizedBox(height: SetflowSpacing.lg),
           ],
           AppButton(
-            label: '카카오로 시작하기',
-            onPressed: () => _submitMember('카카오'),
+            label: '카카오',
+            onPressed: () => _showComingSoon('카카오'),
+            isLoading: isSubmitting,
+          ),
+          const SizedBox(height: 12),
+          GoogleAuthButton(
+            ready: authService.googleConfigured && googleReady,
+            onPressed: _startGoogleSignIn,
             isLoading: isSubmitting,
           ),
           const SizedBox(height: 12),
           AppButton(
-            label: '구글로 시작하기',
-            onPressed: () => _submitMember('구글'),
-            variant: AppButtonVariant.outlined,
-            isLoading: isSubmitting,
-          ),
-          const SizedBox(height: 12),
-          AppButton(
-            label: 'Apple로 시작하기',
-            onPressed: () => _submitMember('Apple'),
+            label: 'Apple',
+            onPressed: () => _showComingSoon('Apple'),
             variant: AppButtonVariant.outlined,
             isLoading: isSubmitting,
           ),
           const SizedBox(height: 18),
           Center(
             child: TextButton(
-              onPressed: isSubmitting ? null : () => _submitMember('이메일'),
-              child: const Text('이메일로 가입하기'),
+              onPressed: isSubmitting ? null : () => _showComingSoon('이메일'),
+              child: const Text('이메일'),
             ),
           ),
           const SizedBox(height: 22),
@@ -669,23 +693,97 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
     return null;
   }
 
-  Future<void> _submitMember(String provider) async {
+  Future<void> _initializeGoogle() async {
+    if (!authService.googleConfigured) return;
+    try {
+      await authService.initializeGoogle();
+      if (mounted) setState(() => googleReady = true);
+    } catch (error) {
+      _handleGoogleError(error);
+    }
+  }
+
+  Future<void> _startGoogleSignIn() async {
     if (isSubmitting) return;
+    if (!authService.googleConfigured) {
+      await _showGoogleSetup();
+      return;
+    }
+    try {
+      await authService.beginGoogleSignIn();
+    } on GoogleSignInException catch (error) {
+      if (error.code == GoogleSignInExceptionCode.canceled ||
+          error.code == GoogleSignInExceptionCode.interrupted) {
+        return;
+      }
+      _handleGoogleError(error);
+    } catch (error) {
+      _handleGoogleError(error);
+    }
+  }
+
+  Future<void> _completeGoogleSignIn(GoogleSignInAccount account) async {
+    if (googleExchangeInProgress || !mounted) return;
+    googleExchangeInProgress = true;
     setState(() {
       isSubmitting = true;
       submitError = null;
     });
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 650));
+      await authService.signInWithGoogle(account);
       if (!mounted) return;
-      AppSnackbar.success(context, '$provider 연결이 완료됐어요.');
+      AppSnackbar.success(context, '로그인됐어요.');
       Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      setState(() => submitError = '가입 정보를 저장하지 못했어요. 다시 시도해주세요.');
+      _handleGoogleError(error);
     } finally {
+      googleExchangeInProgress = false;
       if (mounted) setState(() => isSubmitting = false);
     }
+  }
+
+  void _handleGoogleError(Object error) {
+    if (!mounted) return;
+    final message = error is CustomAuthException
+        ? error.message
+        : 'Google 로그인에 실패했어요. 다시 시도해주세요.';
+    setState(() {
+      isSubmitting = false;
+      submitError = message;
+    });
+  }
+
+  Future<void> _showGoogleSetup() {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('설정 필요'),
+        content: const Text('Google 로그인 설정 후 사용할 수 있어요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showComingSoon(String provider) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('준비 중'),
+        content: Text('$provider 로그인은 준비 중입니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _finish() => Navigator.of(context).pop(true);
@@ -817,7 +915,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               label: '사업자등록번호',
               hint: '숫자 10자리',
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
               validator: _gymNumberValidator,
             ),
             const SizedBox(height: 30),
@@ -988,7 +1089,9 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        bizNumber.isEmpty ? '미입력' : bizNumber,
+                        bizNumber.isEmpty
+                            ? '미입력'
+                            : _formatBusinessNumber(bizNumber),
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ],
@@ -1109,7 +1212,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           ),
           const SizedBox(height: 32),
           AppButton(
-            label: '센터 운영 시작하기',
+            label: '운영 시작',
             icon: Icons.rocket_launch_rounded,
             onPressed: () => _completeBusiness('센터 등록이 완료됐어요.'),
           ),
@@ -1640,8 +1743,19 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   void _completeBusiness(String message) {
+    if (widget.role == UserRole.gym) {
+      AppScope.of(context).completeGymOnboarding(
+        displayName: nameController.text.trim(),
+        businessNumber: numberController.text.trim(),
+      );
+    }
     AppSnackbar.success(context, message);
     Navigator.of(context).pop(true);
+  }
+
+  String _formatBusinessNumber(String value) {
+    if (value.length != 10) return value;
+    return '${value.substring(0, 3)}-${value.substring(3, 5)}-${value.substring(5)}';
   }
 }
 
