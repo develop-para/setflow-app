@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'member_goal_screen.dart';
 
 class DailyWorkoutScreen extends StatelessWidget {
   const DailyWorkoutScreen({required this.date, super.key});
@@ -12,6 +13,9 @@ class DailyWorkoutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final session = state.sessionFor(date);
+    final recommendation = session.exercises.isNotEmpty
+        ? state.recommendationFor(session.exercises.first.template)
+        : state.featuredRecommendation;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -26,13 +30,31 @@ class DailyWorkoutScreen extends StatelessWidget {
             onPressed: () => showMessage(context, '오늘 기록 공유 링크를 준비했습니다.'),
             icon: const Icon(Icons.ios_share_outlined),
           ),
+          PopupMenuButton<String>(
+            tooltip: '기록 메뉴',
+            onSelected: (value) {
+              if (value == 'delete') _deleteWorkout(context);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline_rounded,
+                      color: SetflowColors.red,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      '이 날짜 기록 삭제',
+                      style: TextStyle(color: SetflowColors.red),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: SetflowColors.primary,
-        foregroundColor: SetflowColors.ink,
-        onPressed: () => _openLibrary(context),
-        child: const Icon(Icons.add_rounded, size: 30),
       ),
       body: Column(
         children: [
@@ -70,18 +92,72 @@ class DailyWorkoutScreen extends StatelessWidget {
                 },
               ),
             ),
+          if (recommendation != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+              child: _NextSessionCard(
+                recommendation: recommendation,
+                unit: state.weightUnit,
+                hasGoal: state.hasTrainingGoal,
+                onApply: () async {
+                  final hasGoals = await ensureMemberTrainingGoals(context);
+                  if (!hasGoals || !context.mounted) return;
+                  final refreshed = state.recommendationFor(
+                    recommendation.template,
+                  );
+                  if (refreshed == null) return;
+                  state.applyRecommendation(date, refreshed);
+                  AppSnackbar.success(
+                    context,
+                    '${refreshed.template.name} 추천 세트를 적용했어요.',
+                  );
+                },
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+            child: Column(
+              children: [
+                AppButton(
+                  label: '운동 추가',
+                  icon: Icons.add_rounded,
+                  onPressed: () => _openLibrary(context),
+                ),
+                const SizedBox(height: SetflowSpacing.sm),
+                AppButton(
+                  label: '루틴 불러오기',
+                  icon: Icons.playlist_add_check_rounded,
+                  variant: AppButtonVariant.outlined,
+                  onPressed: () => _openRoutinePicker(context),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: session.exercises.isEmpty
                 ? EmptyState(
                     icon: Icons.fitness_center_rounded,
                     title: '오늘은 어떤 운동을 할까요?',
-                    message: '운동을 추가하면 세트와 볼륨을 바로 기록할 수 있어요.',
-                    actionLabel: '운동 추가',
-                    onAction: () => _openLibrary(context),
+                    message: '운동을 직접 추가하거나 저장한 루틴을 불러와보세요.',
                   )
                 : ReorderableListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 2, 16, 100),
                     itemCount: session.exercises.length,
+                    buildDefaultDragHandles: false,
+                    proxyDecorator: (child, index, animation) {
+                      return AnimatedBuilder(
+                        animation: animation,
+                        builder: (context, _) => Transform.scale(
+                          scale: 1 + animation.value * .025,
+                          child: Material(
+                            color: Colors.transparent,
+                            elevation: 14 * animation.value,
+                            borderRadius: BorderRadius.circular(22),
+                            child: child,
+                          ),
+                        ),
+                      );
+                    },
                     onReorderItem: (oldIndex, newIndex) =>
                         state.reorderExercise(session, oldIndex, newIndex),
                     itemBuilder: (_, index) {
@@ -89,7 +165,11 @@ class DailyWorkoutScreen extends StatelessWidget {
                       return Padding(
                         key: ValueKey(exercise.id),
                         padding: const EdgeInsets.only(bottom: 13),
-                        child: _ExerciseCard(date: date, exercise: exercise),
+                        child: _ExerciseCard(
+                          date: date,
+                          exercise: exercise,
+                          index: index,
+                        ),
                       );
                     },
                   ),
@@ -104,257 +184,39 @@ class DailyWorkoutScreen extends StatelessWidget {
       MaterialPageRoute(builder: (_) => ExerciseLibraryScreen(date: date)),
     );
   }
-}
 
-class _ExerciseCard extends StatelessWidget {
-  const _ExerciseCard({required this.date, required this.exercise});
-  final DateTime date;
-  final WorkoutExercise exercise;
-
-  @override
-  Widget build(BuildContext context) {
+  Future<void> _openRoutinePicker(BuildContext context) async {
     final state = AppScope.of(context);
-    return SetflowCard(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-      child: Column(
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) =>
-                    ExerciseSetScreen(date: date, exercise: exercise),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: SetflowColors.primary.withValues(alpha: .15),
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Icon(
-                      exercise.template.icon,
-                      color: SetflowColors.orange,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          exercise.template.name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        Text(
-                          exercise.template.muscle,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: SetflowColors.secondaryText,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: '운동 메뉴',
-                    onSelected: (value) {
-                      if (value == 'delete') {
-                        _confirmDeleteExercise(context, state);
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.delete_outline_rounded,
-                              color: SetflowColors.red,
-                            ),
-                            SizedBox(width: 10),
-                            Text(
-                              '운동 삭제',
-                              style: TextStyle(color: SetflowColors.red),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    icon: const Icon(
-                      Icons.more_horiz_rounded,
-                      color: SetflowColors.disabled,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 7),
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white10
-                  : SetflowColors.soft,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Row(
-              children: [
-                SizedBox(
-                  width: 42,
-                  child: Center(
-                    child: Text(
-                      '세트',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: SetflowColors.secondaryText,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      '무게',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: SetflowColors.secondaryText,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      '횟수',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: SetflowColors.secondaryText,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 48,
-                  child: Center(
-                    child: Text(
-                      '완료',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: SetflowColors.secondaryText,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          for (final set in exercise.sets)
-            InkWell(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      ExerciseSetScreen(date: date, exercise: exercise),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 42,
-                      child: Center(
-                        child: Text(
-                          '${set.number}',
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          '${set.weight.toStringAsFixed(set.weight % 1 == 0 ? 0 : 1)} ${state.weightUnit}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: set.completed
-                                ? SetflowColors.secondaryText
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          '${set.reps} 회',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: set.completed
-                                ? SetflowColors.secondaryText
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 48,
-                      child: Center(
-                        child: Checkbox(
-                          value: set.completed,
-                          activeColor: SetflowColors.teal,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          onChanged: (_) {
-                            state.toggleSet(set);
-                            if (set.completed) {
-                              AppSnackbar.success(
-                                context,
-                                '${set.number}세트를 저장했어요.',
-                              );
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          TextButton.icon(
-            onPressed: () => state.addSet(exercise),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('세트 추가'),
-          ),
-        ],
-      ),
+    if (state.routines.isEmpty) {
+      AppSnackbar.info(context, '저장된 루틴이 없어요. 내 루틴에서 먼저 만들어주세요.');
+      return;
+    }
+    final routine = await showModalBottomSheet<RoutineData>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _RoutinePickerSheet(routines: state.routines),
     );
+    if (routine == null || !context.mounted) return;
+    final added = state.applyRoutine(routine, date);
+    if (added == 0) {
+      AppSnackbar.info(context, '이 날짜에 루틴 운동이 이미 모두 있어요.');
+    } else {
+      AppSnackbar.success(context, '${routine.name}에서 운동 $added개를 적용했어요.');
+    }
   }
 
-  Future<void> _confirmDeleteExercise(
-    BuildContext context,
-    AppState state,
-  ) async {
+  Future<void> _deleteWorkout(BuildContext context) async {
     final confirmed =
         await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Text('운동을 삭제할까요?'),
-            content: Text('${exercise.template.name}의 세트 기록이 모두 삭제됩니다.'),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: SetflowColors.red,
+            ),
+            title: const Text('운동 기록을 삭제할까요?'),
+            content: Text('${date.month}월 ${date.day}일의 운동과 세트 기록이 모두 삭제됩니다.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
@@ -373,9 +235,760 @@ class _ExerciseCard extends StatelessWidget {
         ) ??
         false;
     if (!confirmed || !context.mounted) return;
-    final session = state.sessionFor(date);
-    state.removeExercise(session, exercise);
+    AppScope.of(context).deleteSession(date);
+    AppSnackbar.success(context, '운동 기록을 삭제했어요.');
+    Navigator.of(context).pop();
+  }
+}
+
+class _RoutinePickerSheet extends StatelessWidget {
+  const _RoutinePickerSheet({required this.routines});
+
+  final List<RoutineData> routines;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .72,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 0, 18, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '루틴 불러오기',
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '선택한 루틴의 운동이 이 날짜에 바로 추가됩니다.',
+                    style: TextStyle(color: SetflowColors.secondaryText),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                itemCount: routines.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final routine = routines[index];
+                  return SetflowCard(
+                    onTap: routine.exercises.isEmpty
+                        ? null
+                        : () => Navigator.of(context).pop(routine),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: routine.color,
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                routine.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${routine.exercises.length}개 운동 · ${routine.exercises.map((item) => item.muscle).toSet().join(', ')}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: SetflowColors.secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.add_circle_rounded),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExerciseCard extends StatefulWidget {
+  const _ExerciseCard({
+    required this.date,
+    required this.exercise,
+    required this.index,
+  });
+
+  final DateTime date;
+  final WorkoutExercise exercise;
+  final int index;
+
+  @override
+  State<_ExerciseCard> createState() => _ExerciseCardState();
+}
+
+class _ExerciseCardState extends State<_ExerciseCard> {
+  bool recommendationShown = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final exercise = widget.exercise;
+    return SetflowCard(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      child: Column(
+        children: [
+          ReorderableDelayedDragStartListener(
+            index: widget.index,
+            child: Semantics(
+              label: '${exercise.template.name} 순서 이동, 길게 누르기',
+              child: MouseRegion(
+                cursor: SystemMouseCursors.grab,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: SetflowColors.primary.withValues(alpha: .15),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(
+                          exercise.template.icon,
+                          color: SetflowColors.orange,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              exercise.template.name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              '${exercise.template.muscle} · 상단을 길게 눌러 순서 이동',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: SetflowColors.secondaryText,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.drag_indicator_rounded,
+                        color: SetflowColors.disabled,
+                        size: 20,
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: '운동 메뉴',
+                        onSelected: (value) {
+                          if (value == 'delete') {
+                            _confirmDeleteExercise(context, state);
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.delete_outline_rounded,
+                                  color: SetflowColors.red,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  '운동 삭제',
+                                  style: TextStyle(color: SetflowColors.red),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        icon: const Icon(
+                          Icons.more_horiz_rounded,
+                          color: SetflowColors.disabled,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          for (final set in exercise.sets)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _InlineSetRow(
+                key: ObjectKey(set),
+                set: set,
+                unit: state.weightUnit,
+                onToggle: () => _toggleSet(state, set),
+                onTypeChanged: (type) => state.updateSet(set, type: type),
+                onWeightChanged: (weight) =>
+                    state.updateSet(set, weight: weight),
+                onRepsChanged: (reps) => state.updateSet(set, reps: reps),
+                onRestChanged: (seconds) =>
+                    state.updateSet(set, restSeconds: seconds),
+                onDelete: () => _confirmDeleteSet(context, state, set),
+              ),
+            ),
+          TextButton.icon(
+            onPressed: () => state.addSet(exercise),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('세트 추가'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleSet(AppState state, WorkoutSetEntry set) async {
+    final prs = set.completed
+        ? <PerformancePrType>{}
+        : state.prTypesForCandidate(widget.exercise.template, set);
+    state.toggleSet(set);
+    if (!set.completed) {
+      recommendationShown = false;
+      return;
+    }
+    final labels = prs.map((type) => type.label).join(' · ');
+    AppSnackbar.success(
+      context,
+      labels.isEmpty ? '${set.number}세트를 저장했어요.' : '🏆 $labels을 달성했어요!',
+    );
+    final allCompleted =
+        widget.exercise.sets.isNotEmpty &&
+        widget.exercise.sets.every((item) => item.completed);
+    if (!allCompleted || recommendationShown) return;
+    recommendationShown = true;
+    await _offerNextExercise(state);
+  }
+
+  Future<void> _offerNextExercise(AppState state) async {
+    final session = state.sessionFor(widget.date);
+    final currentIndex = session.exercises.indexOf(widget.exercise);
+    if (currentIndex >= 0 && currentIndex < session.exercises.length - 1) {
+      final next = session.exercises[currentIndex + 1];
+      if (next.sets.any((set) => !set.completed)) {
+        AppSnackbar.info(context, '다음 운동은 ${next.template.name}입니다.');
+        return;
+      }
+    }
+    final hasGoals = await ensureMemberTrainingGoals(context);
+    if (!hasGoals || !mounted) return;
+    final recommendation = ExerciseRecommendationEngine.recommendNext(
+      catalog: state.exercises,
+      session: session,
+      completedExercise: widget.exercise,
+      goals: state.goals,
+    );
+    if (recommendation == null) {
+      AppSnackbar.info(context, '추천 가능한 운동이 이미 오늘 계획에 모두 있어요.');
+      return;
+    }
+    final shouldAdd = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _NextExerciseRecommendationSheet(
+        recommendation: recommendation,
+        unit: state.weightUnit,
+      ),
+    );
+    if (shouldAdd != true || !mounted) return;
+    final added = state.addRecommendedExercise(widget.date, recommendation);
+    if (added) {
+      AppSnackbar.success(
+        context,
+        '${recommendation.template.name}을 다음 운동으로 추가했어요.',
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteSet(
+    BuildContext context,
+    AppState state,
+    WorkoutSetEntry set,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text('${set.number}세트를 삭제할까요?'),
+            content: const Text('삭제한 세트는 복구할 수 없습니다.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SetflowColors.red,
+                ),
+                child: const Text('삭제'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+    state.removeSet(widget.exercise, set);
+  }
+
+  Future<void> _confirmDeleteExercise(
+    BuildContext context,
+    AppState state,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('운동을 삭제할까요?'),
+            content: Text('${widget.exercise.template.name}의 세트 기록이 모두 삭제됩니다.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SetflowColors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('삭제'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !context.mounted) return;
+    final session = state.sessionFor(widget.date);
+    state.removeExercise(session, widget.exercise);
     AppSnackbar.success(context, '운동을 삭제했어요.');
+  }
+}
+
+class _InlineSetRow extends StatefulWidget {
+  const _InlineSetRow({
+    required this.set,
+    required this.unit,
+    required this.onToggle,
+    required this.onTypeChanged,
+    required this.onWeightChanged,
+    required this.onRepsChanged,
+    required this.onRestChanged,
+    required this.onDelete,
+    super.key,
+  });
+
+  final WorkoutSetEntry set;
+  final String unit;
+  final VoidCallback onToggle;
+  final ValueChanged<String> onTypeChanged;
+  final ValueChanged<double> onWeightChanged;
+  final ValueChanged<int> onRepsChanged;
+  final ValueChanged<int> onRestChanged;
+  final VoidCallback onDelete;
+
+  @override
+  State<_InlineSetRow> createState() => _InlineSetRowState();
+}
+
+class _InlineSetRowState extends State<_InlineSetRow> {
+  late final TextEditingController weightController;
+  late final TextEditingController repsController;
+  late final TextEditingController restController;
+  final weightFocus = FocusNode();
+  final repsFocus = FocusNode();
+  final restFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    weightController = TextEditingController(text: _weightText());
+    repsController = TextEditingController(text: '${widget.set.reps}');
+    restController = TextEditingController(text: '${widget.set.restSeconds}');
+  }
+
+  @override
+  void didUpdateWidget(covariant _InlineSetRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!weightFocus.hasFocus && oldWidget.set.weight != widget.set.weight) {
+      weightController.text = _weightText();
+    }
+    if (!repsFocus.hasFocus && oldWidget.set.reps != widget.set.reps) {
+      repsController.text = '${widget.set.reps}';
+    }
+    if (!restFocus.hasFocus &&
+        oldWidget.set.restSeconds != widget.set.restSeconds) {
+      restController.text = '${widget.set.restSeconds}';
+    }
+  }
+
+  @override
+  void dispose() {
+    weightController.dispose();
+    repsController.dispose();
+    restController.dispose();
+    weightFocus.dispose();
+    repsFocus.dispose();
+    restFocus.dispose();
+    super.dispose();
+  }
+
+  String _weightText() =>
+      widget.set.weight.toStringAsFixed(widget.set.weight % 1 == 0 ? 0 : 1);
+
+  void _commitWeight() {
+    final value = double.tryParse(weightController.text.trim());
+    if (value == null || value < 0 || value > 999) {
+      weightController.text = _weightText();
+      return;
+    }
+    widget.onWeightChanged(value);
+  }
+
+  void _commitReps() {
+    final value = int.tryParse(repsController.text.trim());
+    if (value == null || value < 0 || value > 999) {
+      repsController.text = '${widget.set.reps}';
+      return;
+    }
+    widget.onRepsChanged(value);
+  }
+
+  void _commitRest() {
+    final value = int.tryParse(restController.text.trim());
+    if (value == null || value < 15 || value > 600) {
+      restController.text = '${widget.set.restSeconds}';
+      return;
+    }
+    widget.onRestChanged(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final estimate = PerformanceEngine.estimate(
+      widget.set.weight,
+      widget.set.reps,
+    );
+    return AnimatedContainer(
+      duration: SetflowMotion.standard,
+      padding: const EdgeInsets.fromLTRB(9, 7, 7, 9),
+      decoration: BoxDecoration(
+        color: widget.set.completed
+            ? SetflowColors.teal.withValues(alpha: .09)
+            : context.setflowColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(SetflowRadii.md),
+        border: Border.all(
+          color: widget.set.completed
+              ? SetflowColors.teal.withValues(alpha: .35)
+              : Theme.of(context).colorScheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(SetflowRadii.full),
+                ),
+                child: Text(
+                  '${widget.set.number}세트',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  estimate == null
+                      ? 'e1RM 계산 제외'
+                      : 'e1RM ${estimate.value.toStringAsFixed(1)} · ${estimate.quality.label}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: SetflowColors.secondaryText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: '세트 종류 변경',
+                onSelected: (value) {
+                  if (value == 'delete') {
+                    widget.onDelete();
+                  } else {
+                    widget.onTypeChanged(value);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: '일반', child: Text('일반 세트')),
+                  PopupMenuItem(value: '웜업', child: Text('웜업 세트')),
+                  PopupMenuItem(value: '드랍', child: Text('드랍 세트')),
+                  PopupMenuItem(value: '실패', child: Text('실패 세트')),
+                  PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(
+                      '세트 삭제',
+                      style: TextStyle(color: SetflowColors.red),
+                    ),
+                  ),
+                ],
+                child: Container(
+                  width: 48,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _typeColor(widget.set.type).withValues(alpha: .13),
+                    borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                  ),
+                  child: Text(
+                    widget.set.type,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: _typeColor(widget.set.type),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Semantics(
+                label: '${widget.set.number}세트 완료',
+                child: Checkbox(
+                  value: widget.set.completed,
+                  activeColor: SetflowColors.teal,
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  onChanged: (_) => widget.onToggle(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              Expanded(
+                child: _numberField(
+                  label: '무게',
+                  suffix: widget.unit,
+                  controller: weightController,
+                  focusNode: weightFocus,
+                  decimal: true,
+                  onCommit: _commitWeight,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _numberField(
+                  label: '횟수',
+                  suffix: '회',
+                  controller: repsController,
+                  focusNode: repsFocus,
+                  onCommit: _commitReps,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _numberField(
+                  label: '휴식',
+                  suffix: '초',
+                  controller: restController,
+                  focusNode: restFocus,
+                  onCommit: _commitRest,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _numberField({
+    required String label,
+    required String suffix,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required VoidCallback onCommit,
+    bool decimal = false,
+  }) {
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      enabled: !widget.set.completed,
+      textAlign: TextAlign.center,
+      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(
+          decimal ? RegExp(r'[0-9.]') : RegExp(r'[0-9]'),
+        ),
+      ],
+      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixText: suffix,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      ),
+      onSubmitted: (_) => onCommit(),
+      onTapOutside: (_) {
+        onCommit();
+        focusNode.unfocus();
+      },
+    );
+  }
+
+  Color _typeColor(String type) => switch (type) {
+    '웜업' => SetflowColors.orange,
+    '드랍' => SetflowColors.blue,
+    '실패' => SetflowColors.red,
+    _ => SetflowColors.teal,
+  };
+}
+
+class _NextExerciseRecommendationSheet extends StatelessWidget {
+  const _NextExerciseRecommendationSheet({
+    required this.recommendation,
+    required this.unit,
+  });
+
+  final NextExerciseRecommendation recommendation;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 2, 20, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: SetflowColors.orange,
+                ),
+                const SizedBox(width: 9),
+                const Text(
+                  '다음 운동 추천',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+                const Spacer(),
+                Chip(label: Text(recommendation.goalLabel)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SetflowCard(
+              color: SetflowColors.primary.withValues(alpha: .14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    recommendation.template.name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '${PerformanceEngine.formatWeight(recommendation.startingWeight)}$unit · '
+                    '${recommendation.minReps}–${recommendation.maxReps}회 · '
+                    '${recommendation.sets}세트 · 휴식 ${recommendation.restSeconds}초',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    recommendation.reason,
+                    style: const TextStyle(
+                      height: 1.45,
+                      color: SetflowColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '근거 적용 · 우선 운동의 근력 향상, 다중 세트, 전신 균형에 관한 저항운동 권고를 규칙으로 반영했습니다.',
+              style: TextStyle(
+                fontSize: 10,
+                height: 1.4,
+                color: SetflowColors.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('나중에'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pop(context, true),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('추천 운동 추가'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -555,6 +1168,96 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   }
 }
 
+class _NextSessionCard extends StatelessWidget {
+  const _NextSessionCard({
+    required this.recommendation,
+    required this.unit,
+    required this.hasGoal,
+    required this.onApply,
+  });
+
+  final WorkoutRecommendation recommendation;
+  final String unit;
+  final bool hasGoal;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return SetflowCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.track_changes_rounded,
+                size: 18,
+                color: SetflowColors.orange,
+              ),
+              const SizedBox(width: 7),
+              const Text(
+                'NEXT SESSION',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: SetflowColors.secondaryText,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .6,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                hasGoal ? recommendation.goal.label : '목표 설정 필요',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: SetflowColors.teal,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            recommendation.template.name,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hasGoal
+                ? '${PerformanceEngine.formatWeight(recommendation.weight)}$unit · '
+                      '${recommendation.minReps}–${recommendation.maxReps}회 · '
+                      '${recommendation.sets}세트'
+                : '목표를 설정하면 추천 세트를 계산해요',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hasGoal
+                ? '${recommendation.reason} · '
+                      '${recommendation.progressionCondition(unit)}'
+                : '추천 세트 적용을 누르면 목표 작성 화면으로 안내합니다.',
+            style: const TextStyle(
+              fontSize: 11,
+              height: 1.4,
+              color: SetflowColors.secondaryText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onApply,
+              icon: const Icon(Icons.playlist_add_check_rounded, size: 18),
+              label: const Text('추천 세트 적용'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PersistenceNotice extends StatelessWidget {
   const _PersistenceNotice({required this.onRetry});
 
@@ -592,9 +1295,9 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final exercise = widget.exercise;
-    final best = exercise.sets.fold<double>(
-      0,
-      (value, set) => set.weight > value ? set.weight : value,
+    final previous = state.performanceFor(
+      exercise.template,
+      before: state.dateOnly(widget.date),
     );
     return Scaffold(
       appBar: AppBar(
@@ -627,7 +1330,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        '이전 최고 기록',
+                        'PERFORMANCE',
                         style: TextStyle(
                           fontSize: 11,
                           color: SetflowColors.secondaryText,
@@ -636,22 +1339,45 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${best.toStringAsFixed(0)} ${state.weightUnit} × 10회',
+                        previous == null
+                            ? '첫 기록을 시작해보세요'
+                            : '예상 1RM '
+                                  '${previous.currentE1rm.toStringAsFixed(1)} '
+                                  '${state.weightUnit}',
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
+                      const SizedBox(height: 3),
+                      Text(
+                        previous == null
+                            ? '완료한 세트부터 PR과 추천 중량을 계산해요.'
+                            : '최근 최고 '
+                                  '${PerformanceEngine.formatWeight(previous.latestSessionBest.set.weight)}'
+                                  '${state.weightUnit} × '
+                                  '${previous.latestSessionBest.set.reps}회 · '
+                                  '추정 품질 ${previous.quality.label}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: SetflowColors.secondaryText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const Text(
-                  '+5.0kg',
-                  style: TextStyle(
-                    color: SetflowColors.green,
-                    fontWeight: FontWeight.w900,
+                if (previous?.changeFromPrevious case final change?)
+                  Text(
+                    '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}'
+                    '${state.weightUnit}',
+                    style: TextStyle(
+                      color: change >= 0
+                          ? SetflowColors.green
+                          : SetflowColors.orange,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -807,11 +1533,22 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                 borderRadius: BorderRadius.circular(7),
                               ),
                               onChanged: (_) {
+                                final prs = set.completed
+                                    ? <PerformancePrType>{}
+                                    : state.prTypesForCandidate(
+                                        exercise.template,
+                                        set,
+                                      );
                                 state.toggleSet(set);
                                 if (set.completed) {
+                                  final labels = prs
+                                      .map((type) => type.label)
+                                      .join(' · ');
                                   AppSnackbar.success(
                                     context,
-                                    '${set.number}세트를 저장했어요.',
+                                    labels.isEmpty
+                                        ? '${set.number}세트를 저장했어요.'
+                                        : '🏆 $labels을 달성했어요!',
                                   );
                                 }
                               },
@@ -820,33 +1557,54 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const SizedBox(width: 36),
-                          for (final type in ['일반', '웜업', '드랍', '실패'])
-                            Padding(
-                              padding: const EdgeInsets.only(right: 5),
-                              child: ChoiceChip(
-                                label: Text(
-                                  type,
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                                selected: set.type == type,
-                                visualDensity: VisualDensity.compact,
-                                onSelected: (_) =>
-                                    state.updateSet(set, type: type),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 36),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 5,
+                                runSpacing: 4,
+                                children: [
+                                  for (final type in ['일반', '웜업', '드랍', '실패'])
+                                    ChoiceChip(
+                                      label: Text(
+                                        type,
+                                        style: const TextStyle(fontSize: 10),
+                                      ),
+                                      selected: set.type == type,
+                                      visualDensity: VisualDensity.compact,
+                                      onSelected: (_) =>
+                                          state.updateSet(set, type: type),
+                                    ),
+                                ],
                               ),
                             ),
-                          const Spacer(),
-                          Text(
-                            '1RM ${(set.weight * (1 + set.reps / 30)).toStringAsFixed(1)}',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: SetflowColors.secondaryText,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            if (PerformanceEngine.estimate(set.weight, set.reps)
+                                case final estimate?)
+                              Text(
+                                'e1RM ${estimate.value.toStringAsFixed(1)} · '
+                                '${estimate.quality.label}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: SetflowColors.secondaryText,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              )
+                            else
+                              const Text(
+                                'e1RM 계산 제외',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: SetflowColors.secondaryText,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

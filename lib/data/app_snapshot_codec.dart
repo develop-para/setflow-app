@@ -6,16 +6,25 @@ import '../models.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 3;
+  static const schemaVersion = 5;
 
-  static String encode(AppSnapshot snapshot) {
-    return jsonEncode({
+  static String encode(AppSnapshot snapshot) => jsonEncode(toJson(snapshot));
+
+  static Map<String, dynamic> toJson(AppSnapshot snapshot) {
+    return {
       'schemaVersion': schemaVersion,
       'preferences': {
         'role': snapshot.role.name,
         'isDarkMode': snapshot.isDarkMode,
         'weightUnit': snapshot.weightUnit,
         'restDefaultSeconds': snapshot.restDefaultSeconds,
+      },
+      'profile': {
+        'goals': snapshot.goals,
+        'heightCm': snapshot.heightCm,
+        'weight': snapshot.weight,
+        'age': snapshot.age,
+        'gender': snapshot.gender,
       },
       'sessions': snapshot.sessions.values.map(_sessionToJson).toList(),
       'routines': snapshot.routines.map(_routineToJson).toList(),
@@ -24,8 +33,13 @@ abstract final class AppSnapshotCodec {
       'businessDashboards': snapshot.businessDashboards.values
           .map(_businessDashboardToJson)
           .toList(),
-    });
+    };
   }
+
+  static AppSnapshot? fromJson(
+    Map<String, dynamic> json,
+    List<ExerciseTemplate> exerciseCatalog,
+  ) => decode(jsonEncode(json), exerciseCatalog);
 
   static AppSnapshot? decode(
     String source,
@@ -34,10 +48,11 @@ abstract final class AppSnapshotCodec {
     try {
       final root = jsonDecode(source) as Map<String, dynamic>;
       final version = (root['schemaVersion'] as num?)?.toInt();
-      if (version != 1 && version != 2 && version != schemaVersion) {
+      if (version == null || version < 1 || version > schemaVersion) {
         return null;
       }
       final preferences = root['preferences'] as Map<String, dynamic>? ?? {};
+      final profile = root['profile'] as Map<String, dynamic>? ?? {};
       final templates = {
         for (final exercise in exerciseCatalog) exercise.id: exercise,
       };
@@ -89,6 +104,13 @@ abstract final class AppSnapshotCodec {
             (preferences['restDefaultSeconds'] as num?)?.toInt() ?? 90,
         sessions: sessions,
         routines: routines,
+        goals: (profile['goals'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList(),
+        heightCm: (profile['heightCm'] as num?)?.toDouble(),
+        weight: (profile['weight'] as num?)?.toDouble(),
+        age: (profile['age'] as num?)?.toInt(),
+        gender: profile['gender'] as String?,
         communityPosts: posts,
         consultations: consultations,
         businessDashboards: businessDashboards,
@@ -139,6 +161,7 @@ abstract final class AppSnapshotCodec {
               'reps': set.reps,
               'completed': set.completed,
               'type': set.type,
+              'restSeconds': set.restSeconds,
             },
           )
           .toList(),
@@ -161,6 +184,7 @@ abstract final class AppSnapshotCodec {
           reps: (set['reps'] as num?)?.toInt() ?? 0,
           completed: set['completed'] as bool? ?? false,
           type: set['type'] as String? ?? '일반',
+          restSeconds: (set['restSeconds'] as num?)?.toInt() ?? 90,
         ),
       );
     }

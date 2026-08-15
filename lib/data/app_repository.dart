@@ -8,6 +8,11 @@ class AppSnapshot {
     required this.restDefaultSeconds,
     required this.sessions,
     required this.routines,
+    this.goals = const [],
+    this.heightCm,
+    this.weight,
+    this.age,
+    this.gender,
     this.communityPosts = const [],
     this.consultations = const [],
     this.businessDashboards = const {},
@@ -19,6 +24,11 @@ class AppSnapshot {
   final int restDefaultSeconds;
   final Map<DateTime, WorkoutSession> sessions;
   final List<RoutineData> routines;
+  final List<String> goals;
+  final double? heightCm;
+  final double? weight;
+  final int? age;
+  final String? gender;
   final List<CommunityPost> communityPosts;
   final List<ConsultationData> consultations;
   final Map<UserRole, BusinessDashboardData> businessDashboards;

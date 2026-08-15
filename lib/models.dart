@@ -23,6 +23,7 @@ class WorkoutSetEntry {
     required this.reps,
     this.completed = false,
     this.type = '일반',
+    this.restSeconds = 90,
   });
 
   int number;
@@ -30,6 +31,7 @@ class WorkoutSetEntry {
   int reps;
   bool completed;
   String type;
+  int restSeconds;
 
   double get volume => completed ? weight * reps : 0;
 
@@ -39,6 +41,7 @@ class WorkoutSetEntry {
     reps: reps,
     completed: false,
     type: type,
+    restSeconds: restSeconds,
   );
 }
 

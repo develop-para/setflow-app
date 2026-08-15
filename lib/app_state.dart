@@ -4,14 +4,18 @@ import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
 import 'models.dart';
-import 'services/custom_auth_service.dart';
+import 'services/exercise_recommendation_engine.dart';
+import 'services/performance_engine.dart';
+import 'services/supabase_auth_service.dart';
 
 export 'models.dart';
+export 'services/exercise_recommendation_engine.dart';
+export 'services/performance_engine.dart';
 
 class AppState extends ChangeNotifier {
   AppState({AppRepository? repository})
     : _repository = repository ?? MemoryAppRepository() {
-    _seedSessions();
+    _seedStarterRoutines();
     _seedSocial();
     _seedBusinessDashboards();
   }
@@ -27,6 +31,12 @@ class AppState extends ChangeNotifier {
   bool isDarkMode = false;
   String weightUnit = 'kg';
   int restDefaultSeconds = 90;
+  List<String> goals = [];
+  bool get hasTrainingGoal => goals.isNotEmpty;
+  double? heightCm;
+  double? weight;
+  int? age;
+  String? gender;
   int restRemaining = 0;
   Timer? _restTimer;
 
@@ -104,29 +114,7 @@ class AppState extends ChangeNotifier {
     try {
       final snapshot = await _repository.load(exercises);
       if (snapshot != null) {
-        role = snapshot.role;
-        isDarkMode = snapshot.isDarkMode;
-        weightUnit = snapshot.weightUnit;
-        restDefaultSeconds = snapshot.restDefaultSeconds;
-        sessions
-          ..clear()
-          ..addAll(snapshot.sessions);
-        routines
-          ..clear()
-          ..addAll(snapshot.routines);
-        if (snapshot.communityPosts.isNotEmpty) {
-          communityPosts
-            ..clear()
-            ..addAll(snapshot.communityPosts);
-        }
-        if (snapshot.consultations.isNotEmpty) {
-          consultations
-            ..clear()
-            ..addAll(snapshot.consultations);
-        }
-        if (snapshot.businessDashboards.isNotEmpty) {
-          businessDashboards.addAll(snapshot.businessDashboards);
-        }
+        _applySnapshot(snapshot);
       }
       _initialized = true;
       persistenceError = null;
@@ -175,9 +163,40 @@ class AppState extends ChangeNotifier {
   }
 
   void logout() {
-    unawaited(CustomAuthService.instance.signOut());
-    role = UserRole.guest;
+    _persistTimer?.cancel();
+    unawaited(SupabaseAuthService.instance.signOut());
+    _resetForSignedOutUser();
     cancelRestTimer();
+    notifyListeners();
+  }
+
+  Future<void> syncAfterAuthentication() async {
+    _persistTimer?.cancel();
+    try {
+      final snapshot = await _repository.load(exercises);
+      if (snapshot != null) _applySnapshot(snapshot);
+      persistenceError = null;
+      if (snapshot == null) _schedulePersist();
+    } catch (error) {
+      persistenceError = error;
+      rethrow;
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  void setMemberProfile({
+    required Iterable<String> goals,
+    double? heightCm,
+    double? weight,
+    int? age,
+    String? gender,
+  }) {
+    this.goals = List.unmodifiable(goals);
+    this.heightCm = heightCm;
+    this.weight = weight;
+    this.age = age;
+    this.gender = gender;
     _schedulePersist();
     notifyListeners();
   }
@@ -210,6 +229,56 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  ExercisePerformanceSummary? performanceFor(
+    ExerciseTemplate template, {
+    DateTime? before,
+  }) {
+    return PerformanceEngine.summarize(
+      sessions: sessions.values,
+      template: template,
+      before: before,
+    );
+  }
+
+  ExercisePerformanceSummary? get featuredPerformance {
+    ExercisePerformanceSummary? featured;
+    for (final template in exercises) {
+      final summary = performanceFor(template);
+      if (summary == null) continue;
+      if (featured == null ||
+          summary.latestSessionBest.date.isAfter(
+            featured.latestSessionBest.date,
+          )) {
+        featured = summary;
+      }
+    }
+    return featured;
+  }
+
+  WorkoutRecommendation? recommendationFor(ExerciseTemplate template) {
+    return PerformanceEngine.recommend(
+      sessions: sessions.values,
+      template: template,
+      goal: PerformanceEngine.goalFromProfile(goals),
+    );
+  }
+
+  WorkoutRecommendation? get featuredRecommendation {
+    final featured = featuredPerformance;
+    return featured == null ? null : recommendationFor(featured.template);
+  }
+
+  Set<PerformancePrType> prTypesForCandidate(
+    ExerciseTemplate template,
+    WorkoutSetEntry candidate,
+  ) {
+    return PerformanceEngine.prTypesForCandidate(
+      sessions: sessions.values,
+      templateId: template.id,
+      candidate: candidate,
+    );
+  }
+
   void addExercise(DateTime date, ExerciseTemplate template) {
     final session = sessionFor(date);
     if (session.exercises.any((item) => item.template.id == template.id)) {
@@ -220,9 +289,24 @@ class AppState extends ChangeNotifier {
         id: '${template.id}_${DateTime.now().microsecondsSinceEpoch}',
         template: template,
         sets: [
-          WorkoutSetEntry(number: 1, weight: 40, reps: 10),
-          WorkoutSetEntry(number: 2, weight: 40, reps: 10),
-          WorkoutSetEntry(number: 3, weight: 40, reps: 8),
+          WorkoutSetEntry(
+            number: 1,
+            weight: 40,
+            reps: 10,
+            restSeconds: restDefaultSeconds,
+          ),
+          WorkoutSetEntry(
+            number: 2,
+            weight: 40,
+            reps: 10,
+            restSeconds: restDefaultSeconds,
+          ),
+          WorkoutSetEntry(
+            number: 3,
+            weight: 40,
+            reps: 8,
+            restSeconds: restDefaultSeconds,
+          ),
         ],
       ),
     );
@@ -237,6 +321,7 @@ class AppState extends ChangeNotifier {
         number: exercise.sets.length + 1,
         weight: previous?.weight ?? 20,
         reps: previous?.reps ?? 10,
+        restSeconds: previous?.restSeconds ?? restDefaultSeconds,
       ),
     );
     _schedulePersist();
@@ -270,31 +355,56 @@ class AppState extends ChangeNotifier {
     double? weight,
     int? reps,
     String? type,
+    int? restSeconds,
   }) {
     if (weight != null) set.weight = weight.clamp(0, 999);
     if (reps != null) set.reps = reps.clamp(0, 999);
     if (type != null) set.type = type;
+    if (restSeconds != null) {
+      set.restSeconds = restSeconds.clamp(15, 600);
+    }
     _schedulePersist();
     notifyListeners();
   }
 
   void toggleSet(WorkoutSetEntry set) {
     set.completed = !set.completed;
-    if (set.completed) startRestTimer(restDefaultSeconds);
+    if (set.completed) startRestTimer(set.restSeconds);
     _schedulePersist();
     notifyListeners();
   }
 
-  void copySession(DateTime from, DateTime to) {
+  int copySession(DateTime from, DateTime to) {
     final source = sessions[dateOnly(from)];
-    if (source == null) return;
+    if (source == null || source.exercises.isEmpty) return 0;
     final target = dateOnly(to);
-    sessions[target] = WorkoutSession(
-      date: target,
-      exercises: source.exercises.map((exercise) => exercise.copy()).toList(),
-    );
+    if (target == dateOnly(from)) return 0;
+
+    final targetSession = sessions[target];
+    final existingTemplateIds =
+        targetSession?.exercises
+            .map((exercise) => exercise.template.id)
+            .toSet() ??
+        <String>{};
+    final copiedExercises = source.exercises
+        .where(
+          (exercise) => !existingTemplateIds.contains(exercise.template.id),
+        )
+        .map((exercise) => exercise.copy())
+        .toList();
+    if (copiedExercises.isEmpty) return 0;
+
+    if (targetSession == null) {
+      sessions[target] = WorkoutSession(
+        date: target,
+        exercises: copiedExercises,
+      );
+    } else {
+      targetSession.exercises.addAll(copiedExercises);
+    }
     _schedulePersist();
     notifyListeners();
+    return copiedExercises.length;
   }
 
   void deleteSession(DateTime date) {
@@ -303,10 +413,127 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void applyRoutine(RoutineData routine, DateTime date) {
-    for (final exercise in routine.exercises) {
-      addExercise(date, exercise);
+  int applyRoutine(RoutineData routine, DateTime date) {
+    final session = sessionFor(date);
+    final existingTemplateIds = session.exercises
+        .map((exercise) => exercise.template.id)
+        .toSet();
+    final additions = routine.exercises
+        .where((template) => !existingTemplateIds.contains(template.id))
+        .toList();
+    if (additions.isEmpty) return 0;
+
+    for (final template in additions) {
+      session.exercises.add(
+        WorkoutExercise(
+          id: '${template.id}_${DateTime.now().microsecondsSinceEpoch}',
+          template: template,
+          sets: [
+            WorkoutSetEntry(
+              number: 1,
+              weight: 40,
+              reps: 10,
+              restSeconds: restDefaultSeconds,
+            ),
+            WorkoutSetEntry(
+              number: 2,
+              weight: 40,
+              reps: 10,
+              restSeconds: restDefaultSeconds,
+            ),
+            WorkoutSetEntry(
+              number: 3,
+              weight: 40,
+              reps: 8,
+              restSeconds: restDefaultSeconds,
+            ),
+          ],
+        ),
+      );
     }
+    _schedulePersist();
+    notifyListeners();
+    return additions.length;
+  }
+
+  void applyRecommendation(
+    DateTime date,
+    WorkoutRecommendation recommendation,
+  ) {
+    final session = sessionFor(date);
+    var exercise = session.exercises
+        .where((item) => item.template.id == recommendation.template.id)
+        .firstOrNull;
+    if (exercise == null) {
+      exercise = WorkoutExercise(
+        id:
+            '${recommendation.template.id}_'
+            '${DateTime.now().microsecondsSinceEpoch}',
+        template: recommendation.template,
+        sets: [],
+      );
+      session.exercises.add(exercise);
+    }
+
+    final completed = exercise.sets.where((set) => set.completed).toList();
+    final plannedCount = (recommendation.sets - completed.length).clamp(
+      0,
+      recommendation.sets,
+    );
+    exercise.sets
+      ..removeWhere((set) => !set.completed)
+      ..addAll(
+        List.generate(
+          plannedCount,
+          (index) => WorkoutSetEntry(
+            number: completed.length + index + 1,
+            weight: recommendation.weight,
+            reps: recommendation.minReps,
+            restSeconds: restDefaultSeconds,
+          ),
+        ),
+      );
+    for (var index = 0; index < exercise.sets.length; index++) {
+      exercise.sets[index].number = index + 1;
+    }
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  bool addRecommendedExercise(
+    DateTime date,
+    NextExerciseRecommendation recommendation,
+  ) {
+    final session = sessionFor(date);
+    if (session.exercises.any(
+      (exercise) => exercise.template.id == recommendation.template.id,
+    )) {
+      return false;
+    }
+    final historyRecommendation = recommendationFor(recommendation.template);
+    final weight =
+        historyRecommendation?.weight ?? recommendation.startingWeight;
+    final reps = historyRecommendation?.minReps ?? recommendation.minReps;
+    session.exercises.add(
+      WorkoutExercise(
+        id:
+            '${recommendation.template.id}_recommended_'
+            '${DateTime.now().microsecondsSinceEpoch}',
+        template: recommendation.template,
+        sets: List.generate(
+          recommendation.sets,
+          (index) => WorkoutSetEntry(
+            number: index + 1,
+            weight: weight,
+            reps: reps,
+            restSeconds: recommendation.restSeconds,
+          ),
+        ),
+      ),
+    );
+    _schedulePersist();
+    notifyListeners();
+    return true;
   }
 
   RoutineImportResult importRoutine(RoutineData routine) {
@@ -330,6 +557,28 @@ class AppState extends ChangeNotifier {
         color: const Color(0xFF3B82F6),
         exercises: [exercises[0], exercises[2], exercises[4]],
       ),
+    );
+    _schedulePersist();
+    notifyListeners();
+    return true;
+  }
+
+  bool updateRoutine({
+    required RoutineData routine,
+    required String name,
+    required String description,
+    required List<ExerciseTemplate> exercises,
+  }) {
+    final index = routines.indexWhere((item) => item.id == routine.id);
+    if (index < 0 || exercises.isEmpty) return false;
+    routines[index] = RoutineData(
+      id: routine.id,
+      name: name.trim(),
+      description: description.trim(),
+      color: routine.color,
+      exercises: List.of(exercises),
+      author: routine.author,
+      level: routine.level,
     );
     _schedulePersist();
     notifyListeners();
@@ -630,6 +879,11 @@ class AppState extends ChangeNotifier {
             restDefaultSeconds: restDefaultSeconds,
             sessions: sessions,
             routines: routines,
+            goals: goals,
+            heightCm: heightCm,
+            weight: weight,
+            age: age,
+            gender: gender,
             communityPosts: communityPosts,
             consultations: consultations,
             businessDashboards: businessDashboards,
@@ -664,36 +918,64 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _seedSessions() {
-    final now = DateTime.now();
-    final templates = exercises;
-    for (var day = 1; day <= 21; day++) {
-      if (day == 1 ||
-          day == 2 ||
-          day == 3 ||
-          day == 4 ||
-          day == 5 ||
-          day == 6) {
-        continue;
-      }
-      if (day % 4 == 2) continue;
-      final date = DateTime(now.year, now.month, day);
-      final lower = day % 4 == 0;
-      final exercise = WorkoutExercise(
-        id: 'seed_$day',
-        template: lower ? templates[2] : templates[0],
-        sets: List.generate(
-          lower ? 4 : 5,
-          (index) => WorkoutSetEntry(
-            number: index + 1,
-            weight: lower ? 80 : 40,
-            reps: lower ? 8 : 10,
-            completed: day % 5 != 0 || index < 2,
-          ),
-        ),
+  void _applySnapshot(AppSnapshot snapshot) {
+    role = snapshot.role;
+    isDarkMode = snapshot.isDarkMode;
+    weightUnit = snapshot.weightUnit;
+    restDefaultSeconds = snapshot.restDefaultSeconds;
+    goals = List.of(snapshot.goals);
+    heightCm = snapshot.heightCm;
+    weight = snapshot.weight;
+    age = snapshot.age;
+    gender = snapshot.gender;
+    sessions.clear();
+    for (final entry in snapshot.sessions.entries) {
+      final userExercises = entry.value.exercises
+          .where((exercise) => !exercise.id.startsWith('seed_'))
+          .toList();
+      if (userExercises.isEmpty) continue;
+      sessions[entry.key] = WorkoutSession(
+        date: entry.value.date,
+        exercises: userExercises,
       );
-      sessions[date] = WorkoutSession(date: date, exercises: [exercise]);
     }
+    routines
+      ..clear()
+      ..addAll(snapshot.routines);
+    if (snapshot.communityPosts.isNotEmpty) {
+      communityPosts
+        ..clear()
+        ..addAll(snapshot.communityPosts);
+    }
+    if (snapshot.consultations.isNotEmpty) {
+      consultations
+        ..clear()
+        ..addAll(snapshot.consultations);
+    }
+    if (snapshot.businessDashboards.isNotEmpty) {
+      businessDashboards.addAll(snapshot.businessDashboards);
+    }
+  }
+
+  void _resetForSignedOutUser() {
+    role = UserRole.guest;
+    goals = [];
+    heightCm = null;
+    weight = null;
+    age = null;
+    gender = null;
+    sessions.clear();
+    routines.clear();
+    communityPosts.clear();
+    consultations.clear();
+    businessDashboards.clear();
+    _seedStarterRoutines();
+    _seedSocial();
+    _seedBusinessDashboards();
+  }
+
+  void _seedStarterRoutines() {
+    final templates = exercises;
     routines.addAll([
       RoutineData(
         id: 'mine_1',

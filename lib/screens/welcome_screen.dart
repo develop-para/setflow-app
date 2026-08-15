@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app_state.dart';
-import '../services/custom_auth_service.dart';
+import '../services/supabase_auth_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import '../widgets/google_auth_button.dart';
+import 'email_auth_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -216,7 +216,7 @@ class MemberSetupScreen extends StatefulWidget {
 
 class _MemberSetupScreenState extends State<MemberSetupScreen> {
   final bodyFormKey = GlobalKey<FormState>();
-  final authService = CustomAuthService.instance;
+  final authService = SupabaseAuthService.instance;
   String unit = 'kg';
   int step = 0;
   final goals = <String>{};
@@ -225,26 +225,23 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   final ageController = TextEditingController();
   String? gender;
   bool isSubmitting = false;
-  bool googleReady = false;
-  bool googleExchangeInProgress = false;
+  bool awaitingOAuth = false;
   String? submitError;
-  StreamSubscription<GoogleSignInAccount>? googleSubscription;
+  StreamSubscription<AuthState>? authSubscription;
 
   @override
   void initState() {
     super.initState();
-    googleSubscription = authService.googleAccounts.listen(
-      _completeGoogleSignIn,
-      onError: (Object error, StackTrace stackTrace) {
-        _handleGoogleError(error);
-      },
-    );
-    unawaited(_initializeGoogle());
+    authSubscription = authService.authChanges.listen((state) {
+      if (awaitingOAuth && state.event == AuthChangeEvent.signedIn) {
+        unawaited(_completeAuthentication());
+      }
+    });
   }
 
   @override
   void dispose() {
-    unawaited(googleSubscription?.cancel());
+    unawaited(authSubscription?.cancel());
     heightController.dispose();
     weightController.dispose();
     ageController.dispose();
@@ -623,43 +620,65 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             const SizedBox(height: SetflowSpacing.lg),
           ],
           AppButton(
-            label: '카카오',
-            onPressed: () => _showComingSoon('카카오'),
+            label: '이메일로 회원가입 · 로그인',
+            icon: Icons.mail_outline_rounded,
+            onPressed: isSubmitting ? null : _openEmailAuth,
             isLoading: isSubmitting,
           ),
-          const SizedBox(height: 12),
-          GoogleAuthButton(
-            ready: authService.googleConfigured && googleReady,
-            onPressed: _startGoogleSignIn,
-            isLoading: isSubmitting,
+          const SizedBox(height: SetflowSpacing.xl),
+          Row(
+            children: [
+              Expanded(child: Divider(color: Theme.of(context).dividerColor)),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
+                child: Text(
+                  'SNS 계정으로 계속',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: SetflowColors.secondaryText,
+                  ),
+                ),
+              ),
+              Expanded(child: Divider(color: Theme.of(context).dividerColor)),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.lg),
           AppButton(
-            label: 'Apple',
-            onPressed: () => _showComingSoon('Apple'),
-            variant: AppButtonVariant.outlined,
-            isLoading: isSubmitting,
-          ),
-          const SizedBox(height: 18),
-          Center(
-            child: TextButton(
-              onPressed: isSubmitting ? null : () => _showComingSoon('이메일'),
-              child: const Text('이메일'),
-            ),
-          ),
-          const SizedBox(height: 22),
-          Divider(color: Theme.of(context).dividerColor),
-          const SizedBox(height: 16),
-          const Text(
-            '우선 기기에만 저장할까요?',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: SetflowColors.secondaryText),
-          ),
-          const SizedBox(height: 12),
-          AppButton(
-            label: '가입 없이 바로 시작',
-            onPressed: isSubmitting ? null : _finish,
+            label: '카카오로 계속',
+            onPressed: isSubmitting
+                ? null
+                : () => _startSocialLogin(SocialLoginProvider.kakao),
             variant: AppButtonVariant.tonal,
+            isLoading: isSubmitting && awaitingOAuth,
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            label: 'Google로 계속',
+            onPressed: isSubmitting
+                ? null
+                : () => _startSocialLogin(SocialLoginProvider.google),
+            variant: AppButtonVariant.outlined,
+            isLoading: isSubmitting && awaitingOAuth,
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            label: authService.isConfigured(SocialLoginProvider.naver)
+                ? '네이버로 계속'
+                : '네이버 로그인 · 연동 준비',
+            onPressed: isSubmitting
+                ? null
+                : () => _startSocialLogin(SocialLoginProvider.naver),
+            variant: AppButtonVariant.outlined,
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+          const Text(
+            '가입하면 기록이 Supabase에 암호화 전송되며, 본인 계정만 접근할 수 있어요.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.45,
+              color: SetflowColors.secondaryText,
+            ),
           ),
         ],
       ),
@@ -693,100 +712,69 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
     return null;
   }
 
-  Future<void> _initializeGoogle() async {
-    if (!authService.googleConfigured) return;
-    try {
-      await authService.initializeGoogle();
-      if (mounted) setState(() => googleReady = true);
-    } catch (error) {
-      _handleGoogleError(error);
-    }
+  Future<void> _openEmailAuth() async {
+    _saveMemberProfile();
+    final authenticated = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const EmailAuthScreen()));
+    if (authenticated == true && mounted) await _completeAuthentication();
   }
 
-  Future<void> _startGoogleSignIn() async {
+  Future<void> _startSocialLogin(SocialLoginProvider provider) async {
     if (isSubmitting) return;
-    if (!authService.googleConfigured) {
-      await _showGoogleSetup();
-      return;
-    }
-    try {
-      await authService.beginGoogleSignIn();
-    } on GoogleSignInException catch (error) {
-      if (error.code == GoogleSignInExceptionCode.canceled ||
-          error.code == GoogleSignInExceptionCode.interrupted) {
-        return;
-      }
-      _handleGoogleError(error);
-    } catch (error) {
-      _handleGoogleError(error);
-    }
-  }
-
-  Future<void> _completeGoogleSignIn(GoogleSignInAccount account) async {
-    if (googleExchangeInProgress || !mounted) return;
-    googleExchangeInProgress = true;
+    _saveMemberProfile();
     setState(() {
       isSubmitting = true;
+      awaitingOAuth = true;
       submitError = null;
     });
     try {
-      await authService.signInWithGoogle(account);
-      if (!mounted) return;
-      AppSnackbar.success(context, '로그인됐어요.');
-      Navigator.of(context).pop(true);
+      final launched = await authService.signInWithSocial(provider);
+      if (!launched) {
+        throw const SupabaseAuthUiException('로그인 화면을 열지 못했어요. 다시 시도해주세요.');
+      }
     } catch (error) {
-      if (!mounted) return;
-      _handleGoogleError(error);
-    } finally {
-      googleExchangeInProgress = false;
-      if (mounted) setState(() => isSubmitting = false);
+      if (mounted) {
+        setState(() {
+          isSubmitting = false;
+          awaitingOAuth = false;
+          submitError = authService.messageFor(error);
+        });
+      }
     }
   }
 
-  void _handleGoogleError(Object error) {
-    if (!mounted) return;
-    final message = error is CustomAuthException
-        ? error.message
-        : 'Google 로그인에 실패했어요. 다시 시도해주세요.';
+  Future<void> _completeAuthentication() async {
+    if (!mounted || authService.currentUser == null) return;
     setState(() {
-      isSubmitting = false;
-      submitError = message;
+      isSubmitting = true;
+      awaitingOAuth = false;
+      submitError = null;
     });
+    try {
+      await AppScope.of(context).syncAfterAuthentication();
+      if (!mounted) return;
+      AppSnackbar.success(context, '로그인됐어요. 기록을 안전하게 동기화합니다.');
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          isSubmitting = false;
+          submitError = '로그인은 완료됐지만 기록 동기화에 실패했어요. 다시 시도해주세요.';
+        });
+      }
+    }
   }
 
-  Future<void> _showGoogleSetup() {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('설정 필요'),
-        content: const Text('Google 로그인 설정 후 사용할 수 있어요.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
+  void _saveMemberProfile() {
+    AppScope.of(context).setMemberProfile(
+      goals: goals,
+      heightCm: double.tryParse(heightController.text.trim()),
+      weight: double.tryParse(weightController.text.trim()),
+      age: int.tryParse(ageController.text.trim()),
+      gender: gender,
     );
   }
-
-  Future<void> _showComingSoon(String provider) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('준비 중'),
-        content: Text('$provider 로그인은 준비 중입니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _finish() => Navigator.of(context).pop(true);
 }
 
 class BusinessSetupScreen extends StatefulWidget {
@@ -1742,7 +1730,22 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     }
   }
 
-  void _completeBusiness(String message) {
+  Future<void> _completeBusiness(String message) async {
+    if (SupabaseAuthService.instance.currentUser == null) {
+      final authenticated = await Navigator.of(
+        context,
+      ).push<bool>(MaterialPageRoute(builder: (_) => const EmailAuthScreen()));
+      if (authenticated != true || !mounted) return;
+      try {
+        await AppScope.of(context).syncAfterAuthentication();
+      } catch (_) {
+        if (mounted) {
+          AppSnackbar.error(context, '로그인은 완료됐지만 기록 동기화에 실패했어요.');
+        }
+        return;
+      }
+    }
+    if (!mounted) return;
     if (widget.role == UserRole.gym) {
       AppScope.of(context).completeGymOnboarding(
         displayName: nameController.text.trim(),

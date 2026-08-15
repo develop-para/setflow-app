@@ -1,25 +1,42 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_state.dart';
 import 'data/app_repository.dart';
 import 'data/hive_app_repository.dart';
+import 'data/supabase_app_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'services/supabase_config.dart';
+import 'services/supabase_auth_service.dart';
 import 'theme.dart';
 import 'widgets/common.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  AppRepository repository;
+  await Supabase.initialize(
+    url: SupabaseConfig.projectUrl,
+    publishableKey: SupabaseConfig.publishableKey,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
+  );
+  SupabaseAuthService.instance.configure(Supabase.instance.client);
+
+  AppRepository? migrationSource;
   try {
-    repository = await HiveAppRepository.open();
+    migrationSource = await HiveAppRepository.open();
   } catch (_) {
-    repository = MemoryAppRepository();
+    migrationSource = null;
   }
+  final repository = SupabaseAppRepository(
+    Supabase.instance.client,
+    migrationSource: migrationSource,
+  );
   runApp(SetflowApp(repository: repository));
 }
 

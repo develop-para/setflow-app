@@ -21,6 +21,11 @@ void main() {
         isDarkMode: true,
         weightUnit: 'lb',
         restDefaultSeconds: 120,
+        goals: const ['근육 증가', '체력 향상'],
+        heightCm: 175.5,
+        weight: 72.4,
+        age: 29,
+        gender: 'M',
         sessions: {
           date: WorkoutSession(
             date: date,
@@ -34,6 +39,7 @@ void main() {
                     weight: 80,
                     reps: 8,
                     completed: true,
+                    restSeconds: 150,
                   ),
                 ],
               ),
@@ -117,9 +123,18 @@ void main() {
       expect(decoded.isDarkMode, isTrue);
       expect(decoded.weightUnit, 'lb');
       expect(decoded.restDefaultSeconds, 120);
+      expect(decoded.goals, ['근육 증가', '체력 향상']);
+      expect(decoded.heightCm, 175.5);
+      expect(decoded.weight, 72.4);
+      expect(decoded.age, 29);
+      expect(decoded.gender, 'M');
       expect(
         decoded.sessions[date]!.exercises.first.sets.first.completed,
         isTrue,
+      );
+      expect(
+        decoded.sessions[date]!.exercises.first.sets.first.restSeconds,
+        150,
       );
       expect(decoded.routines.single.name, '하체 루틴');
       expect(decoded.routines.single.exercises.single.id, 'squat');
@@ -175,6 +190,37 @@ void main() {
       expect(decoded, isNotNull);
       expect(decoded!.role, UserRole.trainer);
       expect(decoded.businessDashboards, isEmpty);
+    });
+
+    test('defaults legacy workout sets to a 90 second rest', () {
+      const catalog = [
+        ExerciseTemplate(
+          id: 'squat',
+          name: '스쿼트',
+          muscle: '하체',
+          icon: Icons.accessibility_new,
+        ),
+      ];
+      final decoded = AppSnapshotCodec.decode('''
+        {
+          "schemaVersion": 4,
+          "preferences": {"role": "member"},
+          "sessions": [{
+            "date": "2026-08-15T00:00:00.000",
+            "exercises": [{
+              "id": "legacy_squat",
+              "templateId": "squat",
+              "sets": [{"number": 1, "weight": 80, "reps": 8}]
+            }]
+          }],
+          "routines": []
+        }
+        ''', catalog)!;
+
+      expect(
+        decoded.sessions.values.single.exercises.single.sets.single.restSeconds,
+        90,
+      );
     });
 
     test('returns null for an unsupported schema', () {
