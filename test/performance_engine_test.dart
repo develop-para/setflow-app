@@ -172,6 +172,25 @@ void main() {
   );
 
   group('goal-based next exercise recommendation', () {
+    test('exercise catalog is broad and keeps stable unique ids', () {
+      final state = AppState();
+      final ids = state.exercises.map((exercise) => exercise.id).toSet();
+
+      expect(state.exercises.length, greaterThanOrEqualTo(70));
+      expect(ids.length, state.exercises.length);
+      expect(
+        state.exercises.map((exercise) => exercise.name),
+        containsAll([
+          '체스트 프레스 머신',
+          '시티드 케이블 로우',
+          '루마니안 데드리프트',
+          '트라이셉스 푸시다운',
+          '행잉 레그 레이즈',
+        ]),
+      );
+      state.dispose();
+    });
+
     test('muscle gain follows a related exercise without duplicates', () {
       final state = AppState();
       final benchTemplate = state.exercises.firstWhere(
@@ -214,6 +233,40 @@ void main() {
         goals: const ['근육 증가'],
       )!;
       expect(next.template.id, isNot('incline'));
+      state.dispose();
+    });
+
+    test('date recommendation advances after every completed exercise', () {
+      final state = AppState();
+      state.setMemberProfile(goals: const ['근육 증가']);
+      final date = DateTime(2026, 8, 15);
+      final bench = state.exercises.firstWhere(
+        (exercise) => exercise.id == 'bench',
+      );
+      state.addExercise(date, bench);
+      final benchExercise = state.sessions[date]!.exercises.single;
+      for (final set in benchExercise.sets) {
+        state.updateSet(set, weight: 100, reps: 10);
+        state.toggleSet(set);
+      }
+      state.cancelRestTimer();
+
+      final afterBench = state.recommendationForDate(date)!;
+      expect(afterBench.template.id, 'incline');
+      expect(afterBench.template.id, isNot(bench.id));
+      state.applyRecommendation(date, afterBench);
+
+      final whileInclinePending = state.recommendationForDate(date)!;
+      expect(whileInclinePending.template.id, 'incline');
+      final inclineExercise = state.sessions[date]!.exercises.last;
+      for (final set in inclineExercise.sets) {
+        state.toggleSet(set);
+      }
+      state.cancelRestTimer();
+
+      final afterIncline = state.recommendationForDate(date)!;
+      expect(afterIncline.template.id, 'chest_press');
+      expect(afterIncline.template.id, isNot(afterBench.template.id));
       state.dispose();
     });
 

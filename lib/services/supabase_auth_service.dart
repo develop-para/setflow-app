@@ -23,6 +23,31 @@ class SupabaseAuthService {
   }
 
   User? get currentUser => _client?.auth.currentUser;
+  bool get hasAuthenticatedUser => currentUser != null;
+
+  String get currentDisplayName {
+    final user = currentUser;
+    if (user == null) return '회원';
+    final metadata = user.userMetadata;
+    for (final value in [
+      metadata?['nickname'],
+      metadata?['name'],
+      metadata?['full_name'],
+    ]) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty) return text;
+    }
+    final emailName = user.email?.split('@').first.trim();
+    return emailName == null || emailName.isEmpty ? '회원' : emailName;
+  }
+
+  Future<bool> isVerifiedAdmin() async {
+    final client = _client;
+    if (client == null || client.auth.currentUser == null) return false;
+    final result = await client.rpc<Object?>('is_admin');
+    return result == true;
+  }
+
   Stream<AuthState> get authChanges =>
       _client?.auth.onAuthStateChange ?? const Stream<AuthState>.empty();
 

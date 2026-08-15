@@ -128,7 +128,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('웜업 세트'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(Checkbox).first);
+    final completionButton = find.byKey(
+      const ValueKey('inline-set-complete-1'),
+    );
+    expect(tester.getSize(completionButton).width, greaterThanOrEqualTo(72));
+    expect(tester.getSize(completionButton).height, greaterThanOrEqualTo(44));
+    expect(
+      tester
+          .getRect(completionButton)
+          .overlaps(tester.getRect(find.byType(TextField).at(2))),
+      isFalse,
+    );
+    await tester.tap(completionButton);
     await tester.pump();
 
     expect(exercise.sets.first.weight, 55.5);
@@ -138,6 +149,41 @@ void main() {
     expect(state.restRemaining, 120);
     expect(find.byType(ExerciseSetScreen), findsNothing);
     state.cancelRestTimer();
+    state.dispose();
+  });
+
+  testWidgets('labeled completion button stays clear of rest on 320px', (
+    tester,
+  ) async {
+    final date = DateTime(2026, 11, 1);
+    final state = AppState();
+    await state.initialize();
+    state.addExercise(date, state.exercises.first);
+
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: DailyWorkoutScreen(date: date),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final completionButton = find.byKey(
+      const ValueKey('inline-set-complete-1'),
+    );
+    final restField = find.byType(TextField).at(2);
+    expect(find.text('완료'), findsNWidgets(3));
+    expect(tester.getSize(completionButton), const Size(72, 44));
+    expect(
+      tester.getRect(completionButton).overlaps(tester.getRect(restField)),
+      isFalse,
+    );
+    expect(tester.takeException(), isNull);
     state.dispose();
   });
 
@@ -246,14 +292,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    for (var index = 0; index < 3; index++) {
-      await tester.tap(find.byType(Checkbox).at(index));
+    for (var number = 1; number <= 3; number++) {
+      await tester.tap(find.byKey(ValueKey('inline-set-complete-$number')));
       await tester.pump();
     }
     await tester.pumpAndSettle();
 
     expect(find.text('다음 운동 추천'), findsOneWidget);
-    expect(find.text('인클라인 덤벨 프레스'), findsOneWidget);
+    expect(find.text('인클라인 덤벨 프레스'), findsNWidgets(2));
     await tester.tap(find.text('추천 운동 추가'));
     await tester.pumpAndSettle();
 
@@ -328,8 +374,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('오늘의 운동 인사이트'), findsOneWidget);
-    expect(find.text('102.5kg'), findsOneWidget);
+    expect(find.text('운동 KPI'), findsOneWidget);
+    expect(find.byKey(const Key('calendar-kpi-grid')), findsOneWidget);
+    expect(find.byKey(const Key('calendar-kpi-e1rm')), findsOneWidget);
+    expect(find.byKey(const Key('calendar-kpi-change')), findsOneWidget);
+    expect(find.byKey(const Key('calendar-kpi-pr')), findsOneWidget);
+    expect(find.byKey(const Key('calendar-kpi-next')), findsOneWidget);
+    expect(find.text('바벨 벤치 프레스'), findsOneWidget);
+    expect(find.textContaining('바벨 벤치 프레스 · 102.5kg'), findsOneWidget);
     await tester.ensureVisible(find.text('오늘 운동에 적용'));
     await tester.tap(find.text('오늘 운동에 적용'));
     await tester.pumpAndSettle();
@@ -341,6 +393,47 @@ void main() {
     expect(applied.sets.map((set) => set.weight), everyElement(102.5));
     expect(find.byType(DailyWorkoutScreen), findsOneWidget);
 
+    state.dispose();
+  });
+
+  testWidgets('calendar KPI switches to a new exercise after today is done', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(432, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+    state.setMemberProfile(goals: const ['근육 증가']);
+    final today = state.dateOnly(DateTime.now());
+    state.addExercise(today, state.exercises.first);
+    final bench = state.sessions[today]!.exercises.single;
+    for (final set in bench.sets) {
+      state.updateSet(set, weight: 100, reps: 10);
+      state.toggleSet(set);
+    }
+    state.cancelRestTimer();
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: const Scaffold(body: CalendarScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('인클라인 덤벨 프레스 · 20kg'), findsOneWidget);
+    await tester.ensureVisible(find.text('오늘 운동에 적용'));
+    await tester.tap(find.text('오늘 운동에 적용'));
+    await tester.pumpAndSettle();
+
+    expect(
+      state.sessions[today]!.exercises.map((exercise) => exercise.template.id),
+      ['bench', 'incline'],
+    );
+    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
     state.dispose();
   });
 

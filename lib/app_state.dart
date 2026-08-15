@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
+import 'data/community_repository.dart';
+import 'data/exercise_catalog.dart';
+import 'data/routine_catalog_repository.dart';
 import 'models.dart';
 import 'services/exercise_recommendation_engine.dart';
 import 'services/performance_engine.dart';
@@ -13,19 +16,26 @@ export 'services/exercise_recommendation_engine.dart';
 export 'services/performance_engine.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({AppRepository? repository})
-    : _repository = repository ?? MemoryAppRepository() {
+  AppState({
+    AppRepository? repository,
+    this.routineCatalogRepository,
+    this.communityRepository,
+  }) : _repository = repository ?? MemoryAppRepository() {
+    _seedMarketRoutines();
     _seedStarterRoutines();
     _seedSocial();
     _seedBusinessDashboards();
   }
 
   final AppRepository _repository;
+  final RoutineCatalogRepository? routineCatalogRepository;
+  final CommunityRepository? communityRepository;
   Timer? _persistTimer;
   bool _initialized = false;
 
   bool get isInitialized => _initialized;
   Object? persistenceError;
+  Object? cloudSyncError;
 
   UserRole role = UserRole.guest;
   bool isDarkMode = false;
@@ -40,75 +50,20 @@ class AppState extends ChangeNotifier {
   int restRemaining = 0;
   Timer? _restTimer;
 
-  final List<ExerciseTemplate> exercises = const [
-    ExerciseTemplate(
-      id: 'bench',
-      name: '바벨 벤치 프레스',
-      muscle: '가슴',
-      icon: Icons.fitness_center,
-    ),
-    ExerciseTemplate(
-      id: 'incline',
-      name: '인클라인 덤벨 프레스',
-      muscle: '가슴',
-      icon: Icons.sports_gymnastics,
-    ),
-    ExerciseTemplate(
-      id: 'squat',
-      name: '스쿼트',
-      muscle: '하체',
-      icon: Icons.accessibility_new,
-    ),
-    ExerciseTemplate(
-      id: 'legpress',
-      name: '레그 프레스',
-      muscle: '하체',
-      icon: Icons.airline_seat_recline_extra,
-    ),
-    ExerciseTemplate(
-      id: 'latpull',
-      name: '렛 풀 다운',
-      muscle: '등',
-      icon: Icons.vertical_align_bottom,
-    ),
-    ExerciseTemplate(id: 'row', name: '바벨 로우', muscle: '등', icon: Icons.rowing),
-    ExerciseTemplate(
-      id: 'ohp',
-      name: '오버헤드 프레스',
-      muscle: '어깨',
-      icon: Icons.upload,
-    ),
-    ExerciseTemplate(
-      id: 'lateral',
-      name: '사이드 레터럴 레이즈',
-      muscle: '어깨',
-      icon: Icons.open_with,
-    ),
-    ExerciseTemplate(
-      id: 'curl',
-      name: '덤벨 컬',
-      muscle: '팔',
-      icon: Icons.fitness_center,
-    ),
-    ExerciseTemplate(
-      id: 'plank',
-      name: '플랭크',
-      muscle: '복근',
-      icon: Icons.timer_outlined,
-    ),
-    ExerciseTemplate(
-      id: 'run',
-      name: '트레드밀 러닝',
-      muscle: '유산소',
-      icon: Icons.directions_run,
-    ),
-  ];
+  final List<ExerciseTemplate> exercises = exerciseCatalog;
 
   final Map<DateTime, WorkoutSession> sessions = {};
   final List<RoutineData> routines = [];
+  final List<RoutineData> _marketRoutines = [];
   final List<CommunityPost> communityPosts = [];
   final List<ConsultationData> consultations = [];
   final Map<UserRole, BusinessDashboardData> businessDashboards = {};
+
+  bool _verifiedAdmin = false;
+  bool hasPaidPlan = false;
+
+  bool get isAdmin => _verifiedAdmin;
+  List<RoutineData> get marketRoutines => List.unmodifiable(_marketRoutines);
 
   Future<void> initialize() async {
     try {
@@ -119,6 +74,12 @@ class AppState extends ChangeNotifier {
       _initialized = true;
       persistenceError = null;
       if (snapshot == null) _schedulePersist();
+      try {
+        await _refreshCloudData();
+        cloudSyncError = null;
+      } catch (error) {
+        cloudSyncError = error;
+      }
     } catch (error) {
       _initialized = true;
       persistenceError = error;
@@ -126,37 +87,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<RoutineData> get marketRoutines => [
-    RoutineData(
-      id: 'market_1',
-      name: '초보자 4주 근력 스타트',
-      description: '무리 없이 기초 근력을 만드는 주 3회 프로그램',
-      color: const Color(0xFF10CEBD),
-      exercises: [exercises[0], exercises[2], exercises[4]],
-      author: '김코치 · 인증 트레이너',
-      level: '초급',
-    ),
-    RoutineData(
-      id: 'market_2',
-      name: '등 라인 집중 루틴',
-      description: '당기는 힘과 선명한 등 라인을 함께 만드는 루틴',
-      color: const Color(0xFF8B5CF6),
-      exercises: [exercises[4], exercises[5], exercises[8]],
-      author: '모션짐 · 사업자 인증',
-      level: '중급',
-    ),
-    RoutineData(
-      id: 'market_3',
-      name: '퇴근 후 35분 전신',
-      description: '짧은 시간 안에 전신 볼륨을 채우는 고효율 구성',
-      color: const Color(0xFFFFB20C),
-      exercises: [exercises[2], exercises[0], exercises[6]],
-      author: '박트레이너 · 인증 트레이너',
-      level: '중급',
-    ),
-  ];
-
   void chooseRole(UserRole value) {
+    if (value == UserRole.admin && !_verifiedAdmin) return;
     role = value;
     _schedulePersist();
     notifyListeners();
@@ -175,7 +107,9 @@ class AppState extends ChangeNotifier {
     try {
       final snapshot = await _repository.load(exercises);
       if (snapshot != null) _applySnapshot(snapshot);
+      await _refreshCloudData();
       persistenceError = null;
+      cloudSyncError = null;
       if (snapshot == null) _schedulePersist();
     } catch (error) {
       persistenceError = error;
@@ -263,9 +197,110 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  WorkoutRecommendation? get featuredRecommendation {
+  WorkoutRecommendation? recommendationForDate(DateTime date) {
+    final session = sessions[dateOnly(date)];
+    if (session != null && session.exercises.isNotEmpty) {
+      WorkoutExercise? pendingExercise;
+      for (final exercise in session.exercises) {
+        if (exercise.sets.isEmpty ||
+            exercise.sets.any((set) => !set.completed)) {
+          pendingExercise = exercise;
+          break;
+        }
+      }
+      if (pendingExercise != null) {
+        return _plannedExerciseRecommendation(pendingExercise);
+      }
+
+      WorkoutExercise? lastCompleted;
+      for (final exercise in session.exercises.reversed) {
+        if (exercise.sets.isNotEmpty &&
+            exercise.sets.every((set) => set.completed)) {
+          lastCompleted = exercise;
+          break;
+        }
+      }
+      if (lastCompleted != null && goals.isNotEmpty) {
+        final next = ExerciseRecommendationEngine.recommendNext(
+          catalog: exercises,
+          session: session,
+          completedExercise: lastCompleted,
+          goals: goals,
+        );
+        if (next != null) return _nextExerciseWorkoutRecommendation(next);
+      }
+    }
+
     final featured = featuredPerformance;
     return featured == null ? null : recommendationFor(featured.template);
+  }
+
+  WorkoutRecommendation? get featuredRecommendation {
+    return recommendationForDate(DateTime.now());
+  }
+
+  WorkoutRecommendation _plannedExerciseRecommendation(
+    WorkoutExercise exercise,
+  ) {
+    final historical = recommendationFor(exercise.template);
+    final pending = exercise.sets.where((set) => !set.completed).toList();
+    final first = pending.firstOrNull;
+    final weight =
+        first?.weight ??
+        historical?.weight ??
+        ExerciseRecommendationEngine.startingWeightFor(exercise.template);
+    final validReps = pending
+        .map((set) => set.reps)
+        .where((reps) => reps > 0)
+        .toList();
+    final minReps = validReps.isEmpty
+        ? historical?.minReps ?? 8
+        : validReps.reduce((a, b) => a < b ? a : b);
+    final maxReps = validReps.isEmpty
+        ? historical?.maxReps ?? 12
+        : validReps.reduce((a, b) => a > b ? a : b);
+    final increment = weight <= 0
+        ? 0.0
+        : weight < 20
+        ? 1.0
+        : 2.5;
+    return WorkoutRecommendation(
+      template: exercise.template,
+      goal: PerformanceEngine.goalFromProfile(goals),
+      weight: weight,
+      minReps: minReps,
+      maxReps: maxReps,
+      sets: exercise.sets.isEmpty
+          ? historical?.sets ?? 3
+          : exercise.sets.length,
+      nextWeight: historical?.nextWeight ?? weight + increment,
+      reason: '오늘 계획에서 아직 완료하지 않은 운동',
+      restSeconds:
+          first?.restSeconds ?? historical?.restSeconds ?? restDefaultSeconds,
+    );
+  }
+
+  WorkoutRecommendation _nextExerciseWorkoutRecommendation(
+    NextExerciseRecommendation next,
+  ) {
+    final historical = recommendationFor(next.template);
+    final weight = historical?.weight ?? next.startingWeight;
+    final increment = weight <= 0
+        ? 0.0
+        : weight < 20
+        ? 1.0
+        : 2.5;
+    return WorkoutRecommendation(
+      template: next.template,
+      goal: PerformanceEngine.goalFromProfile(goals),
+      weight: weight,
+      minReps: historical?.minReps ?? next.minReps,
+      maxReps: historical?.maxReps ?? next.maxReps,
+      sets: historical?.sets ?? next.sets,
+      nextWeight: historical?.nextWeight ?? weight + increment,
+      reason: next.reason,
+      restSeconds: next.restSeconds,
+    );
   }
 
   Set<PerformancePrType> prTypesForCandidate(
@@ -489,7 +524,7 @@ class AppState extends ChangeNotifier {
             number: completed.length + index + 1,
             weight: recommendation.weight,
             reps: recommendation.minReps,
-            restSeconds: restDefaultSeconds,
+            restSeconds: recommendation.restSeconds,
           ),
         ),
       );
@@ -536,11 +571,111 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
+  Future<void> _refreshCloudData() async {
+    final routineRepository = routineCatalogRepository;
+    if (routineRepository != null) {
+      final catalog = await routineRepository.listPublished();
+      _marketRoutines
+        ..clear()
+        ..addAll(catalog.map(_routineFromCatalog));
+    }
+
+    final auth = SupabaseAuthService.instance;
+    if (!auth.hasAuthenticatedUser) return;
+
+    _verifiedAdmin = await auth.isVerifiedAdmin();
+    if (_verifiedAdmin) {
+      role = UserRole.admin;
+    } else if (role == UserRole.admin) {
+      role = UserRole.member;
+    }
+
+    hasPaidPlan =
+        _verifiedAdmin ||
+        (routineRepository != null &&
+            await routineRepository.hasActivePaidPlan());
+
+    final sharedCommunityRepository = communityRepository;
+    if (sharedCommunityRepository != null) {
+      final records = await sharedCommunityRepository.fetchPosts();
+      communityPosts
+        ..clear()
+        ..addAll(records.map((record) => record.post));
+    }
+  }
+
+  RoutineData _routineFromCatalog(RoutineCatalogItem item) {
+    final templates = item.exercises
+        .map((catalogExercise) {
+          return exercises
+                  .where((exercise) => exercise.name == catalogExercise.name)
+                  .firstOrNull ??
+              ExerciseTemplate(
+                id: 'catalog_${catalogExercise.id}',
+                name: catalogExercise.name,
+                muscle: catalogExercise.targetMuscle,
+                icon: Icons.fitness_center_rounded,
+              );
+        })
+        .toList(growable: false);
+    return RoutineData(
+      id: item.id,
+      name: item.title,
+      description: item.description,
+      color: Color(_colorValue(item.colorHex)),
+      exercises: templates,
+      author: item.authorName,
+      level: item.difficulty,
+      accessTier: item.accessTier == RoutineCatalogAccessTier.paid
+          ? RoutineAccessTier.paid
+          : RoutineAccessTier.free,
+    );
+  }
+
+  static int _colorValue(String? value) {
+    var normalized = value?.trim().replaceFirst('#', '') ?? '';
+    if (normalized.length == 6) normalized = 'FF$normalized';
+    return int.tryParse(normalized, radix: 16) ?? 0xFF10CEBD;
+  }
+
+  Future<bool> updateMarketRoutineAccess(
+    RoutineData routine,
+    RoutineAccessTier accessTier,
+  ) async {
+    final repository = routineCatalogRepository;
+    if (!_verifiedAdmin || repository == null) return false;
+    await repository.updateAccessTier(
+      routine.id,
+      accessTier == RoutineAccessTier.paid
+          ? RoutineCatalogAccessTier.paid
+          : RoutineCatalogAccessTier.free,
+    );
+    final index = _marketRoutines.indexWhere((item) => item.id == routine.id);
+    if (index < 0) return false;
+    _marketRoutines[index] = RoutineData(
+      id: routine.id,
+      name: routine.name,
+      description: routine.description,
+      color: routine.color,
+      exercises: routine.exercises,
+      author: routine.author,
+      level: routine.level,
+      accessTier: accessTier,
+    );
+    notifyListeners();
+    return true;
+  }
+
   RoutineImportResult importRoutine(RoutineData routine) {
     if (routines.any((item) => item.id == routine.id)) {
       return RoutineImportResult.alreadySaved;
     }
-    if (routines.length >= 4) return RoutineImportResult.limitReached;
+    if (routine.isPaid && !hasPaidPlan && !_verifiedAdmin) {
+      return RoutineImportResult.paidPlanRequired;
+    }
+    if (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4) {
+      return RoutineImportResult.limitReached;
+    }
     routines.add(routine);
     _schedulePersist();
     notifyListeners();
@@ -548,7 +683,7 @@ class AppState extends ChangeNotifier {
   }
 
   bool createRoutine(String name, String description) {
-    if (routines.length >= 4) return false;
+    if (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4) return false;
     routines.add(
       RoutineData(
         id: 'routine_${DateTime.now().microsecondsSinceEpoch}',
@@ -579,6 +714,7 @@ class AppState extends ChangeNotifier {
       exercises: List.of(exercises),
       author: routine.author,
       level: routine.level,
+      accessTier: routine.accessTier,
     );
     _schedulePersist();
     notifyListeners();
@@ -591,44 +727,84 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addCommunityPost({
+  Future<void> addCommunityPost({
     required String content,
     required bool includeWorkout,
     required String visualKey,
-  }) {
+    CommunityPostMedia? media,
+    List<String> activeOverlays = const [],
+  }) async {
+    final metric = includeWorkout ? '오늘 운동 기록 · 12세트 · 4.2t' : '일상 기록';
+    final repository = communityRepository;
+    if (repository != null) {
+      final record = await repository.createPost(
+        CreateCommunityPostInput(
+          content: content,
+          metric: metric,
+          visualKey: visualKey,
+          media: media,
+          activeOverlays: activeOverlays,
+          routineName: includeWorkout ? '오늘 운동' : null,
+        ),
+      );
+      communityPosts.removeWhere((post) => post.id == record.post.id);
+      communityPosts.insert(0, record.post);
+      notifyListeners();
+      return;
+    }
     communityPosts.insert(
       0,
       CommunityPost(
         id: 'post_${DateTime.now().microsecondsSinceEpoch}',
-        author: '운동초보',
+        author: SupabaseAuthService.instance.currentDisplayName,
         content: content,
-        metric: includeWorkout ? '오늘 운동 기록 · 12세트 · 4.2t' : '일상 기록',
+        metric: metric,
         createdAt: DateTime.now(),
         visualKey: visualKey,
         color: const Color(0xFF10CEBD),
         isMine: true,
+        activeOverlays: activeOverlays,
       ),
     );
     _schedulePersist();
     notifyListeners();
   }
 
-  void togglePostLike(CommunityPost post) {
+  Future<void> togglePostLike(CommunityPost post) async {
+    final previousLiked = post.isLiked;
+    final previousLikes = post.likes;
     post.isLiked = !post.isLiked;
     post.likes += post.isLiked ? 1 : -1;
-    _schedulePersist();
     notifyListeners();
+    final repository = communityRepository;
+    if (repository == null) {
+      _schedulePersist();
+      return;
+    }
+    try {
+      final result = await repository.toggleLike(post.id);
+      post.isLiked = result.isLiked;
+      post.likes = result.likesCount;
+      notifyListeners();
+    } catch (_) {
+      post.isLiked = previousLiked;
+      post.likes = previousLikes;
+      notifyListeners();
+      rethrow;
+    }
   }
 
-  void addPostComment(CommunityPost post, String content) {
-    post.comments.add(
-      PostComment(
-        id: 'comment_${DateTime.now().microsecondsSinceEpoch}',
-        author: '운동초보',
-        content: content,
-        createdAt: DateTime.now(),
-      ),
-    );
+  Future<void> addPostComment(CommunityPost post, String content) async {
+    final repository = communityRepository;
+    final comment = repository != null
+        ? await repository.addComment(postId: post.id, content: content)
+        : PostComment(
+            id: 'comment_${DateTime.now().microsecondsSinceEpoch}',
+            author: SupabaseAuthService.instance.currentDisplayName,
+            content: content,
+            createdAt: DateTime.now(),
+          );
+    post.comments.add(comment);
     _schedulePersist();
     notifyListeners();
   }
@@ -884,7 +1060,9 @@ class AppState extends ChangeNotifier {
             weight: weight,
             age: age,
             gender: gender,
-            communityPosts: communityPosts,
+            communityPosts: communityRepository == null
+                ? communityPosts
+                : const [],
             consultations: consultations,
             businessDashboards: businessDashboards,
           ),
@@ -942,7 +1120,7 @@ class AppState extends ChangeNotifier {
     routines
       ..clear()
       ..addAll(snapshot.routines);
-    if (snapshot.communityPosts.isNotEmpty) {
+    if (communityRepository == null && snapshot.communityPosts.isNotEmpty) {
       communityPosts
         ..clear()
         ..addAll(snapshot.communityPosts);
@@ -958,6 +1136,9 @@ class AppState extends ChangeNotifier {
   }
 
   void _resetForSignedOutUser() {
+    _verifiedAdmin = false;
+    hasPaidPlan = false;
+    cloudSyncError = null;
     role = UserRole.guest;
     goals = [];
     heightCm = null;
@@ -972,6 +1153,39 @@ class AppState extends ChangeNotifier {
     _seedStarterRoutines();
     _seedSocial();
     _seedBusinessDashboards();
+  }
+
+  void _seedMarketRoutines() {
+    _marketRoutines.addAll([
+      RoutineData(
+        id: 'market_1',
+        name: '초보자 4주 근력 스타트',
+        description: '무리 없이 기초 근력을 만드는 주 3회 프로그램',
+        color: const Color(0xFF10CEBD),
+        exercises: [exercises[0], exercises[2], exercises[4]],
+        author: '김코치 · 인증 트레이너',
+        level: '초급',
+      ),
+      RoutineData(
+        id: 'market_2',
+        name: '등 라인 집중 루틴',
+        description: '당기는 힘과 선명한 등 라인을 함께 만드는 루틴',
+        color: const Color(0xFF8B5CF6),
+        exercises: [exercises[4], exercises[5], exercises[8]],
+        author: '모션짐 · 사업자 인증',
+        level: '중급',
+        accessTier: RoutineAccessTier.paid,
+      ),
+      RoutineData(
+        id: 'market_3',
+        name: '퇴근 후 35분 전신',
+        description: '짧은 시간 안에 전신 볼륨을 채우는 고효율 구성',
+        color: const Color(0xFFFFB20C),
+        exercises: [exercises[2], exercises[0], exercises[6]],
+        author: '박트레이너 · 인증 트레이너',
+        level: '중급',
+      ),
+    ]);
   }
 
   void _seedStarterRoutines() {

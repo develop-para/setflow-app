@@ -6,7 +6,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_state.dart';
 import 'data/app_repository.dart';
 import 'data/hive_app_repository.dart';
+import 'data/community_repository.dart';
+import 'data/routine_catalog_repository.dart';
 import 'data/supabase_app_repository.dart';
+import 'data/supabase_community_repository.dart';
+import 'data/supabase_routine_catalog_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
 import 'screens/splash_screen.dart';
@@ -37,13 +41,30 @@ Future<void> main() async {
     Supabase.instance.client,
     migrationSource: migrationSource,
   );
-  runApp(SetflowApp(repository: repository));
+  runApp(
+    SetflowApp(
+      repository: repository,
+      routineCatalogRepository: SupabaseRoutineCatalogRepository(
+        Supabase.instance.client,
+      ),
+      communityRepository: SupabaseCommunityRepository(
+        Supabase.instance.client,
+      ),
+    ),
+  );
 }
 
 class SetflowApp extends StatefulWidget {
-  const SetflowApp({this.repository, super.key});
+  const SetflowApp({
+    this.repository,
+    this.routineCatalogRepository,
+    this.communityRepository,
+    super.key,
+  });
 
   final AppRepository? repository;
+  final RoutineCatalogRepository? routineCatalogRepository;
+  final CommunityRepository? communityRepository;
 
   @override
   State<SetflowApp> createState() => _SetflowAppState();
@@ -55,7 +76,11 @@ class _SetflowAppState extends State<SetflowApp> {
   @override
   void initState() {
     super.initState();
-    state = AppState(repository: widget.repository);
+    state = AppState(
+      repository: widget.repository,
+      routineCatalogRepository: widget.routineCatalogRepository,
+      communityRepository: widget.communityRepository,
+    );
     unawaited(state.initialize());
   }
 

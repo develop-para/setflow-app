@@ -6,7 +6,7 @@ import '../models.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 5;
+  static const schemaVersion = 6;
 
   static String encode(AppSnapshot snapshot) => jsonEncode(toJson(snapshot));
 
@@ -206,6 +206,7 @@ abstract final class AppSnapshotCodec {
       'exerciseIds': routine.exercises.map((item) => item.id).toList(),
       'author': routine.author,
       'level': routine.level,
+      'accessTier': routine.accessTier.name,
     };
   }
 
@@ -228,6 +229,11 @@ abstract final class AppSnapshotCodec {
       exercises: exercises,
       author: json['author'] as String? ?? '나',
       level: json['level'] as String? ?? '중급',
+      accessTier:
+          RoutineAccessTier.values
+              .where((item) => item.name == json['accessTier'])
+              .firstOrNull ??
+          RoutineAccessTier.free,
     );
   }
 
@@ -243,6 +249,10 @@ abstract final class AppSnapshotCodec {
       'likes': post.likes,
       'isLiked': post.isLiked,
       'isMine': post.isMine,
+      'imageUrl': post.imageUrl,
+      'location': post.location,
+      'routineName': post.routineName,
+      'activeOverlays': post.activeOverlays,
       'comments': post.comments
           .map(
             (comment) => {
@@ -292,6 +302,12 @@ abstract final class AppSnapshotCodec {
       likes: (json['likes'] as num?)?.toInt() ?? 0,
       isLiked: json['isLiked'] as bool? ?? false,
       isMine: json['isMine'] as bool? ?? false,
+      imageUrl: json['imageUrl'] as String?,
+      location: json['location'] as String?,
+      routineName: json['routineName'] as String?,
+      activeOverlays: (json['activeOverlays'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .toList(),
       comments: comments,
     );
   }

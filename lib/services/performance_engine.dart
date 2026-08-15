@@ -90,6 +90,7 @@ class WorkoutRecommendation {
     required this.sets,
     required this.nextWeight,
     required this.reason,
+    this.restSeconds = 90,
   });
 
   final ExerciseTemplate template;
@@ -100,6 +101,7 @@ class WorkoutRecommendation {
   final int sets;
   final double nextWeight;
   final String reason;
+  final int restSeconds;
 
   String progressionCondition(String unit) =>
       '${List.filled(sets, maxReps).join(' / ')} 성공 → '
@@ -275,6 +277,11 @@ abstract final class PerformanceEngine {
       sets: targetSets,
       nextWeight: weight + increment,
       reason: reason,
+      restSeconds: switch (goal) {
+        TrainingGoal.strength => 180,
+        TrainingGoal.hypertrophy => 90,
+        TrainingGoal.endurance => 60,
+      },
     );
   }
 

@@ -2,6 +2,16 @@ import 'package:flutter/material.dart';
 
 enum UserRole { guest, member, trainer, gym, admin }
 
+enum RoutineAccessTier {
+  free,
+  paid;
+
+  String get label => switch (this) {
+    free => '무료',
+    paid => '유료',
+  };
+}
+
 class ExerciseTemplate {
   const ExerciseTemplate({
     required this.id,
@@ -90,6 +100,7 @@ class RoutineData {
     required this.exercises,
     this.author = '나',
     this.level = '중급',
+    this.accessTier = RoutineAccessTier.free,
   });
 
   final String id;
@@ -99,6 +110,9 @@ class RoutineData {
   final List<ExerciseTemplate> exercises;
   final String author;
   final String level;
+  final RoutineAccessTier accessTier;
+
+  bool get isPaid => accessTier == RoutineAccessTier.paid;
 }
 
 class PostComment {
@@ -127,6 +141,10 @@ class CommunityPost {
     this.likes = 0,
     this.isLiked = false,
     this.isMine = false,
+    this.imageUrl,
+    this.location,
+    this.routineName,
+    this.activeOverlays = const [],
     List<PostComment>? comments,
   }) : comments = comments ?? [];
 
@@ -140,6 +158,10 @@ class CommunityPost {
   int likes;
   bool isLiked;
   final bool isMine;
+  final String? imageUrl;
+  final String? location;
+  final String? routineName;
+  final List<String> activeOverlays;
   final List<PostComment> comments;
 
   IconData get icon => switch (visualKey) {
@@ -228,4 +250,9 @@ class BusinessDashboardData {
   DateTime lastSyncedAt;
 }
 
-enum RoutineImportResult { imported, alreadySaved, limitReached }
+enum RoutineImportResult {
+  imported,
+  alreadySaved,
+  limitReached,
+  paidPlanRequired,
+}

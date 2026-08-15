@@ -63,30 +63,38 @@ class _SplashScreenState extends State<SplashScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 96,
-                      height: 96,
+                      width: 112,
+                      height: 112,
+                      padding: const EdgeInsets.all(SetflowSpacing.sm),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        borderRadius: BorderRadius.circular(SetflowRadii.xl),
+                        color: const Color(0xFFFFFBF0),
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(color: const Color(0xFFFFE9A0)),
                         boxShadow: theme.brightness == Brightness.dark
                             ? null
                             : SetflowShadows.level2,
                       ),
-                      child: const Icon(
-                        Icons.rocket_launch_rounded,
-                        size: 48,
-                        color: Color(0xFFFF4F75),
+                      child: Image.asset(
+                        'assets/branding/setflow_mark.png',
+                        key: const ValueKey('setflow-loading-logo'),
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
                       ),
                     ),
                     const SizedBox(height: SetflowSpacing.section),
-                    Text('Setflow', style: theme.textTheme.displayLarge),
+                    Text(
+                      'Setflow',
+                      style: theme.textTheme.displayLarge?.copyWith(
+                        letterSpacing: -0.8,
+                      ),
+                    ),
                     const SizedBox(height: SetflowSpacing.section),
                     SizedBox(
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: theme.colorScheme.primary,
+                        color: SetflowColors.teal,
                       ),
                     ),
                   ],

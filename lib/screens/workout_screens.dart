@@ -13,9 +13,7 @@ class DailyWorkoutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final session = state.sessionFor(date);
-    final recommendation = session.exercises.isNotEmpty
-        ? state.recommendationFor(session.exercises.first.template)
-        : state.featuredRecommendation;
+    final recommendation = state.recommendationForDate(date);
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -102,9 +100,7 @@ class DailyWorkoutScreen extends StatelessWidget {
                 onApply: () async {
                   final hasGoals = await ensureMemberTrainingGoals(context);
                   if (!hasGoals || !context.mounted) return;
-                  final refreshed = state.recommendationFor(
-                    recommendation.template,
-                  );
+                  final refreshed = state.recommendationForDate(date);
                   if (refreshed == null) return;
                   state.applyRecommendation(date, refreshed);
                   AppSnackbar.success(
@@ -797,17 +793,11 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                 ),
               ),
               const SizedBox(width: 4),
-              Semantics(
-                label: '${widget.set.number}세트 완료',
-                child: Checkbox(
-                  value: widget.set.completed,
-                  activeColor: SetflowColors.teal,
-                  visualDensity: VisualDensity.compact,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  onChanged: (_) => widget.onToggle(),
-                ),
+              _SetCompletionButton(
+                key: ValueKey('inline-set-complete-${widget.set.number}'),
+                setNumber: widget.set.number,
+                completed: widget.set.completed,
+                onPressed: widget.onToggle,
               ),
             ],
           ),
@@ -891,6 +881,79 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     '실패' => SetflowColors.red,
     _ => SetflowColors.teal,
   };
+}
+
+class _SetCompletionButton extends StatelessWidget {
+  const _SetCompletionButton({
+    required this.setNumber,
+    required this.completed,
+    required this.onPressed,
+    super.key,
+  });
+
+  final int setNumber;
+  final bool completed;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground = completed
+        ? Colors.white
+        : theme.colorScheme.onSurfaceVariant;
+    return Semantics(
+      label: '$setNumber세트 완료',
+      button: true,
+      selected: completed,
+      child: SizedBox(
+        width: 72,
+        height: 44,
+        child: AnimatedContainer(
+          duration: SetflowMotion.micro,
+          decoration: BoxDecoration(
+            color: completed ? SetflowColors.teal : theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            border: Border.all(
+              color: completed
+                  ? SetflowColors.teal
+                  : theme.colorScheme.outlineVariant,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onPressed,
+              child: ExcludeSemantics(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      completed
+                          ? Icons.check_circle_rounded
+                          : Icons.check_circle_outline_rounded,
+                      size: 16,
+                      color: foreground,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '완료',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: foreground,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _NextExerciseRecommendationSheet extends StatelessWidget {
@@ -1205,13 +1268,18 @@ class _NextSessionCard extends StatelessWidget {
                   letterSpacing: .6,
                 ),
               ),
-              const Spacer(),
-              Text(
-                hasGoal ? recommendation.goal.label : '목표 설정 필요',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: SetflowColors.teal,
-                  fontWeight: FontWeight.w900,
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  hasGoal ? recommendation.goal.label : '목표 설정 필요',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: SetflowColors.teal,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],

@@ -53,6 +53,7 @@ void main() {
             description: '스쿼트 중심',
             color: const Color(0xFF10CEBD),
             exercises: catalog,
+            accessTier: RoutineAccessTier.paid,
           ),
         ],
         communityPosts: [
@@ -65,6 +66,8 @@ void main() {
             visualKey: 'strength',
             color: const Color(0xFFFFB20C),
             likes: 3,
+            imageUrl: 'https://example.com/workout.jpg',
+            activeOverlays: const ['날짜', '완료 루틴'],
             comments: [
               PostComment(
                 id: 'comment_1',
@@ -138,7 +141,13 @@ void main() {
       );
       expect(decoded.routines.single.name, '하체 루틴');
       expect(decoded.routines.single.exercises.single.id, 'squat');
+      expect(decoded.routines.single.accessTier, RoutineAccessTier.paid);
       expect(decoded.communityPosts.single.likes, 3);
+      expect(
+        decoded.communityPosts.single.imageUrl,
+        'https://example.com/workout.jpg',
+      );
+      expect(decoded.communityPosts.single.activeOverlays, ['날짜', '완료 루틴']);
       expect(decoded.communityPosts.single.comments.single.content, '좋아요');
       expect(decoded.consultations.single.status, ConsultationStatus.answered);
       expect(decoded.consultations.single.response, contains('큰 근육'));
@@ -241,6 +250,11 @@ void main() {
     state.setWeightUnit('lb');
     state.setRestDefaultSeconds(120);
     state.createRoutine('저장 테스트', '앱 재시작 후에도 유지');
+    final workoutDate = DateTime(2026, 8, 15);
+    state.addExercise(
+      workoutDate,
+      state.exercises.firstWhere((exercise) => exercise.id == 'cable_fly'),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 350));
 
     final restored = AppState(repository: repository);
@@ -251,6 +265,10 @@ void main() {
     expect(restored.weightUnit, 'lb');
     expect(restored.restDefaultSeconds, 120);
     expect(restored.routines.any((item) => item.name == '저장 테스트'), isTrue);
+    expect(
+      restored.sessions[workoutDate]!.exercises.single.template.id,
+      'cable_fly',
+    );
 
     state.dispose();
     restored.dispose();

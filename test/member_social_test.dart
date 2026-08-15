@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
+import 'package:setflow/data/community_repository.dart';
 import 'package:setflow/screens/member_social_detail_screens.dart';
 import 'package:setflow/screens/member_screens.dart';
+import 'package:setflow/services/post_media_picker.dart';
 import 'package:setflow/theme.dart';
 
 void main() {
@@ -42,6 +46,24 @@ void main() {
     expect(state.communityPosts.first.isMine, isTrue);
   });
 
+  testWidgets('post composer opens both camera and gallery pickers', (
+    tester,
+  ) async {
+    final picker = _FakePostMediaPicker();
+    await pumpScreen(tester, SocialPostComposerScreen(mediaPicker: picker));
+
+    await tester.tap(find.text('촬영'));
+    await tester.pumpAndSettle();
+    expect(picker.sources, [PostMediaSource.camera]);
+    expect(find.byType(Image), findsOneWidget);
+
+    await tester.tap(find.text('사진 변경'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('갤러리에서 선택'));
+    await tester.pumpAndSettle();
+    expect(picker.sources, [PostMediaSource.camera, PostMediaSource.gallery]);
+  });
+
   testWidgets('post detail adds a comment and toggles like', (tester) async {
     final state = AppState();
     await state.initialize();
@@ -70,6 +92,32 @@ void main() {
     await tester.tap(find.byTooltip('댓글 등록'));
     await tester.pumpAndSettle();
     expect(post.comments, hasLength(initialComments + 1));
+  });
+
+  test('community post sends selected photo to the shared repository', () async {
+    final repository = _FakeCommunityRepository();
+    final state = AppState(communityRepository: repository);
+    await state.initialize();
+    addTearDown(state.dispose);
+    final media = CommunityPostMedia(
+      bytes: base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      ),
+      fileName: 'workout.png',
+      contentType: 'image/png',
+    );
+
+    await state.addCommunityPost(
+      content: '사진 운동 기록',
+      includeWorkout: true,
+      visualKey: 'strength',
+      media: media,
+      activeOverlays: const ['날짜'],
+    );
+
+    expect(repository.lastInput?.media, same(media));
+    expect(repository.lastInput?.activeOverlays, ['날짜']);
+    expect(state.communityPosts.first.imageUrl, contains('workout.png'));
   });
 
   testWidgets('consultation form validates and creates a waiting request', (
@@ -144,7 +192,7 @@ void main() {
     expect(find.text('코칭 중'), findsOneWidget);
   });
 
-  test('routine import reports duplicate and free plan limit', () async {
+  test('routine import enforces paid access and the free plan limit', () async {
     final state = AppState();
     await state.initialize();
 
@@ -158,14 +206,90 @@ void main() {
     );
     expect(
       state.importRoutine(state.marketRoutines[1]),
-      RoutineImportResult.imported,
+      RoutineImportResult.paidPlanRequired,
     );
     expect(
       state.importRoutine(state.marketRoutines[2]),
+      RoutineImportResult.imported,
+    );
+    expect(
+      state.importRoutine(
+        RoutineData(
+          id: 'extra_free',
+          name: '추가 무료 루틴',
+          description: '무료 플랜 한도 확인',
+          color: Colors.blue,
+          exercises: [state.exercises.first],
+        ),
+      ),
       RoutineImportResult.limitReached,
     );
 
     await Future<void>.delayed(const Duration(milliseconds: 350));
     state.dispose();
   });
+}
+
+class _FakePostMediaPicker implements PostMediaPicker {
+  final List<PostMediaSource> sources = [];
+
+  @override
+  Future<CommunityPostMedia?> pick(PostMediaSource source) async {
+    sources.add(source);
+    return CommunityPostMedia(
+      bytes: base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      ),
+      fileName: 'workout.png',
+      contentType: 'image/png',
+    );
+  }
+
+  @override
+  Future<CommunityPostMedia?> recoverLostImage() async => null;
+}
+
+class _FakeCommunityRepository implements CommunityRepository {
+  CreateCommunityPostInput? lastInput;
+
+  @override
+  Future<PostComment> addComment({
+    required String postId,
+    required String content,
+  }) async => PostComment(
+    id: 'comment',
+    author: '테스터',
+    content: content,
+    createdAt: DateTime(2026),
+  );
+
+  @override
+  Future<CommunityPostRecord> createPost(CreateCommunityPostInput input) async {
+    lastInput = input;
+    return CommunityPostRecord(
+      post: CommunityPost(
+        id: 'shared_post',
+        author: '테스터',
+        content: input.content,
+        metric: input.metric,
+        createdAt: DateTime(2026),
+        visualKey: input.visualKey,
+        color: const Color(0xFF10CEBD),
+        imageUrl: 'https://example.com/workout.png',
+        isMine: true,
+      ),
+      authorUserId: 'user',
+      imageUrl: 'https://example.com/workout.png',
+    );
+  }
+
+  @override
+  Future<List<CommunityPostRecord>> fetchPosts({
+    int limit = 50,
+    int offset = 0,
+  }) async => const [];
+
+  @override
+  Future<CommunityLikeResult> toggleLike(String postId) async =>
+      const CommunityLikeResult(isLiked: true, likesCount: 1);
 }

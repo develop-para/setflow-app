@@ -44,6 +44,7 @@ class _BusinessShellState extends State<BusinessShell> {
       UserRole.admin => const [
         AdminHome(),
         AdminUsersPage(),
+        RoutineManagerPage(role: UserRole.admin),
         AdminReviewPage(),
         SettlementPage(role: UserRole.admin),
       ],
@@ -143,6 +144,7 @@ Color _businessKindColor(BuildContext context, String kind) {
       nav: const [
         (Icons.dashboard_outlined, '현황'),
         (Icons.manage_accounts_outlined, '유저'),
+        (Icons.fitness_center, '루틴'),
         (Icons.fact_check_outlined, '심사'),
         (Icons.payments_outlined, '정산'),
       ],
@@ -374,14 +376,15 @@ class _BusinessHeader extends StatelessWidget {
                   state.chooseRole(UserRole.gym);
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.admin_panel_settings_outlined),
-                title: const Text('운영 관리자'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  state.chooseRole(UserRole.admin);
-                },
-              ),
+              if (state.isAdmin)
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings_outlined),
+                  title: const Text('운영 관리자'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    state.chooseRole(UserRole.admin);
+                  },
+                ),
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.logout, color: SetflowColors.red),
@@ -1881,138 +1884,316 @@ class _PeoplePageState extends State<PeoplePage> {
   }
 }
 
-class RoutineManagerPage extends StatelessWidget {
+class RoutineManagerPage extends StatefulWidget {
   const RoutineManagerPage({required this.role, super.key});
   final UserRole role;
 
   @override
+  State<RoutineManagerPage> createState() => _RoutineManagerPageState();
+}
+
+class _RoutineManagerPageState extends State<RoutineManagerPage> {
+  final Set<String> _savingRoutineIds = {};
+
+  @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final routines = [...state.marketRoutines, ...state.routines];
+    final isAdminPage = widget.role == UserRole.admin;
+    final routines = isAdminPage
+        ? state.marketRoutines
+        : [...state.marketRoutines, ...state.routines];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('루틴 관리'),
+        title: Text(isAdminPage ? '루틴 플랜 관리' : '루틴 관리'),
         actions: [
-          IconButton(
-            tooltip: '새 루틴 작성',
-            onPressed: () => _showRoutineCreate(context, role),
-            icon: const Icon(Icons.add),
-          ),
+          if (!isAdminPage)
+            IconButton(
+              tooltip: '새 루틴 작성',
+              onPressed: () => _showRoutineCreate(context, widget.role),
+              icon: const Icon(Icons.add),
+            ),
         ],
       ),
-      body: ListView(
-        padding: SetflowInsets.pageList,
-        children: [
-          const Row(
-            children: [
-              MetricCard(
-                label: '전체 조회',
-                value: '3,482',
-                icon: Icons.visibility_outlined,
-                tint: SetflowColors.blue,
-              ),
-              SizedBox(width: 8),
-              MetricCard(
-                label: '상담 전환',
-                value: '8.6',
-                suffix: '%',
-                icon: Icons.trending_up,
-                tint: SetflowColors.green,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          for (final routine in routines)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: SetflowCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+      body: isAdminPage && !state.isAdmin
+          ? const EmptyState(
+              icon: Icons.lock_outline_rounded,
+              title: '관리자 권한이 필요해요',
+              message: '루틴의 무료·유료 플랜은 승인된 관리자만 변경할 수 있어요.',
+            )
+          : ListView(
+              padding: SetflowInsets.pageList,
+              children: [
+                if (isAdminPage)
+                  SetflowCard(
+                    child: Row(
                       children: [
                         Container(
-                          width: 10,
+                          width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: routine.color,
-                            borderRadius: BorderRadius.circular(5),
+                            color: SetflowColors.primary.withValues(alpha: .14),
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.md,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.workspace_premium_outlined,
+                            color: SetflowColors.primary,
                           ),
                         ),
-                        const SizedBox(width: 11),
-                        Expanded(
+                        const SizedBox(width: SetflowSpacing.md),
+                        const Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                routine.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 16,
-                                ),
+                                '마켓 이용 플랜',
+                                style: TextStyle(fontWeight: FontWeight.w900),
                               ),
-                              const Text(
-                                '승인 · 마켓 노출 중',
+                              SizedBox(height: 3),
+                              Text(
+                                '변경한 무료·유료 설정은 회원 마켓에 바로 반영돼요.',
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  color: SetflowColors.green,
-                                  fontWeight: FontWeight.w800,
+                                  color: SetflowColors.secondaryText,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const Icon(Icons.more_vert),
                       ],
                     ),
-                    const Divider(height: 24),
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _MiniMetric(label: '조회', value: '1,284'),
-                        _MiniMetric(label: '상담', value: '42'),
-                        _MiniMetric(label: '가져가기', value: '94'),
-                        _MiniMetric(label: '랭킹', value: '#12'),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => RoutineStatsPage(routine: routine),
-                        ),
+                  )
+                else
+                  const Row(
+                    children: [
+                      MetricCard(
+                        label: '전체 조회',
+                        value: '3,482',
+                        icon: Icons.visibility_outlined,
+                        tint: SetflowColors.blue,
                       ),
-                      child: const Row(
+                      SizedBox(width: 8),
+                      MetricCard(
+                        label: '상담 전환',
+                        value: '8.6',
+                        suffix: '%',
+                        icon: Icons.trending_up,
+                        tint: SetflowColors.green,
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 20),
+                if (isAdminPage) ...[
+                  SectionTitle('마켓 루틴 ${routines.length}개'),
+                  const SizedBox(height: SetflowSpacing.sm),
+                ],
+                if (routines.isEmpty)
+                  const EmptyState(
+                    icon: Icons.fitness_center_rounded,
+                    title: '등록된 마켓 루틴이 없어요',
+                    message: '승인된 루틴이 등록되면 이곳에서 이용 플랜을 설정할 수 있어요.',
+                  ),
+                for (final routine in routines)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SetflowCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.bar_chart_rounded,
-                            size: 16,
-                            color: SetflowColors.blue,
+                          Row(
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: routine.color,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                              ),
+                              const SizedBox(width: 11),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      routine.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const Text(
+                                      '승인 · 마켓 노출 중',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: SetflowColors.green,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (!isAdminPage) const Icon(Icons.more_vert),
+                            ],
                           ),
-                          SizedBox(width: 6),
-                          Text(
-                            '통계 보기',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: SetflowColors.blue,
+                          const Divider(height: 24),
+                          if (isAdminPage)
+                            _AdminRoutineAccessEditor(
+                              routine: routine,
+                              isSaving: _savingRoutineIds.contains(routine.id),
+                              onChanged: (tier) =>
+                                  _updateAccessTier(routine, tier),
+                            )
+                          else ...[
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _MiniMetric(label: '조회', value: '1,284'),
+                                _MiniMetric(label: '상담', value: '42'),
+                                _MiniMetric(label: '가져가기', value: '94'),
+                                _MiniMetric(label: '랭킹', value: '#12'),
+                              ],
                             ),
-                          ),
-                          Spacer(),
-                          Icon(
-                            Icons.chevron_right,
-                            size: 16,
-                            color: SetflowColors.disabled,
-                          ),
+                            const SizedBox(height: 12),
+                            InkWell(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      RoutineStatsPage(routine: routine),
+                                ),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(
+                                    Icons.bar_chart_rounded,
+                                    size: 16,
+                                    color: SetflowColors.blue,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    '통계 보기',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: SetflowColors.blue,
+                                    ),
+                                  ),
+                                  Spacer(),
+                                  Icon(
+                                    Icons.chevron_right,
+                                    size: 16,
+                                    color: SetflowColors.disabled,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Future<void> _updateAccessTier(
+    RoutineData routine,
+    RoutineAccessTier tier,
+  ) async {
+    if (_savingRoutineIds.contains(routine.id) || tier == routine.accessTier) {
+      return;
+    }
+    setState(() => _savingRoutineIds.add(routine.id));
+    final state = AppScope.of(context);
+    try {
+      final updated = await state.updateMarketRoutineAccess(routine, tier);
+      if (!updated) throw StateError('Administrator access required.');
+      if (!mounted) return;
+      AppSnackbar.success(
+        context,
+        '${routine.name}을(를) ${tier.label} 루틴으로 변경했어요.',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackbar.error(context, '플랜을 변경하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => _savingRoutineIds.remove(routine.id));
+    }
+  }
+}
+
+class _AdminRoutineAccessEditor extends StatelessWidget {
+  const _AdminRoutineAccessEditor({
+    required this.routine,
+    required this.isSaving,
+    required this.onChanged,
+  });
+
+  final RoutineData routine;
+  final bool isSaving;
+  final ValueChanged<RoutineAccessTier> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '회원 이용 플랜',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
               ),
             ),
-        ],
-      ),
+            if (isSaving)
+              const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Text(
+                routine.accessTier.label,
+                style: TextStyle(
+                  color: routine.accessTier == RoutineAccessTier.paid
+                      ? SetflowColors.purple
+                      : SetflowColors.green,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.sm),
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<RoutineAccessTier>(
+            segments: [
+              for (final tier in RoutineAccessTier.values)
+                ButtonSegment(
+                  value: tier,
+                  icon: Icon(
+                    tier == RoutineAccessTier.free
+                        ? Icons.lock_open_rounded
+                        : Icons.workspace_premium_rounded,
+                  ),
+                  label: Text(tier.label),
+                ),
+            ],
+            selected: {routine.accessTier},
+            onSelectionChanged: isSaving
+                ? null
+                : (selection) => onChanged(selection.first),
+            showSelectedIcon: false,
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

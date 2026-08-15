@@ -323,22 +323,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     ),
                                   ),
                                 const SizedBox(height: 12),
-                                _PerformanceInsightCard(
+                                _CalendarKpiSection(
                                   summary: performance,
                                   recommendation: recommendation,
                                   unit: state.weightUnit,
                                   hasGoal: state.hasTrainingGoal,
                                   onViewDashboard: () =>
                                       _openDashboard(context),
-                                  onApply: recommendation == null
-                                      ? () => _handleDayTap(
-                                          context,
-                                          DateTime.now(),
-                                        )
-                                      : () => _applyRecommendation(
-                                          context,
-                                          recommendation,
-                                        ),
+                                  onApply: () =>
+                                      _handleKpiAction(context, recommendation),
                                 ),
                                 if (dragSource != null)
                                   Container(
@@ -423,15 +416,40 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final state = AppScope.of(context);
     final hasGoals = await ensureMemberTrainingGoals(context);
     if (!hasGoals || !context.mounted) return;
-    final refreshed = state.recommendationFor(recommendation.template);
-    if (refreshed == null) return;
     final today = state.dateOnly(DateTime.now());
+    final refreshed = state.recommendationForDate(today);
+    if (refreshed == null) return;
     state.applyRecommendation(today, refreshed);
     AppSnackbar.success(
       context,
       '${refreshed.template.name} 추천 세트를 오늘 운동에 적용했어요.',
     );
     _handleDayTap(context, today);
+  }
+
+  Future<void> _handleKpiAction(
+    BuildContext context,
+    WorkoutRecommendation? recommendation,
+  ) async {
+    final state = AppScope.of(context);
+    if (state.featuredPerformance == null) {
+      _handleDayTap(context, DateTime.now());
+      return;
+    }
+    if (!state.hasTrainingGoal) {
+      final hasGoals = await ensureMemberTrainingGoals(context);
+      if (!hasGoals || !context.mounted) return;
+      final refreshed = state.featuredRecommendation;
+      if (refreshed != null) {
+        await _applyRecommendation(context, refreshed);
+      }
+      return;
+    }
+    if (recommendation == null) {
+      _handleDayTap(context, DateTime.now());
+      return;
+    }
+    await _applyRecommendation(context, recommendation);
   }
 
   List<DateTime> _calendarDays(DateTime target) {
@@ -441,8 +459,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 }
 
-class _PerformanceInsightCard extends StatelessWidget {
-  const _PerformanceInsightCard({
+class _CalendarKpiSection extends StatelessWidget {
+  const _CalendarKpiSection({
     required this.summary,
     required this.recommendation,
     required this.unit,
@@ -462,40 +480,51 @@ class _PerformanceInsightCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final summary = this.summary;
     final recommendation = this.recommendation;
-    return SetflowCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final change = summary?.changeFromPrevious;
+    final changeIcon = change == null || change == 0
+        ? Icons.trending_flat_rounded
+        : change > 0
+        ? Icons.trending_up_rounded
+        : Icons.trending_down_rounded;
+    final changeColor = change == null || change == 0
+        ? SetflowColors.secondaryText
+        : change > 0
+        ? SetflowColors.green
+        : SetflowColors.red;
+    final changeValue = change == null
+        ? '—'
+        : '${change > 0 ? '+' : ''}${change.toStringAsFixed(1)}$unit';
+    final nextValue = recommendation == null
+        ? hasGoal
+              ? '—'
+              : '목표 설정'
+        : recommendation.template.name;
+
+    return Column(
+      key: const Key('calendar-kpi-section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Row(
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: SetflowColors.primary.withValues(alpha: .22),
-                  borderRadius: BorderRadius.circular(SetflowRadii.sm),
-                ),
-                child: const Icon(
-                  Icons.auto_graph_rounded,
-                  size: 19,
-                  color: SetflowColors.orange,
-                ),
-              ),
-              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '오늘의 운동 인사이트',
-                      style: TextStyle(
-                        fontSize: 15,
+                    Text(
+                      '운동 KPI',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      summary?.template.name ?? '완료한 운동 기록이 아직 없어요',
+                      summary == null
+                          ? '기록이 쌓이면 자동으로 분석해요'
+                          : '${summary.template.name} · 최근 기록 기준',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 11,
                         color: SetflowColors.secondaryText,
@@ -505,149 +534,267 @@ class _PerformanceInsightCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (summary != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: SetflowColors.teal.withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(SetflowRadii.full),
-                  ),
-                  child: Text(
-                    '추정 품질 ${summary.quality.label}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: SetflowColors.teal,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          if (summary == null || recommendation == null || !hasGoal)
-            const Text(
-              '운동 세트를 완료하고 목표를 설정하면 e1RM, PR, 다음 추천 중량을 확인할 수 있어요.',
-              style: TextStyle(
-                height: 1.5,
-                color: SetflowColors.secondaryText,
-                fontWeight: FontWeight.w700,
-              ),
-            )
-          else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _InsightMetric(
-                    label: '현재 e1RM',
-                    value: '${summary.currentE1rm.toStringAsFixed(1)}$unit',
-                    caption: summary.changeFromPrevious == null
-                        ? '${summary.sessionCount}회 기록 기준'
-                        : '직전 대비 '
-                              '${summary.changeFromPrevious! >= 0 ? '+' : ''}'
-                              '${summary.changeFromPrevious!.toStringAsFixed(1)}$unit',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _InsightMetric(
-                    label: '다음 추천',
-                    value:
-                        '${PerformanceEngine.formatWeight(recommendation.weight)}$unit',
-                    caption:
-                        '${recommendation.minReps}–${recommendation.maxReps}회 × '
-                        '${recommendation.sets}세트',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '다음 상승 조건 · ${recommendation.progressionCondition(unit)}',
-              style: const TextStyle(
-                fontSize: 11,
-                color: SetflowColors.secondaryText,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: summary == null ? null : onViewDashboard,
-                  child: const Text('기록 보기'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: onApply,
-                  child: Text(
-                    recommendation == null
-                        ? '오늘 기록하기'
-                        : hasGoal
-                        ? '오늘 운동에 적용'
-                        : '목표 설정 후 추천',
-                  ),
-                ),
+              TextButton.icon(
+                onPressed: summary == null ? null : onViewDashboard,
+                icon: const Icon(Icons.arrow_outward_rounded, size: 16),
+                label: const Text('전체 보기'),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 520 ? 4 : 2;
+            return GridView.builder(
+              key: const Key('calendar-kpi-grid'),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 4,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                mainAxisExtent: 104,
+              ),
+              itemBuilder: (context, index) => switch (index) {
+                0 => _CalendarKpiTile(
+                  key: const Key('calendar-kpi-e1rm'),
+                  label: '예상 1RM',
+                  value: summary == null
+                      ? '—'
+                      : '${summary.currentE1rm.toStringAsFixed(1)}$unit',
+                  caption: summary == null
+                      ? '완료 세트 필요'
+                      : '${summary.quality.label} 신뢰도 · ${summary.sessionCount}회',
+                  icon: Icons.speed_rounded,
+                  accent: SetflowColors.orange,
+                ),
+                1 => _CalendarKpiTile(
+                  key: const Key('calendar-kpi-change'),
+                  label: '최근 변화',
+                  value: changeValue,
+                  caption: change == null ? '비교 기록 필요' : '직전 운동 대비',
+                  icon: changeIcon,
+                  accent: changeColor,
+                  valueColor: changeColor,
+                ),
+                2 => _CalendarKpiTile(
+                  key: const Key('calendar-kpi-pr'),
+                  label: '중량 PR',
+                  value: summary == null
+                      ? '—'
+                      : '${PerformanceEngine.formatWeight(summary.weightPr.set.weight)}$unit',
+                  caption: summary == null
+                      ? '완료 세트 필요'
+                      : '${summary.weightPr.set.reps}회 성공',
+                  icon: Icons.emoji_events_outlined,
+                  accent: SetflowColors.purple,
+                ),
+                _ => _CalendarKpiTile(
+                  key: const Key('calendar-kpi-next'),
+                  label: '다음 운동',
+                  value: nextValue,
+                  caption: recommendation == null
+                      ? hasGoal
+                            ? '추천 기록 필요'
+                            : '맞춤 추천 받기'
+                      : '${PerformanceEngine.formatWeight(recommendation.weight)}$unit · '
+                            '${recommendation.minReps}–${recommendation.maxReps}회 × '
+                            '${recommendation.sets}세트',
+                  icon: Icons.flag_outlined,
+                  accent: SetflowColors.blue,
+                ),
+              },
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        _KpiActionCard(
+          summary: summary,
+          recommendation: recommendation,
+          unit: unit,
+          hasGoal: hasGoal,
+          onTap: onApply,
+        ),
+      ],
     );
   }
 }
 
-class _InsightMetric extends StatelessWidget {
-  const _InsightMetric({
+class _CalendarKpiTile extends StatelessWidget {
+  const _CalendarKpiTile({
     required this.label,
     required this.value,
     required this.caption,
+    required this.icon,
+    required this.accent,
+    this.valueColor,
+    super.key,
   });
 
   final String label;
   final String value;
   final String caption;
+  final IconData icon;
+  final Color accent;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: context.setflowColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(SetflowRadii.md),
+    final theme = Theme.of(context);
+    return Semantics(
+      container: true,
+      label: '$label $value, $caption',
+      child: Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: context.setflowColors.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(SetflowRadii.xs),
+                  ),
+                  child: Icon(icon, size: 14, color: accent),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: SetflowColors.secondaryText,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 17,
+                height: 1.1,
+                fontWeight: FontWeight.w900,
+                color: valueColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 9.5,
+                color: SetflowColors.secondaryText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+class _KpiActionCard extends StatelessWidget {
+  const _KpiActionCard({
+    required this.summary,
+    required this.recommendation,
+    required this.unit,
+    required this.hasGoal,
+    required this.onTap,
+  });
+
+  final ExercisePerformanceSummary? summary;
+  final WorkoutRecommendation? recommendation;
+  final String unit;
+  final bool hasGoal;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = summary == null
+        ? '오늘 운동 기록하기'
+        : !hasGoal
+        ? '목표 설정하기'
+        : recommendation == null
+        ? '오늘 운동 기록하기'
+        : '오늘 운동에 적용';
+    final description = summary == null
+        ? '첫 기록부터 KPI를 자동으로 만들어요'
+        : !hasGoal
+        ? '내 목표에 맞는 중량과 반복을 추천해요'
+        : recommendation == null
+        ? '세트를 완료하면 다음 중량을 추천해요'
+        : '${recommendation!.template.name} · '
+              '${PerformanceEngine.formatWeight(recommendation!.weight)}$unit · '
+              '${recommendation!.minReps}–${recommendation!.maxReps}회 × '
+              '${recommendation!.sets}세트';
+
+    return SetflowCard(
+      key: const Key('calendar-kpi-action'),
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      color: SetflowColors.primary.withValues(alpha: .10),
+      child: Row(
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: SetflowColors.secondaryText,
-              fontWeight: FontWeight.w800,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: SetflowColors.primary.withValues(alpha: .28),
+              borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            ),
+            child: const Icon(
+              Icons.track_changes_rounded,
+              size: 19,
+              color: SetflowColors.orange,
             ),
           ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
-          ),
-          Text(
-            caption,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              color: SetflowColors.secondaryText,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: SetflowColors.secondaryText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 6),
+          const Icon(Icons.arrow_forward_rounded, size: 19),
         ],
       ),
     );
@@ -1402,6 +1549,13 @@ class _MarketScreenState extends State<MarketScreen> {
                               ),
                             ),
                           ),
+                          Positioned(
+                            right: 16,
+                            top: 14,
+                            child: _RoutineAccessBadge(
+                              accessTier: routine.accessTier,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1454,6 +1608,50 @@ class _MarketScreenState extends State<MarketScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _RoutineAccessBadge extends StatelessWidget {
+  const _RoutineAccessBadge({required this.accessTier});
+
+  final RoutineAccessTier accessTier;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPaid = accessTier == RoutineAccessTier.paid;
+    final color = isPaid ? SetflowColors.purple : SetflowColors.green;
+    return Semantics(
+      label: '${accessTier.label} 루틴',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: .32)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isPaid
+                  ? Icons.workspace_premium_rounded
+                  : Icons.lock_open_rounded,
+              size: 13,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              accessTier.label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1527,6 +1725,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   label: '${post.author}의 게시물, ${post.content}',
                   child: Material(
                     color: post.color.withValues(alpha: .18),
+                    clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
@@ -1536,20 +1735,60 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Center(
-                            child: Icon(post.icon, size: 50, color: post.color),
-                          ),
+                          if (post.imageUrl == null)
+                            Center(
+                              child: Icon(
+                                post.icon,
+                                size: 50,
+                                color: post.color,
+                              ),
+                            )
+                          else
+                            Image.network(
+                              post.imageUrl!,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) =>
+                                  progress == null
+                                  ? child
+                                  : const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                              errorBuilder: (_, _, _) => Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 42,
+                                  color: post.color,
+                                ),
+                              ),
+                            ),
                           Positioned(
                             left: 7,
                             right: 7,
                             bottom: 6,
-                            child: Text(
-                              post.metric,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: post.imageUrl == null
+                                    ? Colors.transparent
+                                    : Colors.black54,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
+                                child: Text(
+                                  post.metric,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: post.imageUrl == null
+                                        ? null
+                                        : Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -2214,14 +2453,15 @@ class SettingsScreen extends StatelessWidget {
               state.chooseRole(UserRole.gym);
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.admin_panel_settings_outlined),
-            title: const Text('운영 관리자 화면 보기'),
-            onTap: () {
-              Navigator.pop(context);
-              state.chooseRole(UserRole.admin);
-            },
-          ),
+          if (state.isAdmin)
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings_outlined),
+              title: const Text('운영 관리자 화면 보기'),
+              onTap: () {
+                Navigator.pop(context);
+                state.chooseRole(UserRole.admin);
+              },
+            ),
           const Divider(height: 30),
           ListTile(
             leading: const Icon(Icons.logout, color: SetflowColors.red),
