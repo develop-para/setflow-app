@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -3740,6 +3742,60 @@ class ConsultationQueuePage extends StatefulWidget {
 class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
   bool unreadOnly = false;
   final Set<String> _openConsultationIds = {};
+  Future<void>? _refreshInFlight;
+  Object? _refreshError;
+
+  bool get _supportsLiveRefresh =>
+      widget.role == UserRole.trainer || widget.role == UserRole.gym;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_supportsLiveRefresh) return;
+      final state = AppScope.of(context);
+      if (state.usesLiveBusinessData) {
+        unawaited(_refreshLiveConsultations(state));
+      }
+    });
+  }
+
+  Future<void> _refreshLiveConsultations(
+    AppState state, {
+    bool showFeedback = false,
+  }) {
+    final refreshInFlight = _refreshInFlight;
+    if (refreshInFlight != null) return refreshInFlight;
+    if (!mounted || !state.usesLiveBusinessData || !_supportsLiveRefresh) {
+      return Future<void>.value();
+    }
+
+    final refresh = _performLiveRefresh(state, showFeedback: showFeedback);
+    _refreshInFlight = refresh;
+    return refresh;
+  }
+
+  Future<void> _performLiveRefresh(
+    AppState state, {
+    required bool showFeedback,
+  }) async {
+    setState(() => _refreshError = null);
+    try {
+      await state.refreshBusinessDashboard(widget.role);
+      if (mounted && showFeedback) {
+        AppSnackbar.success(context, '상담 목록을 최신 상태로 갱신했어요.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _refreshError = error);
+      if (showFeedback) {
+        AppSnackbar.error(context, '상담 목록을 불러오지 못했어요.');
+      }
+    } finally {
+      _refreshInFlight = null;
+      if (mounted) setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3920,6 +3976,9 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
         .where((item) => !_hasBusinessReply(item))
         .toList(growable: false);
     final visible = unreadOnly ? pending : state.businessConsultations;
+    final refreshing = _refreshInFlight != null;
+    final hasRefreshError =
+        _refreshError != null || state.businessError != null;
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -3932,9 +3991,60 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
             ],
           ],
         ),
+        actions: [
+          IconButton(
+            key: const ValueKey('business-consultations-refresh'),
+            tooltip: refreshing ? '상담 새로고침 중' : '상담 새로고침',
+            onPressed: refreshing
+                ? null
+                : () => _refreshLiveConsultations(state, showFeedback: true),
+            icon: refreshing
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
       body: Column(
         children: [
+          if (hasRefreshError)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.xxl,
+                SetflowSpacing.sm,
+                SetflowSpacing.xxl,
+                0,
+              ),
+              child: Material(
+                key: const ValueKey('business-consultations-refresh-error'),
+                color: Theme.of(
+                  context,
+                ).colorScheme.errorContainer.withValues(alpha: .55),
+                borderRadius: BorderRadius.circular(SetflowRadii.md),
+                child: ListTile(
+                  leading: const Icon(Icons.cloud_off_rounded),
+                  title: const Text(
+                    '상담 목록을 최신 상태로 불러오지 못했어요.',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: state.businessConsultations.isNotEmpty
+                      ? const Text('기존에 불러온 상담 목록을 계속 표시합니다.')
+                      : const Text('네트워크 연결을 확인한 뒤 다시 시도해주세요.'),
+                  trailing: TextButton(
+                    key: const ValueKey('business-consultations-refresh-retry'),
+                    onPressed: refreshing
+                        ? null
+                        : () => _refreshLiveConsultations(
+                            state,
+                            showFeedback: true,
+                          ),
+                    child: const Text('재시도'),
+                  ),
+                ),
+              ),
+            ),
           Padding(
             padding: SetflowInsets.pageHeader,
             child: Row(
@@ -3954,93 +4064,125 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
             ),
           ),
           Expanded(
-            child: visible.isEmpty
-                ? EmptyState(
-                    key: const ValueKey('business-consultations-empty'),
-                    icon: Icons.mark_email_read_outlined,
-                    title: unreadOnly ? '미답변 상담이 없어요' : '도착한 상담이 없어요',
-                    message: unreadOnly
-                        ? '현재 도착한 상담에 모두 답변했습니다.'
-                        : '새 상담이 접수되면 이곳에서 바로 답변할 수 있어요.',
-                    actionLabel: unreadOnly ? '전체 상담 보기' : null,
-                    onAction: unreadOnly
-                        ? () => setState(() => unreadOnly = false)
-                        : null,
-                  )
-                : ListView.builder(
-                    padding: SetflowInsets.pageListTight,
-                    itemCount: visible.length,
-                    itemBuilder: (context, index) {
-                      final item = visible[index];
-                      final done = _hasBusinessReply(item);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
-                        child: SetflowCard(
-                          onTap: _openConsultationIds.contains(item.id)
-                              ? null
-                              : () => _answerLive(context, item),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: done
-                                    ? context.setflowColors.surfaceContainer
-                                    : Theme.of(
-                                        context,
-                                      ).colorScheme.primaryContainer,
-                                child: Icon(
-                                  done
-                                      ? Icons.mark_email_read_outlined
-                                      : Icons.mark_email_unread_outlined,
-                                  color: done
-                                      ? Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant
-                                      : context.setflowColors.orange,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.memberName ?? '회원',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w900,
-                                      ),
+            child: RefreshIndicator(
+              key: const ValueKey('business-consultations-refresh-indicator'),
+              onRefresh: () => _refreshLiveConsultations(state),
+              child: visible.isEmpty
+                  ? CustomScrollView(
+                      key: const ValueKey('business-consultations-list'),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverPadding(
+                          padding: SetflowInsets.pageListTight,
+                          sliver: SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: refreshing && !hasRefreshError
+                                ? const LoadingState(
+                                    key: ValueKey(
+                                      'business-consultations-loading',
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(item.goal ?? '운동 목표 미등록'),
-                                    Text(
-                                      item.question ?? '질문 내용이 없습니다.',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
-                                          ),
+                                    message: '상담 목록을 불러오는 중',
+                                    compact: true,
+                                  )
+                                : EmptyState(
+                                    key: const ValueKey(
+                                      'business-consultations-empty',
                                     ),
-                                    if (item.assignedTrainerId case final id?)
-                                      Text(
-                                        '담당 · ${_businessTrainerName(state, id)}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.labelSmall,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.chevron_right),
-                            ],
+                                    icon: Icons.mark_email_read_outlined,
+                                    title: unreadOnly
+                                        ? '미답변 상담이 없어요'
+                                        : '도착한 상담이 없어요',
+                                    message: unreadOnly
+                                        ? '현재 도착한 상담에 모두 답변했습니다.'
+                                        : '새 상담이 접수되면 이곳에서 바로 답변할 수 있어요.',
+                                    actionLabel: unreadOnly ? '전체 상담 보기' : null,
+                                    onAction: unreadOnly
+                                        ? () =>
+                                              setState(() => unreadOnly = false)
+                                        : null,
+                                  ),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ],
+                    )
+                  : ListView.builder(
+                      key: const ValueKey('business-consultations-list'),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: SetflowInsets.pageListTight,
+                      itemCount: visible.length,
+                      itemBuilder: (context, index) {
+                        final item = visible[index];
+                        final done = _hasBusinessReply(item);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 11),
+                          child: SetflowCard(
+                            onTap: _openConsultationIds.contains(item.id)
+                                ? null
+                                : () => _answerLive(context, item),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: done
+                                      ? context.setflowColors.surfaceContainer
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.primaryContainer,
+                                  child: Icon(
+                                    done
+                                        ? Icons.mark_email_read_outlined
+                                        : Icons.mark_email_unread_outlined,
+                                    color: done
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant
+                                        : context.setflowColors.orange,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.memberName ?? '회원',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(item.goal ?? '운동 목표 미등록'),
+                                      Text(
+                                        item.question ?? '질문 내용이 없습니다.',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                      if (item.assignedTrainerId case final id?)
+                                        Text(
+                                          '담당 · ${_businessTrainerName(state, id)}',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.labelSmall,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
           ),
         ],
       ),

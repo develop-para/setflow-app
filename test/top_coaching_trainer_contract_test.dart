@@ -175,10 +175,16 @@ void main() {
     );
 
     test('migration ranks a minimal auth-only current coaching projection', () {
-      final sql = File(
-        'supabase/migrations/'
-        '20260817000803_list_top_current_coaching_trainers.sql',
-      ).readAsStringSync().toLowerCase();
+      final migrations = Directory('supabase/migrations')
+          .listSync()
+          .whereType<File>()
+          .where(
+            (file) =>
+                file.path.endsWith('_list_top_current_coaching_trainers.sql'),
+          )
+          .toList(growable: false);
+      expect(migrations, hasLength(1));
+      final sql = migrations.single.readAsStringSync().toLowerCase();
 
       expect(
         sql,

@@ -333,11 +333,7 @@ class SupabaseBusinessRepository
     }
 
     final results = await Future.wait<Object?>([
-      _client
-          .from('v_trainer_dashboard')
-          .select()
-          .eq('trainer_id', trainer.id)
-          .maybeSingle(),
+      _loadTrainerDashboardRow(trainer.id),
       _client
           .from('member_assignments')
           .select('''
@@ -418,6 +414,26 @@ class SupabaseBusinessRepository
       consultations: _consultationList(results[2]),
       ownedRoutines: _routineList(results[3]),
     );
+  }
+
+  Future<Map<String, dynamic>?> _loadTrainerDashboardRow(
+    String trainerId,
+  ) async {
+    try {
+      return await _client
+          .from('v_trainer_dashboard')
+          .select(
+            'unread_consults,active_members,pending_settlement,'
+            'month_settled,overdue_feedbacks',
+          )
+          .eq('trainer_id', trainerId)
+          .maybeSingle();
+    } on Exception {
+      // Dashboard aggregates are supplementary. A view permission or rollout
+      // issue must not hide consultations, assignments, or owned routines that
+      // the trainer is still authorized to read.
+      return null;
+    }
   }
 
   Future<BusinessWorkspaceData> _loadGymWorkspace(BusinessAccess access) async {
