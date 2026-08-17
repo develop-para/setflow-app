@@ -52,10 +52,12 @@ class SupabaseAuthService {
       _client?.auth.onAuthStateChange ?? const Stream<AuthState>.empty();
 
   bool isConfigured(SocialLoginProvider provider) {
-    if (provider == SocialLoginProvider.naver) {
-      return SupabaseConfig.naverProviderName.isNotEmpty;
-    }
-    return true;
+    return switch (provider) {
+      SocialLoginProvider.google => SupabaseConfig.googleOauthEnabled,
+      SocialLoginProvider.kakao => SupabaseConfig.kakaoOauthEnabled,
+      SocialLoginProvider.naver => SupabaseConfig.naverProviderName.isNotEmpty,
+      SocialLoginProvider.apple => SupabaseConfig.appleOauthEnabled,
+    };
   }
 
   Future<AuthResponse> signUp({
@@ -89,6 +91,17 @@ class SupabaseAuthService {
   }
 
   Future<bool> signInWithSocial(SocialLoginProvider provider) {
+    if (!isConfigured(provider)) {
+      final label = switch (provider) {
+        SocialLoginProvider.google => 'Google',
+        SocialLoginProvider.kakao => '카카오',
+        SocialLoginProvider.naver => '네이버',
+        SocialLoginProvider.apple => 'Apple',
+      };
+      throw SupabaseAuthUiException(
+        '$label 로그인은 Supabase OAuth 등록 후 활성화할 수 있어요.',
+      );
+    }
     final oauthProvider = switch (provider) {
       SocialLoginProvider.google => OAuthProvider.google,
       SocialLoginProvider.kakao => OAuthProvider.kakao,
@@ -97,7 +110,7 @@ class SupabaseAuthService {
           when SupabaseConfig.naverProviderName.isNotEmpty =>
         OAuthProvider(SupabaseConfig.naverProviderName),
       SocialLoginProvider.naver => throw const SupabaseAuthUiException(
-        '네이버 로그인은 Supabase Custom OAuth/OIDC 등록 후 활성화할 수 있어요.',
+        '네이버 로그인 설정을 확인해주세요.',
       ),
     };
     return _requiredClient.auth.signInWithOAuth(

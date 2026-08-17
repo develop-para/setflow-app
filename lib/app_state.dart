@@ -1,37 +1,87 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
+import 'data/business_repository.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
 import 'data/routine_catalog_repository.dart';
+import 'domain/cardio.dart';
 import 'models.dart';
+import 'services/cardio_prescription_engine.dart';
 import 'services/exercise_recommendation_engine.dart';
 import 'services/performance_engine.dart';
 import 'services/supabase_auth_service.dart';
 
 export 'models.dart';
+export 'domain/cardio.dart';
+export 'services/cardio_prescription_engine.dart';
 export 'services/exercise_recommendation_engine.dart';
 export 'services/performance_engine.dart';
 
 class AppState extends ChangeNotifier {
   AppState({
     AppRepository? repository,
+    this.businessRepository,
+    this.loadBusinessWithoutAuth = false,
+    Future<void> Function()? authSignOut,
     this.routineCatalogRepository,
     this.communityRepository,
-  }) : _repository = repository ?? MemoryAppRepository() {
-    _seedMarketRoutines();
+  }) : _repository = repository ?? MemoryAppRepository(),
+       _authSignOut = authSignOut ?? SupabaseAuthService.instance.signOut {
+    if (routineCatalogRepository == null) {
+      _seedMarketRoutines();
+    }
     _seedStarterRoutines();
-    _seedSocial();
-    _seedBusinessDashboards();
+    if (communityRepository == null) {
+      _seedSocial();
+    }
+    if (businessRepository == null) {
+      _seedBusinessDashboards();
+      _seedDemoCoachingSchedules();
+    } else {
+      _resetLiveBusinessDashboards();
+    }
   }
 
   final AppRepository _repository;
+  final Future<void> Function() _authSignOut;
+  final BusinessRepository? businessRepository;
+  final bool loadBusinessWithoutAuth;
   final RoutineCatalogRepository? routineCatalogRepository;
   final CommunityRepository? communityRepository;
   Timer? _persistTimer;
   bool _initialized = false;
+  bool _disposed = false;
+  int _accountEpoch = 0;
+  int _businessRequestSequence = 0;
+  int _scheduleRequestSequence = 0;
+  int _memberFeedbackRequestSequence = 0;
+  int _memberDetailGeneration = 0;
+  final Map<String, Future<dynamic>> _businessMutations = {};
+  final Map<String, Future<BusinessMemberDetail>> _memberDetailLoads = {};
+  final Map<String, BusinessMemberDetail> _businessMemberDetails = {};
+  final Map<String, Object> _businessMemberDetailErrors = {};
+  final Map<String, String> _businessInviteAcceptRequestIds = {};
+  final Map<String, String> _sessionFeedbackRequestIds = {};
+  final Map<String, String> _membershipEndRequestIds = {};
+  final Map<String, String> _personalRoutineSaveRequestIds = {};
+  final Map<String, String> _personalRoutineDeleteRequestIds = {};
+  final Map<String, String> _coachingScheduleCreateRequestIds = {};
+  final Map<String, String> _consultationAssignRequestIds = {};
+  final Map<String, String> _consultationCreateRequestIds = {};
+  final Map<String, String> _consultationReplyRequestIds = {};
+  final Map<String, String> _stableBusinessRpcRequestIds = {};
+  final Map<String, DateTime> _businessInviteCreateExpiresAt = {};
+  final Set<String> _uncertainRoutineShareLinkRoutineIds = {};
+  final Map<String, Map<String, String?>> _personalRoutineBaseExerciseIds = {};
+  Future<void>? _signOutInFlight;
+  Future<void>? _persistInFlight;
+  Future<void>? _accountFlushInFlight;
+  AppSnapshot? _queuedSnapshot;
 
   bool get isInitialized => _initialized;
   Object? persistenceError;
@@ -41,8 +91,22 @@ class AppState extends ChangeNotifier {
   bool isDarkMode = false;
   String weightUnit = 'kg';
   int restDefaultSeconds = 90;
+  String memberNickname = '';
+  bool useRir = false;
+  bool autoStartRestTimer = true;
+  bool restTimerNotifications = true;
+  bool timerVibration = true;
+  bool pushCoachingFeedback = true;
+  bool communityReactionNotifications = false;
+  String get memberDisplayName {
+    final nickname = memberNickname.trim();
+    return nickname.isEmpty
+        ? SupabaseAuthService.instance.currentDisplayName
+        : nickname;
+  }
+
   List<String> goals = [];
-  bool get hasTrainingGoal => goals.isNotEmpty;
+  bool get hasTrainingGoal => PerformanceEngine.goalFromProfile(goals) != null;
   double? heightCm;
   double? weight;
   int? age;
@@ -59,63 +123,404 @@ class AppState extends ChangeNotifier {
   final List<ConsultationData> consultations = [];
   final Map<UserRole, BusinessDashboardData> businessDashboards = {};
 
+  BusinessAccess? businessAccess;
+  BusinessWorkspaceData? businessWorkspace;
+  List<PublicTrainer> publicTrainers = const [];
+  List<BusinessConsultation> memberConsultations = const [];
+  MemberSharingPreferences? _memberSharingPreferences;
+  List<RoutineShareRecord> incomingRoutineShares = const [];
+  List<RoutineShareRecord> outgoingRoutineShares = const [];
+  List<BusinessInviteRecord> businessInvites = const [];
+  List<BusinessCoachingSchedule> coachingSchedules = const [];
+  List<BusinessMember> memberMemberships = const [];
+  List<MemberSessionFeedback> memberSessionFeedbacks = const [];
+  String? pendingRoutineShareToken;
+  String? pendingBusinessInviteToken;
+  bool businessLoading = false;
+  Object? businessError;
+  bool coachingSchedulesLoading = false;
+  Object? coachingSchedulesError;
+  bool memberSessionFeedbackLoading = false;
+  Object? memberSessionFeedbackError;
+  Object? memberMembershipsError;
+
   bool _verifiedAdmin = false;
   bool hasPaidPlan = false;
 
   bool get isAdmin => _verifiedAdmin;
+  bool get usesLiveBusinessData => businessRepository != null;
+  bool get hasPendingBusinessMutation => _businessMutations.isNotEmpty;
+  bool isBusinessMutationPending(String key) =>
+      _businessMutations.containsKey(key);
+  bool isAssigningBusinessMember(String memberId) =>
+      isBusinessMutationPending(_assignmentMutationKey(memberId));
+  bool isReplyingToBusinessConsultation(String consultationId) =>
+      isBusinessMutationPending(_consultationReplyMutationKey(consultationId));
+  bool isAssigningBusinessConsultation(String consultationId) =>
+      isBusinessMutationPending(_consultationAssignMutationKey(consultationId));
+  bool isCreatingBusinessConsultation(String trainerId) =>
+      isBusinessMutationPending(_consultationCreateMutationKey(trainerId));
+  bool isReviewingBusinessApplication(String applicationId) =>
+      isBusinessMutationPending(_applicationReviewMutationKey(applicationId));
+  bool isUpdatingBusinessProfile(String profileId) =>
+      isBusinessMutationPending(_businessProfileMutationKey(profileId));
+  bool get isSubmittingTrainerBusinessApplication =>
+      isBusinessMutationPending(_trainerApplicationMutationKey);
+  bool get isSubmittingGymBusinessApplication =>
+      isBusinessMutationPending(_gymApplicationMutationKey);
+  bool get isCreatingBusinessRoutine => _businessMutations.keys.any(
+    (key) => key.startsWith(_businessRoutineMutationPrefix),
+  );
+  bool isSavingBusinessRoutine(String routineId) => _businessMutations.keys.any(
+    (key) => key.startsWith('routine:save:$routineId:'),
+  );
+  bool isSubmittingBusinessRoutine(String routineId) =>
+      isBusinessMutationPending('routine:submit:$routineId');
+  bool isReviewingBusinessRoutine(String routineId) => _businessMutations.keys
+      .any((key) => key.startsWith('routine:review:$routineId:'));
+  bool isSharingBusinessRoutine(String routineId) => _businessMutations.keys
+      .any((key) => key.startsWith('routine:share:$routineId:'));
+  bool get supportsRoutineShareRevocation =>
+      businessRepository is RoutineShareRevocationRepository;
+  bool isRevokingRoutineShare(String shareId) =>
+      isBusinessMutationPending('routine:share-revoke:$shareId');
+  bool isRespondingRoutineShare(String shareId) => _businessMutations.keys.any(
+    (key) => key.startsWith('routine:respond:$shareId:'),
+  );
+  bool isSavingPersonalRoutine(String routineId) => _businessMutations.keys.any(
+    (key) => key.startsWith('personal-routine:save:$routineId:'),
+  );
+  bool isDeletingPersonalRoutine(String routineId) =>
+      isBusinessMutationPending('personal-routine:delete:$routineId');
+  bool isSendingSessionFeedback(String sessionId) =>
+      isBusinessMutationPending('feedback:session:$sessionId');
+  bool isEndingBusinessMembership(String memberId) =>
+      isBusinessMutationPending('membership:end:$memberId');
+  bool get isCreatingCoachingSchedule =>
+      isBusinessMutationPending('coaching-schedule:create');
+  bool isUpdatingCoachingSchedule(String scheduleId) =>
+      isBusinessMutationPending('coaching-schedule:update:$scheduleId');
+  bool isDeletingCoachingSchedule(String scheduleId) =>
+      isBusinessMutationPending('coaching-schedule:delete:$scheduleId');
+  bool isCreatingBusinessInvite(BusinessInviteKind kind) =>
+      _businessMutations.keys.any(
+        (key) =>
+            key.startsWith('business-invite:create:${kind.databaseValue}:'),
+      );
+  bool get isAcceptingBusinessInvite => _businessMutations.keys.any(
+    (key) => key.startsWith('business-invite:accept:'),
+  );
+  bool get isUpdatingMemberSharingPreferences =>
+      isBusinessMutationPending('member:sharing-preferences');
+  bool isBusinessMemberDetailLoading(String memberId) =>
+      _memberDetailLoads.containsKey(memberId);
+  BusinessMemberDetail? businessMemberDetail(String memberId) =>
+      _businessMemberDetails[memberId];
+  Object? businessMemberDetailError(String memberId) =>
+      _businessMemberDetailErrors[memberId];
+  List<BusinessMember> get businessMembers =>
+      businessWorkspace?.members ?? const [];
+  List<GymTrainerRecord> get businessTrainers =>
+      businessWorkspace?.trainers ?? const [];
+  List<BusinessConsultation> get businessConsultations =>
+      businessWorkspace?.consultations ?? const [];
+  List<BusinessApplication> get businessApplications =>
+      businessWorkspace?.applications ?? const [];
+  List<OwnedCoachingRoutine> get ownedBusinessRoutines =>
+      businessWorkspace?.ownedRoutines ?? const [];
+  MemberSharingPreferences? get memberSharingPreferences =>
+      _memberSharingPreferences ?? businessWorkspace?.memberSharingPreferences;
+  List<MemberSessionFeedback> memberSessionFeedbackForDate(DateTime value) {
+    final target = dateOnly(value);
+    return List.unmodifiable(
+      memberSessionFeedbacks.where(
+        (feedback) => dateOnly(feedback.sessionDate) == target,
+      ),
+    );
+  }
+
   List<RoutineData> get marketRoutines => List.unmodifiable(_marketRoutines);
 
+  void captureIncomingUri(Uri uri) {
+    if (uri.scheme == 'com.setflow.setflow' && uri.host == 'routine-share') {
+      final token = uri.pathSegments.firstOrNull?.trim();
+      if (token == null || token.isEmpty) return;
+      pendingRoutineShareToken = token;
+      notifyListeners();
+      return;
+    }
+    final businessToken = switch ((uri.scheme, uri.host)) {
+      ('com.setflow.setflow', 'business-invite') =>
+        uri.pathSegments.firstOrNull?.trim(),
+      ('https', 'setflow.app') when uri.path == '/invite/business' =>
+        uri.queryParameters['token']?.trim(),
+      _ => null,
+    };
+    if (businessToken == null || businessToken.isEmpty) return;
+    pendingBusinessInviteToken = businessToken;
+    notifyListeners();
+  }
+
+  void captureRoutineShareUri(Uri uri) => captureIncomingUri(uri);
+
+  void clearPendingRoutineShareToken() {
+    if (pendingRoutineShareToken == null) return;
+    pendingRoutineShareToken = null;
+    notifyListeners();
+  }
+
+  void clearPendingBusinessInviteToken() {
+    if (pendingBusinessInviteToken == null) return;
+    pendingBusinessInviteToken = null;
+    notifyListeners();
+  }
+
   Future<void> initialize() async {
+    final accountEpoch = _accountEpoch;
     try {
       final snapshot = await _repository.load(exercises);
+      if (!_isCurrentAccount(accountEpoch)) {
+        _initialized = true;
+        return;
+      }
       if (snapshot != null) {
         _applySnapshot(snapshot);
       }
       _initialized = true;
       persistenceError = null;
-      if (snapshot == null) _schedulePersist();
+      if (snapshot == null || _repositoryHasPendingSave) {
+        _schedulePersist();
+      }
       try {
-        await _refreshCloudData();
+        await _refreshCloudData(expectedAccountEpoch: accountEpoch);
+        if (!_isCurrentAccount(accountEpoch)) return;
         cloudSyncError = null;
       } catch (error) {
+        if (!_isCurrentAccount(accountEpoch)) return;
         cloudSyncError = error;
       }
     } catch (error) {
+      if (!_isCurrentAccount(accountEpoch)) {
+        _initialized = true;
+        return;
+      }
       _initialized = true;
       persistenceError = error;
     }
-    notifyListeners();
+    if (_isCurrentAccount(accountEpoch)) notifyListeners();
   }
 
   void chooseRole(UserRole value) {
     if (value == UserRole.admin && !_verifiedAdmin) return;
+    final access = businessAccess;
+    if (businessRepository != null &&
+        value != UserRole.member &&
+        (access == null || !access.canUse(value))) {
+      return;
+    }
+    final accountEpoch = _accountEpoch;
+    final requestToken = ++_businessRequestSequence;
     role = value;
     _schedulePersist();
+    final repository = businessRepository;
+    if (repository != null &&
+        (value == UserRole.trainer ||
+            value == UserRole.gym ||
+            value == UserRole.admin)) {
+      unawaited(
+        _loadSelectedBusinessWorkspace(
+          repository,
+          value,
+          accountEpoch: accountEpoch,
+          requestToken: requestToken,
+        ),
+      );
+    } else if (repository != null) {
+      businessLoading = false;
+      businessError = null;
+      businessWorkspace = null;
+      _resetLiveBusinessDashboards();
+    }
     notifyListeners();
   }
 
-  void logout() {
-    _persistTimer?.cancel();
-    unawaited(SupabaseAuthService.instance.signOut());
+  Future<void> _loadSelectedBusinessWorkspace(
+    BusinessRepository repository,
+    UserRole selectedRole, {
+    required int accountEpoch,
+    required int requestToken,
+  }) async {
+    if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+    final preserveExistingWorkspace = businessWorkspace?.role == selectedRole;
+    businessLoading = true;
+    businessError = null;
+    if (!preserveExistingWorkspace) {
+      businessWorkspace = null;
+      _resetLiveBusinessDashboards();
+    }
+    notifyListeners();
+    try {
+      final workspace = await repository.loadWorkspace(selectedRole);
+      if (!_isCurrentBusinessRequest(accountEpoch, requestToken) ||
+          role != selectedRole) {
+        return;
+      }
+      businessWorkspace = workspace;
+      _applyLiveBusinessDashboard(workspace);
+    } catch (error) {
+      if (!_isCurrentBusinessRequest(accountEpoch, requestToken) ||
+          role != selectedRole) {
+        return;
+      }
+      businessError = error;
+      if (!preserveExistingWorkspace) {
+        businessWorkspace = null;
+        _resetLiveBusinessDashboards();
+      }
+    } finally {
+      if (_isCurrentBusinessRequest(accountEpoch, requestToken) &&
+          role == selectedRole) {
+        businessLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> logout() async {
+    final persistenceFlush = flushPersistence();
+    _accountFlushInFlight = persistenceFlush;
+    final accountEpoch = ++_accountEpoch;
+    _businessRequestSequence++;
     _resetForSignedOutUser();
     cancelRestTimer();
+    notifyListeners();
+
+    final previousSignOut = _signOutInFlight;
+    late final Future<void> signOut;
+    signOut = (() async {
+      if (previousSignOut != null) {
+        try {
+          await previousSignOut;
+        } catch (_) {
+          // A fresh sign-out attempt still needs to run after a failed one.
+        }
+      }
+      try {
+        await persistenceFlush;
+      } catch (error) {
+        if (_isCurrentAccount(accountEpoch)) persistenceError = error;
+      }
+      await _authSignOut();
+    })();
+    _signOutInFlight = signOut;
+    try {
+      await signOut;
+    } catch (error) {
+      if (_isCurrentAccount(accountEpoch)) cloudSyncError = error;
+    } finally {
+      if (identical(_signOutInFlight, signOut)) {
+        _signOutInFlight = null;
+      }
+      if (identical(_accountFlushInFlight, persistenceFlush)) {
+        _accountFlushInFlight = null;
+      }
+      if (_isCurrentAccount(accountEpoch)) {
+        _persistTimer?.cancel();
+        _queuedSnapshot = null;
+        _resetForSignedOutUser();
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Clears every account-scoped value when Supabase reports a remote
+  /// sign-out (expired/revoked refresh token, account deletion, or another
+  /// client ending the session). This intentionally does not call signOut
+  /// again, so it is safe to invoke from the auth-state stream.
+  void handleExternalAuthSignedOut() {
+    final persistenceFlush = flushPersistence();
+    _accountFlushInFlight = persistenceFlush;
+    unawaited(
+      persistenceFlush
+          .catchError((Object error) {
+            persistenceError = error;
+          })
+          .whenComplete(() {
+            if (identical(_accountFlushInFlight, persistenceFlush)) {
+              _accountFlushInFlight = null;
+            }
+          }),
+    );
+    _restTimer?.cancel();
+    restRemaining = 0;
+    _accountEpoch++;
+    _businessRequestSequence++;
+    _resetForSignedOutUser();
     notifyListeners();
   }
 
   Future<void> syncAfterAuthentication() async {
     _persistTimer?.cancel();
+    final pendingSignOut = _signOutInFlight;
+    if (pendingSignOut != null) {
+      try {
+        await pendingSignOut;
+      } catch (_) {
+        // Continue only if the auth client still reports a signed-in user.
+      }
+      if (businessRepository != null &&
+          !loadBusinessWithoutAuth &&
+          !SupabaseAuthService.instance.hasAuthenticatedUser) {
+        return;
+      }
+    }
+    final accountFlush = _accountFlushInFlight;
+    if (accountFlush != null) {
+      try {
+        await accountFlush;
+      } catch (_) {
+        // The account-scoped outbox keeps the previous account mutation.
+      }
+    } else {
+      try {
+        await flushPersistence();
+      } catch (_) {
+        // A direct A -> B auth switch stages A's snapshot under A's uid. It
+        // must never be retried as B, so continue with a clean B load.
+      }
+    }
+    _persistTimer?.cancel();
+    _queuedSnapshot = null;
+    final accountEpoch = ++_accountEpoch;
+    _businessRequestSequence++;
+    _resetForSignedOutUser();
+    notifyListeners();
+    var cloudPhase = false;
     try {
       final snapshot = await _repository.load(exercises);
+      if (!_isCurrentAccount(accountEpoch)) return;
       if (snapshot != null) _applySnapshot(snapshot);
-      await _refreshCloudData();
+      if (memberNickname.trim().isEmpty) {
+        memberNickname = SupabaseAuthService.instance.currentDisplayName;
+      }
       persistenceError = null;
+      cloudPhase = true;
+      await _refreshCloudData(expectedAccountEpoch: accountEpoch);
+      if (!_isCurrentAccount(accountEpoch)) return;
       cloudSyncError = null;
-      if (snapshot == null) _schedulePersist();
+      if (snapshot == null || _repositoryHasPendingSave) {
+        _schedulePersist();
+      }
     } catch (error) {
-      persistenceError = error;
+      if (!_isCurrentAccount(accountEpoch)) return;
+      if (cloudPhase) {
+        cloudSyncError = error;
+      } else {
+        persistenceError = error;
+      }
       rethrow;
     } finally {
-      notifyListeners();
+      if (_isCurrentAccount(accountEpoch)) notifyListeners();
     }
   }
 
@@ -149,6 +554,55 @@ class AppState extends ChangeNotifier {
 
   void setRestDefaultSeconds(int seconds) {
     restDefaultSeconds = seconds.clamp(30, 600);
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  bool updateMemberAccountProfile({required String nickname, double? weight}) {
+    final normalizedNickname = nickname.trim();
+    if (normalizedNickname.length < 2 || normalizedNickname.length > 30) {
+      return false;
+    }
+    if (weight != null && (weight < 20 || weight > 1000)) return false;
+    memberNickname = normalizedNickname;
+    this.weight = weight;
+    _schedulePersist();
+    notifyListeners();
+    return true;
+  }
+
+  void setUseRir(bool value) {
+    useRir = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setAutoStartRestTimer(bool value) {
+    autoStartRestTimer = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setRestTimerNotifications(bool value) {
+    restTimerNotifications = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setTimerVibration(bool value) {
+    timerVibration = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setPushCoachingFeedback(bool value) {
+    pushCoachingFeedback = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setCommunityReactionNotifications(bool value) {
+    communityReactionNotifications = value;
     _schedulePersist();
     notifyListeners();
   }
@@ -190,14 +644,27 @@ class AppState extends ChangeNotifier {
   }
 
   WorkoutRecommendation? recommendationFor(ExerciseTemplate template) {
+    final goal = PerformanceEngine.goalFromProfile(goals);
+    if (goal == null) return null;
+    if (template.isCardio) {
+      final prescription = CardioPrescriptionEngine.recommend(
+        exerciseId: template.id,
+        goal: goal,
+        history: _cardioHistory(),
+      );
+      return prescription == null
+          ? null
+          : _cardioWorkoutRecommendation(template, prescription);
+    }
     return PerformanceEngine.recommend(
       sessions: sessions.values,
       template: template,
-      goal: PerformanceEngine.goalFromProfile(goals),
+      goal: goal,
     );
   }
 
   WorkoutRecommendation? recommendationForDate(DateTime date) {
+    if (!hasTrainingGoal) return null;
     final session = sessions[dateOnly(date)];
     if (session != null && session.exercises.isNotEmpty) {
       WorkoutExercise? pendingExercise;
@@ -226,13 +693,24 @@ class AppState extends ChangeNotifier {
           session: session,
           completedExercise: lastCompleted,
           goals: goals,
+          weeklyHistory: sessions.values,
         );
         if (next != null) return _nextExerciseWorkoutRecommendation(next);
       }
     }
 
     final featured = featuredPerformance;
-    return featured == null ? null : recommendationFor(featured.template);
+    final featuredCardio = _featuredCardioExercise;
+    if (featured == null) {
+      return featuredCardio == null
+          ? null
+          : recommendationFor(featuredCardio.$1);
+    }
+    if (featuredCardio != null &&
+        featuredCardio.$2.isAfter(featured.latestSessionBest.date)) {
+      return recommendationFor(featuredCardio.$1);
+    }
+    return recommendationFor(featured.template);
   }
 
   WorkoutRecommendation? get featuredRecommendation {
@@ -242,6 +720,41 @@ class AppState extends ChangeNotifier {
   WorkoutRecommendation _plannedExerciseRecommendation(
     WorkoutExercise exercise,
   ) {
+    final goal = PerformanceEngine.goalFromProfile(goals)!;
+    if (exercise.template.isCardio) {
+      final historical = recommendationFor(exercise.template);
+      final pending = exercise.sets.where((set) => !set.completed).toList();
+      final first = pending.firstOrNull ?? exercise.sets.firstOrNull;
+      if (historical != null) {
+        return WorkoutRecommendation(
+          template: exercise.template,
+          goal: goal,
+          weight: 0,
+          minReps: 0,
+          maxReps: 0,
+          sets: exercise.sets.isEmpty ? 1 : exercise.sets.length,
+          nextWeight: 0,
+          reason: '오늘 계획에서 아직 완료하지 않은 유산소 운동',
+          restSeconds: 0,
+          evidenceIds: historical.evidenceIds,
+          evidenceNote: historical.evidenceNote,
+          cardioDurationSeconds:
+              first?.durationSeconds ?? historical.cardioDurationSeconds,
+          cardioDistanceKm: first != null && first.distanceKm > 0
+              ? first.distanceKm
+              : historical.cardioDistanceKm,
+          cardioMinimumRpe: first != null && first.intensityRpe > 0
+              ? first.intensityRpe.round()
+              : historical.cardioMinimumRpe,
+          cardioMaximumRpe: first != null && first.intensityRpe > 0
+              ? first.intensityRpe.round()
+              : historical.cardioMaximumRpe,
+          cardioSupportsDistance: historical.cardioSupportsDistance,
+          cardioStructure: historical.cardioStructure,
+        );
+      }
+    }
+    final prescription = PerformanceEngine.prescriptionFor(goal);
     final historical = recommendationFor(exercise.template);
     final pending = exercise.sets.where((set) => !set.completed).toList();
     final first = pending.firstOrNull;
@@ -254,10 +767,10 @@ class AppState extends ChangeNotifier {
         .where((reps) => reps > 0)
         .toList();
     final minReps = validReps.isEmpty
-        ? historical?.minReps ?? 8
+        ? historical?.minReps ?? prescription.minReps
         : validReps.reduce((a, b) => a < b ? a : b);
     final maxReps = validReps.isEmpty
-        ? historical?.maxReps ?? 12
+        ? historical?.maxReps ?? prescription.maxReps
         : validReps.reduce((a, b) => a > b ? a : b);
     final increment = weight <= 0
         ? 0.0
@@ -266,17 +779,21 @@ class AppState extends ChangeNotifier {
         : 2.5;
     return WorkoutRecommendation(
       template: exercise.template,
-      goal: PerformanceEngine.goalFromProfile(goals),
+      goal: goal,
       weight: weight,
       minReps: minReps,
       maxReps: maxReps,
       sets: exercise.sets.isEmpty
-          ? historical?.sets ?? 3
+          ? historical?.sets ?? prescription.sets
           : exercise.sets.length,
       nextWeight: historical?.nextWeight ?? weight + increment,
       reason: '오늘 계획에서 아직 완료하지 않은 운동',
       restSeconds:
-          first?.restSeconds ?? historical?.restSeconds ?? restDefaultSeconds,
+          first?.restSeconds ??
+          historical?.restSeconds ??
+          prescription.restSeconds,
+      evidenceIds: prescription.evidenceIds,
+      evidenceNote: prescription.evidenceNote,
     );
   }
 
@@ -284,6 +801,27 @@ class AppState extends ChangeNotifier {
     NextExerciseRecommendation next,
   ) {
     final historical = recommendationFor(next.template);
+    if (next.template.isCardio && historical != null) {
+      return WorkoutRecommendation(
+        template: historical.template,
+        goal: historical.goal,
+        weight: 0,
+        minReps: 0,
+        maxReps: 0,
+        sets: historical.sets,
+        nextWeight: 0,
+        reason: next.reason,
+        restSeconds: 0,
+        evidenceIds: historical.evidenceIds,
+        evidenceNote: historical.evidenceNote,
+        cardioDurationSeconds: historical.cardioDurationSeconds,
+        cardioDistanceKm: historical.cardioDistanceKm,
+        cardioMinimumRpe: historical.cardioMinimumRpe,
+        cardioMaximumRpe: historical.cardioMaximumRpe,
+        cardioSupportsDistance: historical.cardioSupportsDistance,
+        cardioStructure: historical.cardioStructure,
+      );
+    }
     final weight = historical?.weight ?? next.startingWeight;
     final increment = weight <= 0
         ? 0.0
@@ -292,7 +830,7 @@ class AppState extends ChangeNotifier {
         : 2.5;
     return WorkoutRecommendation(
       template: next.template,
-      goal: PerformanceEngine.goalFromProfile(goals),
+      goal: PerformanceEngine.goalFromProfile(goals)!,
       weight: weight,
       minReps: historical?.minReps ?? next.minReps,
       maxReps: historical?.maxReps ?? next.maxReps,
@@ -300,6 +838,112 @@ class AppState extends ChangeNotifier {
       nextWeight: historical?.nextWeight ?? weight + increment,
       reason: next.reason,
       restSeconds: next.restSeconds,
+      evidenceIds: PerformanceEngine.prescriptionFor(
+        PerformanceEngine.goalFromProfile(goals)!,
+      ).evidenceIds,
+      evidenceNote: PerformanceEngine.prescriptionFor(
+        PerformanceEngine.goalFromProfile(goals)!,
+      ).evidenceNote,
+    );
+  }
+
+  Iterable<CardioSessionRecord> _cardioHistory() sync* {
+    for (final session in sessions.values) {
+      for (final exercise in session.exercises) {
+        if (!exercise.template.isCardio ||
+            cardioDefinitionForExercise(exercise.template.id) == null) {
+          continue;
+        }
+        // WHO's moderate/vigorous target must not silently count an unknown
+        // intensity or RPE 1–2 light activity as moderate exercise.
+        final completed = exercise.sets
+            .where(
+              (set) =>
+                  set.completed &&
+                  set.durationSeconds > 0 &&
+                  set.intensityRpe >= 3,
+            )
+            .toList();
+        if (completed.isEmpty) continue;
+        final durationSeconds = completed.fold<int>(
+          0,
+          (sum, set) => sum + set.durationSeconds,
+        );
+        final distances = completed
+            .map((set) => set.distanceKm)
+            .where((distance) => distance > 0)
+            .toList();
+        final rpes = completed
+            .map((set) => set.intensityRpe)
+            .where((rpe) => rpe > 0)
+            .toList();
+        final averageRpe = rpes.isEmpty
+            ? null
+            : rpes.reduce((a, b) => a + b) / rpes.length;
+        yield CardioSessionRecord(
+          id: exercise.id,
+          exerciseId: exercise.template.id,
+          occurredAt: session.date,
+          duration: Duration(seconds: durationSeconds),
+          intensity: averageRpe != null && averageRpe >= 7
+              ? CardioIntensity.vigorous
+              : CardioIntensity.moderate,
+          distanceKm: distances.isEmpty
+              ? null
+              : distances.reduce((a, b) => a + b),
+          perceivedExertion: averageRpe,
+        );
+      }
+    }
+  }
+
+  (ExerciseTemplate, DateTime)? get _featuredCardioExercise {
+    (ExerciseTemplate, DateTime)? latest;
+    for (final session in sessions.values) {
+      for (final exercise in session.exercises) {
+        if (!exercise.template.isCardio ||
+            !exercise.sets.any(
+              (set) =>
+                  set.completed &&
+                  set.durationSeconds > 0 &&
+                  set.intensityRpe >= 3,
+            )) {
+          continue;
+        }
+        if (latest == null || session.date.isAfter(latest.$2)) {
+          latest = (exercise.template, session.date);
+        }
+      }
+    }
+    return latest;
+  }
+
+  WorkoutRecommendation _cardioWorkoutRecommendation(
+    ExerciseTemplate template,
+    CardioPrescription prescription,
+  ) {
+    final structure = prescription.structure == CardioSessionStructure.intervals
+        ? '${prescription.workBouts ?? 0}×'
+              '${prescription.workBoutDuration?.inMinutes ?? 0}분 인터벌'
+        : '${prescription.intensityLabel} 지속 운동';
+    return WorkoutRecommendation(
+      template: template,
+      goal: prescription.goal,
+      weight: 0,
+      minReps: 0,
+      maxReps: 0,
+      sets: 1,
+      nextWeight: 0,
+      reason: '${prescription.reason} · $structure',
+      restSeconds: 0,
+      evidenceIds: prescription.evidenceIds,
+      evidenceNote: prescription.safetyNote,
+      cardioDurationSeconds: prescription.durationSeconds,
+      cardioDistanceKm: prescription.targetDistanceKm,
+      cardioMinimumRpe: prescription.minimumRpe,
+      cardioMaximumRpe: prescription.maximumRpe,
+      cardioSupportsDistance: prescription.supportsDistance,
+      cardioStructure: structure,
     );
   }
 
@@ -319,30 +963,43 @@ class AppState extends ChangeNotifier {
     if (session.exercises.any((item) => item.template.id == template.id)) {
       return;
     }
+    final cardioRecommendation = template.isCardio
+        ? recommendationFor(template)
+        : null;
+    final goal = PerformanceEngine.goalFromProfile(goals);
+    final resistancePrescription = !template.isCardio && goal != null
+        ? PerformanceEngine.prescriptionFor(goal)
+        : null;
     session.exercises.add(
       WorkoutExercise(
         id: '${template.id}_${DateTime.now().microsecondsSinceEpoch}',
         template: template,
-        sets: [
-          WorkoutSetEntry(
-            number: 1,
-            weight: 40,
-            reps: 10,
-            restSeconds: restDefaultSeconds,
-          ),
-          WorkoutSetEntry(
-            number: 2,
-            weight: 40,
-            reps: 10,
-            restSeconds: restDefaultSeconds,
-          ),
-          WorkoutSetEntry(
-            number: 3,
-            weight: 40,
-            reps: 8,
-            restSeconds: restDefaultSeconds,
-          ),
-        ],
+        sets: template.isCardio
+            ? [
+                WorkoutSetEntry(
+                  number: 1,
+                  weight: 0,
+                  reps: 0,
+                  restSeconds: 0,
+                  durationSeconds:
+                      cardioRecommendation?.cardioDurationSeconds ?? 1800,
+                  distanceKm: cardioRecommendation?.cardioDistanceKm ?? 0,
+                  intensityRpe: (cardioRecommendation?.cardioMinimumRpe ?? 3)
+                      .toDouble(),
+                ),
+              ]
+            : List.generate(
+                resistancePrescription?.sets ?? 3,
+                (index) => WorkoutSetEntry(
+                  number: index + 1,
+                  // Without a completed record there is no defensible load
+                  // estimate. Let the user enter a comfortable first load.
+                  weight: 0,
+                  reps: resistancePrescription?.minReps ?? 10,
+                  restSeconds:
+                      resistancePrescription?.restSeconds ?? restDefaultSeconds,
+                ),
+              ),
       ),
     );
     _schedulePersist();
@@ -354,9 +1011,18 @@ class AppState extends ChangeNotifier {
     exercise.sets.add(
       WorkoutSetEntry(
         number: exercise.sets.length + 1,
-        weight: previous?.weight ?? 20,
-        reps: previous?.reps ?? 10,
-        restSeconds: previous?.restSeconds ?? restDefaultSeconds,
+        weight: exercise.template.isCardio ? 0 : previous?.weight ?? 20,
+        reps: exercise.template.isCardio ? 0 : previous?.reps ?? 10,
+        restSeconds: exercise.template.isCardio
+            ? 0
+            : previous?.restSeconds ?? restDefaultSeconds,
+        durationSeconds: exercise.template.isCardio
+            ? previous?.durationSeconds ?? 600
+            : 0,
+        distanceKm: exercise.template.isCardio ? previous?.distanceKm ?? 0 : 0,
+        intensityRpe: exercise.template.isCardio
+            ? previous?.intensityRpe ?? 3
+            : 0,
       ),
     );
     _schedulePersist();
@@ -391,6 +1057,9 @@ class AppState extends ChangeNotifier {
     int? reps,
     String? type,
     int? restSeconds,
+    int? durationSeconds,
+    double? distanceKm,
+    double? intensityRpe,
   }) {
     if (weight != null) set.weight = weight.clamp(0, 999);
     if (reps != null) set.reps = reps.clamp(0, 999);
@@ -398,13 +1067,24 @@ class AppState extends ChangeNotifier {
     if (restSeconds != null) {
       set.restSeconds = restSeconds.clamp(15, 600);
     }
+    if (durationSeconds != null) {
+      set.durationSeconds = durationSeconds.clamp(0, 86400);
+    }
+    if (distanceKm != null) {
+      set.distanceKm = distanceKm.clamp(0, 999.99);
+    }
+    if (intensityRpe != null) {
+      set.intensityRpe = intensityRpe.clamp(0, 10);
+    }
     _schedulePersist();
     notifyListeners();
   }
 
-  void toggleSet(WorkoutSetEntry set) {
+  void toggleSet(WorkoutSetEntry set, {bool startRest = true}) {
     set.completed = !set.completed;
-    if (set.completed) startRestTimer(set.restSeconds);
+    if (set.completed && startRest && set.restSeconds > 0) {
+      startRestTimer(set.restSeconds);
+    }
     _schedulePersist();
     notifyListeners();
   }
@@ -459,30 +1139,45 @@ class AppState extends ChangeNotifier {
     if (additions.isEmpty) return 0;
 
     for (final template in additions) {
+      final plannedSets = routine.setsFor(template);
+      final cardioRecommendation = template.isCardio
+          ? recommendationFor(template)
+          : null;
+      final goal = PerformanceEngine.goalFromProfile(goals);
+      final resistancePrescription = !template.isCardio && goal != null
+          ? PerformanceEngine.prescriptionFor(goal)
+          : null;
       session.exercises.add(
         WorkoutExercise(
           id: '${template.id}_${DateTime.now().microsecondsSinceEpoch}',
           template: template,
-          sets: [
-            WorkoutSetEntry(
-              number: 1,
-              weight: 40,
-              reps: 10,
-              restSeconds: restDefaultSeconds,
-            ),
-            WorkoutSetEntry(
-              number: 2,
-              weight: 40,
-              reps: 10,
-              restSeconds: restDefaultSeconds,
-            ),
-            WorkoutSetEntry(
-              number: 3,
-              weight: 40,
-              reps: 8,
-              restSeconds: restDefaultSeconds,
-            ),
-          ],
+          sets: plannedSets.isNotEmpty
+              ? plannedSets.map((set) => set.toWorkoutSetEntry()).toList()
+              : template.isCardio
+              ? [
+                  WorkoutSetEntry(
+                    number: 1,
+                    weight: 0,
+                    reps: 0,
+                    restSeconds: 0,
+                    durationSeconds:
+                        cardioRecommendation?.cardioDurationSeconds ?? 1800,
+                    distanceKm: cardioRecommendation?.cardioDistanceKm ?? 0,
+                    intensityRpe: (cardioRecommendation?.cardioMinimumRpe ?? 3)
+                        .toDouble(),
+                  ),
+                ]
+              : List.generate(
+                  resistancePrescription?.sets ?? 3,
+                  (index) => WorkoutSetEntry(
+                    number: index + 1,
+                    weight: 0,
+                    reps: resistancePrescription?.minReps ?? 10,
+                    restSeconds:
+                        resistancePrescription?.restSeconds ??
+                        restDefaultSeconds,
+                  ),
+                ),
         ),
       );
     }
@@ -511,6 +1206,27 @@ class AppState extends ChangeNotifier {
     }
 
     final completed = exercise.sets.where((set) => set.completed).toList();
+    if (recommendation.isCardio) {
+      exercise.sets
+        ..removeWhere((set) => !set.completed)
+        ..add(
+          WorkoutSetEntry(
+            number: completed.length + 1,
+            weight: 0,
+            reps: 0,
+            restSeconds: 0,
+            durationSeconds: recommendation.cardioDurationSeconds ?? 1800,
+            distanceKm: recommendation.cardioDistanceKm ?? 0,
+            intensityRpe: (recommendation.cardioMinimumRpe ?? 3).toDouble(),
+          ),
+        );
+      for (var index = 0; index < exercise.sets.length; index++) {
+        exercise.sets[index].number = index + 1;
+      }
+      _schedulePersist();
+      notifyListeners();
+      return;
+    }
     final plannedCount = (recommendation.sets - completed.length).clamp(
       0,
       recommendation.sets,
@@ -546,6 +1262,31 @@ class AppState extends ChangeNotifier {
       return false;
     }
     final historyRecommendation = recommendationFor(recommendation.template);
+    if (recommendation.template.isCardio) {
+      final cardio = historyRecommendation;
+      session.exercises.add(
+        WorkoutExercise(
+          id:
+              '${recommendation.template.id}_recommended_'
+              '${DateTime.now().microsecondsSinceEpoch}',
+          template: recommendation.template,
+          sets: [
+            WorkoutSetEntry(
+              number: 1,
+              weight: 0,
+              reps: 0,
+              restSeconds: 0,
+              durationSeconds: cardio?.cardioDurationSeconds ?? 1800,
+              distanceKm: cardio?.cardioDistanceKm ?? 0,
+              intensityRpe: (cardio?.cardioMinimumRpe ?? 3).toDouble(),
+            ),
+          ],
+        ),
+      );
+      _schedulePersist();
+      notifyListeners();
+      return true;
+    }
     final weight =
         historyRecommendation?.weight ?? recommendation.startingWeight;
     final reps = historyRecommendation?.minReps ?? recommendation.minReps;
@@ -571,53 +1312,677 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
-  Future<void> _refreshCloudData() async {
+  Future<void> _refreshCloudData({int? expectedAccountEpoch}) async {
+    final accountEpoch = expectedAccountEpoch ?? _accountEpoch;
+    if (!_isCurrentAccount(accountEpoch)) return;
+    Object? firstError;
+    void rememberError(Object error) => firstError ??= error;
+    final auth = SupabaseAuthService.instance;
+    final canLoadPrivateData =
+        auth.hasAuthenticatedUser || loadBusinessWithoutAuth;
+
+    if (canLoadPrivateData) {
+      try {
+        final verifiedAdmin = auth.hasAuthenticatedUser
+            ? await auth.isVerifiedAdmin()
+            : false;
+        if (!_isCurrentAccount(accountEpoch)) return;
+        _verifiedAdmin = verifiedAdmin;
+      } catch (error) {
+        if (!_isCurrentAccount(accountEpoch)) return;
+        _verifiedAdmin = false;
+        rememberError(error);
+      }
+
+      final liveBusinessRepository = businessRepository;
+      if (liveBusinessRepository != null) {
+        try {
+          await _refreshBusinessData(
+            liveBusinessRepository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        } catch (error) {
+          if (!_isCurrentAccount(accountEpoch)) return;
+          rememberError(error);
+        }
+      } else if (_verifiedAdmin) {
+        role = UserRole.admin;
+      } else if (role == UserRole.admin) {
+        role = UserRole.member;
+      }
+      if (!_isCurrentAccount(accountEpoch)) return;
+    }
+
     final routineRepository = routineCatalogRepository;
     if (routineRepository != null) {
-      final catalog = await routineRepository.listPublished();
-      _marketRoutines
-        ..clear()
-        ..addAll(catalog.map(_routineFromCatalog));
+      try {
+        final catalog = await routineRepository.listPublished();
+        if (!_isCurrentAccount(accountEpoch)) return;
+        _marketRoutines
+          ..clear()
+          ..addAll(catalog.map(_routineFromCatalog));
+      } catch (error) {
+        if (!_isCurrentAccount(accountEpoch)) return;
+        rememberError(error);
+      }
     }
 
-    final auth = SupabaseAuthService.instance;
-    if (!auth.hasAuthenticatedUser) return;
-
-    _verifiedAdmin = await auth.isVerifiedAdmin();
-    if (_verifiedAdmin) {
-      role = UserRole.admin;
-    } else if (role == UserRole.admin) {
-      role = UserRole.member;
+    if (canLoadPrivateData) {
+      try {
+        final paidPlan =
+            _verifiedAdmin ||
+            (routineRepository != null &&
+                await routineRepository.hasActivePaidPlan());
+        if (!_isCurrentAccount(accountEpoch)) return;
+        hasPaidPlan = paidPlan;
+      } catch (error) {
+        if (!_isCurrentAccount(accountEpoch)) return;
+        rememberError(error);
+      }
     }
-
-    hasPaidPlan =
-        _verifiedAdmin ||
-        (routineRepository != null &&
-            await routineRepository.hasActivePaidPlan());
 
     final sharedCommunityRepository = communityRepository;
-    if (sharedCommunityRepository != null) {
-      final records = await sharedCommunityRepository.fetchPosts();
-      communityPosts
-        ..clear()
-        ..addAll(records.map((record) => record.post));
+    if (canLoadPrivateData && sharedCommunityRepository != null) {
+      try {
+        final records = await sharedCommunityRepository.fetchPosts();
+        if (!_isCurrentAccount(accountEpoch)) return;
+        communityPosts
+          ..clear()
+          ..addAll(records.map((record) => record.post));
+      } catch (error) {
+        if (!_isCurrentAccount(accountEpoch)) return;
+        rememberError(error);
+      }
+    }
+
+    if (firstError case final Object error) throw error;
+  }
+
+  Future<void> _refreshBusinessData(
+    BusinessRepository repository, {
+    int? expectedAccountEpoch,
+  }) async {
+    final accountEpoch = expectedAccountEpoch ?? _accountEpoch;
+    final requestToken = ++_businessRequestSequence;
+    if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+    businessLoading = true;
+    businessError = null;
+    _clearBusinessMemberDetailCache();
+    notifyListeners();
+    Object? auxiliaryError;
+    void rememberAuxiliaryError(Object error) => auxiliaryError ??= error;
+    try {
+      final access = await repository.loadAccess();
+      if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+      final resolvedRole = _resolveRefreshedBusinessRole(access);
+
+      BusinessWorkspaceData? refreshedWorkspace;
+      if (_isBusinessWorkspaceRole(resolvedRole)) {
+        refreshedWorkspace = await repository.loadWorkspace(resolvedRole);
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+      }
+
+      businessAccess = access;
+      role = resolvedRole;
+      businessWorkspace = refreshedWorkspace;
+      if (refreshedWorkspace != null) {
+        _applyLiveBusinessDashboard(refreshedWorkspace);
+      }
+
+      try {
+        final refreshedPublicTrainers = List<PublicTrainer>.unmodifiable(
+          await repository.listPublicTrainers(),
+        );
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        publicTrainers = refreshedPublicTrainers;
+      } catch (error) {
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        rememberAuxiliaryError(error);
+      }
+
+      try {
+        final refreshedMemberConsultations =
+            List<BusinessConsultation>.unmodifiable(
+              await repository.listMyConsultations(),
+            );
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        memberConsultations = refreshedMemberConsultations;
+        _syncMemberConsultationsFromCloud();
+      } catch (error) {
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        rememberAuxiliaryError(error);
+      }
+
+      try {
+        final refreshedPreferences = await repository
+            .loadMySharingPreferences();
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        _memberSharingPreferences = refreshedPreferences;
+      } catch (error) {
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        rememberAuxiliaryError(error);
+      }
+
+      try {
+        final today = DateTime.now();
+        final refreshedSchedules = _sortedCoachingSchedules(
+          (await repository.listCoachingSchedules(
+            from: DateTime(today.year, today.month - 1),
+            to: DateTime(today.year, today.month + 7, 0),
+          )).map(_enrichCoachingScheduleNames),
+        );
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        coachingSchedules = refreshedSchedules;
+        coachingSchedulesError = null;
+      } catch (error) {
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        coachingSchedulesError = error;
+        rememberAuxiliaryError(error);
+      }
+
+      try {
+        final refreshedShares = List<RoutineShareRecord>.unmodifiable(
+          await repository.listIncomingRoutineShares(),
+        );
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        incomingRoutineShares = refreshedShares;
+      } catch (error) {
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        rememberAuxiliaryError(error);
+      }
+
+      try {
+        final personalRoutines = await repository.listPersonalRoutines();
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        _mergePersonalRoutines(personalRoutines);
+      } catch (error) {
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        rememberAuxiliaryError(error);
+      }
+
+      if (resolvedRole == UserRole.member &&
+          repository is MemberSessionFeedbackRepository) {
+        try {
+          await _refreshMemberSessionFeedback(
+            repository as MemberSessionFeedbackRepository,
+            expectedAccountEpoch: accountEpoch,
+          );
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        } catch (_) {
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+          // The feedback card owns this auxiliary error and retry path. Core
+          // member data remains usable when the feed is temporarily offline.
+        }
+      } else {
+        memberSessionFeedbacks = const [];
+        memberSessionFeedbackError = null;
+      }
+
+      if (resolvedRole == UserRole.member &&
+          repository is BusinessMembershipRepository) {
+        try {
+          final memberships = await (repository as BusinessMembershipRepository)
+              .listMyBusinessMemberships();
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+          memberMemberships = List.unmodifiable(
+            memberships.where((item) => item.isActive),
+          );
+          memberMembershipsError = null;
+        } catch (error) {
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+          memberMembershipsError = error;
+        }
+      } else {
+        memberMemberships = const [];
+        memberMembershipsError = null;
+      }
+
+      if (resolvedRole == UserRole.trainer || resolvedRole == UserRole.gym) {
+        try {
+          final refreshedOutgoingShares = List<RoutineShareRecord>.unmodifiable(
+            await repository.listOutgoingRoutineShares(),
+          );
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+          outgoingRoutineShares = refreshedOutgoingShares;
+        } catch (error) {
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+          rememberAuxiliaryError(error);
+        }
+      } else {
+        outgoingRoutineShares = const [];
+      }
+
+      final refreshedProfile = refreshedWorkspace?.profile;
+      if (resolvedRole == UserRole.gym &&
+          refreshedProfile is GymBusinessProfile) {
+        try {
+          final refreshedInvites = List<BusinessInviteRecord>.unmodifiable(
+            await repository.listBusinessInvites(refreshedProfile.id),
+          );
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+          businessInvites = refreshedInvites;
+        } catch (error) {
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+          rememberAuxiliaryError(error);
+        }
+      } else {
+        businessInvites = const [];
+      }
+
+      if (auxiliaryError case final Object error) {
+        businessError = error;
+        throw error;
+      }
+    } catch (error) {
+      if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+      businessError = error;
+      rethrow;
+    } finally {
+      if (_isCurrentBusinessRequest(accountEpoch, requestToken)) {
+        businessLoading = false;
+        notifyListeners();
+      }
     }
   }
 
+  bool _isCurrentAccount(int accountEpoch) =>
+      !_disposed && accountEpoch == _accountEpoch;
+
+  bool _isCurrentBusinessRequest(int accountEpoch, int requestToken) =>
+      _isCurrentAccount(accountEpoch) &&
+      requestToken == _businessRequestSequence;
+
+  bool _isCurrentMemberFeedbackRequest(int accountEpoch, int requestToken) =>
+      _isCurrentAccount(accountEpoch) &&
+      requestToken == _memberFeedbackRequestSequence;
+
+  Future<void> refreshMemberSessionFeedback({
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final repository = businessRepository;
+    if (repository is! MemberSessionFeedbackRepository) return;
+    await _refreshMemberSessionFeedback(
+      repository as MemberSessionFeedbackRepository,
+      from: from,
+      to: to,
+    );
+  }
+
+  Future<void> _refreshMemberSessionFeedback(
+    MemberSessionFeedbackRepository repository, {
+    int? expectedAccountEpoch,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final accountEpoch = expectedAccountEpoch ?? _accountEpoch;
+    final requestToken = ++_memberFeedbackRequestSequence;
+    if (!_isCurrentMemberFeedbackRequest(accountEpoch, requestToken)) return;
+    memberSessionFeedbackLoading = true;
+    memberSessionFeedbackError = null;
+    notifyListeners();
+    try {
+      final now = DateTime.now();
+      final records = await repository.listMySessionFeedback(
+        from: from ?? DateTime(now.year, now.month, now.day - 365),
+        to: to ?? DateTime(now.year, now.month, now.day),
+      );
+      if (!_isCurrentMemberFeedbackRequest(accountEpoch, requestToken)) return;
+      final sorted = records.toList(growable: false)
+        ..sort((left, right) {
+          final bySession = right.sessionDate.compareTo(left.sessionDate);
+          return bySession != 0
+              ? bySession
+              : right.createdAt.compareTo(left.createdAt);
+        });
+      memberSessionFeedbacks = List.unmodifiable(sorted);
+    } catch (error) {
+      if (!_isCurrentMemberFeedbackRequest(accountEpoch, requestToken)) return;
+      memberSessionFeedbackError = error;
+      rethrow;
+    } finally {
+      if (_isCurrentMemberFeedbackRequest(accountEpoch, requestToken)) {
+        memberSessionFeedbackLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  static bool _isBusinessWorkspaceRole(UserRole value) =>
+      value == UserRole.trainer ||
+      value == UserRole.gym ||
+      value == UserRole.admin;
+
+  UserRole _resolveRefreshedBusinessRole(BusinessAccess access) {
+    final selectedRole = role;
+    if (selectedRole == UserRole.member) return UserRole.member;
+    if (selectedRole == UserRole.admin && _verifiedAdmin) {
+      return UserRole.admin;
+    }
+    if (selectedRole != UserRole.admin && access.canUse(selectedRole)) {
+      return selectedRole;
+    }
+    if (_verifiedAdmin) return UserRole.admin;
+    if (access.resolvedRole != UserRole.admin &&
+        (access.resolvedRole == UserRole.member ||
+            access.canUse(access.resolvedRole))) {
+      return access.resolvedRole;
+    }
+    for (final fallback in const [
+      UserRole.trainer,
+      UserRole.gym,
+      UserRole.member,
+    ]) {
+      if (fallback == UserRole.member || access.canUse(fallback)) {
+        return fallback;
+      }
+    }
+    return UserRole.member;
+  }
+
+  Future<T> _runBusinessMutation<T>(
+    String key,
+    Future<T> Function(int accountEpoch) action,
+  ) {
+    final pending = _businessMutations[key];
+    if (pending != null) return pending as Future<T>;
+
+    final accountEpoch = _accountEpoch;
+    late final Future<T> guarded;
+    guarded = Future<T>.sync(() => action(accountEpoch)).whenComplete(() {
+      if (!identical(_businessMutations[key], guarded)) return;
+      _businessMutations.remove(key);
+      if (_isCurrentAccount(accountEpoch)) notifyListeners();
+    });
+    _businessMutations[key] = guarded;
+    if (_isCurrentAccount(accountEpoch)) notifyListeners();
+    return guarded;
+  }
+
+  static const _trainerApplicationMutationKey = 'business-application:trainer';
+  static const _gymApplicationMutationKey = 'business-application:gym';
+  static const _businessRoutineMutationPrefix = 'business-routine:create:';
+
+  static String _assignmentMutationKey(String memberId) =>
+      'business-member:assign:$memberId';
+
+  static String _consultationCreateMutationKey(String trainerId) =>
+      'business-consultation:create:$trainerId';
+
+  static String _consultationReplyMutationKey(String consultationId) =>
+      'business-consultation:reply:$consultationId';
+
+  static String _consultationAssignMutationKey(String consultationId) =>
+      'business-consultation:assign:$consultationId';
+
+  static String _applicationReviewMutationKey(String applicationId) =>
+      'business-application:review:$applicationId';
+
+  static String _businessProfileMutationKey(String profileId) =>
+      'business-profile:update:$profileId';
+
+  static String _businessRoutineMutationKey(UserRole ownerRole, String title) =>
+      '$_businessRoutineMutationPrefix${ownerRole.name}:${title.trim().toLowerCase()}';
+
+  static String _businessRpcRequestKey(
+    String operation,
+    Map<String, Object?> payload,
+  ) => '$operation\u0000${jsonEncode(payload)}';
+
+  String _stableBusinessRpcRequestId(String requestKey) =>
+      _stableBusinessRpcRequestIds.putIfAbsent(requestKey, _newUuidV4);
+
+  void _completeBusinessRpcRequest(
+    String requestKey, {
+    required int expectedAccountEpoch,
+  }) {
+    if (!_isCurrentAccount(expectedAccountEpoch)) return;
+    _stableBusinessRpcRequestIds.remove(requestKey);
+  }
+
+  void _syncMemberConsultationsFromCloud() {
+    consultations
+      ..clear()
+      ..addAll(
+        memberConsultations.map((record) {
+          final responseMessages =
+              record.messages
+                  .where(
+                    (message) =>
+                        message.sender == BusinessMessageSender.trainer ||
+                        message.sender == BusinessMessageSender.gym,
+                  )
+                  .toList()
+                ..sort(
+                  (a, b) =>
+                      (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+                          .compareTo(
+                            b.createdAt ??
+                                DateTime.fromMillisecondsSinceEpoch(0),
+                          ),
+                );
+          final response = responseMessages.lastOrNull?.text;
+          return ConsultationData(
+            id: record.id,
+            trainerName: record.trainerName ?? record.gymName ?? '담당 전문가',
+            specialty: record.goal ?? '맞춤 운동 상담',
+            goal: record.goal ?? '',
+            level: record.level ?? '',
+            question: record.question ?? '',
+            createdAt: record.createdAt ?? DateTime.now(),
+            status: response == null
+                ? ConsultationStatus.waiting
+                : ConsultationStatus.answered,
+            response: response,
+          );
+        }),
+      );
+  }
+
+  void _resetLiveBusinessDashboards() {
+    businessDashboards
+      ..clear()
+      ..addAll({
+        for (final workspaceRole in const [
+          UserRole.trainer,
+          UserRole.gym,
+          UserRole.admin,
+        ])
+          workspaceRole: BusinessDashboardData(
+            role: workspaceRole,
+            facts: {},
+            tasks: [],
+            notifications: [],
+            lastSyncedAt: DateTime.now(),
+          ),
+      });
+  }
+
+  void _applyLiveBusinessDashboard(BusinessWorkspaceData workspace) {
+    final metrics = workspace.dashboardStats;
+    final tasks = <BusinessTaskData>[];
+    final notifications = <BusinessNotificationData>[];
+    final facts = <String, String>{};
+
+    switch (workspace.profile) {
+      case final TrainerBusinessProfile trainer:
+        facts.addAll({
+          'displayName': trainer.displayName,
+          'revenue': '${_formatInteger(metrics.pendingSettlement)}원',
+          'revenueChange': 'Supabase 정산 데이터 기준',
+          'members': '${metrics.activeMembers}',
+          'memberCapacity': '명',
+          'feedbackPending': '${metrics.overdueFeedbacks}',
+          'routineViews':
+              '${workspace.ownedRoutines.fold<int>(0, (sum, item) => sum + item.cumulativeUsers)}',
+          'routineViewsChange': '누적 사용',
+          'consultationConversion': '${metrics.unreadConsultations}건',
+          'consultationConversionChange': '미답변 상담',
+          'routineImports': '${workspace.ownedRoutines.length}개',
+          'routineImportsChange': '등록 루틴',
+          'keyword': trainer.keyword ?? '',
+          'intro': trainer.intro ?? '',
+        });
+      case final GymBusinessProfile gym:
+        facts.addAll({
+          'displayName': gym.name,
+          'businessVerified': '${gym.status == BusinessProfileStatus.verified}',
+          'businessNumber': gym.businessNumber ?? '',
+          'planId': gym.planTier ?? 'basic',
+          'plan': gym.planTier ?? '기본 플랜',
+          'location': gym.address ?? '',
+          'intro': gym.description ?? '',
+          'members': '${workspace.members.length}',
+          'revenue': (metrics.totalRevenue / 1000000).toStringAsFixed(1),
+          'trainers': '${workspace.trainers.length}',
+          'consultations': '${metrics.unreadConsultations}',
+        });
+        for (
+          var index = 0;
+          index < workspace.trainers.length && index < 3;
+          index++
+        ) {
+          final trainer = workspace.trainers[index];
+          facts['trainer${index + 1}Name'] = trainer.displayName ?? '이름 미등록';
+          facts['trainer${index + 1}Detail'] =
+              '회원 ${trainer.memberCount}명 · 평점 ${trainer.averageRating.toStringAsFixed(1)}';
+        }
+        for (final member in workspace.members) {
+          final assignment = workspace.assignments
+              .where((item) => item.active && item.memberId == member.id)
+              .firstOrNull;
+          if (assignment?.trainerName case final String trainerName) {
+            facts['memberAssignment.${member.id}'] = trainerName;
+          }
+        }
+      case null:
+        break;
+    }
+
+    if (metrics.overdueFeedbacks > 0) {
+      tasks.add(
+        BusinessTaskData(
+          id: 'feedback_due',
+          title: '피드백 확인이 필요해요',
+          subtitle: '${metrics.overdueFeedbacks}건의 피드백이 지연되고 있어요.',
+          action: '확인',
+          kind: 'urgent',
+        ),
+      );
+    }
+    if (metrics.unreadConsultations > 0) {
+      tasks.add(
+        BusinessTaskData(
+          id: 'new_consultation',
+          title: '새 상담이 도착했어요',
+          subtitle: '미답변 상담 ${metrics.unreadConsultations}건',
+          action: '답변',
+          kind: 'consultation',
+        ),
+      );
+      notifications.add(
+        BusinessNotificationData(
+          id: 'consultations_unread',
+          title: '새 상담이 도착했어요',
+          subtitle: '미답변 상담 ${metrics.unreadConsultations}건을 확인해주세요.',
+          kind: 'consultation',
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
+    if (workspace.role == UserRole.gym) {
+      final assignedIds = workspace.assignments
+          .where((assignment) => assignment.active)
+          .map((assignment) => assignment.memberId)
+          .toSet();
+      final unassigned = workspace.members
+          .where((member) => !assignedIds.contains(member.id))
+          .length;
+      if (unassigned > 0) {
+        tasks.add(
+          BusinessTaskData(
+            id: 'gym_member_assignment',
+            title: '신규 회원 배정이 필요해요',
+            subtitle: '담당자가 없는 회원 $unassigned명',
+            action: '배정',
+            kind: 'member',
+          ),
+        );
+      }
+    }
+    if (workspace.role == UserRole.admin) {
+      final pending = workspace.applications
+          .where(
+            (application) =>
+                application.status == BusinessApplicationStatus.pending,
+          )
+          .length;
+      facts['reviews'] = '$pending';
+      if (pending > 0) {
+        tasks.add(
+          BusinessTaskData(
+            id: 'admin_business_reviews',
+            title: '사업자 심사 대기 $pending건',
+            subtitle: '실제 제출된 신청서를 확인해주세요.',
+            action: '검토',
+            kind: 'review',
+          ),
+        );
+      }
+    }
+
+    businessDashboards[workspace.role] = BusinessDashboardData(
+      role: workspace.role,
+      facts: facts,
+      tasks: tasks,
+      notifications: notifications,
+      lastSyncedAt: DateTime.now(),
+    );
+  }
+
+  static String _formatInteger(double value) {
+    final digits = value.round().toString();
+    return digits.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+  }
+
   RoutineData _routineFromCatalog(RoutineCatalogItem item) {
-    final templates = item.exercises
-        .map((catalogExercise) {
-          return exercises
-                  .where((exercise) => exercise.name == catalogExercise.name)
-                  .firstOrNull ??
-              ExerciseTemplate(
-                id: 'catalog_${catalogExercise.id}',
-                name: catalogExercise.name,
-                muscle: catalogExercise.targetMuscle,
-                icon: Icons.fitness_center_rounded,
-              );
-        })
-        .toList(growable: false);
+    final templates = <ExerciseTemplate>[];
+    final setPlans = <String, List<RoutineSetPlan>>{};
+    for (final catalogExercise in item.exercises) {
+      final template =
+          exercises
+              .where(
+                (exercise) =>
+                    exercise.id == catalogExercise.baseExerciseId ||
+                    exercise.name == catalogExercise.name,
+              )
+              .firstOrNull ??
+          ExerciseTemplate(
+            id:
+                catalogExercise.baseExerciseId ??
+                'catalog_${catalogExercise.id}',
+            name: catalogExercise.name,
+            muscle: catalogExercise.targetMuscle,
+            icon: Icons.fitness_center_rounded,
+          );
+      templates.add(template);
+      if (catalogExercise.sets.isNotEmpty) {
+        setPlans[template.id] = catalogExercise.sets
+            .map(
+              (set) => RoutineSetPlan(
+                number: set.setNumber,
+                weight: set.targetWeight ?? 0,
+                reps: set.targetReps ?? 0,
+                type: workoutSetTypeLabel(set.type),
+                restSeconds: set.restSeconds,
+                durationSeconds: set.durationSeconds ?? 0,
+                distanceKm: (set.distanceMeters ?? 0) / 1000,
+                intensityRpe: set.intensityRpe ?? 0,
+              ),
+            )
+            .toList(growable: false);
+      }
+    }
     return RoutineData(
       id: item.id,
       name: item.title,
@@ -629,7 +1994,88 @@ class AppState extends ChangeNotifier {
       accessTier: item.accessTier == RoutineCatalogAccessTier.paid
           ? RoutineAccessTier.paid
           : RoutineAccessTier.free,
+      setPlans: setPlans,
+      sourceMarketRoutineId: item.id,
+      sourceCoachingRoutineId: item.coachingRoutineId,
+      authorTrainerId: item.authorTrainerId,
+      authorGymId: item.authorGymId,
+      authorType: item.authorType,
     );
+  }
+
+  RoutineData _routineFromPersonalRecord(PersonalRoutineRecord record) {
+    final templates = <ExerciseTemplate>[];
+    final setPlans = <String, List<RoutineSetPlan>>{};
+    final baseExerciseIds = <String, String?>{};
+    for (final item in record.exercises) {
+      final template =
+          exercises
+              .where(
+                (exercise) =>
+                    exercise.id == item.baseExerciseId ||
+                    exercise.name == item.name,
+              )
+              .firstOrNull ??
+          ExerciseTemplate(
+            id: item.baseExerciseId ?? item.id,
+            name: item.name,
+            muscle: item.targetMuscle,
+            icon: Icons.fitness_center_rounded,
+          );
+      templates.add(template);
+      baseExerciseIds[template.id] = item.baseExerciseId;
+      if (item.sets.isNotEmpty) {
+        setPlans[template.id] = item.sets
+            .map(
+              (set) => RoutineSetPlan(
+                number: set.setNumber,
+                weight: set.targetWeight ?? 0,
+                reps: set.targetReps ?? 0,
+                type: workoutSetTypeLabel(set.type),
+                restSeconds: set.restSeconds,
+                durationSeconds: set.durationSeconds ?? 0,
+                distanceKm: (set.distanceMeters ?? 0) / 1000,
+                intensityRpe: set.intensityRpe ?? 0,
+              ),
+            )
+            .toList(growable: false);
+      }
+    }
+    _personalRoutineBaseExerciseIds[record.id] = Map.unmodifiable(
+      baseExerciseIds,
+    );
+    return RoutineData(
+      id: record.id,
+      name: record.name,
+      description: record.description ?? '',
+      color: Color(_colorValue(record.color)),
+      exercises: templates,
+      author: record.sourceCoachingRoutineId == null ? '나' : '전문가 공유',
+      setPlans: setPlans,
+      sourceMarketRoutineId: record.marketRoutineId,
+      sourceCoachingRoutineId: record.sourceCoachingRoutineId,
+    );
+  }
+
+  void _mergePersonalRoutines(List<PersonalRoutineRecord> records) {
+    final serverRoutineIds = records.map((record) => record.id).toSet();
+    routines.removeWhere(
+      (routine) =>
+          _isUuid(routine.id) && !serverRoutineIds.contains(routine.id),
+    );
+    _personalRoutineBaseExerciseIds.removeWhere(
+      (routineId, _) => !serverRoutineIds.contains(routineId),
+    );
+    for (final record in records) {
+      final routine = _routineFromPersonalRecord(record);
+      final index = routines.indexWhere((item) => item.id == routine.id);
+      if (index < 0) {
+        routines.add(routine);
+      } else {
+        routines[index] = routine;
+      }
+    }
+    _schedulePersist();
   }
 
   static int _colorValue(String? value) {
@@ -661,13 +2107,24 @@ class AppState extends ChangeNotifier {
       author: routine.author,
       level: routine.level,
       accessTier: accessTier,
+      setPlans: routine.setPlans,
+      sourceMarketRoutineId: routine.sourceMarketRoutineId,
+      sourceCoachingRoutineId: routine.sourceCoachingRoutineId,
+      authorTrainerId: routine.authorTrainerId,
+      authorGymId: routine.authorGymId,
+      authorType: routine.authorType,
     );
     notifyListeners();
     return true;
   }
 
   RoutineImportResult importRoutine(RoutineData routine) {
-    if (routines.any((item) => item.id == routine.id)) {
+    if (routines.any(
+      (item) =>
+          item.id == routine.id ||
+          (routine.sourceMarketRoutineId != null &&
+              item.sourceMarketRoutineId == routine.sourceMarketRoutineId),
+    )) {
       return RoutineImportResult.alreadySaved;
     }
     if (routine.isPaid && !hasPaidPlan && !_verifiedAdmin) {
@@ -679,6 +2136,63 @@ class AppState extends ChangeNotifier {
     routines.add(routine);
     _schedulePersist();
     notifyListeners();
+    return RoutineImportResult.imported;
+  }
+
+  Future<RoutineImportResult> importMarketRoutine(RoutineData routine) async {
+    final eligibility = _routineImportEligibility(routine);
+    if (eligibility != RoutineImportResult.imported) return eligibility;
+    final repository = businessRepository;
+    final marketRoutineId = routine.sourceMarketRoutineId ?? routine.id;
+    if (repository == null) return importRoutine(routine);
+    final requestKey = _businessRpcRequestKey('import_market_routine', {
+      'marketRoutineId': marketRoutineId.trim(),
+    });
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+
+    return _runBusinessMutation<RoutineImportResult>(
+      'routine:market-import:$marketRoutineId',
+      (accountEpoch) async {
+        final record = await repository.importMarketRoutine(
+          marketRoutineId,
+          requestId: requestId,
+        );
+        if (!_isCurrentAccount(accountEpoch)) {
+          return RoutineImportResult.imported;
+        }
+        final imported = _routineFromPersonalRecord(record);
+        final index = routines.indexWhere((item) => item.id == imported.id);
+        if (index < 0) {
+          routines.add(imported);
+        } else {
+          routines[index] = imported;
+        }
+        _schedulePersist();
+        notifyListeners();
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return RoutineImportResult.imported;
+      },
+    );
+  }
+
+  RoutineImportResult _routineImportEligibility(RoutineData routine) {
+    if (routines.any(
+      (item) =>
+          item.id == routine.id ||
+          (routine.sourceMarketRoutineId != null &&
+              item.sourceMarketRoutineId == routine.sourceMarketRoutineId),
+    )) {
+      return RoutineImportResult.alreadySaved;
+    }
+    if (routine.isPaid && !hasPaidPlan && !_verifiedAdmin) {
+      return RoutineImportResult.paidPlanRequired;
+    }
+    if (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4) {
+      return RoutineImportResult.limitReached;
+    }
     return RoutineImportResult.imported;
   }
 
@@ -698,33 +2212,296 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
-  bool updateRoutine({
+  /// Creates a member-owned routine through the normalized Supabase tables.
+  /// Demo/Memory repositories keep the original synchronous local path.
+  Future<bool> createPersonalRoutine(String name, String description) async {
+    final normalizedName = name.trim();
+    final normalizedDescription = description.trim();
+    if (normalizedName.isEmpty ||
+        (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4)) {
+      return false;
+    }
+    final repository = businessRepository;
+    if (repository == null) {
+      return createRoutine(normalizedName, normalizedDescription);
+    }
+
+    final payloadKey = _businessRpcRequestKey('create_personal_routine', {
+      'name': normalizedName,
+      'description': normalizedDescription,
+    });
+    final routineIdKey = '$payloadKey\u0000routine-id';
+    final requestIdKey = '$payloadKey\u0000request-id';
+    final routineId = _stableBusinessRpcRequestId(routineIdKey);
+    final requestId = _stableBusinessRpcRequestId(requestIdKey);
+    final selectedExercises = [exercises[0], exercises[2], exercises[4]];
+    final routine = RoutineData(
+      id: routineId,
+      name: normalizedName,
+      description: normalizedDescription,
+      color: const Color(0xFF3B82F6),
+      exercises: selectedExercises,
+      setPlans: {
+        for (final exercise in selectedExercises)
+          exercise.id: _defaultPersonalRoutineSetPlans(exercise),
+      },
+    );
+
+    return _runBusinessMutation<bool>('personal-routine:create:$requestId', (
+      accountEpoch,
+    ) async {
+      final record = await repository.savePersonalRoutine(
+        _personalRoutineSaveInput(routine, requestId: requestId),
+      );
+      _completeBusinessRpcRequest(
+        routineIdKey,
+        expectedAccountEpoch: accountEpoch,
+      );
+      _completeBusinessRpcRequest(
+        requestIdKey,
+        expectedAccountEpoch: accountEpoch,
+      );
+      if (!_isCurrentAccount(accountEpoch)) return true;
+      final savedRoutine = _routineFromPersonalRecord(record);
+      routines.removeWhere((item) => item.id == savedRoutine.id);
+      routines.add(savedRoutine);
+      _schedulePersist();
+      notifyListeners();
+      return true;
+    });
+  }
+
+  Future<bool> updateRoutine({
     required RoutineData routine,
     required String name,
     required String description,
     required List<ExerciseTemplate> exercises,
-  }) {
+  }) async {
     final index = routines.indexWhere((item) => item.id == routine.id);
-    if (index < 0 || exercises.isEmpty) return false;
-    routines[index] = RoutineData(
+    final normalizedName = name.trim();
+    if (index < 0 || normalizedName.isEmpty || exercises.isEmpty) return false;
+    final updatedRoutine = RoutineData(
       id: routine.id,
-      name: name.trim(),
+      name: normalizedName,
       description: description.trim(),
       color: routine.color,
       exercises: List.of(exercises),
       author: routine.author,
       level: routine.level,
       accessTier: routine.accessTier,
+      setPlans: {
+        for (final exercise in exercises)
+          exercise.id:
+              routine.setPlans[exercise.id] ??
+              _defaultPersonalRoutineSetPlans(exercise),
+      },
+      sourceMarketRoutineId: routine.sourceMarketRoutineId,
+      sourceCoachingRoutineId: routine.sourceCoachingRoutineId,
+      authorTrainerId: routine.authorTrainerId,
+      authorGymId: routine.authorGymId,
+      authorType: routine.authorType,
     );
-    _schedulePersist();
-    notifyListeners();
-    return true;
+
+    final repository = businessRepository;
+    if (repository == null || !_isUuid(routine.id)) {
+      routines[index] = updatedRoutine;
+      _schedulePersist();
+      notifyListeners();
+      return true;
+    }
+
+    final fingerprint = _personalRoutineFingerprint(updatedRoutine);
+    final requestKey = '${routine.id}\u0000$fingerprint';
+    final requestId = _personalRoutineSaveRequestIds.putIfAbsent(
+      requestKey,
+      _newUuidV4,
+    );
+    return _runBusinessMutation<bool>(
+      'personal-routine:save:${routine.id}:$fingerprint',
+      (accountEpoch) async {
+        final savedRecord = await repository.savePersonalRoutine(
+          _personalRoutineSaveInput(updatedRoutine, requestId: requestId),
+        );
+        _personalRoutineSaveRequestIds.remove(requestKey);
+        if (!_isCurrentAccount(accountEpoch)) return true;
+        final savedRoutine = _routineFromPersonalRecord(savedRecord);
+        final currentIndex = routines.indexWhere(
+          (item) => item.id == savedRoutine.id,
+        );
+        if (currentIndex < 0) {
+          routines.add(savedRoutine);
+        } else {
+          routines[currentIndex] = savedRoutine;
+        }
+        _schedulePersist();
+        notifyListeners();
+        return true;
+      },
+    );
   }
 
-  void removeRoutine(RoutineData routine) {
-    routines.remove(routine);
-    _schedulePersist();
-    notifyListeners();
+  Future<bool> removeRoutine(RoutineData routine) async {
+    final repository = businessRepository;
+    if (repository == null || !_isUuid(routine.id)) {
+      final removed = routines.remove(routine);
+      if (!removed) return false;
+      _personalRoutineBaseExerciseIds.remove(routine.id);
+      _schedulePersist();
+      notifyListeners();
+      return true;
+    }
+
+    final requestId = _personalRoutineDeleteRequestIds.putIfAbsent(
+      routine.id,
+      _newUuidV4,
+    );
+    return _runBusinessMutation<bool>('personal-routine:delete:${routine.id}', (
+      accountEpoch,
+    ) async {
+      await repository.deletePersonalRoutine(routine.id, requestId: requestId);
+      _personalRoutineDeleteRequestIds.remove(routine.id);
+      if (!_isCurrentAccount(accountEpoch)) return true;
+      routines.removeWhere((item) => item.id == routine.id);
+      _personalRoutineBaseExerciseIds.remove(routine.id);
+      _schedulePersist();
+      notifyListeners();
+      return true;
+    });
+  }
+
+  List<RoutineSetPlan> _defaultPersonalRoutineSetPlans(
+    ExerciseTemplate exercise,
+  ) => exercise.isCardio
+      ? const [
+          RoutineSetPlan(
+            number: 1,
+            weight: 0,
+            reps: 0,
+            restSeconds: 0,
+            durationSeconds: 1800,
+            intensityRpe: 3,
+          ),
+        ]
+      : [
+          RoutineSetPlan(
+            number: 1,
+            weight: 40,
+            reps: 10,
+            restSeconds: restDefaultSeconds,
+          ),
+          RoutineSetPlan(
+            number: 2,
+            weight: 40,
+            reps: 10,
+            restSeconds: restDefaultSeconds,
+          ),
+          RoutineSetPlan(
+            number: 3,
+            weight: 40,
+            reps: 8,
+            restSeconds: restDefaultSeconds,
+          ),
+        ];
+
+  SavePersonalRoutineInput _personalRoutineSaveInput(
+    RoutineData routine, {
+    required String requestId,
+  }) {
+    final storedBaseIds = _personalRoutineBaseExerciseIds[routine.id];
+    return SavePersonalRoutineInput(
+      routineId: routine.id,
+      name: routine.name,
+      description: routine.description,
+      color: _routineColorHex(routine.color),
+      requestId: requestId,
+      exercises: routine.exercises
+          .map((exercise) {
+            final baseExerciseId =
+                storedBaseIds?.containsKey(exercise.id) == true
+                ? storedBaseIds![exercise.id]
+                : null;
+            final plans = [...routine.setsFor(exercise)]
+              ..sort((left, right) => left.number.compareTo(right.number));
+            return CreateOwnedRoutineExerciseInput(
+              baseExerciseId: baseExerciseId,
+              name: exercise.name,
+              targetMuscle: exercise.muscle,
+              sets: plans
+                  .map(
+                    (set) => CreateOwnedRoutineSetInput(
+                      setNumber: set.number,
+                      type: workoutSetTypeDatabaseValue(set.type),
+                      targetWeight: set.weight,
+                      targetReps: set.reps,
+                      restSeconds: set.restSeconds,
+                      durationSeconds: set.durationSeconds > 0
+                          ? set.durationSeconds
+                          : null,
+                      distanceMeters: set.distanceKm > 0
+                          ? set.distanceKm * 1000
+                          : null,
+                      intensityRpe: set.intensityRpe > 0
+                          ? set.intensityRpe
+                          : null,
+                    ),
+                  )
+                  .toList(growable: false),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+
+  String _personalRoutineFingerprint(RoutineData routine) {
+    final parts = <Object?>[
+      routine.name,
+      routine.description,
+      _routineColorHex(routine.color),
+    ];
+    final storedBaseIds = _personalRoutineBaseExerciseIds[routine.id];
+    for (final exercise in routine.exercises) {
+      parts
+        ..add(exercise.id)
+        ..add(exercise.name)
+        ..add(exercise.muscle)
+        ..add(storedBaseIds?[exercise.id]);
+      for (final set in routine.setsFor(exercise)) {
+        parts
+          ..add(set.number)
+          ..add(set.weight)
+          ..add(set.reps)
+          ..add(workoutSetTypeDatabaseValue(set.type))
+          ..add(set.restSeconds)
+          ..add(set.durationSeconds)
+          ..add(set.distanceKm)
+          ..add(set.intensityRpe);
+      }
+    }
+    return parts.join('\u001f').hashCode.toUnsigned(32).toRadixString(16);
+  }
+
+  String get todayWorkoutMetric {
+    final session = sessions[dateOnly(DateTime.now())];
+    if (session == null) return '오늘 운동 기록';
+    final resistanceSets = session.exercises
+        .where((exercise) => !exercise.template.isCardio)
+        .fold<int>(
+          0,
+          (sum, exercise) =>
+              sum + exercise.sets.where((set) => set.completed).length,
+        );
+    final parts = <String>[];
+    if (resistanceSets > 0) parts.add('$resistanceSets세트');
+    if (session.volume > 0) {
+      final volume = session.volume >= 1000
+          ? '${(session.volume / 1000).toStringAsFixed(1)}k'
+          : session.volume.toStringAsFixed(0);
+      parts.add('$volume $weightUnit·회');
+    }
+    if (session.cardioDurationSeconds > 0) {
+      parts.add('${(session.cardioDurationSeconds / 60).round()}분 유산소');
+    }
+    return parts.isEmpty ? '오늘 운동 기록' : parts.join(' · ');
   }
 
   Future<void> addCommunityPost({
@@ -734,7 +2511,7 @@ class AppState extends ChangeNotifier {
     CommunityPostMedia? media,
     List<String> activeOverlays = const [],
   }) async {
-    final metric = includeWorkout ? '오늘 운동 기록 · 12세트 · 4.2t' : '일상 기록';
+    final metric = includeWorkout ? todayWorkoutMetric : '일상 기록';
     final repository = communityRepository;
     if (repository != null) {
       final record = await repository.createPost(
@@ -756,7 +2533,7 @@ class AppState extends ChangeNotifier {
       0,
       CommunityPost(
         id: 'post_${DateTime.now().microsecondsSinceEpoch}',
-        author: SupabaseAuthService.instance.currentDisplayName,
+        author: memberDisplayName,
         content: content,
         metric: metric,
         createdAt: DateTime.now(),
@@ -800,7 +2577,7 @@ class AppState extends ChangeNotifier {
         ? await repository.addComment(postId: post.id, content: content)
         : PostComment(
             id: 'comment_${DateTime.now().microsecondsSinceEpoch}',
-            author: SupabaseAuthService.instance.currentDisplayName,
+            author: memberDisplayName,
             content: content,
             createdAt: DateTime.now(),
           );
@@ -809,27 +2586,160 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addConsultation({
+  Future<PublicTrainerSearchPage> searchPublicTrainers({
+    String query = '',
+    String? cursor,
+    int pageSize = 20,
+  }) async {
+    final normalizedQuery = normalizePublicTrainerSearchQuery(query);
+    final normalizedPageSize = validatePublicTrainerSearchPageSize(pageSize);
+    final repository = businessRepository;
+    if (repository case final PublicTrainerSearchRepository searchRepository) {
+      final accountEpoch = _accountEpoch;
+      final page = await searchRepository.searchPublicTrainers(
+        query: normalizedQuery,
+        cursor: cursor,
+        pageSize: normalizedPageSize,
+      );
+      if (_accountEpoch == accountEpoch && page.items.isNotEmpty) {
+        final merged = <String, PublicTrainer>{
+          for (final trainer in publicTrainers) trainer.profile.id: trainer,
+          for (final trainer in page.items) trainer.profile.id: trainer,
+        };
+        publicTrainers = List.unmodifiable(merged.values);
+        notifyListeners();
+      }
+      return page;
+    }
+
+    // Compatibility path for demo repositories and older test doubles. Live
+    // Supabase traffic always uses PublicTrainerSearchRepository above.
+    if (cursor != null) {
+      return const PublicTrainerSearchPage(items: []);
+    }
+    final needle = normalizedQuery.toLowerCase();
+    final filtered = publicTrainers
+        .where((trainer) {
+          if (needle.isEmpty) return true;
+          return <String?>[
+            trainer.profile.displayName,
+            trainer.profile.centerName,
+            trainer.profile.keyword,
+            ...trainer.specialties,
+          ].whereType<String>().any(
+            (value) => value.toLowerCase().contains(needle),
+          );
+        })
+        .toList(growable: false);
+    filtered.sort((left, right) {
+      if (needle.isNotEmpty) {
+        int matchRank(PublicTrainer trainer) {
+          final name = trainer.profile.displayName.toLowerCase();
+          if (name == needle) return 0;
+          if (name.startsWith(needle)) return 1;
+          return 2;
+        }
+
+        final byMatch = matchRank(left).compareTo(matchRank(right));
+        if (byMatch != 0) return byMatch;
+      }
+      final byRating = right.profile.rating.compareTo(left.profile.rating);
+      if (byRating != 0) return byRating;
+      final byName = left.profile.displayName.compareTo(
+        right.profile.displayName,
+      );
+      return byName != 0 ? byName : left.profile.id.compareTo(right.profile.id);
+    });
+    return PublicTrainerSearchPage(
+      items: List.unmodifiable(filtered.take(normalizedPageSize)),
+    );
+  }
+
+  Future<void> addConsultation({
+    String? trainerId,
+    String? gymId,
+    String? routineId,
     required String trainerName,
     required String specialty,
     required String goal,
     required String level,
     required String question,
-  }) {
-    consultations.insert(
-      0,
-      ConsultationData(
-        id: 'consult_${DateTime.now().microsecondsSinceEpoch}',
-        trainerName: trainerName,
-        specialty: specialty,
-        goal: goal,
-        level: level,
-        question: question,
-        createdAt: DateTime.now(),
-      ),
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      consultations.insert(
+        0,
+        ConsultationData(
+          id: 'consult_${DateTime.now().microsecondsSinceEpoch}',
+          trainerName: trainerName,
+          specialty: specialty,
+          goal: goal,
+          level: level,
+          question: question,
+          createdAt: DateTime.now(),
+        ),
+      );
+      _schedulePersist();
+      notifyListeners();
+      return;
+    }
+
+    if (trainerId != null && gymId != null) {
+      throw ArgumentError('트레이너와 센터 상담 대상을 동시에 지정할 수 없습니다.');
+    }
+    String? resolvedTrainerId = trainerId;
+    if (resolvedTrainerId == null && gymId == null) {
+      final matchingTrainers = publicTrainers
+          .where((trainer) => trainer.profile.displayName == trainerName)
+          .take(2)
+          .toList(growable: false);
+      if (matchingTrainers.length > 1) {
+        throw StateError('동명이인 트레이너가 있어 ID로 선택해야 합니다.');
+      }
+      resolvedTrainerId = matchingTrainers.firstOrNull?.profile.id;
+    }
+    if (resolvedTrainerId == null && gymId == null) {
+      throw StateError('선택한 트레이너 정보를 찾을 수 없습니다.');
+    }
+    final targetId = resolvedTrainerId ?? gymId!;
+    final requestKey = _businessRpcRequestKey('create_consultation', {
+      'trainerId': resolvedTrainerId,
+      'gymId': gymId,
+      'routineId': routineId,
+      'specialty': specialty.trim(),
+      'goal': goal.trim(),
+      'level': level.trim(),
+      'question': question.trim(),
+    });
+    final requestId = _consultationCreateRequestIds.putIfAbsent(
+      requestKey,
+      _newUuidV4,
     );
-    _schedulePersist();
-    notifyListeners();
+    await _runBusinessMutation<void>(_consultationCreateMutationKey(targetId), (
+      accountEpoch,
+    ) async {
+      await repository.createConsultation(
+        CreateConsultationInput(
+          requestId: requestId,
+          trainerId: resolvedTrainerId,
+          gymId: gymId,
+          routineId: routineId,
+          specialty: specialty,
+          goal: goal,
+          level: level,
+          question: question,
+        ),
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      final refreshedConsultations = List<BusinessConsultation>.unmodifiable(
+        await repository.listMyConsultations(),
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      memberConsultations = refreshedConsultations;
+      _syncMemberConsultationsFromCloud();
+      _consultationCreateRequestIds.remove(requestKey);
+      notifyListeners();
+    });
   }
 
   void startCoaching(ConsultationData consultation) {
@@ -845,7 +2755,15 @@ class AppState extends ChangeNotifier {
   }
 
   BusinessDashboardData dashboardFor(UserRole role) {
-    return businessDashboards[role] ?? businessDashboards[UserRole.trainer]!;
+    return businessDashboards[role] ??
+        businessDashboards[UserRole.trainer] ??
+        BusinessDashboardData(
+          role: role,
+          facts: {},
+          tasks: [],
+          notifications: [],
+          lastSyncedAt: DateTime.now(),
+        );
   }
 
   int unreadBusinessNotifications(UserRole role) {
@@ -871,6 +2789,19 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> refreshBusinessDashboard(UserRole role) async {
+    final repository = businessRepository;
+    if (repository != null) {
+      try {
+        await _refreshBusinessData(repository);
+        cloudSyncError = null;
+      } catch (error) {
+        cloudSyncError = error;
+        rethrow;
+      } finally {
+        notifyListeners();
+      }
+      return;
+    }
     await Future<void>.delayed(const Duration(milliseconds: 550));
     dashboardFor(role).lastSyncedAt = DateTime.now();
     _schedulePersist();
@@ -882,6 +2813,7 @@ class AppState extends ChangeNotifier {
     required String memberName,
     required String feedback,
   }) {
+    if (businessRepository != null) return;
     final facts = dashboardFor(role).facts;
     facts['memberFeedback.$memberName'] = feedback;
     facts['memberFeedbackAt.$memberName'] = DateTime.now().toIso8601String();
@@ -889,7 +2821,42 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void assignBusinessMember({required String memberName, String? trainerName}) {
+  Future<void> assignBusinessMember({
+    required String memberName,
+    String? trainerName,
+  }) async {
+    if (businessRepository != null) {
+      final matchingMembers = businessMembers
+          .where((item) => item.name == memberName)
+          .take(2)
+          .toList(growable: false);
+      if (matchingMembers.isEmpty) throw StateError('회원을 찾을 수 없습니다.');
+      if (matchingMembers.length > 1) {
+        throw StateError('동명이인 회원이 있어 ID로 선택해야 합니다.');
+      }
+      final member = matchingMembers.single;
+      String? trainerId;
+      if (trainerName != null) {
+        final matchingTrainers = businessTrainers
+            .where((item) => item.displayName == trainerName)
+            .take(2)
+            .toList(growable: false);
+        if (matchingTrainers.isEmpty) {
+          throw StateError('트레이너를 찾을 수 없습니다.');
+        }
+        if (matchingTrainers.length > 1) {
+          throw StateError('동명이인 트레이너가 있어 ID로 선택해야 합니다.');
+        }
+        trainerId = matchingTrainers.single.trainerId;
+        if (trainerId == null) throw StateError('트레이너 ID가 없습니다.');
+      }
+      await assignBusinessMemberById(
+        gymId: member.gymId,
+        memberId: member.id,
+        trainerId: trainerId,
+      );
+      return;
+    }
     final facts = dashboardFor(UserRole.gym).facts;
     if (trainerName == null) {
       facts.remove('memberAssignment.$memberName');
@@ -899,6 +2866,571 @@ class AppState extends ChangeNotifier {
     facts['memberAssignmentAt.$memberName'] = DateTime.now().toIso8601String();
     _schedulePersist();
     notifyListeners();
+  }
+
+  Future<void> assignBusinessMemberById({
+    required String gymId,
+    required String memberId,
+    String? trainerId,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    await _runBusinessMutation<void>(_assignmentMutationKey(memberId), (
+      accountEpoch,
+    ) async {
+      await repository.assignMember(
+        AssignMemberInput(
+          gymId: gymId,
+          memberId: memberId,
+          trainerId: trainerId,
+        ),
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      await _refreshBusinessData(
+        repository,
+        expectedAccountEpoch: accountEpoch,
+      );
+    });
+  }
+
+  Future<BusinessMember> endBusinessMembership(String memberId) async {
+    final repository = businessRepository;
+    if (repository is! BusinessMembershipRepository) {
+      throw StateError('센터 관계 종료 서버가 연결되지 않았습니다.');
+    }
+    final requestId = _membershipEndRequestIds.putIfAbsent(
+      memberId,
+      _newUuidV4,
+    );
+    return _runBusinessMutation<BusinessMember>('membership:end:$memberId', (
+      accountEpoch,
+    ) async {
+      final ended = await (repository as BusinessMembershipRepository)
+          .endBusinessMembership(
+            EndBusinessMembershipInput(
+              memberId: memberId,
+              requestId: requestId,
+            ),
+          );
+      if (!_isCurrentAccount(accountEpoch)) return ended;
+      _businessMemberDetails.remove(memberId);
+      _businessMemberDetailErrors.remove(memberId);
+      memberMemberships = memberMemberships
+          .where((item) => item.id != memberId)
+          .toList(growable: false);
+      await _refreshBusinessData(
+        repository as BusinessRepository,
+        expectedAccountEpoch: accountEpoch,
+      );
+      if (_isCurrentAccount(accountEpoch)) {
+        _membershipEndRequestIds.remove(memberId);
+      }
+      return ended;
+    });
+  }
+
+  Future<BusinessMemberDetail> loadBusinessMemberDetail(
+    String memberId, {
+    bool force = false,
+    DateTime? from,
+    DateTime? to,
+  }) {
+    final repository = businessRepository;
+    if (repository == null) {
+      return Future<BusinessMemberDetail>.error(
+        StateError('실데이터 저장소가 연결되지 않았습니다.'),
+      );
+    }
+    if (force) {
+      _memberDetailGeneration++;
+      _businessMemberDetails.remove(memberId);
+      _businessMemberDetailErrors.remove(memberId);
+    }
+    if (!force) {
+      final cached = _businessMemberDetails[memberId];
+      if (cached != null) return Future.value(cached);
+      final inFlight = _memberDetailLoads[memberId];
+      if (inFlight != null) return inFlight;
+    }
+
+    final accountEpoch = _accountEpoch;
+    final detailGeneration = _memberDetailGeneration;
+    final request = repository
+        .loadMemberDetail(memberId, from: from, to: to)
+        .then((detail) {
+          if (!_isCurrentAccount(accountEpoch) ||
+              detailGeneration != _memberDetailGeneration) {
+            throw StateError('계정 또는 공유 권한이 변경되어 회원 상세 요청을 취소했습니다.');
+          }
+          if (detail.memberId != memberId) {
+            throw StateError('요청한 회원과 다른 상세 데이터가 반환되었습니다.');
+          }
+          _businessMemberDetails[memberId] = detail;
+          _businessMemberDetailErrors.remove(memberId);
+          return detail;
+        })
+        .catchError((Object error) {
+          if (_isCurrentAccount(accountEpoch) &&
+              detailGeneration == _memberDetailGeneration) {
+            _businessMemberDetailErrors[memberId] = error;
+          }
+          throw error;
+        })
+        .whenComplete(() {
+          if (_isCurrentAccount(accountEpoch) &&
+              detailGeneration == _memberDetailGeneration) {
+            _memberDetailLoads.remove(memberId);
+            notifyListeners();
+          }
+        });
+    _memberDetailLoads[memberId] = request;
+    _businessMemberDetailErrors.remove(memberId);
+    notifyListeners();
+    return request;
+  }
+
+  void _clearBusinessMemberDetailCache() {
+    _memberDetailGeneration++;
+    _memberDetailLoads.clear();
+    _businessMemberDetails.clear();
+    _businessMemberDetailErrors.clear();
+  }
+
+  Future<BusinessSessionFeedback> sendBusinessSessionFeedback({
+    required String memberId,
+    required String sessionId,
+    required String text,
+    String? requestId,
+  }) async {
+    final message = text.trim();
+    if (message.isEmpty) throw ArgumentError('피드백 내용을 입력해주세요.');
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    final requestKey = '$sessionId\u0000$message';
+    final stableRequestId =
+        requestId ??
+        _sessionFeedbackRequestIds.putIfAbsent(requestKey, _newUuidV4);
+    return _runBusinessMutation<BusinessSessionFeedback>(
+      'feedback:session:$sessionId',
+      (accountEpoch) async {
+        final feedback = await repository.sendSessionFeedback(
+          SendSessionFeedbackInput(
+            sessionId: sessionId,
+            text: message,
+            requestId: stableRequestId,
+          ),
+        );
+        _sessionFeedbackRequestIds.remove(requestKey);
+        if (_isCurrentAccount(accountEpoch)) {
+          try {
+            await loadBusinessMemberDetail(memberId, force: true);
+          } catch (error) {
+            if (_isCurrentAccount(accountEpoch)) {
+              _businessMemberDetailErrors[memberId] = error;
+            }
+          }
+        }
+        return feedback;
+      },
+    );
+  }
+
+  Future<void> updateMemberSharingPreferences({
+    required bool shareBodyData,
+    required bool shareWorkoutRecords,
+    required bool marketing,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    await _runBusinessMutation<void>('member:sharing-preferences', (
+      accountEpoch,
+    ) async {
+      await repository.updateMySharingPreferences(
+        MemberSharingPreferences(
+          shareBodyData: shareBodyData,
+          shareWorkoutRecords: shareWorkoutRecords,
+          marketing: marketing,
+        ),
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      await _refreshBusinessData(
+        repository,
+        expectedAccountEpoch: accountEpoch,
+      );
+    });
+  }
+
+  Future<void> refreshCoachingSchedules({DateTime? from, DateTime? to}) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      notifyListeners();
+      return;
+    }
+    final accountEpoch = _accountEpoch;
+    final requestToken = ++_scheduleRequestSequence;
+    coachingSchedulesLoading = true;
+    coachingSchedulesError = null;
+    notifyListeners();
+    try {
+      final schedules = await repository.listCoachingSchedules(
+        from: from,
+        to: to,
+      );
+      if (!_isCurrentAccount(accountEpoch) ||
+          requestToken != _scheduleRequestSequence) {
+        return;
+      }
+      coachingSchedules = _sortedCoachingSchedules(
+        schedules.map(_enrichCoachingScheduleNames),
+      );
+    } catch (error) {
+      if (_isCurrentAccount(accountEpoch) &&
+          requestToken == _scheduleRequestSequence) {
+        coachingSchedulesError = error;
+      }
+      rethrow;
+    } finally {
+      if (_isCurrentAccount(accountEpoch) &&
+          requestToken == _scheduleRequestSequence) {
+        coachingSchedulesLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<BusinessCoachingSchedule> createCoachingSchedule({
+    required String title,
+    required DateTime date,
+    required int startMinutes,
+    required int endMinutes,
+    String? memberId,
+  }) {
+    final normalizedTitle = title.trim();
+    if (normalizedTitle.isEmpty) throw ArgumentError('일정 제목을 입력해주세요.');
+    if (endMinutes <= startMinutes) {
+      throw ArgumentError('종료 시간은 시작 시간보다 늦어야 합니다.');
+    }
+    final repository = businessRepository;
+    if (repository == null) {
+      final schedule = BusinessCoachingSchedule(
+        id: 'demo-schedule-${DateTime.now().microsecondsSinceEpoch}',
+        trainerId: 'demo-trainer',
+        memberUserId: memberId == null ? null : 'demo-member-user',
+        title: normalizedTitle,
+        date: DateTime(date.year, date.month, date.day),
+        startMinutes: startMinutes,
+        endMinutes: endMinutes,
+        trainerName: '김코치',
+        memberName: memberId == null ? null : '박민지',
+        createdAt: DateTime.now(),
+      );
+      coachingSchedules = _sortedCoachingSchedules([
+        ...coachingSchedules,
+        schedule,
+      ]);
+      notifyListeners();
+      return Future.value(schedule);
+    }
+    final profile = businessWorkspace?.profile;
+    if (role != UserRole.trainer || profile is! TrainerBusinessProfile) {
+      throw StateError('승인된 트레이너만 일정을 만들 수 있습니다.');
+    }
+
+    BusinessMember? member;
+    if (memberId != null) {
+      member = businessMembers.where((item) => item.id == memberId).firstOrNull;
+      if (member == null || member.userId == null) {
+        throw StateError('연결된 회원 계정만 일정에 지정할 수 있습니다.');
+      }
+      final isAssigned = businessWorkspace?.assignments.any(
+        (assignment) =>
+            assignment.active &&
+            assignment.memberId == member!.id &&
+            assignment.trainerId == profile.id &&
+            assignment.gymId == member.gymId,
+      );
+      if (isAssigned != true) {
+        throw StateError('현재 트레이너에게 배정된 회원이 아닙니다.');
+      }
+    }
+
+    final requestKey = [
+      profile.id,
+      member?.userId ?? '',
+      member?.gymId ?? '',
+      DateTime(date.year, date.month, date.day).toIso8601String(),
+      startMinutes,
+      endMinutes,
+      normalizedTitle,
+    ].join('|');
+    final requestId = _coachingScheduleCreateRequestIds.putIfAbsent(
+      requestKey,
+      _newUuidV4,
+    );
+
+    return _runBusinessMutation<BusinessCoachingSchedule>(
+      'coaching-schedule:create',
+      (accountEpoch) async {
+        final created = await repository.createCoachingSchedule(
+          CreateCoachingScheduleInput(
+            requestId: requestId,
+            trainerId: profile.id,
+            memberUserId: member?.userId,
+            gymId: member?.gymId,
+            title: normalizedTitle,
+            date: date,
+            startMinutes: startMinutes,
+            endMinutes: endMinutes,
+          ),
+        );
+        if (created.trainerId != profile.id ||
+            created.memberUserId != member?.userId ||
+            created.gymId != member?.gymId) {
+          throw StateError('요청한 관계와 다른 일정이 반환되었습니다.');
+        }
+        final enriched = _enrichCoachingScheduleNames(created);
+        if (_isCurrentAccount(accountEpoch)) {
+          _coachingScheduleCreateRequestIds.remove(requestKey);
+          coachingSchedules = _sortedCoachingSchedules([
+            ...coachingSchedules.where((item) => item.id != enriched.id),
+            enriched,
+          ]);
+          notifyListeners();
+        }
+        return enriched;
+      },
+    );
+  }
+
+  Future<BusinessCoachingSchedule> setCoachingScheduleCompleted(
+    String scheduleId, {
+    required bool completed,
+  }) {
+    final schedule = coachingSchedules
+        .where((item) => item.id == scheduleId)
+        .firstOrNull;
+    if (schedule == null) throw StateError('일정을 찾을 수 없습니다.');
+    final repository = businessRepository;
+    if (repository == null) {
+      final updated = _copyCoachingSchedule(
+        schedule,
+        completedAt: completed ? DateTime.now() : null,
+        clearCompletedAt: !completed,
+      );
+      coachingSchedules = _replaceCoachingSchedule(updated);
+      notifyListeners();
+      return Future.value(updated);
+    }
+    final profile = businessWorkspace?.profile;
+    if (role != UserRole.trainer ||
+        profile is! TrainerBusinessProfile ||
+        profile.id != schedule.trainerId) {
+      throw StateError('일정을 만든 트레이너만 완료 상태를 변경할 수 있습니다.');
+    }
+    return _runBusinessMutation<BusinessCoachingSchedule>(
+      'coaching-schedule:update:$scheduleId',
+      (accountEpoch) async {
+        final updated = await repository.setCoachingScheduleCompleted(
+          schedule.id,
+          trainerId: profile.id,
+          completed: completed,
+        );
+        if (updated.id != schedule.id || updated.trainerId != profile.id) {
+          throw StateError('요청한 일정과 다른 데이터가 반환되었습니다.');
+        }
+        if (_isCurrentAccount(accountEpoch)) {
+          coachingSchedules = _replaceCoachingSchedule(updated);
+          notifyListeners();
+        }
+        return updated;
+      },
+    );
+  }
+
+  Future<void> deleteCoachingSchedule(String scheduleId) async {
+    final schedule = coachingSchedules
+        .where((item) => item.id == scheduleId)
+        .firstOrNull;
+    if (schedule == null) throw StateError('일정을 찾을 수 없습니다.');
+    final repository = businessRepository;
+    if (repository == null) {
+      coachingSchedules = List.unmodifiable(
+        coachingSchedules.where((item) => item.id != scheduleId),
+      );
+      notifyListeners();
+      return;
+    }
+    final profile = businessWorkspace?.profile;
+    if (role != UserRole.trainer ||
+        profile is! TrainerBusinessProfile ||
+        profile.id != schedule.trainerId) {
+      throw StateError('일정을 만든 트레이너만 삭제할 수 있습니다.');
+    }
+    await _runBusinessMutation<void>('coaching-schedule:delete:$scheduleId', (
+      accountEpoch,
+    ) async {
+      await repository.deleteCoachingSchedule(
+        schedule.id,
+        trainerId: profile.id,
+      );
+      if (_isCurrentAccount(accountEpoch)) {
+        coachingSchedules = List.unmodifiable(
+          coachingSchedules.where((item) => item.id != scheduleId),
+        );
+        notifyListeners();
+      }
+    });
+  }
+
+  Future<BusinessInviteCreation> createGymBusinessInvite({
+    required BusinessInviteKind kind,
+    String? memberId,
+    String? recipientName,
+    String? recipientPhone,
+    String? roleTitle,
+    Duration validFor = const Duration(days: 7),
+  }) {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    final profile = businessWorkspace?.profile;
+    if (profile is! GymBusinessProfile || role != UserRole.gym) {
+      throw StateError('승인된 센터 계정에서만 초대를 만들 수 있습니다.');
+    }
+    final normalizedMemberId = _normalizedBusinessRequestText(memberId);
+    final normalizedRecipientName = _normalizedBusinessRequestText(
+      recipientName,
+    );
+    final normalizedRecipientPhone = _normalizedBusinessRequestText(
+      recipientPhone,
+    );
+    final normalizedRoleTitle = _normalizedBusinessRequestText(roleTitle);
+    final expiryRequestKey =
+        _businessRpcRequestKey('create_business_invite:expiry', {
+          'gymId': profile.id,
+          'kind': kind.databaseValue,
+          'memberId': normalizedMemberId,
+          'recipientName': normalizedRecipientName,
+          'recipientPhone': normalizedRecipientPhone,
+          'roleTitle': normalizedRoleTitle,
+          'validForMicroseconds': validFor.inMicroseconds,
+        });
+    final requestId = _stableBusinessRpcRequestId(expiryRequestKey);
+    final mutationKey =
+        'business-invite:create:${kind.databaseValue}:$requestId';
+    return _runBusinessMutation<BusinessInviteCreation>(mutationKey, (
+      accountEpoch,
+    ) async {
+      final expiresAt = _businessInviteCreateExpiresAt.putIfAbsent(
+        expiryRequestKey,
+        () => DateTime.now().toUtc().add(validFor),
+      );
+      final result = await repository.createBusinessInvite(
+        CreateBusinessInviteInput(
+          gymId: profile.id,
+          kind: kind,
+          expiresAt: expiresAt,
+          requestId: requestId,
+          memberId: normalizedMemberId,
+          recipientName: normalizedRecipientName,
+          recipientPhone: normalizedRecipientPhone,
+          roleTitle: normalizedRoleTitle,
+        ),
+      );
+      if (_isCurrentAccount(accountEpoch)) {
+        businessInvites = List.unmodifiable([
+          result.invite,
+          ...businessInvites.where((item) => item.id != result.invite.id),
+        ]);
+        notifyListeners();
+      }
+      _completeBusinessRpcRequest(
+        expiryRequestKey,
+        expectedAccountEpoch: accountEpoch,
+      );
+      if (_isCurrentAccount(accountEpoch)) {
+        _businessInviteCreateExpiresAt.remove(expiryRequestKey);
+      }
+      return result;
+    });
+  }
+
+  Future<BusinessInviteAcceptance> acceptBusinessInviteToken([String? token]) {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    final normalizedToken = (token ?? pendingBusinessInviteToken)?.trim();
+    if (normalizedToken == null || normalizedToken.isEmpty) {
+      throw ArgumentError('초대 토큰이 없습니다.');
+    }
+    final requestId = _businessInviteAcceptRequestIds.putIfAbsent(
+      normalizedToken,
+      _newUuidV4,
+    );
+    return _runBusinessMutation<BusinessInviteAcceptance>(
+      'business-invite:accept:$normalizedToken',
+      (accountEpoch) async {
+        final result = await repository.acceptBusinessInvite(
+          normalizedToken,
+          requestId: requestId,
+        );
+        if (!_isCurrentAccount(accountEpoch)) return result;
+        pendingBusinessInviteToken = null;
+        _businessInviteAcceptRequestIds.remove(normalizedToken);
+        try {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        } catch (error) {
+          if (_isCurrentAccount(accountEpoch)) businessError = error;
+        }
+        return result;
+      },
+    );
+  }
+
+  Future<BusinessInviteRecord> revokeBusinessInvite(String inviteId) {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    final normalizedInviteId = inviteId.trim();
+    final requestKey = _businessRpcRequestKey('revoke_business_invite', {
+      'inviteId': normalizedInviteId,
+    });
+    return _runBusinessMutation<BusinessInviteRecord>(
+      'business-invite:revoke:$inviteId',
+      (accountEpoch) async {
+        final requestId = _stableBusinessRpcRequestId(requestKey);
+        final result = await repository.revokeBusinessInvite(
+          normalizedInviteId,
+          requestId: requestId,
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          businessInvites = List.unmodifiable(
+            businessInvites
+                .map((item) => item.id == result.id ? result : item)
+                .toList(growable: false),
+          );
+          notifyListeners();
+        }
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return result;
+      },
+    );
   }
 
   void markBusinessNotificationRead(UserRole role, String notificationId) {
@@ -926,12 +3458,42 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateBusinessProfile({
+  Future<void> updateBusinessProfile({
     required UserRole role,
     required String displayName,
     required String keyword,
     required String intro,
-  }) {
+  }) async {
+    final repository = businessRepository;
+    final profile = businessWorkspace?.profile;
+    if (repository != null && profile != null) {
+      final input = switch (profile) {
+        TrainerBusinessProfile() => UpdateBusinessProfileInput.trainer(
+          profileId: profile.id,
+          displayName: displayName,
+          keyword: keyword,
+          intro: intro,
+        ),
+        GymBusinessProfile() => UpdateBusinessProfileInput.gym(
+          profileId: profile.id,
+          name: displayName,
+          address: keyword,
+          description: intro,
+        ),
+      };
+      await _runBusinessMutation<void>(
+        _businessProfileMutationKey(profile.id),
+        (accountEpoch) async {
+          await repository.updateProfile(input);
+          if (!_isCurrentAccount(accountEpoch)) return;
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        },
+      );
+      return;
+    }
     final facts = dashboardFor(role).facts;
     facts['displayName'] = displayName;
     facts[role == UserRole.gym ? 'location' : 'keyword'] = keyword;
@@ -972,17 +3534,47 @@ class AppState extends ChangeNotifier {
   }
 
   bool isBusinessConsultationAnswered(UserRole role, int consultationIndex) {
+    if (businessRepository != null) {
+      if (consultationIndex < 0 ||
+          consultationIndex >= businessConsultations.length) {
+        return false;
+      }
+      final consultation = businessConsultations[consultationIndex];
+      return consultation.status == BusinessConsultationStatus.answered ||
+          consultation.status == BusinessConsultationStatus.replied ||
+          consultation.messages.any(
+            (message) =>
+                message.sender == BusinessMessageSender.trainer ||
+                message.sender == BusinessMessageSender.gym,
+          );
+    }
     return dashboardFor(
           role,
         ).facts['consultation.$consultationIndex.answered'] ==
         'true';
   }
 
-  void answerBusinessConsultation({
+  Future<void> answerBusinessConsultation({
     required UserRole role,
     required int consultationIndex,
     required String answer,
-  }) {
+  }) async {
+    if (businessRepository != null) {
+      if (consultationIndex < 0 ||
+          consultationIndex >= businessConsultations.length) {
+        throw RangeError.index(
+          consultationIndex,
+          businessConsultations,
+          'consultationIndex',
+        );
+      }
+      await answerBusinessConsultationById(
+        role: role,
+        consultationId: businessConsultations[consultationIndex].id,
+        answer: answer,
+      );
+      return;
+    }
     final facts = dashboardFor(role).facts;
     facts['consultation.$consultationIndex.answered'] = 'true';
     facts['consultation.$consultationIndex.answer'] = answer;
@@ -990,6 +3582,111 @@ class AppState extends ChangeNotifier {
         .toIso8601String();
     _schedulePersist();
     notifyListeners();
+  }
+
+  Future<void> answerBusinessConsultationById({
+    required UserRole role,
+    required String consultationId,
+    required String answer,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    final requestKey = _businessRpcRequestKey('reply_consultation', {
+      'consultationId': consultationId,
+      'answer': answer.trim(),
+    });
+    final requestId = _consultationReplyRequestIds.putIfAbsent(
+      requestKey,
+      _newUuidV4,
+    );
+    await _runBusinessMutation<void>(
+      _consultationReplyMutationKey(consultationId),
+      (accountEpoch) async {
+        await repository.replyConsultation(
+          ReplyConsultationInput(
+            requestId: requestId,
+            consultationId: consultationId,
+            message: answer,
+          ),
+        );
+        if (!_isCurrentAccount(accountEpoch)) return;
+        await _refreshBusinessData(
+          repository,
+          expectedAccountEpoch: accountEpoch,
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          _consultationReplyRequestIds.remove(requestKey);
+        }
+      },
+    );
+  }
+
+  Future<BusinessConsultation> assignBusinessConsultation({
+    required String consultationId,
+    required String trainerId,
+  }) {
+    final repository = businessRepository;
+    final profile = businessWorkspace?.profile;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    if (role != UserRole.gym ||
+        profile is! GymBusinessProfile ||
+        profile.status != BusinessProfileStatus.verified) {
+      throw StateError('인증된 센터 계정만 상담을 배정할 수 있습니다.');
+    }
+    final consultation = businessConsultations
+        .where((item) => item.id == consultationId)
+        .firstOrNull;
+    if (consultation == null || consultation.gymId != profile.id) {
+      throw StateError('이 센터에 접수된 상담만 배정할 수 있습니다.');
+    }
+    final trainer = businessTrainers
+        .where(
+          (item) =>
+              item.gymId == profile.id &&
+              item.trainerId == trainerId &&
+              item.status == 'active',
+        )
+        .firstOrNull;
+    if (trainer == null) {
+      throw StateError('현재 센터에서 활동 중인 트레이너를 선택해주세요.');
+    }
+    final requestKey = '$consultationId|$trainerId';
+    final requestId = _consultationAssignRequestIds.putIfAbsent(
+      requestKey,
+      _newUuidV4,
+    );
+    return _runBusinessMutation<BusinessConsultation>(
+      _consultationAssignMutationKey(consultationId),
+      (accountEpoch) async {
+        final assigned = await repository.assignConsultation(
+          AssignConsultationInput(
+            requestId: requestId,
+            consultationId: consultationId,
+            gymId: profile.id,
+            trainerId: trainerId,
+          ),
+        );
+        if (assigned.id != consultationId ||
+            assigned.gymId != profile.id ||
+            assigned.assignedTrainerId != trainerId) {
+          throw StateError('요청한 상담과 다른 배정 결과가 반환되었습니다.');
+        }
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+          if (_isCurrentAccount(accountEpoch)) {
+            _consultationAssignRequestIds.remove(requestKey);
+          }
+        }
+        return assigned;
+      },
+    );
   }
 
   bool isAdminUserBlocked(String email, {bool fallback = false}) {
@@ -1018,12 +3715,40 @@ class AppState extends ChangeNotifier {
         'pending';
   }
 
-  void completeAdminReview({
+  Future<void> completeAdminReview({
     required String reviewId,
     required String applicantName,
     required String status,
     String reason = '',
-  }) {
+  }) async {
+    final repository = businessRepository;
+    if (repository != null) {
+      final application = businessApplications
+          .where((item) => item.id == reviewId)
+          .firstOrNull;
+      if (application == null) {
+        throw StateError('심사 신청서를 찾을 수 없습니다.');
+      }
+      await _runBusinessMutation<void>(
+        _applicationReviewMutationKey(application.id),
+        (accountEpoch) async {
+          await repository.reviewApplication(
+            ReviewBusinessApplicationInput(
+              kind: application.kind,
+              applicationId: application.id,
+              approve: status == 'approved',
+              rejectReason: reason.isEmpty ? null : reason,
+            ),
+          );
+          if (!_isCurrentAccount(accountEpoch)) return;
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        },
+      );
+      return;
+    }
     final facts = dashboardFor(UserRole.admin).facts;
     facts['adminReview.$reviewId.status'] = status;
     facts['adminReview.$reviewId.reason'] = reason;
@@ -1035,45 +3760,700 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<BusinessApplication> submitTrainerBusinessApplication({
+    required String displayName,
+    required String credentialNumber,
+    required List<TrainerApplicationDocumentInput> documents,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    return _runBusinessMutation<BusinessApplication>(
+      _trainerApplicationMutationKey,
+      (accountEpoch) async {
+        final application = await repository.submitTrainerApplication(
+          TrainerApplicationInput(
+            displayName: displayName,
+            credentialNumber: credentialNumber,
+            documents: documents,
+          ),
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        }
+        return application;
+      },
+    );
+  }
+
+  Future<BusinessApplication> submitGymBusinessApplication({
+    required String gymName,
+    required String businessNumber,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    return _runBusinessMutation<BusinessApplication>(
+      _gymApplicationMutationKey,
+      (accountEpoch) async {
+        final application = await repository.submitGymApplication(
+          GymApplicationInput(
+            gymName: gymName,
+            ownerName: SupabaseAuthService.instance.currentDisplayName,
+            businessNumber: businessNumber,
+          ),
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        }
+        return application;
+      },
+    );
+  }
+
+  Future<OwnedCoachingRoutine> createBusinessRoutine({
+    required UserRole ownerRole,
+    required String title,
+    required String description,
+    required List<ExerciseTemplate> routineExercises,
+    required int setCount,
+    required int targetReps,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    if (setCount < 1 || setCount > 10) {
+      throw ArgumentError.value(setCount, 'setCount', '1~10이어야 합니다.');
+    }
+    if (targetReps < 1 || targetReps > 100) {
+      throw ArgumentError.value(targetReps, 'targetReps', '1~100이어야 합니다.');
+    }
+    if (routineExercises.isEmpty) {
+      throw ArgumentError.value(
+        routineExercises,
+        'routineExercises',
+        '운동을 한 개 이상 선택해야 합니다.',
+      );
+    }
+    final exerciseInputs = routineExercises
+        .map(
+          (exercise) => CreateOwnedRoutineExerciseInput(
+            name: exercise.name,
+            targetMuscle: exercise.muscle,
+            sets: List.generate(
+              setCount,
+              (index) => CreateOwnedRoutineSetInput(
+                setNumber: index + 1,
+                targetReps: targetReps,
+                restSeconds: restDefaultSeconds,
+              ),
+              growable: false,
+            ),
+          ),
+        )
+        .toList(growable: false);
+    final requestKey = _businessRpcRequestKey(
+      'save_coaching_routine',
+      _ownedRoutineRequestPayload(
+        ownerRole: ownerRole,
+        title: title,
+        intro: description,
+        difficulty: BusinessRoutineDifficulty.intermediate,
+        exercises: exerciseInputs,
+      ),
+    );
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<OwnedCoachingRoutine>(
+      '${_businessRoutineMutationKey(ownerRole, title)}:$requestId',
+      (accountEpoch) async {
+        final record = await repository.createOwnedRoutine(
+          CreateOwnedRoutineInput(
+            ownerRole: ownerRole,
+            title: title,
+            intro: description,
+            difficulty: BusinessRoutineDifficulty.intermediate,
+            exercises: exerciseInputs,
+            requestId: requestId,
+          ),
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        }
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return record;
+      },
+    );
+  }
+
+  Future<OwnedCoachingRoutine> saveBusinessRoutineDraft({
+    required UserRole ownerRole,
+    required String title,
+    required String description,
+    required BusinessRoutineDifficulty difficulty,
+    required List<CreateOwnedRoutineExerciseInput> routineExercises,
+    OwnedCoachingRoutine? existing,
+    double? price,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) {
+      throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    }
+    if (routineExercises.isEmpty) {
+      throw ArgumentError.value(
+        routineExercises,
+        'routineExercises',
+        '운동을 한 개 이상 선택해야 합니다.',
+      );
+    }
+    final mutationId = existing?.id ?? title.trim();
+    final requestKey = _businessRpcRequestKey(
+      'save_coaching_routine',
+      _ownedRoutineRequestPayload(
+        routineId: existing?.id,
+        ownerRole: ownerRole,
+        title: title,
+        intro: description,
+        price: price,
+        difficulty: difficulty,
+        exercises: routineExercises,
+      ),
+    );
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<OwnedCoachingRoutine>(
+      'routine:save:$mutationId:$requestId',
+      (accountEpoch) async {
+        final record = existing == null
+            ? await repository.createOwnedRoutine(
+                CreateOwnedRoutineInput(
+                  ownerRole: ownerRole,
+                  title: title,
+                  intro: description,
+                  price: price,
+                  difficulty: difficulty,
+                  exercises: routineExercises,
+                  requestId: requestId,
+                ),
+              )
+            : await repository.updateOwnedRoutine(
+                UpdateOwnedRoutineInput(
+                  routineId: existing.id,
+                  ownerRole: ownerRole,
+                  title: title,
+                  intro: description,
+                  price: price,
+                  difficulty: difficulty,
+                  exercises: routineExercises,
+                  requestId: requestId,
+                ),
+              );
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        }
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return record;
+      },
+    );
+  }
+
+  Future<OwnedCoachingRoutine> submitBusinessRoutineForReview(
+    String routineId,
+  ) async {
+    final repository = businessRepository;
+    if (repository == null) throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    final normalizedRoutineId = routineId.trim();
+    final requestKey = _businessRpcRequestKey(
+      'submit_coaching_routine_review',
+      {'routineId': normalizedRoutineId},
+    );
+    return _runBusinessMutation<OwnedCoachingRoutine>(
+      'routine:submit:$routineId',
+      (accountEpoch) async {
+        final requestId = _stableBusinessRpcRequestId(requestKey);
+        final record = await repository.submitOwnedRoutineForReview(
+          normalizedRoutineId,
+          requestId: requestId,
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        }
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return record;
+      },
+    );
+  }
+
+  Future<OwnedCoachingRoutine> reviewBusinessRoutine({
+    required String routineId,
+    required bool approve,
+    String? rejectReason,
+    RoutineAccessTier accessTier = RoutineAccessTier.free,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    final normalizedRoutineId = routineId.trim();
+    final normalizedReason = approve
+        ? null
+        : _normalizedBusinessRequestText(rejectReason);
+    final requestKey = _businessRpcRequestKey('review_coaching_routine', {
+      'routineId': normalizedRoutineId,
+      'decision': approve ? 'approve' : 'reject',
+      'reason': normalizedReason,
+      'accessTier': accessTier.name,
+    });
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<OwnedCoachingRoutine>(
+      'routine:review:$routineId:$requestId',
+      (accountEpoch) async {
+        final record = await repository.reviewOwnedRoutine(
+          ReviewOwnedRoutineInput(
+            routineId: normalizedRoutineId,
+            approve: approve,
+            rejectReason: normalizedReason,
+            accessTier: accessTier,
+            requestId: requestId,
+          ),
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+          await _refreshPublishedRoutineCatalog(accountEpoch);
+        }
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return record;
+      },
+    );
+  }
+
+  Future<List<RoutineShareRecord>> shareBusinessRoutine({
+    required String routineId,
+    required List<String> memberIds,
+    String? message,
+    DateTime? expiresAt,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    final normalizedRoutineId = routineId.trim();
+    final normalizedMemberIds =
+        memberIds
+            .map((memberId) => memberId.trim())
+            .where((memberId) => memberId.isNotEmpty)
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    final normalizedMessage = _normalizedBusinessRequestText(message);
+    final normalizedExpiresAt = expiresAt?.toUtc();
+    final requestKey = _businessRpcRequestKey('share_coaching_routine', {
+      'routineId': normalizedRoutineId,
+      'memberIds': normalizedMemberIds,
+      'message': normalizedMessage,
+      'expiresAt': normalizedExpiresAt?.toIso8601String(),
+    });
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<List<RoutineShareRecord>>(
+      'routine:share:$routineId:$requestId',
+      (accountEpoch) async {
+        final records = await repository.shareOwnedRoutine(
+          ShareOwnedRoutineInput(
+            routineId: normalizedRoutineId,
+            memberIds: normalizedMemberIds,
+            message: normalizedMessage,
+            expiresAt: normalizedExpiresAt,
+            requestId: requestId,
+          ),
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            repository,
+            expectedAccountEpoch: accountEpoch,
+          );
+        }
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return records;
+      },
+    );
+  }
+
+  Future<RoutineShareRecord> revokeBusinessRoutineShare(String shareId) {
+    final repository = businessRepository;
+    final revocationRepository = repository is RoutineShareRevocationRepository
+        ? repository as RoutineShareRevocationRepository
+        : null;
+    if (revocationRepository == null) {
+      throw StateError('루틴 공유 취소 서버가 연결되지 않았습니다.');
+    }
+    final normalizedShareId = shareId.trim();
+    final current = outgoingRoutineShares
+        .where((share) => share.id == normalizedShareId)
+        .firstOrNull;
+    if (current == null ||
+        current.kind != RoutineShareKind.direct ||
+        current.status != RoutineShareStatus.pending) {
+      throw StateError('수락 대기 중인 회원 공유만 취소할 수 있습니다.');
+    }
+    final requestKey = _businessRpcRequestKey('revoke_routine_share', {
+      'shareId': normalizedShareId,
+    });
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<RoutineShareRecord>(
+      'routine:share-revoke:$normalizedShareId',
+      (accountEpoch) async {
+        final revoked = await revocationRepository.revokeRoutineShare(
+          normalizedShareId,
+          requestId: requestId,
+        );
+        if (revoked.id != normalizedShareId ||
+            revoked.status != RoutineShareStatus.revoked) {
+          throw StateError('서버가 다른 루틴 공유 상태를 반환했습니다.');
+        }
+        if (_isCurrentAccount(accountEpoch)) {
+          outgoingRoutineShares = List.unmodifiable(
+            outgoingRoutineShares
+                .map((share) => share.id == revoked.id ? revoked : share)
+                .toList(growable: false),
+          );
+          notifyListeners();
+          try {
+            await _refreshBusinessData(
+              businessRepository!,
+              expectedAccountEpoch: accountEpoch,
+            );
+          } catch (error) {
+            // The revoke already committed. Keep the verified returned state
+            // and surface only the follow-up refresh problem.
+            if (_isCurrentAccount(accountEpoch)) businessError = error;
+          }
+        }
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return revoked;
+      },
+    );
+  }
+
+  Future<RoutineShareLink> createBusinessRoutineShareLink(
+    String routineId, {
+    DateTime? expiresAt,
+    bool confirmCreateNewAfterUncertainResult = false,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    final normalizedRoutineId = routineId.trim();
+    if (_uncertainRoutineShareLinkRoutineIds.contains(normalizedRoutineId)) {
+      if (!confirmCreateNewAfterUncertainResult) {
+        throw const RoutineShareLinkResultUncertainException();
+      }
+      _uncertainRoutineShareLinkRoutineIds.remove(normalizedRoutineId);
+    }
+    final normalizedExpiresAt = expiresAt?.toUtc();
+    final requestKey = _businessRpcRequestKey('create_routine_share_link', {
+      'routineId': normalizedRoutineId,
+      'expiresAt': normalizedExpiresAt?.toIso8601String(),
+    });
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<RoutineShareLink>(
+      'routine:link:$routineId:$requestId',
+      (accountEpoch) async {
+        late final RoutineShareLink link;
+        try {
+          link = await repository.createRoutineShareLink(
+            normalizedRoutineId,
+            expiresAt: normalizedExpiresAt,
+            requestId: requestId,
+          );
+        } on RoutineShareLinkResultUncertainException {
+          if (_isCurrentAccount(accountEpoch)) {
+            // The server deliberately never stores a raw bearer token. Reusing
+            // this request ID could only create another unrecoverable link.
+            _stableBusinessRpcRequestIds.remove(requestKey);
+            _uncertainRoutineShareLinkRoutineIds.add(normalizedRoutineId);
+          }
+          rethrow;
+        }
+
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          _uncertainRoutineShareLinkRoutineIds.remove(normalizedRoutineId);
+        }
+        if (_isCurrentAccount(accountEpoch)) {
+          try {
+            await _refreshBusinessData(
+              repository,
+              expectedAccountEpoch: accountEpoch,
+            );
+          } catch (error) {
+            if (_isCurrentAccount(accountEpoch)) businessError = error;
+          }
+        }
+        return link;
+      },
+    );
+  }
+
+  Future<PersonalRoutineRecord?> respondToRoutineShare(
+    String shareId, {
+    required bool accept,
+    DateTime? applyDate,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    final normalizedShareId = shareId.trim();
+    final requestKey = _businessRpcRequestKey('respond_routine_share', {
+      'shareId': normalizedShareId,
+      'decision': accept ? 'accept' : 'decline',
+    });
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<PersonalRoutineRecord?>(
+      'routine:respond:$shareId:$requestId',
+      (accountEpoch) async {
+        final record = await repository.respondRoutineShare(
+          normalizedShareId,
+          accept: accept,
+          requestId: requestId,
+        );
+        if (accept && record == null) {
+          throw StateError('루틴 공유가 만료되었거나 더 이상 수락할 수 없습니다.');
+        }
+        if (!_isCurrentAccount(accountEpoch)) return record;
+        if (record != null) {
+          final routine = _routineFromPersonalRecord(record);
+          final index = routines.indexWhere((item) => item.id == routine.id);
+          if (index < 0) {
+            routines.add(routine);
+          } else {
+            routines[index] = routine;
+          }
+          if (applyDate != null) applyRoutine(routine, applyDate);
+          _schedulePersist();
+        }
+        await _refreshBusinessData(
+          repository,
+          expectedAccountEpoch: accountEpoch,
+        );
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return record;
+      },
+    );
+  }
+
+  Future<PersonalRoutineRecord> acceptRoutineShareToken(
+    String token, {
+    DateTime? applyDate,
+  }) async {
+    final repository = businessRepository;
+    if (repository == null) throw StateError('실데이터 저장소가 연결되지 않았습니다.');
+    final normalized = _routineShareTokenFromInput(token);
+    if (normalized.isEmpty) {
+      throw ArgumentError.value(token, 'token', '비어 있습니다.');
+    }
+    final requestKey = _businessRpcRequestKey('accept_routine_share_token', {
+      'token': normalized,
+    });
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<PersonalRoutineRecord>(
+      'routine:token:$requestId',
+      (accountEpoch) async {
+        final record = await repository.acceptRoutineShareToken(
+          normalized,
+          requestId: requestId,
+        );
+        if (!_isCurrentAccount(accountEpoch)) return record;
+        final routine = _routineFromPersonalRecord(record);
+        final index = routines.indexWhere((item) => item.id == routine.id);
+        if (index < 0) {
+          routines.add(routine);
+        } else {
+          routines[index] = routine;
+        }
+        if (applyDate != null) applyRoutine(routine, applyDate);
+        pendingRoutineShareToken = null;
+        _schedulePersist();
+        await _refreshBusinessData(
+          repository,
+          expectedAccountEpoch: accountEpoch,
+        );
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        return record;
+      },
+    );
+  }
+
+  static String _routineShareTokenFromInput(String input) {
+    final normalized = input.trim();
+    final uri = Uri.tryParse(normalized);
+    if (uri != null &&
+        uri.scheme == 'com.setflow.setflow' &&
+        uri.host == 'routine-share' &&
+        uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.first.trim();
+    }
+    return normalized;
+  }
+
+  Future<void> _refreshPublishedRoutineCatalog(int accountEpoch) async {
+    final repository = routineCatalogRepository;
+    if (repository == null) return;
+    final catalog = await repository.listPublished();
+    if (!_isCurrentAccount(accountEpoch)) return;
+    _marketRoutines
+      ..clear()
+      ..addAll(catalog.map(_routineFromCatalog));
+    notifyListeners();
+  }
+
   Future<void> clearPersistedData() async {
     _persistTimer?.cancel();
+    _persistTimer = null;
+    _queuedSnapshot = null;
+    final inFlight = _persistInFlight;
+    if (inFlight != null) {
+      try {
+        await inFlight;
+      } catch (_) {
+        // Clearing is an explicit user action and supersedes a failed save.
+      }
+    }
     await _repository.clear();
   }
 
-  void retryPersistence() => _schedulePersist();
+  void retryPersistence() {
+    if (!_initialized) return;
+    _queuedSnapshot = _snapshotForPersistence();
+    _schedulePersistTimer();
+  }
+
+  bool get _repositoryHasPendingSave =>
+      _repository is PendingSaveAwareRepository &&
+      (_repository as PendingSaveAwareRepository).hasPendingSave;
 
   void _schedulePersist() {
     if (!_initialized) return;
+    _queuedSnapshot = _snapshotForPersistence();
+    _schedulePersistTimer();
+  }
+
+  void _schedulePersistTimer() {
     _persistTimer?.cancel();
-    _persistTimer = Timer(const Duration(milliseconds: 250), () async {
-      try {
-        await _repository.save(
-          AppSnapshot(
-            role: role,
-            isDarkMode: isDarkMode,
-            weightUnit: weightUnit,
-            restDefaultSeconds: restDefaultSeconds,
-            sessions: sessions,
-            routines: routines,
-            goals: goals,
-            heightCm: heightCm,
-            weight: weight,
-            age: age,
-            gender: gender,
-            communityPosts: communityRepository == null
-                ? communityPosts
-                : const [],
-            consultations: consultations,
-            businessDashboards: businessDashboards,
-          ),
-        );
-        persistenceError = null;
-      } catch (error) {
-        persistenceError = error;
-        notifyListeners();
-      }
+    _persistTimer = Timer(const Duration(milliseconds: 250), () {
+      unawaited(flushPersistence().catchError((_) {}));
     });
   }
+
+  /// Persists every snapshot already queued at the time this future settles.
+  /// Saves are serialized so an older network response cannot overwrite a
+  /// newer local mutation. SupabaseAppRepository stages each item to its
+  /// account-scoped Hive outbox before making the network request.
+  Future<void> flushPersistence() {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+
+    final active = _persistInFlight;
+    if (active != null) {
+      return active.then((_) {
+        if (_queuedSnapshot != null) return flushPersistence();
+      });
+    }
+
+    final snapshot = _queuedSnapshot;
+    if (snapshot == null) return Future<void>.value();
+    _queuedSnapshot = null;
+
+    late final Future<void> operation;
+    operation = _repository
+        .save(snapshot)
+        .then((_) {
+          persistenceError = null;
+        })
+        .catchError((Object error) {
+          persistenceError = error;
+          // Preserve the failed payload unless a newer mutation is already queued.
+          _queuedSnapshot ??= snapshot;
+          if (!_disposed) notifyListeners();
+          throw error;
+        })
+        .whenComplete(() {
+          if (identical(_persistInFlight, operation)) _persistInFlight = null;
+        });
+    _persistInFlight = operation;
+    return operation.then((_) {
+      if (_queuedSnapshot != null) return flushPersistence();
+    });
+  }
+
+  AppSnapshot _snapshotForPersistence() => AppSnapshot(
+    role: role,
+    isDarkMode: isDarkMode,
+    weightUnit: weightUnit,
+    restDefaultSeconds: restDefaultSeconds,
+    nickname: memberNickname.trim().isEmpty ? null : memberNickname.trim(),
+    useRir: useRir,
+    autoStartRestTimer: autoStartRestTimer,
+    restTimerNotifications: restTimerNotifications,
+    timerVibration: timerVibration,
+    pushCoachingFeedback: pushCoachingFeedback,
+    communityReactionNotifications: communityReactionNotifications,
+    sessions: Map<DateTime, WorkoutSession>.unmodifiable(sessions),
+    routines: List<RoutineData>.unmodifiable(routines),
+    goals: List<String>.unmodifiable(goals),
+    heightCm: heightCm,
+    weight: weight,
+    age: age,
+    gender: gender,
+    communityPosts: communityRepository == null
+        ? List<CommunityPost>.unmodifiable(communityPosts)
+        : const [],
+    consultations: businessRepository == null
+        ? List<ConsultationData>.unmodifiable(consultations)
+        : const [],
+    businessDashboards: businessRepository == null
+        ? Map<UserRole, BusinessDashboardData>.unmodifiable(businessDashboards)
+        : const {},
+  );
 
   void startRestTimer(int seconds) {
     _restTimer?.cancel();
@@ -1097,10 +4477,17 @@ class AppState extends ChangeNotifier {
   }
 
   void _applySnapshot(AppSnapshot snapshot) {
-    role = snapshot.role;
+    role = businessRepository == null ? snapshot.role : UserRole.guest;
     isDarkMode = snapshot.isDarkMode;
     weightUnit = snapshot.weightUnit;
     restDefaultSeconds = snapshot.restDefaultSeconds;
+    memberNickname = snapshot.nickname?.trim() ?? '';
+    useRir = snapshot.useRir;
+    autoStartRestTimer = snapshot.autoStartRestTimer;
+    restTimerNotifications = snapshot.restTimerNotifications;
+    timerVibration = snapshot.timerVibration;
+    pushCoachingFeedback = snapshot.pushCoachingFeedback;
+    communityReactionNotifications = snapshot.communityReactionNotifications;
     goals = List.of(snapshot.goals);
     heightCm = snapshot.heightCm;
     weight = snapshot.weight;
@@ -1125,12 +4512,12 @@ class AppState extends ChangeNotifier {
         ..clear()
         ..addAll(snapshot.communityPosts);
     }
-    if (snapshot.consultations.isNotEmpty) {
+    if (businessRepository == null && snapshot.consultations.isNotEmpty) {
       consultations
         ..clear()
         ..addAll(snapshot.consultations);
     }
-    if (snapshot.businessDashboards.isNotEmpty) {
+    if (businessRepository == null && snapshot.businessDashboards.isNotEmpty) {
       businessDashboards.addAll(snapshot.businessDashboards);
     }
   }
@@ -1140,6 +4527,16 @@ class AppState extends ChangeNotifier {
     hasPaidPlan = false;
     cloudSyncError = null;
     role = UserRole.guest;
+    isDarkMode = false;
+    weightUnit = 'kg';
+    restDefaultSeconds = 90;
+    memberNickname = '';
+    useRir = false;
+    autoStartRestTimer = true;
+    restTimerNotifications = true;
+    timerVibration = true;
+    pushCoachingFeedback = true;
+    communityReactionNotifications = false;
     goals = [];
     heightCm = null;
     weight = null;
@@ -1151,8 +4548,51 @@ class AppState extends ChangeNotifier {
     consultations.clear();
     businessDashboards.clear();
     _seedStarterRoutines();
-    _seedSocial();
-    _seedBusinessDashboards();
+    if (communityRepository == null) {
+      _seedSocial();
+    }
+    businessAccess = null;
+    businessWorkspace = null;
+    publicTrainers = const [];
+    memberConsultations = const [];
+    _memberSharingPreferences = null;
+    memberSessionFeedbacks = const [];
+    memberMemberships = const [];
+    incomingRoutineShares = const [];
+    outgoingRoutineShares = const [];
+    businessInvites = const [];
+    coachingSchedules = const [];
+    _memberDetailLoads.clear();
+    _businessMemberDetails.clear();
+    _businessMemberDetailErrors.clear();
+    businessLoading = false;
+    businessError = null;
+    coachingSchedulesLoading = false;
+    coachingSchedulesError = null;
+    memberSessionFeedbackLoading = false;
+    memberSessionFeedbackError = null;
+    memberMembershipsError = null;
+    _memberFeedbackRequestSequence++;
+    _businessMutations.clear();
+    _businessInviteAcceptRequestIds.clear();
+    _sessionFeedbackRequestIds.clear();
+    _membershipEndRequestIds.clear();
+    _personalRoutineSaveRequestIds.clear();
+    _personalRoutineDeleteRequestIds.clear();
+    _coachingScheduleCreateRequestIds.clear();
+    _consultationAssignRequestIds.clear();
+    _consultationCreateRequestIds.clear();
+    _consultationReplyRequestIds.clear();
+    _stableBusinessRpcRequestIds.clear();
+    _businessInviteCreateExpiresAt.clear();
+    _uncertainRoutineShareLinkRoutineIds.clear();
+    _personalRoutineBaseExerciseIds.clear();
+    if (businessRepository == null) {
+      _seedBusinessDashboards();
+      _seedDemoCoachingSchedules();
+    } else {
+      _resetLiveBusinessDashboards();
+    }
   }
 
   void _seedMarketRoutines() {
@@ -1433,12 +4873,212 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  void _seedDemoCoachingSchedules() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    coachingSchedules = [
+      BusinessCoachingSchedule(
+        id: 'demo-schedule-1',
+        trainerId: 'demo-trainer',
+        memberUserId: 'demo-member-1',
+        title: '운동 기록 피드백',
+        date: today,
+        startMinutes: 10 * 60,
+        endMinutes: 10 * 60 + 50,
+        trainerName: '김코치',
+        memberName: '박민지',
+        createdAt: now,
+      ),
+      BusinessCoachingSchedule(
+        id: 'demo-schedule-2',
+        trainerId: 'demo-trainer',
+        memberUserId: 'demo-member-2',
+        title: '4주차 상담',
+        date: today,
+        startMinutes: 13 * 60 + 30,
+        endMinutes: 14 * 60 + 20,
+        trainerName: '김코치',
+        memberName: '이준호',
+        createdAt: now,
+      ),
+      BusinessCoachingSchedule(
+        id: 'demo-schedule-3',
+        trainerId: 'demo-trainer',
+        memberUserId: 'demo-member-3',
+        title: '루틴 수정',
+        date: today,
+        startMinutes: 17 * 60,
+        endMinutes: 17 * 60 + 50,
+        trainerName: '김코치',
+        memberName: '정민아',
+        createdAt: now,
+      ),
+    ];
+  }
+
+  List<BusinessCoachingSchedule> _replaceCoachingSchedule(
+    BusinessCoachingSchedule updated,
+  ) => _sortedCoachingSchedules([
+    ...coachingSchedules.where((item) => item.id != updated.id),
+    updated,
+  ]);
+
+  BusinessCoachingSchedule _enrichCoachingScheduleNames(
+    BusinessCoachingSchedule schedule,
+  ) {
+    final member = schedule.memberUserId == null
+        ? null
+        : businessMembers
+              .where((item) => item.userId == schedule.memberUserId)
+              .firstOrNull;
+    final profile = businessWorkspace?.profile;
+    final trainerName = switch (profile) {
+      TrainerBusinessProfile(:final id, :final displayName)
+          when id == schedule.trainerId =>
+        displayName,
+      _ =>
+        businessTrainers
+            .where((item) => item.trainerId == schedule.trainerId)
+            .map((item) => item.displayName)
+            .whereType<String>()
+            .firstOrNull,
+    };
+    final gymName = switch (profile) {
+      GymBusinessProfile(:final id, :final name) when id == schedule.gymId =>
+        name,
+      _ => null,
+    };
+    return BusinessCoachingSchedule(
+      id: schedule.id,
+      trainerId: schedule.trainerId,
+      memberUserId: schedule.memberUserId,
+      gymId: schedule.gymId,
+      title: schedule.title,
+      date: schedule.date,
+      startMinutes: schedule.startMinutes,
+      endMinutes: schedule.endMinutes,
+      trainerName: trainerName ?? schedule.trainerName,
+      memberName: member?.name ?? schedule.memberName,
+      gymName: gymName ?? schedule.gymName,
+      createdAt: schedule.createdAt,
+      completedAt: schedule.completedAt,
+    );
+  }
+
   @override
   void dispose() {
+    final persistenceFlush = flushPersistence();
+    unawaited(persistenceFlush.catchError((_) {}));
+    _disposed = true;
+    _accountEpoch++;
+    _businessRequestSequence++;
+    _scheduleRequestSequence++;
+    _businessMutations.clear();
     _restTimer?.cancel();
-    _persistTimer?.cancel();
     super.dispose();
   }
+}
+
+List<BusinessCoachingSchedule> _sortedCoachingSchedules(
+  Iterable<BusinessCoachingSchedule> schedules,
+) {
+  final sorted = schedules.toList(growable: false)
+    ..sort((left, right) {
+      final byDate = left.date.compareTo(right.date);
+      if (byDate != 0) return byDate;
+      final byTime = left.startMinutes.compareTo(right.startMinutes);
+      return byTime != 0 ? byTime : left.id.compareTo(right.id);
+    });
+  return List.unmodifiable(sorted);
+}
+
+BusinessCoachingSchedule _copyCoachingSchedule(
+  BusinessCoachingSchedule source, {
+  DateTime? completedAt,
+  bool clearCompletedAt = false,
+}) => BusinessCoachingSchedule(
+  id: source.id,
+  trainerId: source.trainerId,
+  memberUserId: source.memberUserId,
+  gymId: source.gymId,
+  title: source.title,
+  date: source.date,
+  startMinutes: source.startMinutes,
+  endMinutes: source.endMinutes,
+  trainerName: source.trainerName,
+  memberName: source.memberName,
+  gymName: source.gymName,
+  createdAt: source.createdAt,
+  completedAt: clearCompletedAt ? null : completedAt ?? source.completedAt,
+);
+
+bool _isUuid(String value) => RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+).hasMatch(value.trim());
+
+String? _normalizedBusinessRequestText(String? value) {
+  final normalized = value?.trim();
+  return normalized == null || normalized.isEmpty ? null : normalized;
+}
+
+Map<String, Object?> _ownedRoutineRequestPayload({
+  String? routineId,
+  required UserRole ownerRole,
+  required String title,
+  required BusinessRoutineDifficulty difficulty,
+  required List<CreateOwnedRoutineExerciseInput> exercises,
+  String? intro,
+  double? price,
+}) => <String, Object?>{
+  'routineId': _normalizedBusinessRequestText(routineId),
+  'ownerRole': ownerRole.name,
+  'title': title.trim(),
+  'intro': _normalizedBusinessRequestText(intro),
+  'difficulty': difficulty.databaseValue,
+  'price': price ?? 0,
+  'exercises': _ownedRoutineExercisesRequestPayload(exercises),
+};
+
+List<Map<String, Object?>> _ownedRoutineExercisesRequestPayload(
+  List<CreateOwnedRoutineExerciseInput> exercises,
+) => List.generate(exercises.length, (exerciseIndex) {
+  final exercise = exercises[exerciseIndex];
+  final sets = [...exercise.sets]
+    ..sort((left, right) => left.setNumber.compareTo(right.setNumber));
+  return <String, Object?>{
+    'baseExerciseId': _normalizedBusinessRequestText(exercise.baseExerciseId),
+    'name': exercise.name.trim(),
+    'targetMuscle': exercise.targetMuscle.trim(),
+    'sets': sets
+        .map(
+          (set) => <String, Object?>{
+            'type': workoutSetTypeDatabaseValue(set.type),
+            'targetWeight': set.targetWeight,
+            'targetReps': set.targetReps,
+            'restSeconds': set.restSeconds,
+            'durationSeconds': set.durationSeconds,
+            'distanceMeters': set.distanceMeters,
+            'intensityRpe': set.intensityRpe,
+          },
+        )
+        .toList(growable: false),
+  };
+});
+
+String _routineColorHex(Color color) =>
+    '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+
+String _newUuidV4() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = bytes
+      .map((value) => value.toRadixString(16).padLeft(2, '0'))
+      .join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+      '${hex.substring(20)}';
 }
 
 class AppScope extends InheritedNotifier<AppState> {

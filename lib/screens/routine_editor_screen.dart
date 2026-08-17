@@ -18,6 +18,7 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late List<ExerciseTemplate> _exercises;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -169,9 +170,9 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
               ),
               const SizedBox(height: SetflowSpacing.xl),
               AppButton(
-                label: '변경사항 저장',
+                label: _saving ? '저장 중...' : '변경사항 저장',
                 icon: Icons.save_rounded,
-                onPressed: _save,
+                onPressed: _saving ? null : _save,
               ),
             ],
           ),
@@ -201,19 +202,30 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
     if (selected != null && mounted) setState(() => _exercises = selected);
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_exercises.isEmpty) {
       AppSnackbar.error(context, '루틴에는 운동이 한 개 이상 필요해요.');
       return;
     }
-    final updated = AppScope.of(context).updateRoutine(
-      routine: widget.routine,
-      name: _nameController.text,
-      description: _descriptionController.text,
-      exercises: _exercises,
-    );
+    setState(() => _saving = true);
+    bool updated;
+    try {
+      updated = await AppScope.of(context).updateRoutine(
+        routine: widget.routine,
+        name: _nameController.text,
+        description: _descriptionController.text,
+        exercises: _exercises,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppSnackbar.error(context, '루틴을 서버에 저장하지 못했어요. 다시 시도해주세요.');
+      return;
+    }
+    if (!mounted) return;
     if (!updated) {
+      setState(() => _saving = false);
       AppSnackbar.error(context, '루틴을 저장하지 못했어요.');
       return;
     }

@@ -1,14 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:app_links/app_links.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_state.dart';
 import 'data/app_repository.dart';
+import 'data/business_repository.dart';
 import 'data/hive_app_repository.dart';
 import 'data/community_repository.dart';
 import 'data/routine_catalog_repository.dart';
 import 'data/supabase_app_repository.dart';
+import 'data/supabase_business_repository.dart';
 import 'data/supabase_community_repository.dart';
 import 'data/supabase_routine_catalog_repository.dart';
 import 'screens/business_screens.dart';
@@ -44,6 +47,7 @@ Future<void> main() async {
   runApp(
     SetflowApp(
       repository: repository,
+      businessRepository: SupabaseBusinessRepository(Supabase.instance.client),
       routineCatalogRepository: SupabaseRoutineCatalogRepository(
         Supabase.instance.client,
       ),
@@ -57,12 +61,14 @@ Future<void> main() async {
 class SetflowApp extends StatefulWidget {
   const SetflowApp({
     this.repository,
+    this.businessRepository,
     this.routineCatalogRepository,
     this.communityRepository,
     super.key,
   });
 
   final AppRepository? repository;
+  final BusinessRepository? businessRepository;
   final RoutineCatalogRepository? routineCatalogRepository;
   final CommunityRepository? communityRepository;
 
@@ -70,22 +76,91 @@ class SetflowApp extends StatefulWidget {
   State<SetflowApp> createState() => _SetflowAppState();
 }
 
-class _SetflowAppState extends State<SetflowApp> {
+class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   late final AppState state;
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _appLinkSubscription;
+  StreamSubscription<AuthState>? _authSubscription;
+  String? _observedAuthUserId;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     state = AppState(
       repository: widget.repository,
+      businessRepository: widget.businessRepository,
       routineCatalogRepository: widget.routineCatalogRepository,
       communityRepository: widget.communityRepository,
     );
+    _appLinks = AppLinks();
+    _observedAuthUserId = SupabaseAuthService.instance.currentUser?.id;
+    _authSubscription = SupabaseAuthService.instance.authChanges.listen(
+      _handleAuthState,
+      onError: (_) {},
+    );
+    _appLinkSubscription = _appLinks.uriLinkStream.listen(
+      state.captureIncomingUri,
+      onError: (_) {},
+    );
+    unawaited(_captureInitialAppLink());
     unawaited(state.initialize());
+  }
+
+  void _handleAuthState(AuthState authState) {
+    final event = authState.event;
+    final userId = authState.session?.user.id;
+    if (event == AuthChangeEvent.signedOut ||
+        userId == null && event == AuthChangeEvent.tokenRefreshed) {
+      _observedAuthUserId = null;
+      state.handleExternalAuthSignedOut();
+      return;
+    }
+    if ((event == AuthChangeEvent.signedIn ||
+            event == AuthChangeEvent.initialSession) &&
+        userId != null &&
+        userId != _observedAuthUserId) {
+      _observedAuthUserId = userId;
+      unawaited(state.syncAfterAuthentication().catchError((_) {}));
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
+    if (lifecycleState == AppLifecycleState.inactive ||
+        lifecycleState == AppLifecycleState.paused ||
+        lifecycleState == AppLifecycleState.hidden ||
+        lifecycleState == AppLifecycleState.detached) {
+      unawaited(state.flushPersistence().catchError((_) {}));
+      return;
+    }
+    if (lifecycleState != AppLifecycleState.resumed ||
+        !state.isInitialized ||
+        !state.usesLiveBusinessData ||
+        state.role == UserRole.guest) {
+      return;
+    }
+    unawaited(
+      state.refreshBusinessDashboard(state.role).catchError((_) {
+        // AppState keeps the previous data and exposes the refresh error to UI.
+      }),
+    );
+  }
+
+  Future<void> _captureInitialAppLink() async {
+    try {
+      final uri = await _appLinks.getInitialLink();
+      if (uri != null) state.captureIncomingUri(uri);
+    } catch (_) {
+      // The live stream still handles links delivered after startup.
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_authSubscription?.cancel());
+    unawaited(_appLinkSubscription?.cancel());
     state.dispose();
     super.dispose();
   }
@@ -105,6 +180,21 @@ class _SetflowAppState extends State<SetflowApp> {
           builder: (context, child) => Stack(
             children: [
               child ?? const SizedBox.shrink(),
+              if (state.pendingBusinessInviteToken != null)
+                Positioned(
+                  left: SetflowSpacing.md,
+                  right: SetflowSpacing.md,
+                  top: SetflowSpacing.sm,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 400),
+                        child: _BusinessInviteBanner(state: state),
+                      ),
+                    ),
+                  ),
+                ),
               if (state.restRemaining > 0)
                 Positioned(
                   left: SetflowSpacing.lg,
@@ -127,6 +217,106 @@ class _SetflowAppState extends State<SetflowApp> {
         ),
       ),
     );
+  }
+}
+
+class _BusinessInviteBanner extends StatefulWidget {
+  const _BusinessInviteBanner({required this.state});
+
+  final AppState state;
+
+  @override
+  State<_BusinessInviteBanner> createState() => _BusinessInviteBannerState();
+}
+
+class _BusinessInviteBannerState extends State<_BusinessInviteBanner> {
+  bool _accepting = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final signedIn =
+        widget.state.businessAccess != null &&
+        widget.state.role != UserRole.guest;
+    return Material(
+      elevation: 12,
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(SetflowSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.mark_email_unread_rounded,
+                  color: SetflowColors.primary,
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+                const Expanded(
+                  child: Text(
+                    '센터 초대가 도착했어요',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '나중에 확인',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _accepting
+                      ? null
+                      : widget.state.clearPendingBusinessInviteToken,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            Text(
+              signedIn
+                  ? '회원 또는 트레이너 소속 초대를 확인하고 수락할 수 있어요.'
+                  : '로그인한 뒤 같은 초대 링크를 다시 열어주세요.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const Key('business-invite-accept'),
+                onPressed: !signedIn || _accepting ? null : _accept,
+                icon: _accepting
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle_outline_rounded),
+                label: Text(_accepting ? '연결 중...' : '초대 수락'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _accept() async {
+    setState(() => _accepting = true);
+    try {
+      final result = await widget.state.acceptBusinessInviteToken();
+      if (!mounted) return;
+      if (result.accepted) {
+        AppSnackbar.success(context, '센터와 계정이 연결됐어요.');
+      } else {
+        AppSnackbar.error(context, '만료되었거나 취소된 초대예요.');
+      }
+    } catch (_) {
+      if (mounted) {
+        AppSnackbar.error(context, '초대를 수락하지 못했어요. 링크를 확인해주세요.');
+      }
+    } finally {
+      if (mounted) setState(() => _accepting = false);
+    }
   }
 }
 

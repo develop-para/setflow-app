@@ -13,6 +13,21 @@ abstract final class SupabaseConfig {
 
   static const mobileAuthRedirect = 'com.setflow.setflow://login-callback';
 
+  /// OAuth providers stay disabled until the matching provider is enabled in
+  /// Supabase Auth and the release build opts in explicitly. This keeps a
+  /// partially configured provider from presenting a broken login button.
+  static const googleOauthEnabled = bool.fromEnvironment(
+    'SUPABASE_GOOGLE_OAUTH_ENABLED',
+  );
+
+  static const kakaoOauthEnabled = bool.fromEnvironment(
+    'SUPABASE_KAKAO_OAUTH_ENABLED',
+  );
+
+  static const appleOauthEnabled = bool.fromEnvironment(
+    'SUPABASE_APPLE_OAUTH_ENABLED',
+  );
+
   /// Register Naver as a Supabase custom OAuth/OIDC provider and pass its wire
   /// name (for example custom:naver) at build time.
   static const naverProviderName = String.fromEnvironment(

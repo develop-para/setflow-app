@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import '../app_state.dart';
+import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'member_goal_screen.dart';
@@ -13,6 +14,7 @@ class DailyWorkoutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final session = state.sessionFor(date);
+    final coachFeedbacks = state.memberSessionFeedbackForDate(date);
     final recommendation = state.recommendationForDate(date);
     return Scaffold(
       appBar: AppBar(
@@ -61,12 +63,20 @@ class DailyWorkoutScreen extends StatelessWidget {
             child: Row(
               children: [
                 MetricCard(
-                  label: '총 볼륨',
-                  value: session.volume > 1000
+                  label: session.hasResistance ? '총 볼륨' : '유산소 시간',
+                  value: !session.hasResistance && session.hasCardio
+                      ? '${(session.cardioDurationSeconds / 60).round()}'
+                      : session.volume > 1000
                       ? (session.volume / 1000).toStringAsFixed(1)
                       : session.volume.toStringAsFixed(0),
-                  suffix: session.volume > 1000 ? 't' : state.weightUnit,
-                  icon: Icons.monitor_weight_outlined,
+                  suffix: !session.hasResistance && session.hasCardio
+                      ? '분'
+                      : session.volume > 1000
+                      ? 't'
+                      : state.weightUnit,
+                  icon: session.hasResistance
+                      ? Icons.monitor_weight_outlined
+                      : Icons.timer_outlined,
                   tint: SetflowColors.teal,
                 ),
                 const SizedBox(width: 10),
@@ -90,7 +100,52 @@ class DailyWorkoutScreen extends StatelessWidget {
                 },
               ),
             ),
-          if (recommendation != null)
+          if (state.role == UserRole.member &&
+              state.memberSessionFeedbackError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+              child: _CoachFeedbackErrorCard(
+                loading: state.memberSessionFeedbackLoading,
+                onRetry: () async {
+                  try {
+                    await state.refreshMemberSessionFeedback(
+                      from: DateTime(date.year, date.month, date.day - 30),
+                      to: DateTime(date.year, date.month, date.day + 30),
+                    );
+                  } catch (_) {
+                    if (context.mounted) {
+                      AppSnackbar.error(context, '코치 피드백을 불러오지 못했어요.');
+                    }
+                  }
+                },
+              ),
+            ),
+          if (coachFeedbacks.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+              child: _CoachFeedbackCard(feedbacks: coachFeedbacks),
+            ),
+          if (!state.hasTrainingGoal)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+              child: _GoalRequiredRecommendationCard(
+                onApply: () async {
+                  final hasGoals = await ensureMemberTrainingGoals(context);
+                  if (!hasGoals || !context.mounted) return;
+                  final refreshed = state.recommendationForDate(date);
+                  if (refreshed == null) {
+                    AppSnackbar.info(context, '운동 기록을 완료하면 추천 세트를 계산해요.');
+                    return;
+                  }
+                  state.applyRecommendation(date, refreshed);
+                  AppSnackbar.success(
+                    context,
+                    '${refreshed.template.name} 추천 세트를 적용했어요.',
+                  );
+                },
+              ),
+            )
+          else if (recommendation != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
               child: _NextSessionCard(
@@ -235,6 +290,181 @@ class DailyWorkoutScreen extends StatelessWidget {
     AppSnackbar.success(context, '운동 기록을 삭제했어요.');
     Navigator.of(context).pop();
   }
+}
+
+class _CoachFeedbackCard extends StatelessWidget {
+  const _CoachFeedbackCard({required this.feedbacks});
+
+  final List<MemberSessionFeedback> feedbacks;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final latest = feedbacks.first;
+    return Semantics(
+      label: '코치 피드백 ${feedbacks.length}개',
+      child: SetflowCard(
+        key: const ValueKey('member-session-feedback-card'),
+        padding: const EdgeInsets.all(SetflowSpacing.md),
+        onTap: () => _showAll(context),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(SetflowRadii.md),
+              ),
+              child: Icon(
+                Icons.forum_rounded,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(width: SetflowSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '코치 피드백',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      if (feedbacks.length > 1)
+                        Text(
+                          '${feedbacks.length}개',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    latest.authorName,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    latest.text,
+                    key: ValueKey('member-session-feedback-${latest.id}'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: SetflowSpacing.xs),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAll(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .72,
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            itemCount: feedbacks.length + 1,
+            separatorBuilder: (_, index) => index == 0
+                ? const SizedBox(height: SetflowSpacing.sm)
+                : const Divider(height: SetflowSpacing.xl),
+            itemBuilder: (_, index) {
+              if (index == 0) {
+                return Text(
+                  '코치 피드백',
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                );
+              }
+              final feedback = feedbacks[index - 1];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${feedback.authorName} · ${_feedbackTimestamp(feedback.createdAt)}',
+                    style: Theme.of(sheetContext).textTheme.labelLarge
+                        ?.copyWith(
+                          color: Theme.of(
+                            sheetContext,
+                          ).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.xs),
+                  SelectableText(feedback.text),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoachFeedbackErrorCard extends StatelessWidget {
+  const _CoachFeedbackErrorCard({required this.loading, required this.onRetry});
+
+  final bool loading;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SetflowCard(
+      key: const ValueKey('member-session-feedback-error'),
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      child: Row(
+        children: [
+          Icon(Icons.sync_problem_rounded, color: theme.colorScheme.error),
+          const SizedBox(width: SetflowSpacing.sm),
+          const Expanded(child: Text('코치 피드백을 불러오지 못했어요.')),
+          TextButton(
+            onPressed: loading ? null : onRetry,
+            child: loading
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('다시 시도'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _feedbackTimestamp(DateTime value) {
+  final local = value.toLocal();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${local.month}월 ${local.day}일 $hour:$minute';
 }
 
 class _RoutinePickerSheet extends StatelessWidget {
@@ -448,24 +678,38 @@ class _ExerciseCardState extends State<_ExerciseCard> {
           for (final set in exercise.sets)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: _InlineSetRow(
-                key: ObjectKey(set),
-                set: set,
-                unit: state.weightUnit,
-                onToggle: () => _toggleSet(state, set),
-                onTypeChanged: (type) => state.updateSet(set, type: type),
-                onWeightChanged: (weight) =>
-                    state.updateSet(set, weight: weight),
-                onRepsChanged: (reps) => state.updateSet(set, reps: reps),
-                onRestChanged: (seconds) =>
-                    state.updateSet(set, restSeconds: seconds),
-                onDelete: () => _confirmDeleteSet(context, state, set),
-              ),
+              child: exercise.template.isCardio
+                  ? _InlineCardioRow(
+                      key: ObjectKey(set),
+                      template: exercise.template,
+                      set: set,
+                      onToggle: () => _toggleSet(state, set),
+                      onDurationChanged: (seconds) =>
+                          state.updateSet(set, durationSeconds: seconds),
+                      onDistanceChanged: (distance) =>
+                          state.updateSet(set, distanceKm: distance),
+                      onRpeChanged: (rpe) =>
+                          state.updateSet(set, intensityRpe: rpe),
+                      onDelete: () => _confirmDeleteSet(context, state, set),
+                    )
+                  : _InlineSetRow(
+                      key: ObjectKey(set),
+                      set: set,
+                      unit: state.weightUnit,
+                      onToggle: () => _toggleSet(state, set),
+                      onTypeChanged: (type) => state.updateSet(set, type: type),
+                      onWeightChanged: (weight) =>
+                          state.updateSet(set, weight: weight),
+                      onRepsChanged: (reps) => state.updateSet(set, reps: reps),
+                      onRestChanged: (seconds) =>
+                          state.updateSet(set, restSeconds: seconds),
+                      onDelete: () => _confirmDeleteSet(context, state, set),
+                    ),
             ),
           TextButton.icon(
             onPressed: () => state.addSet(exercise),
             icon: const Icon(Icons.add, size: 18),
-            label: const Text('세트 추가'),
+            label: Text(exercise.template.isCardio ? '구간 추가' : '세트 추가'),
           ),
         ],
       ),
@@ -476,7 +720,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     final prs = set.completed
         ? <PerformancePrType>{}
         : state.prTypesForCandidate(widget.exercise.template, set);
-    state.toggleSet(set);
+    state.toggleSet(set, startRest: !widget.exercise.template.isCardio);
     if (!set.completed) {
       recommendationShown = false;
       return;
@@ -484,7 +728,9 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     final labels = prs.map((type) => type.label).join(' · ');
     AppSnackbar.success(
       context,
-      labels.isEmpty ? '${set.number}세트를 저장했어요.' : '🏆 $labels을 달성했어요!',
+      labels.isEmpty
+          ? '${set.number}${widget.exercise.template.isCardio ? '구간' : '세트'}을 저장했어요.'
+          : '🏆 $labels을 달성했어요!',
     );
     final allCompleted =
         widget.exercise.sets.isNotEmpty &&
@@ -511,6 +757,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
       session: session,
       completedExercise: widget.exercise,
       goals: state.goals,
+      weeklyHistory: state.sessions.values,
     );
     if (recommendation == null) {
       AppSnackbar.info(context, '추천 가능한 운동이 이미 오늘 계획에 모두 있어요.');
@@ -544,8 +791,12 @@ class _ExerciseCardState extends State<_ExerciseCard> {
         await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: Text('${set.number}세트를 삭제할까요?'),
-            content: const Text('삭제한 세트는 복구할 수 없습니다.'),
+            title: Text(
+              '${set.number}${widget.exercise.template.isCardio ? '구간' : '세트'}을 삭제할까요?',
+            ),
+            content: Text(
+              '삭제한 ${widget.exercise.template.isCardio ? '구간' : '세트'}은 복구할 수 없습니다.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
@@ -575,7 +826,10 @@ class _ExerciseCardState extends State<_ExerciseCard> {
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('운동을 삭제할까요?'),
-            content: Text('${widget.exercise.template.name}의 세트 기록이 모두 삭제됩니다.'),
+            content: Text(
+              '${widget.exercise.template.name}의 '
+              '${widget.exercise.template.isCardio ? '구간' : '세트'} 기록이 모두 삭제됩니다.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
@@ -599,6 +853,298 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     AppSnackbar.success(context, '운동을 삭제했어요.');
   }
 }
+
+class _InlineCardioRow extends StatefulWidget {
+  const _InlineCardioRow({
+    required this.template,
+    required this.set,
+    required this.onToggle,
+    required this.onDurationChanged,
+    required this.onDistanceChanged,
+    required this.onRpeChanged,
+    required this.onDelete,
+    super.key,
+  });
+
+  final ExerciseTemplate template;
+  final WorkoutSetEntry set;
+  final VoidCallback onToggle;
+  final ValueChanged<int> onDurationChanged;
+  final ValueChanged<double> onDistanceChanged;
+  final ValueChanged<double> onRpeChanged;
+  final VoidCallback onDelete;
+
+  @override
+  State<_InlineCardioRow> createState() => _InlineCardioRowState();
+}
+
+class _InlineCardioRowState extends State<_InlineCardioRow> {
+  late final TextEditingController durationController;
+  late final TextEditingController distanceController;
+  late final TextEditingController rpeController;
+  final durationFocus = FocusNode();
+  final distanceFocus = FocusNode();
+  final rpeFocus = FocusNode();
+
+  CardioExerciseDefinition? get definition =>
+      cardioDefinitionForExercise(widget.template.id);
+
+  bool get supportsDistance =>
+      definition?.metrics.contains(CardioMetric.distance) == true;
+
+  @override
+  void initState() {
+    super.initState();
+    durationController = TextEditingController(text: _durationText());
+    distanceController = TextEditingController(text: _distanceText());
+    rpeController = TextEditingController(text: _rpeText());
+  }
+
+  @override
+  void didUpdateWidget(covariant _InlineCardioRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!durationFocus.hasFocus &&
+        oldWidget.set.durationSeconds != widget.set.durationSeconds) {
+      durationController.text = _durationText();
+    }
+    if (!distanceFocus.hasFocus &&
+        oldWidget.set.distanceKm != widget.set.distanceKm) {
+      distanceController.text = _distanceText();
+    }
+    if (!rpeFocus.hasFocus &&
+        oldWidget.set.intensityRpe != widget.set.intensityRpe) {
+      rpeController.text = _rpeText();
+    }
+  }
+
+  @override
+  void dispose() {
+    durationController.dispose();
+    distanceController.dispose();
+    rpeController.dispose();
+    durationFocus.dispose();
+    distanceFocus.dispose();
+    rpeFocus.dispose();
+    super.dispose();
+  }
+
+  String _durationText() => _decimalText(widget.set.durationSeconds / 60);
+  String _distanceText() =>
+      widget.set.distanceKm <= 0 ? '' : _decimalText(widget.set.distanceKm);
+  String _rpeText() =>
+      widget.set.intensityRpe <= 0 ? '' : _decimalText(widget.set.intensityRpe);
+
+  void _commitDuration() {
+    final minutes = double.tryParse(durationController.text.trim());
+    if (minutes == null || minutes <= 0 || minutes > 1440) {
+      durationController.text = _durationText();
+      return;
+    }
+    widget.onDurationChanged((minutes * 60).round());
+  }
+
+  void _commitDistance() {
+    final raw = distanceController.text.trim();
+    final distance = raw.isEmpty ? 0.0 : double.tryParse(raw);
+    if (distance == null || distance < 0 || distance > 999.99) {
+      distanceController.text = _distanceText();
+      return;
+    }
+    widget.onDistanceChanged(distance);
+  }
+
+  void _commitRpe() {
+    final rpe = double.tryParse(rpeController.text.trim());
+    if (rpe == null || rpe < 1 || rpe > 10) {
+      rpeController.text = _rpeText();
+      return;
+    }
+    widget.onRpeChanged(rpe);
+  }
+
+  String get _summary {
+    if (widget.set.durationSeconds <= 0) return '시간을 입력해주세요';
+    final duration = Duration(seconds: widget.set.durationSeconds);
+    final time = duration.inHours > 0
+        ? '${duration.inHours}시간 ${duration.inMinutes.remainder(60)}분'
+        : '${duration.inMinutes}분';
+    if (!supportsDistance || widget.set.distanceKm <= 0) return time;
+    if (definition?.modality == CardioModality.rowingErgometer) {
+      final secondsPer500m =
+          widget.set.durationSeconds / (widget.set.distanceKm * 2);
+      final minutes = secondsPer500m ~/ 60;
+      final seconds = secondsPer500m
+          .round()
+          .remainder(60)
+          .toString()
+          .padLeft(2, '0');
+      return '$time · $minutes:$seconds/500m';
+    }
+    if (definition?.metrics.contains(CardioMetric.pace) == true) {
+      final secondsPerKm = widget.set.durationSeconds / widget.set.distanceKm;
+      final minutes = secondsPerKm ~/ 60;
+      final seconds = secondsPerKm
+          .round()
+          .remainder(60)
+          .toString()
+          .padLeft(2, '0');
+      return '$time · $minutes:$seconds/km';
+    }
+    final speed = widget.set.distanceKm / (widget.set.durationSeconds / 3600);
+    return '$time · ${speed.toStringAsFixed(1)}km/h';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: SetflowMotion.standard,
+      padding: const EdgeInsets.fromLTRB(9, 7, 7, 9),
+      decoration: BoxDecoration(
+        color: widget.set.completed
+            ? SetflowColors.teal.withValues(alpha: .09)
+            : context.setflowColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(SetflowRadii.md),
+        border: Border.all(
+          color: widget.set.completed
+              ? SetflowColors.teal.withValues(alpha: .35)
+              : Theme.of(context).colorScheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(SetflowRadii.full),
+                ),
+                child: Text(
+                  '${widget.set.number}구간',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  _summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: SetflowColors.secondaryText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: '구간 삭제',
+                onPressed: widget.set.completed ? null : widget.onDelete,
+                icon: const Icon(Icons.delete_outline_rounded, size: 19),
+              ),
+              _SetCompletionButton(
+                key: ValueKey('inline-set-complete-${widget.set.number}'),
+                setNumber: widget.set.number,
+                unitLabel: '구간',
+                completed: widget.set.completed,
+                onPressed: widget.onToggle,
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              Expanded(
+                child: _cardioField(
+                  key: ValueKey('cardio-duration-${widget.set.number}'),
+                  label: '시간',
+                  suffix: '분',
+                  controller: durationController,
+                  focusNode: durationFocus,
+                  onCommit: _commitDuration,
+                ),
+              ),
+              if (supportsDistance) ...[
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _cardioField(
+                    key: ValueKey('cardio-distance-${widget.set.number}'),
+                    label: '거리',
+                    suffix: 'km',
+                    controller: distanceController,
+                    focusNode: distanceFocus,
+                    onCommit: _commitDistance,
+                  ),
+                ),
+              ],
+              const SizedBox(width: 6),
+              Expanded(
+                child: _cardioField(
+                  key: ValueKey('cardio-rpe-${widget.set.number}'),
+                  label: '강도',
+                  suffix: 'RPE',
+                  controller: rpeController,
+                  focusNode: rpeFocus,
+                  onCommit: _commitRpe,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'RPE 3–4 중강도 · 7–9 고강도 · 1–2는 가벼운 활동',
+              style: TextStyle(
+                fontSize: 9,
+                color: SetflowColors.secondaryText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cardioField({
+    required Key key,
+    required String label,
+    required String suffix,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required VoidCallback onCommit,
+  }) {
+    return TextField(
+      key: key,
+      controller: controller,
+      focusNode: focusNode,
+      enabled: !widget.set.completed,
+      textAlign: TextAlign.center,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixText: suffix,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      ),
+      onSubmitted: (_) => onCommit(),
+      onTapOutside: (_) {
+        onCommit();
+        focusNode.unfocus();
+      },
+    );
+  }
+}
+
+String _decimalText(double value) =>
+    value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 
 class _InlineSetRow extends StatefulWidget {
   const _InlineSetRow({
@@ -888,10 +1434,12 @@ class _SetCompletionButton extends StatelessWidget {
     required this.setNumber,
     required this.completed,
     required this.onPressed,
+    this.unitLabel = '세트',
     super.key,
   });
 
   final int setNumber;
+  final String unitLabel;
   final bool completed;
   final VoidCallback onPressed;
 
@@ -902,7 +1450,7 @@ class _SetCompletionButton extends StatelessWidget {
         ? Colors.white
         : theme.colorScheme.onSurfaceVariant;
     return Semantics(
-      label: '$setNumber세트 완료',
+      label: '$setNumber$unitLabel 완료',
       button: true,
       selected: completed,
       child: SizedBox(
@@ -967,6 +1515,14 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cardio = recommendation.cardioPrescription;
+    final prescriptionText = cardio == null
+        ? '${PerformanceEngine.formatWeight(recommendation.startingWeight)}$unit · '
+              '${recommendation.minReps}–${recommendation.maxReps}회 · '
+              '${recommendation.sets}세트 · 휴식 ${recommendation.restSeconds}초'
+        : '${cardio.durationMinutes}분'
+              '${cardio.targetDistanceKm == null ? '' : ' · ${cardio.targetDistanceKm!.toStringAsFixed(1)}km'}'
+              ' · RPE ${cardio.minimumRpe}–${cardio.maximumRpe}';
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 2, 20, 22),
@@ -1004,9 +1560,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '${PerformanceEngine.formatWeight(recommendation.startingWeight)}$unit · '
-                    '${recommendation.minReps}–${recommendation.maxReps}회 · '
-                    '${recommendation.sets}세트 · 휴식 ${recommendation.restSeconds}초',
+                    prescriptionText,
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 10),
@@ -1021,9 +1575,11 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              '근거 적용 · 우선 운동의 근력 향상, 다중 세트, 전신 균형에 관한 저항운동 권고를 규칙으로 반영했습니다.',
-              style: TextStyle(
+            Text(
+              cardio == null
+                  ? '근거 적용 · 논문이 특정 다음 운동 하나를 최적이라고 정한 것은 아니며, 목표·주간 볼륨·오늘 미완료 패턴을 규칙으로 반영합니다.'
+                  : '근거 적용 · 유산소는 중량이 아니라 시간·거리·RPE로 처방하며, 첫 기록의 거리는 임의로 만들지 않습니다.',
+              style: const TextStyle(
                 fontSize: 10,
                 height: 1.4,
                 color: SetflowColors.secondaryText,
@@ -1231,6 +1787,67 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   }
 }
 
+class _GoalRequiredRecommendationCard extends StatelessWidget {
+  const _GoalRequiredRecommendationCard({required this.onApply});
+
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return SetflowCard(
+      key: const Key('goal-required-recommendation'),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.track_changes_rounded,
+                size: 18,
+                color: SetflowColors.orange,
+              ),
+              SizedBox(width: 7),
+              Text(
+                '맞춤 추천 준비',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: SetflowColors.secondaryText,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          const Text(
+            '운동 목표를 먼저 선택해주세요',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '근력·근육 증가·감량·체력·건강 유지에 따라 중량, 반복수, 세트수와 휴식시간이 달라집니다.',
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.4,
+              color: SetflowColors.secondaryText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onApply,
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text('추천 세트 적용'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NextSessionCard extends StatelessWidget {
   const _NextSessionCard({
     required this.recommendation,
@@ -1292,9 +1909,7 @@ class _NextSessionCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             hasGoal
-                ? '${PerformanceEngine.formatWeight(recommendation.weight)}$unit · '
-                      '${recommendation.minReps}–${recommendation.maxReps}회 · '
-                      '${recommendation.sets}세트'
+                ? recommendation.prescriptionSummary(unit)
                 : '목표를 설정하면 추천 세트를 계산해요',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           ),
@@ -1363,6 +1978,9 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final exercise = widget.exercise;
+    if (exercise.template.isCardio) {
+      return _buildCardioScreen(context, state, exercise);
+    }
     final previous = state.performanceFor(
       exercise.template,
       before: state.dateOnly(widget.date),
@@ -1712,6 +2330,106 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildCardioScreen(
+    BuildContext context,
+    AppState state,
+    WorkoutExercise exercise,
+  ) {
+    return Scaffold(
+      appBar: AppBar(title: Text(exercise.template.name)),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+        children: [
+          SetflowCard(
+            color: SetflowColors.blue.withValues(alpha: .08),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.directions_run_rounded, color: SetflowColors.blue),
+                SizedBox(width: 11),
+                Expanded(
+                  child: Text(
+                    '유산소는 무게나 반복 횟수 대신 시간·거리·자각 강도(RPE)를 기록합니다. 거리 측정이 어울리지 않는 종목은 시간과 RPE만 표시해요.',
+                    style: TextStyle(
+                      color: SetflowColors.secondaryText,
+                      fontSize: 12,
+                      height: 1.45,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (final set in exercise.sets) ...[
+            _InlineCardioRow(
+              key: ValueKey('cardio-detail-segment-${set.number}'),
+              template: exercise.template,
+              set: set,
+              onToggle: () => state.toggleSet(set, startRest: false),
+              onDurationChanged: (value) =>
+                  state.updateSet(set, durationSeconds: value),
+              onDistanceChanged: (value) =>
+                  state.updateSet(set, distanceKm: value),
+              onRpeChanged: (value) =>
+                  state.updateSet(set, intensityRpe: value),
+              onDelete: () async {
+                final confirmed = await _confirmDeleteCardioSegment(
+                  context,
+                  set,
+                );
+                if (!confirmed || !context.mounted) return;
+                state.removeSet(exercise, set);
+                AppSnackbar.success(context, '구간을 삭제했어요.');
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+          OutlinedButton.icon(
+            onPressed: () => state.addSet(exercise),
+            icon: const Icon(Icons.add),
+            label: const Text('구간 추가'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(17),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _confirmDeleteCardioSegment(
+    BuildContext context,
+    WorkoutSetEntry set,
+  ) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text('${set.number}구간을 삭제할까요?'),
+            content: const Text('삭제한 유산소 구간은 복구할 수 없습니다.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: SetflowColors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('삭제'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   Future<void> _editSetValue(

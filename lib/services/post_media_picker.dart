@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../data/community_repository.dart';
+import 'user_image_optimizer.dart';
 
 enum PostMediaSource { camera, gallery }
 
@@ -56,13 +57,16 @@ class PluginImagePickerGateway implements ImagePickerGateway {
 }
 
 class ImagePickerPostMediaPicker implements PostMediaPicker {
-  ImagePickerPostMediaPicker({ImagePickerGateway? gateway})
-    : _gateway = gateway ?? PluginImagePickerGateway();
+  ImagePickerPostMediaPicker({
+    ImagePickerGateway? gateway,
+    this._optimizer = const UserImageOptimizer(),
+  }) : _gateway = gateway ?? PluginImagePickerGateway();
 
   static const maxDimension = 1600.0;
   static const imageQuality = 82;
 
   final ImagePickerGateway _gateway;
+  final UserImageOptimizer _optimizer;
 
   @override
   Future<CommunityPostMedia?> pick(PostMediaSource source) async {
@@ -97,14 +101,19 @@ class ImagePickerPostMediaPicker implements PostMediaPicker {
     return file == null ? null : _read(file);
   }
 
-  static Future<CommunityPostMedia> _read(XFile file) async {
+  Future<CommunityPostMedia> _read(XFile file) async {
     final Uint8List bytes = await file.readAsBytes();
     final fileName = file.name.trim().isEmpty ? 'post-image.jpg' : file.name;
-    final contentType = _imageContentType(file.mimeType, fileName);
-    return CommunityPostMedia(
+    final optimized = await _optimizer.optimize(
       bytes: bytes,
       fileName: fileName,
-      contentType: contentType,
+      reportedContentType: _imageContentType(file.mimeType, fileName),
+      purpose: UserImagePurpose.communityPost,
+    );
+    return CommunityPostMedia(
+      bytes: optimized.bytes,
+      fileName: optimized.fileName,
+      contentType: optimized.contentType,
     );
   }
 

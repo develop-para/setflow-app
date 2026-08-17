@@ -54,6 +54,19 @@ void main() {
             color: const Color(0xFF10CEBD),
             exercises: catalog,
             accessTier: RoutineAccessTier.paid,
+            sourceMarketRoutineId: 'market-routine-1',
+            sourceCoachingRoutineId: 'coaching-routine-1',
+            setPlans: const {
+              'squat': [
+                RoutineSetPlan(
+                  number: 1,
+                  weight: 82.5,
+                  reps: 6,
+                  type: '웜업',
+                  restSeconds: 135,
+                ),
+              ],
+            },
           ),
         ],
         communityPosts: [
@@ -142,6 +155,16 @@ void main() {
       expect(decoded.routines.single.name, '하체 루틴');
       expect(decoded.routines.single.exercises.single.id, 'squat');
       expect(decoded.routines.single.accessTier, RoutineAccessTier.paid);
+      final routineSet = decoded.routines.single.setsFor(catalog.first).single;
+      expect(routineSet.weight, 82.5);
+      expect(routineSet.reps, 6);
+      expect(routineSet.type, '웜업');
+      expect(routineSet.restSeconds, 135);
+      expect(decoded.routines.single.sourceMarketRoutineId, 'market-routine-1');
+      expect(
+        decoded.routines.single.sourceCoachingRoutineId,
+        'coaching-routine-1',
+      );
       expect(decoded.communityPosts.single.likes, 3);
       expect(
         decoded.communityPosts.single.imageUrl,

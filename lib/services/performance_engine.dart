@@ -10,14 +10,44 @@ extension EstimateQualityLabel on EstimateQuality {
   };
 }
 
-enum TrainingGoal { strength, hypertrophy, endurance }
+enum TrainingGoal { strength, hypertrophy, fatLoss, endurance, health }
 
 extension TrainingGoalLabel on TrainingGoal {
   String get label => switch (this) {
-    TrainingGoal.strength => '근력',
-    TrainingGoal.hypertrophy => '근비대',
-    TrainingGoal.endurance => '근지구력',
+    TrainingGoal.strength => '근력 향상',
+    TrainingGoal.hypertrophy => '근육 증가',
+    TrainingGoal.fatLoss => '체중 감량',
+    TrainingGoal.endurance => '체력 향상',
+    TrainingGoal.health => '건강 유지',
   };
+
+  String get methodLabel => switch (this) {
+    TrainingGoal.strength => '고중량 근력',
+    TrainingGoal.hypertrophy => '주간 볼륨 중심 근비대',
+    TrainingGoal.fatLoss => '제지방 보존 + 유산소',
+    TrainingGoal.endurance => '근지구력',
+    TrainingGoal.health => '균형 훈련',
+  };
+}
+
+class TrainingPrescription {
+  const TrainingPrescription({
+    required this.minReps,
+    required this.maxReps,
+    required this.sets,
+    required this.intensity,
+    required this.restSeconds,
+    required this.evidenceIds,
+    required this.evidenceNote,
+  });
+
+  final int minReps;
+  final int maxReps;
+  final int sets;
+  final double intensity;
+  final int restSeconds;
+  final Set<String> evidenceIds;
+  final String evidenceNote;
 }
 
 enum PerformancePrType { weight, reps, estimatedOneRepMax }
@@ -91,6 +121,14 @@ class WorkoutRecommendation {
     required this.nextWeight,
     required this.reason,
     this.restSeconds = 90,
+    this.evidenceIds = const {},
+    this.evidenceNote = '',
+    this.cardioDurationSeconds,
+    this.cardioDistanceKm,
+    this.cardioMinimumRpe,
+    this.cardioMaximumRpe,
+    this.cardioSupportsDistance = false,
+    this.cardioStructure,
   });
 
   final ExerciseTemplate template;
@@ -102,10 +140,42 @@ class WorkoutRecommendation {
   final double nextWeight;
   final String reason;
   final int restSeconds;
+  final Set<String> evidenceIds;
+  final String evidenceNote;
+  final int? cardioDurationSeconds;
+  final double? cardioDistanceKm;
+  final int? cardioMinimumRpe;
+  final int? cardioMaximumRpe;
+  final bool cardioSupportsDistance;
+  final String? cardioStructure;
 
-  String progressionCondition(String unit) =>
-      '${List.filled(sets, maxReps).join(' / ')} 성공 → '
-      '${PerformanceEngine.formatWeight(nextWeight)}$unit';
+  bool get isCardio => cardioDurationSeconds != null || template.isCardio;
+
+  String prescriptionSummary(String unit) {
+    if (!isCardio) {
+      return '${PerformanceEngine.formatWeight(weight)}$unit · '
+          '$minReps–$maxReps회 · $sets세트';
+    }
+    final minutes = ((cardioDurationSeconds ?? 0) / 60).round();
+    final distance = cardioDistanceKm;
+    final distanceText = distance != null && distance > 0
+        ? ' · ${distance.toStringAsFixed(distance < 10 ? 1 : 0)}km'
+        : '';
+    final rpeText = cardioMinimumRpe == null || cardioMaximumRpe == null
+        ? ''
+        : ' · RPE $cardioMinimumRpe–$cardioMaximumRpe';
+    return '$minutes분$distanceText$rpeText';
+  }
+
+  String progressionCondition(String unit) {
+    if (isCardio) {
+      return cardioDistanceKm == null
+          ? '먼저 시간과 RPE를 안정적으로 완료한 뒤 점진적으로 늘려요.'
+          : '최근 페이스를 기준으로 한 거리이며 컨디션에 따라 조절하세요.';
+    }
+    return '${List.filled(sets, maxReps).join(' / ')} 2회 연속 성공 → '
+        '${PerformanceEngine.formatWeight(nextWeight)}$unit';
+  }
 }
 
 abstract final class PerformanceEngine {
@@ -133,15 +203,89 @@ abstract final class PerformanceEngine {
     );
   }
 
-  static TrainingGoal goalFromProfile(List<String> goals) {
-    final joined = goals.join(' ');
-    if (joined.contains('지구력') || joined.contains('체력')) {
-      return TrainingGoal.endurance;
+  static TrainingGoal? goalFromProfile(List<String> goals) {
+    // The first selected goal is the primary recommendation goal. Both the set
+    // and next-exercise engines use this same mapping.
+    for (final rawGoal in goals) {
+      final goal = rawGoal.trim().toLowerCase();
+      if (goal.contains('근력')) {
+        return TrainingGoal.strength;
+      }
+      if (goal.contains('근육') || goal.contains('근비대')) {
+        return TrainingGoal.hypertrophy;
+      }
+      if (goal.contains('감량') ||
+          goal.contains('다이어트') ||
+          goal.contains('체지방')) {
+        return TrainingGoal.fatLoss;
+      }
+      if (goal.contains('지구력') || goal.contains('체력')) {
+        return TrainingGoal.endurance;
+      }
+      if (goal.contains('건강') || goal.contains('유지')) {
+        return TrainingGoal.health;
+      }
     }
-    if (joined.contains('근력') || joined.contains('파워')) {
-      return TrainingGoal.strength;
-    }
-    return TrainingGoal.hypertrophy;
+    return null;
+  }
+
+  static TrainingPrescription prescriptionFor(TrainingGoal goal) {
+    return switch (goal) {
+      TrainingGoal.strength => const TrainingPrescription(
+        minReps: 4,
+        maxReps: 6,
+        sets: 3,
+        intensity: .825,
+        restSeconds: 180,
+        evidenceIds: {'acsm_currier_2026_resistance', 'acsm-2009'},
+        evidenceNote: '≥80% 1RM과 다중 작업세트 권고를 보수적인 기본값으로 적용합니다.',
+      ),
+      TrainingGoal.hypertrophy => const TrainingPrescription(
+        minReps: 6,
+        maxReps: 15,
+        sets: 3,
+        intensity: .75,
+        restSeconds: 120,
+        evidenceIds: {
+          'acsm_currier_2026_resistance',
+          'schoenfeld_2017_weekly_volume',
+        },
+        evidenceNote: '폭넓은 부하가 유효하며, 이 범위보다 근육군별 주간 작업세트가 더 중요합니다.',
+      ),
+      TrainingGoal.fatLoss => const TrainingPrescription(
+        minReps: 8,
+        maxReps: 12,
+        sets: 3,
+        intensity: .70,
+        restSeconds: 90,
+        evidenceIds: {
+          'acsm_currier_2026_resistance',
+          'acsm_jakicic_2024_adiposity',
+        },
+        evidenceNote: '저항운동은 제지방 보존을 위한 기본값이며 감량 효과는 유산소·총활동량과 함께 봅니다.',
+      ),
+      TrainingGoal.endurance => const TrainingPrescription(
+        minReps: 15,
+        maxReps: 20,
+        sets: 3,
+        intensity: .55,
+        restSeconds: 60,
+        evidenceIds: {'acsm-2009', 'acsm_currier_2026_resistance'},
+        evidenceNote: '국소 근지구력의 실무 기본값이며 최적 변수의 근거 확실성은 낮습니다.',
+      ),
+      TrainingGoal.health => const TrainingPrescription(
+        minReps: 8,
+        maxReps: 12,
+        sets: 2,
+        intensity: .65,
+        restSeconds: 90,
+        evidenceIds: {
+          'acsm_currier_2026_resistance',
+          'acsm_garber_2011_prescription',
+        },
+        evidenceNote: '정확한 숫자보다 주요 근육군을 주 2회 이상 꾸준히 훈련하는 것이 우선입니다.',
+      ),
+    };
   }
 
   static ExercisePerformanceSummary? summarize({
@@ -149,6 +293,9 @@ abstract final class PerformanceEngine {
     required ExerciseTemplate template,
     DateTime? before,
   }) {
+    // Cardio uses elapsed time, distance, pace/power and intensity. Treating a
+    // machine level or distance as lifting weight would create a false e1RM.
+    if (template.muscle == '유산소') return null;
     final records = _records(
       sessions: sessions,
       templateId: template.id,
@@ -215,58 +362,90 @@ abstract final class PerformanceEngine {
     required Iterable<WorkoutSession> sessions,
     required ExerciseTemplate template,
     required TrainingGoal goal,
-    double increment = 2.5,
+    double? increment,
   }) {
+    if (template.muscle == '유산소') return null;
     final summary = summarize(sessions: sessions, template: template);
     if (summary == null) return null;
-    final (
-      int minReps,
-      int maxReps,
-      int targetSets,
-      double intensity,
-    ) = switch (goal) {
-      TrainingGoal.strength => (4, 6, 3, .825),
-      TrainingGoal.hypertrophy => (8, 10, 3, .75),
-      TrainingGoal.endurance => (15, 20, 3, .55),
-    };
+    final prescription = prescriptionFor(goal);
+    final minReps = prescription.minReps;
+    final maxReps = prescription.maxReps;
+    final targetSets = prescription.sets;
 
     final history = _sessionWorkSets(
       sessions: sessions,
       templateId: template.id,
     );
-    var weight = roundToIncrement(summary.currentE1rm * intensity, increment);
-    var reason = '${goal.label} 목표 강도로 계산';
+    final provisionalWeight = summary.currentE1rm * prescription.intensity;
+    final workingIncrement =
+        increment ?? recommendedIncrement(provisionalWeight);
+    final baselineWeight = roundToIncrement(
+      provisionalWeight,
+      workingIncrement,
+    );
+    var weight = baselineWeight;
+    var reason =
+        '${goal.label} · ${goal.methodLabel} '
+        '${(prescription.intensity * 100).toStringAsFixed(0)}% e1RM 기준';
     if (history.isNotEmpty) {
       final latest = history.first;
       final workingWeight = _primaryWeight(latest.$2);
-      final latestSets = latest.$2
-          .where((set) => set.weight == workingWeight)
-          .take(targetSets)
-          .toList();
-      weight = workingWeight;
-      final completedTarget = latestSets.length >= targetSets;
-      final upperSuccess =
-          completedTarget && latestSets.every((set) => set.reps >= maxReps);
-      if (upperSuccess) {
-        weight = workingWeight + increment;
-        reason = '지난 운동에서 목표 반복을 모두 달성';
-      } else if (_missedLowerBound(latestSets, minReps) && history.length > 1) {
-        final previousWeight = _primaryWeight(history[1].$2);
-        final previousSets = history[1].$2
-            .where((set) => set.weight == previousWeight)
+      final baselineTolerance = _max(
+        workingIncrement * 2,
+        baselineWeight * .075,
+      );
+      final followsCurrentGoal =
+          (workingWeight - baselineWeight).abs() <= baselineTolerance;
+      if (followsCurrentGoal) {
+        final latestSets = latest.$2
+            .where((set) => set.weight == workingWeight)
             .take(targetSets)
             .toList();
-        if (_missedLowerBound(previousSets, minReps)) {
-          weight = roundToIncrement(workingWeight * .975, increment);
-          reason = '두 번 연속 최소 반복에 미달해 소폭 조정';
+        weight = workingWeight;
+        final completedTarget = latestSets.length >= targetSets;
+        final upperSuccess =
+            completedTarget && latestSets.every((set) => set.reps >= maxReps);
+        if (upperSuccess) {
+          final previousUpperSuccess =
+              history.length > 1 &&
+              _primaryWeight(history[1].$2) == workingWeight &&
+              _meetsUpperTarget(
+                history[1].$2
+                    .where((set) => set.weight == workingWeight)
+                    .take(targetSets)
+                    .toList(),
+                targetSets: targetSets,
+                maxReps: maxReps,
+              );
+          if (previousUpperSuccess) {
+            weight = workingWeight + workingIncrement;
+            reason = '${goal.label} 목표 상단을 두 번 연속 달성해 중량 상승';
+          } else {
+            reason = '${goal.label} 목표 상단을 한 번 달성해 같은 중량으로 한 번 더 확인';
+          }
+        } else if (_missedLowerBound(latestSets, minReps) &&
+            history.length > 1) {
+          final previousWeight = _primaryWeight(history[1].$2);
+          final previousSets = history[1].$2
+              .where((set) => set.weight == previousWeight)
+              .take(targetSets)
+              .toList();
+          if (_missedLowerBound(previousSets, minReps)) {
+            weight = roundToIncrement(workingWeight * .975, workingIncrement);
+            reason = '두 번 연속 최소 반복에 미달해 소폭 조정';
+          } else {
+            reason = '${goal.label} 목표로 한 번 더 같은 중량 확인';
+          }
         } else {
-          reason = '한 번 더 같은 중량으로 반복 범위 확인';
+          reason = '${goal.label} 목표 반복 범위에서 현재 중량 유지';
         }
       } else {
-        reason = '현재 중량에서 목표 반복 범위 유지';
+        reason =
+            '${goal.label} 목표로 변경되어 '
+            '${(prescription.intensity * 100).toStringAsFixed(0)}% e1RM에 맞춤';
       }
     }
-    weight = weight < increment ? increment : weight;
+    weight = weight < workingIncrement ? workingIncrement : weight;
 
     return WorkoutRecommendation(
       template: template,
@@ -275,13 +454,11 @@ abstract final class PerformanceEngine {
       minReps: minReps,
       maxReps: maxReps,
       sets: targetSets,
-      nextWeight: weight + increment,
+      nextWeight: weight + workingIncrement,
       reason: reason,
-      restSeconds: switch (goal) {
-        TrainingGoal.strength => 180,
-        TrainingGoal.hypertrophy => 90,
-        TrainingGoal.endurance => 60,
-      },
+      restSeconds: prescription.restSeconds,
+      evidenceIds: prescription.evidenceIds,
+      evidenceNote: prescription.evidenceNote,
     );
   }
 
@@ -290,37 +467,48 @@ abstract final class PerformanceEngine {
     required String templateId,
     required WorkoutSetEntry candidate,
   }) {
-    if (candidate.type == '웜업' ||
+    if (candidate.type != '일반' ||
         candidate.weight <= 0 ||
         candidate.reps <= 0) {
       return {};
     }
-    final estimateValue = estimate(candidate.weight, candidate.reps);
-    if (estimateValue == null) return {};
-    final history = _records(
+    final allHistory = _completedResistanceSets(
       sessions: sessions,
       templateId: templateId,
       excludedSet: candidate,
     );
-    if (history.isEmpty) {
-      return PerformancePrType.values.toSet();
+    final estimateValue = candidate.reps <= 10
+        ? estimate(candidate.weight, candidate.reps)
+        : null;
+    if (allHistory.isEmpty) {
+      return {
+        PerformancePrType.weight,
+        PerformancePrType.reps,
+        if (estimateValue != null) PerformancePrType.estimatedOneRepMax,
+      };
     }
     final result = <PerformancePrType>{};
-    if (candidate.weight >
-        history.map((item) => item.set.weight).reduce(_max)) {
+    if (candidate.weight > allHistory.map((item) => item.weight).reduce(_max)) {
       result.add(PerformancePrType.weight);
     }
-    final sameWeight = history.where(
-      (item) => item.set.weight == candidate.weight,
+    final sameWeight = allHistory.where(
+      (item) => item.weight == candidate.weight,
     );
     if (sameWeight.isEmpty ||
-        candidate.reps >
-            sameWeight.map((item) => item.set.reps).reduce(_maxInt)) {
+        candidate.reps > sameWeight.map((item) => item.reps).reduce(_maxInt)) {
       result.add(PerformancePrType.reps);
     }
-    if (estimateValue.value >
-        history.map((item) => item.estimate.value).reduce(_max)) {
-      result.add(PerformancePrType.estimatedOneRepMax);
+    if (estimateValue != null) {
+      final e1rmHistory = _records(
+        sessions: sessions,
+        templateId: templateId,
+        excludedSet: candidate,
+      );
+      if (e1rmHistory.isEmpty ||
+          estimateValue.value >
+              e1rmHistory.map((item) => item.estimate.value).reduce(_max)) {
+        result.add(PerformancePrType.estimatedOneRepMax);
+      }
     }
     return result;
   }
@@ -328,6 +516,17 @@ abstract final class PerformanceEngine {
   static double roundToIncrement(double value, double increment) {
     if (increment <= 0) return value;
     return (value / increment).round() * increment;
+  }
+
+  /// Practical plate/machine increments kept within the commonly recommended
+  /// small-step range. The actual available increment remains equipment
+  /// dependent and can be overridden by the caller.
+  static double recommendedIncrement(double workingWeight) {
+    if (workingWeight <= 0) return 0.5;
+    if (workingWeight < 10) return 0.5;
+    if (workingWeight < 25) return 1;
+    if (workingWeight <= 125) return 2.5;
+    return 5;
   }
 
   static String formatWeight(double value) =>
@@ -348,7 +547,7 @@ abstract final class PerformanceEngine {
           continue;
         }
         for (final set in exercise.sets) {
-          if (identical(set, excludedSet) || !_isWorkSet(set)) continue;
+          if (identical(set, excludedSet) || !_isE1rmSet(set)) continue;
           final estimateValue = estimate(set.weight, set.reps);
           if (estimateValue == null) continue;
           records.add(
@@ -377,7 +576,7 @@ abstract final class PerformanceEngine {
             exercise.template.id != templateId) {
           continue;
         }
-        sets.addAll(exercise.sets.where(_isWorkSet));
+        sets.addAll(exercise.sets.where(_isProgressionSet));
       }
       if (sets.isNotEmpty) result.add((session.date, sets));
     }
@@ -385,13 +584,48 @@ abstract final class PerformanceEngine {
     return result;
   }
 
-  static bool _isWorkSet(WorkoutSetEntry set) =>
-      set.completed && set.type != '웜업' && set.weight > 0 && set.reps > 0;
+  static List<WorkoutSetEntry> _completedResistanceSets({
+    required Iterable<WorkoutSession> sessions,
+    required String templateId,
+    WorkoutSetEntry? excludedSet,
+  }) {
+    final result = <WorkoutSetEntry>[];
+    for (final session in sessions) {
+      for (final exercise in session.exercises) {
+        if (exercise.id.startsWith('seed_') ||
+            exercise.template.id != templateId) {
+          continue;
+        }
+        result.addAll(
+          exercise.sets.where(
+            (set) => !identical(set, excludedSet) && _isProgressionSet(set),
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  static bool _isE1rmSet(WorkoutSetEntry set) =>
+      set.completed &&
+      set.type == '일반' &&
+      set.weight > 0 &&
+      set.reps > 0 &&
+      set.reps <= 10;
+
+  static bool _isProgressionSet(WorkoutSetEntry set) =>
+      set.completed && set.type == '일반' && set.weight > 0 && set.reps > 0;
 
   static bool _missedLowerBound(List<WorkoutSetEntry> sets, int minReps) {
     if (sets.length < 2) return false;
     return sets.where((set) => set.reps < minReps).length >= 2;
   }
+
+  static bool _meetsUpperTarget(
+    List<WorkoutSetEntry> sets, {
+    required int targetSets,
+    required int maxReps,
+  }) => sets.length >= targetSets && sets.every((set) => set.reps >= maxReps);
 
   static double _primaryWeight(List<WorkoutSetEntry> sets) {
     final counts = <double, int>{};

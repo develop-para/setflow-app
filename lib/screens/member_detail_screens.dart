@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../app_state.dart';
+import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
@@ -9,29 +10,111 @@ const _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
 
 String _weekdayLabel(DateTime date) => _weekdayLabels[date.weekday - 1];
 
+String _businessCardioSetText(BusinessWorkoutSet set) {
+  final minutes = ((set.durationSeconds ?? 0) / 60).round();
+  final distance = set.distanceMeters;
+  final distanceText = distance != null && distance > 0
+      ? ' · ${(distance / 1000).toStringAsFixed(1)}km'
+      : '';
+  final rpe = set.intensityRpe;
+  final rpeText = rpe != null && rpe > 0
+      ? ' · RPE ${rpe.toStringAsFixed(rpe % 1 == 0 ? 0 : 1)}'
+      : '';
+  return '$minutes분$distanceText$rpeText';
+}
+
+String _businessSessionActivityText(BusinessWorkoutSession session) {
+  final hasResistance = session.exercises.any(
+    (exercise) => exercise.targetMuscle != '유산소',
+  );
+  final hasCardio = session.exercises.any(
+    (exercise) => exercise.targetMuscle == '유산소',
+  );
+  return [
+    if (hasResistance) '${(session.totalVolumeKg / 1000).toStringAsFixed(1)}t',
+    if (hasCardio) '${(session.cardioDurationSeconds / 60).round()}분 유산소',
+  ].join(' · ');
+}
+
+String _workoutSessionActivityText(WorkoutSession session) => [
+  if (session.hasResistance) '${(session.volume / 1000).toStringAsFixed(1)}t',
+  if (session.hasCardio) '${(session.cardioDurationSeconds / 60).round()}분 유산소',
+].join(' · ');
+
 /// 사업자(트레이너/헬스장)가 담당 회원의 상세 정보를 열람하는 화면.
 /// [PeoplePage._showMember] 바텀시트에서 진입한다.
-class MemberDetailScreen extends StatelessWidget {
+class MemberDetailScreen extends StatefulWidget {
   const MemberDetailScreen({
-    required this.person,
+    required this.member,
     required this.role,
     super.key,
   });
 
-  final (String, String, String, int) person;
+  final BusinessMember member;
   final UserRole role;
+
+  @override
+  State<MemberDetailScreen> createState() => _MemberDetailScreenState();
+}
+
+class _MemberDetailScreenState extends State<MemberDetailScreen>
+    with WidgetsBindingObserver {
+  var _requested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final appState = AppScope.of(context);
+    if (!appState.usesLiveBusinessData) return;
+    appState
+        .loadBusinessMemberDetail(widget.member.id, force: true)
+        .then<void>((_) {}, onError: (_) {});
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final state = AppScope.of(context);
+    if (_requested || !state.usesLiveBusinessData) return;
+    _requested = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      state
+          .loadBusinessMemberDetail(widget.member.id)
+          .then<void>((_) {}, onError: (_) {});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final recentSessions = state.sessions.values.toList()
+    final liveBusinessData = state.usesLiveBusinessData;
+    final detail = state.businessMemberDetail(widget.member.id);
+    final visibleSessions = liveBusinessData
+        ? <DateTime, WorkoutSession>{}
+        : state.sessions;
+    final recentSessions = visibleSessions.values.toList()
       ..sort((a, b) => b.date.compareTo(a.date));
-    final latestVolume = recentSessions.isEmpty
-        ? 0.0
-        : recentSessions.first.volume;
-    final routines = [...state.routines, ...state.marketRoutines];
-    final isGym = role == UserRole.gym;
-    final tabs = isGym
+    final latestSession = recentSessions.isEmpty ? null : recentSessions.first;
+    final routines = liveBusinessData
+        ? <RoutineData>[]
+        : [...state.routines, ...state.marketRoutines];
+    final isGym = widget.role == UserRole.gym;
+    final tabs = liveBusinessData
+        ? const [Tab(text: '운동 기록'), Tab(text: '피드백')]
+        : isGym
         ? const [Tab(text: '기록'), Tab(text: '루틴'), Tab(text: '피드백')]
         : const [
             Tab(text: '캘린더'),
@@ -39,14 +122,24 @@ class MemberDetailScreen extends StatelessWidget {
             Tab(text: '커뮤니티'),
             Tab(text: '라이브러리'),
           ];
-    final tabViews = isGym
+    final tabViews = liveBusinessData
         ? <Widget>[
-            _MemberCalendarTab(sessions: state.sessions),
+            _LiveMemberRecordTab(
+              member: widget.member,
+              detail: detail,
+              loading: state.isBusinessMemberDetailLoading(widget.member.id),
+              error: state.businessMemberDetailError(widget.member.id),
+            ),
+            _LiveMemberFeedbackTab(member: widget.member, detail: detail),
+          ]
+        : isGym
+        ? <Widget>[
+            _MemberCalendarTab(sessions: visibleSessions),
             _MemberRoutineTab(routines: routines),
-            _MemberFeedbackTab(memberName: person.$1),
+            _MemberFeedbackTab(memberName: widget.member.name),
           ]
         : <Widget>[
-            _MemberCalendarTab(sessions: state.sessions),
+            _MemberCalendarTab(sessions: visibleSessions),
             _MemberRoutineTab(routines: routines),
             const _MemberCommunityTab(),
             _MemberLibraryTab(exercises: state.exercises),
@@ -56,7 +149,7 @@ class MemberDetailScreen extends StatelessWidget {
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('${person.$1} 상세'),
+          title: Text('${widget.member.name} 상세'),
           bottom: TabBar(isScrollable: true, tabs: tabs),
         ),
         body: Column(
@@ -64,14 +157,350 @@ class MemberDetailScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
               child: _MemberSummaryHeader(
-                person: person,
-                latestVolume: latestVolume,
+                member: widget.member,
+                latestSession: latestSession,
+                liveDetail: detail,
               ),
             ),
             Expanded(child: TabBarView(children: tabViews)),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LiveMemberRecordTab extends StatelessWidget {
+  const _LiveMemberRecordTab({
+    required this.member,
+    required this.detail,
+    required this.loading,
+    required this.error,
+  });
+
+  final BusinessMember member;
+  final BusinessMemberDetail? detail;
+  final bool loading;
+  final Object? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    if (detail == null && loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (detail == null && error != null) {
+      return RefreshIndicator(
+        onRefresh: () => state.loadBusinessMemberDetail(member.id, force: true),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: SetflowInsets.pageListTight,
+          children: [
+            EmptyState(
+              icon: Icons.cloud_off_outlined,
+              title: '회원 기록을 불러오지 못했어요',
+              message: '서버 연결을 확인한 뒤 다시 시도해주세요.',
+              actionLabel: '다시 시도',
+              onAction: () {
+                state
+                    .loadBusinessMemberDetail(member.id, force: true)
+                    .then<void>((_) {}, onError: (_) {});
+              },
+            ),
+          ],
+        ),
+      );
+    }
+    if (member.userId == null) {
+      return const EmptyState(
+        icon: Icons.link_off_rounded,
+        title: '앱 계정이 연결되지 않았어요',
+        message: '회원이 센터 초대를 수락해 Setflow 계정과 연결되면 기록을 볼 수 있어요.',
+      );
+    }
+    if (detail == null || !detail!.canReadWorkouts) {
+      return const EmptyState(
+        icon: Icons.lock_person_outlined,
+        title: '운동 기록 공유가 꺼져 있어요',
+        message: '회원이 개인정보 설정에서 운동 기록 공유에 동의하면 담당자에게만 표시됩니다.',
+      );
+    }
+    if (detail!.sessions.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: () => state.loadBusinessMemberDetail(member.id, force: true),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: SetflowInsets.pageListTight,
+          children: const [
+            EmptyState(
+              icon: Icons.event_busy_outlined,
+              title: '공유할 운동 기록이 없어요',
+              message: '회원이 운동을 저장하면 이곳에 자동으로 표시됩니다.',
+            ),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: () => state.loadBusinessMemberDetail(member.id, force: true),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: SetflowInsets.pageListTight,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(SetflowSpacing.md),
+            decoration: BoxDecoration(
+              color: context.setflowColors.success.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(SetflowRadii.md),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.verified_user_outlined,
+                  color: context.setflowColors.success,
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+                const Expanded(
+                  child: Text(
+                    '회원이 공유에 동의한 운동 기록만 표시됩니다.',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+          for (final session in detail!.sessions) ...[
+            _LiveSessionCard(memberId: member.id, session: session),
+            const SizedBox(height: SetflowSpacing.md),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveSessionCard extends StatefulWidget {
+  const _LiveSessionCard({required this.memberId, required this.session});
+
+  final String memberId;
+  final BusinessWorkoutSession session;
+
+  @override
+  State<_LiveSessionCard> createState() => _LiveSessionCardState();
+}
+
+class _LiveSessionCardState extends State<_LiveSessionCard> {
+  final _feedbackController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _expanded = false;
+
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final session = widget.session;
+    final sending = state.isSendingSessionFeedback(session.id);
+    final sessionUnit =
+        session.exercises.any((exercise) => exercise.targetMuscle == '유산소')
+        ? '항목'
+        : '세트';
+    return SetflowCard(
+      key: ValueKey('member-session-${session.id}'),
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          ListTile(
+            onTap: () => setState(() => _expanded = !_expanded),
+            title: Text(
+              '${DateFormat('MM.dd').format(session.date)} (${_weekdayLabel(session.date)})',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            subtitle: Text(
+              '${session.exercises.length}개 종목 · '
+              '${session.completedSets}/${session.totalSets}$sessionUnit · '
+              '${_businessSessionActivityText(session)}',
+            ),
+            trailing: Icon(
+              _expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+            ),
+          ),
+          if (_expanded) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(SetflowSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final exercise in session.exercises) ...[
+                    Text(
+                      exercise.name,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    if (exercise.targetMuscle != null)
+                      Text(
+                        exercise.targetMuscle!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    const SizedBox(height: SetflowSpacing.xs),
+                    for (final set in exercise.sets)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 34,
+                              child: Text(
+                                '${set.setNumber}${exercise.targetMuscle == '유산소' ? '구간' : '세트'}',
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                exercise.targetMuscle == '유산소'
+                                    ? _businessCardioSetText(set)
+                                    : '${set.weight.toStringAsFixed(set.weight % 1 == 0 ? 0 : 1)}kg × ${set.reps}회',
+                              ),
+                            ),
+                            if (exercise.targetMuscle != '유산소')
+                              Text('${set.restSeconds}초'),
+                            const SizedBox(width: SetflowSpacing.xs),
+                            Icon(
+                              set.completed
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              size: 18,
+                              color: set.completed
+                                  ? context.setflowColors.success
+                                  : Theme.of(context).colorScheme.outline,
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: SetflowSpacing.md),
+                  ],
+                  if (session.feedbacks.isNotEmpty) ...[
+                    const Divider(),
+                    for (final feedback in session.feedbacks)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.chat_bubble_outline_rounded),
+                        title: Text(feedback.authorName),
+                        subtitle: Text(feedback.text),
+                        trailing: Text(
+                          DateFormat('MM.dd').format(feedback.createdAt),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                  ],
+                  const Divider(),
+                  Form(
+                    key: _formKey,
+                    child: AppTextField(
+                      key: ValueKey('session-feedback-field-${session.id}'),
+                      controller: _feedbackController,
+                      maxLines: 3,
+                      label: '세션 피드백',
+                      hint: '회원에게 전달할 피드백을 작성하세요.',
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty) return '피드백 내용을 입력해주세요.';
+                        if (text.length < 5) return '피드백을 5자 이상 입력해주세요.';
+                        if (text.length > 2000) {
+                          return '피드백은 2,000자 이하로 입력해주세요.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.sm),
+                  AppButton(
+                    key: ValueKey('session-feedback-submit-${session.id}'),
+                    label: sending ? '전송 중...' : '피드백 보내기',
+                    icon: Icons.send_rounded,
+                    onPressed: sending
+                        ? null
+                        : () async {
+                            if (!(_formKey.currentState?.validate() ?? false)) {
+                              return;
+                            }
+                            try {
+                              await state.sendBusinessSessionFeedback(
+                                memberId: widget.memberId,
+                                sessionId: session.id,
+                                text: _feedbackController.text,
+                              );
+                              if (!mounted) return;
+                              _feedbackController.clear();
+                              AppSnackbar.success(this.context, '피드백을 전송했어요.');
+                            } catch (_) {
+                              if (mounted) {
+                                AppSnackbar.error(
+                                  this.context,
+                                  '피드백을 전송하지 못했어요.',
+                                );
+                              }
+                            }
+                          },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveMemberFeedbackTab extends StatelessWidget {
+  const _LiveMemberFeedbackTab({required this.member, required this.detail});
+
+  final BusinessMember member;
+  final BusinessMemberDetail? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final feedbacks = <BusinessSessionFeedback>[
+      ...?detail?.sessions.expand((session) => session.feedbacks),
+    ];
+    feedbacks.sort((left, right) => right.createdAt.compareTo(left.createdAt));
+    if (detail == null || !detail!.canReadWorkouts) {
+      return const EmptyState(
+        icon: Icons.lock_person_outlined,
+        title: '표시할 피드백이 없어요',
+        message: '운동 기록 공유가 켜지면 세션별 피드백을 확인할 수 있어요.',
+      );
+    }
+    if (feedbacks.isEmpty) {
+      return const EmptyState(
+        icon: Icons.forum_outlined,
+        title: '아직 보낸 피드백이 없어요',
+        message: '운동 기록 탭에서 세션을 열어 피드백을 작성해보세요.',
+      );
+    }
+    return ListView.separated(
+      padding: SetflowInsets.pageListTight,
+      itemCount: feedbacks.length,
+      separatorBuilder: (_, _) => const SizedBox(height: SetflowSpacing.sm),
+      itemBuilder: (_, index) {
+        final feedback = feedbacks[index];
+        return SetflowCard(
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              feedback.authorName,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            subtitle: Text(feedback.text),
+            trailing: Text(DateFormat('MM.dd').format(feedback.createdAt)),
+          ),
+        );
+      },
     );
   }
 }
@@ -138,15 +567,50 @@ class _MemberFeedbackTab extends StatelessWidget {
 
 class _MemberSummaryHeader extends StatelessWidget {
   const _MemberSummaryHeader({
-    required this.person,
-    required this.latestVolume,
+    required this.member,
+    required this.latestSession,
+    this.liveDetail,
   });
 
-  final (String, String, String, int) person;
-  final double latestVolume;
+  final BusinessMember member;
+  final WorkoutSession? latestSession;
+  final BusinessMemberDetail? liveDetail;
 
   @override
   Widget build(BuildContext context) {
+    final liveLatestSession = liveDetail?.sessions.isNotEmpty == true
+        ? liveDetail!.sessions.first
+        : null;
+    final hasRecentResistance = liveLatestSession != null
+        ? liveLatestSession.exercises.any(
+            (exercise) => exercise.targetMuscle != '유산소',
+          )
+        : latestSession?.hasResistance ?? false;
+    final hasRecentCardio = liveLatestSession != null
+        ? liveLatestSession.exercises.any(
+            (exercise) => exercise.targetMuscle == '유산소',
+          )
+        : latestSession?.hasCardio ?? false;
+    final recentVolumeKg =
+        liveLatestSession?.totalVolumeKg ?? latestSession?.volume ?? 0;
+    final recentCardioSeconds =
+        liveLatestSession?.cardioDurationSeconds ??
+        latestSession?.cardioDurationSeconds ??
+        0;
+    final recentMetricLabel = hasRecentResistance && hasRecentCardio
+        ? '최근 근력·유산소'
+        : hasRecentCardio
+        ? '최근 유산소'
+        : '최근 볼륨';
+    final cardioOnly = hasRecentCardio && !hasRecentResistance;
+    final recentMetricValue = cardioOnly
+        ? (recentCardioSeconds / 60).round().toString()
+        : (recentVolumeKg / 1000).toStringAsFixed(1);
+    final recentMetricSuffix = cardioOnly
+        ? '분'
+        : hasRecentCardio
+        ? 't · ${(recentCardioSeconds / 60).round()}분 유산소'
+        : 't';
     return Column(
       children: [
         Row(
@@ -155,7 +619,7 @@ class _MemberSummaryHeader extends StatelessWidget {
               radius: 26,
               backgroundColor: SetflowColors.primary.withValues(alpha: .2),
               child: Text(
-                person.$1.characters.first,
+                member.name.characters.first,
                 style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w900,
@@ -168,14 +632,14 @@ class _MemberSummaryHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    person.$1,
+                    member.name,
                     style: const TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   Text(
-                    '${person.$2} · 마지막 기록 ${person.$3}',
+                    '${member.goal ?? '목표 미등록'} · 마지막 기록 ${_relativeDate(member.lastActivityAt)}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: SetflowColors.secondaryText,
@@ -191,19 +655,21 @@ class _MemberSummaryHeader extends StatelessWidget {
           children: [
             MetricCard(
               label: '완료율',
-              value: '${person.$4}',
+              value: '${member.completionRate.round().clamp(0, 100)}',
               suffix: '%',
               icon: Icons.check_circle_outline,
-              tint: person.$4 >= 80
+              tint: member.completionRate >= 80
                   ? SetflowColors.green
                   : SetflowColors.orange,
             ),
             const SizedBox(width: 10),
             MetricCard(
-              label: '최근 볼륨',
-              value: latestVolume.toStringAsFixed(1),
-              suffix: 't',
-              icon: Icons.monitor_weight_outlined,
+              label: recentMetricLabel,
+              value: recentMetricValue,
+              suffix: recentMetricSuffix,
+              icon: hasRecentCardio && !hasRecentResistance
+                  ? Icons.directions_run_rounded
+                  : Icons.monitor_weight_outlined,
               tint: SetflowColors.blue,
             ),
           ],
@@ -211,6 +677,17 @@ class _MemberSummaryHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+String _relativeDate(DateTime? date) {
+  if (date == null) return '없음';
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final target = DateTime(date.year, date.month, date.day);
+  final days = today.difference(target).inDays;
+  if (days <= 0) return '오늘';
+  if (days == 1) return '어제';
+  return '$days일 전';
 }
 
 class _MemberCalendarTab extends StatefulWidget {
@@ -306,7 +783,10 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            '${session.exercises.length}개 종목 · ${session.totalSets}세트 · ${session.volume.toStringAsFixed(1)}t',
+                            '${session.exercises.length}개 종목 · '
+                            '${session.completedSets}/${session.totalSets}'
+                            '${session.hasCardio ? '항목' : '세트'} · '
+                            '${_workoutSessionActivityText(session)}',
                             style: const TextStyle(
                               fontSize: 12,
                               color: SetflowColors.secondaryText,

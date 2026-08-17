@@ -150,7 +150,9 @@ class TrainerPerformancePage extends StatelessWidget {
     required this.membersLabel,
     required this.feedbackRate,
     required this.rating,
+    required this.monthlySales,
     required this.accentColor,
+    this.liveData = false,
     super.key,
   });
 
@@ -158,10 +160,13 @@ class TrainerPerformancePage extends StatelessWidget {
   final String membersLabel;
   final String feedbackRate;
   final double rating;
+  final double monthlySales;
   final Color accentColor;
+  final bool liveData;
 
   int get _seed => name.hashCode.abs();
-  int get _revenue => 1200000 + _seed % 4800000;
+  int get _revenue =>
+      liveData ? monthlySales.round() : 1200000 + _seed % 4800000;
   int get _consultations => 10 + _seed % 50;
   double get _conversionRate => 20 + _seed % 60;
   double get _feedbackValue {
@@ -204,8 +209,8 @@ class TrainerPerformancePage extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const Text(
-                        '소속 코치 성과 리포트',
+                      Text(
+                        liveData ? '센터 운영 데이터' : '소속 코치 성과 리포트',
                         style: TextStyle(
                           fontSize: 11,
                           color: SetflowColors.secondaryText,
@@ -254,25 +259,27 @@ class TrainerPerformancePage extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              MetricCard(
-                label: '상담 전환율',
-                value: _conversionRate.toStringAsFixed(1),
-                suffix: '%',
-                icon: Icons.trending_up,
-                tint: SetflowColors.teal,
-              ),
-              const SizedBox(width: 8),
-              MetricCard(
-                label: '상담 건수',
-                value: '$_consultations',
-                icon: Icons.forum_outlined,
-                tint: SetflowColors.purple,
-              ),
-            ],
-          ),
+          if (!liveData) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                MetricCard(
+                  label: '상담 전환율',
+                  value: _conversionRate.toStringAsFixed(1),
+                  suffix: '%',
+                  icon: Icons.trending_up,
+                  tint: SetflowColors.teal,
+                ),
+                const SizedBox(width: 8),
+                MetricCard(
+                  label: '상담 건수',
+                  value: '$_consultations',
+                  icon: Icons.forum_outlined,
+                  tint: SetflowColors.purple,
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           const SectionTitle('피드백 이행률'),
           const SizedBox(height: 10),
@@ -308,12 +315,14 @@ class TrainerPerformancePage extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          const SectionTitle('최근 상담 전환 추이'),
-          const SizedBox(height: 10),
-          SetflowCard(
-            child: _TrendChart(values: _trend, color: accentColor),
-          ),
+          if (!liveData) ...[
+            const SizedBox(height: 20),
+            const SectionTitle('최근 상담 전환 추이'),
+            const SizedBox(height: 10),
+            SetflowCard(
+              child: _TrendChart(values: _trend, color: accentColor),
+            ),
+          ],
         ],
       ),
     );

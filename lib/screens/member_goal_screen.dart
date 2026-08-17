@@ -46,6 +46,7 @@ class MemberGoalScreen extends StatefulWidget {
 
 class _MemberGoalScreenState extends State<MemberGoalScreen> {
   static const options = [
+    ('🏋️', '근력 향상', '낮은 반복과 충분한 휴식으로 주요 중량을 높여요'),
     ('🔥', '체중 감량', '큰 근육군 중심으로 훈련 밀도를 높여요'),
     ('💪', '근육 증가', '근육군별 다중 세트와 점진적 과부하를 적용해요'),
     ('🏃', '체력 향상', '전신 근지구력과 기초 체력을 함께 키워요'),
@@ -97,7 +98,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            '최대 2개까지 선택할 수 있으며 추천 운동과 세트 구성에 반영됩니다.',
+            '먼저 선택한 목표를 주 목표로 사용합니다. 최대 2개까지 추천 운동과 세트 구성에 반영됩니다.',
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.45),
           ),
           const SizedBox(height: 22),
@@ -124,6 +125,31 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                               fontWeight: FontWeight.w900,
                             ),
                           ),
+                          if (selected!.isNotEmpty &&
+                              selected!.first == option.$2) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: SetflowColors.orange.withValues(
+                                  alpha: .14,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                '주 목표',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: SetflowColors.orange,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 2),
                           Text(
                             option.$3,
                             style: const TextStyle(

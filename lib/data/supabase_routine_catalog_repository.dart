@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models.dart';
 import 'routine_catalog_repository.dart';
 
 class SupabaseRoutineCatalogRepository implements RoutineCatalogRepository {
@@ -17,6 +18,8 @@ class SupabaseRoutineCatalogRepository implements RoutineCatalogRepository {
           title,
           description,
           author_name,
+          trainer_id,
+          gym_id,
           difficulty,
           access_tier,
           color_hex,
@@ -24,7 +27,7 @@ class SupabaseRoutineCatalogRepository implements RoutineCatalogRepository {
           tags,
           duration_min,
           created_at,
-          coaching_routine:coaching_routines!inner(
+          coaching_routine:coaching_routines(
             id,
             status,
             exercises:coaching_routine_exercises(
@@ -32,7 +35,18 @@ class SupabaseRoutineCatalogRepository implements RoutineCatalogRepository {
               base_exercise_id,
               name,
               target_muscle,
-              order_index
+              order_index,
+              sets:coaching_routine_sets(
+                id,
+                set_no,
+                type,
+                target_weight,
+                target_reps,
+                rest_seconds,
+                duration_sec,
+                distance_m,
+                intensity_rpe
+              )
             )
           )
         ''')
@@ -40,7 +54,7 @@ class SupabaseRoutineCatalogRepository implements RoutineCatalogRepository {
         .eq('coaching_routine.status', 'approved')
         .order('created_at', ascending: false);
 
-    return rows.map(_catalogItemFromRow).toList(growable: false);
+    return rows.map(routineCatalogItemFromSupabaseRow).toList(growable: false);
   }
 
   @override
@@ -96,15 +110,18 @@ class SupabaseRoutineCatalogRepository implements RoutineCatalogRepository {
   }
 }
 
-RoutineCatalogItem _catalogItemFromRow(Map<String, dynamic> row) {
+/// Maps the Data API response while preserving the UUID of its real author.
+/// Public for focused repository contract tests.
+RoutineCatalogItem routineCatalogItemFromSupabaseRow(Map<String, dynamic> row) {
   final coachingRoutine = _mapValue(row['coaching_routine']);
-  if (coachingRoutine == null) {
+  final authorTrainerId = _nullableString(row['trainer_id']);
+  final authorGymId = _nullableString(row['gym_id']);
+  if (authorTrainerId != null && authorGymId != null) {
     throw const FormatException(
-      'Catalog routine is missing its coaching routine.',
+      'A catalog routine cannot have both a trainer and gym author.',
     );
   }
-
-  final exerciseRows = _mapListValue(coachingRoutine['exercises']);
+  final exerciseRows = _mapListValue(coachingRoutine?['exercises']);
   final exercises = exerciseRows.map(_exerciseFromRow).toList()
     ..sort((left, right) {
       final byOrder = left.orderIndex.compareTo(right.orderIndex);
@@ -113,10 +130,17 @@ RoutineCatalogItem _catalogItemFromRow(Map<String, dynamic> row) {
 
   return RoutineCatalogItem(
     id: _requiredString(row, 'id'),
-    coachingRoutineId: _requiredString(coachingRoutine, 'id'),
+    coachingRoutineId: _requiredString(row, 'coaching_routine_id'),
     title: _requiredString(row, 'title'),
     description: _stringValue(row['description']),
     authorName: _stringValue(row['author_name'], fallback: 'Setflow'),
+    authorTrainerId: authorTrainerId,
+    authorGymId: authorGymId,
+    authorType: authorTrainerId != null
+        ? RoutineAuthorType.trainer
+        : authorGymId != null
+        ? RoutineAuthorType.gym
+        : RoutineAuthorType.system,
     difficulty: _stringValue(row['difficulty'], fallback: 'beginner'),
     accessTier: RoutineCatalogAccessTier.fromDatabase(row['access_tier']),
     colorHex: _nullableString(row['color_hex']),
@@ -128,12 +152,29 @@ RoutineCatalogItem _catalogItemFromRow(Map<String, dynamic> row) {
 }
 
 RoutineCatalogExercise _exerciseFromRow(Map<String, dynamic> row) {
+  final sets = _mapListValue(row['sets']).map(_setFromRow).toList()
+    ..sort((left, right) => left.setNumber.compareTo(right.setNumber));
   return RoutineCatalogExercise(
     id: _requiredString(row, 'id'),
     baseExerciseId: _nullableString(row['base_exercise_id']),
     name: _stringValue(row['name'], fallback: '운동'),
     targetMuscle: _stringValue(row['target_muscle'], fallback: '전신'),
     orderIndex: _nullableInt(row['order_index']) ?? 0,
+    sets: List.unmodifiable(sets),
+  );
+}
+
+RoutineCatalogSet _setFromRow(Map<String, dynamic> row) {
+  return RoutineCatalogSet(
+    id: _requiredString(row, 'id'),
+    setNumber: _nullableInt(row['set_no']) ?? 1,
+    type: _stringValue(row['type'], fallback: 'normal'),
+    targetWeight: _nullableDouble(row['target_weight']),
+    targetReps: _nullableInt(row['target_reps']),
+    restSeconds: _nullableInt(row['rest_seconds']) ?? 90,
+    durationSeconds: _nullableInt(row['duration_sec']),
+    distanceMeters: _nullableDouble(row['distance_m']),
+    intensityRpe: _nullableDouble(row['intensity_rpe']),
   );
 }
 
@@ -178,6 +219,11 @@ int? _nullableInt(Object? value) {
   if (value is int) return value;
   if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '');
+}
+
+double? _nullableDouble(Object? value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '');
 }
 
 num _numberValue(Object? value) {

@@ -6,7 +6,7 @@ import '../models.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 6;
+  static const schemaVersion = 9;
 
   static String encode(AppSnapshot snapshot) => jsonEncode(toJson(snapshot));
 
@@ -18,8 +18,16 @@ abstract final class AppSnapshotCodec {
         'isDarkMode': snapshot.isDarkMode,
         'weightUnit': snapshot.weightUnit,
         'restDefaultSeconds': snapshot.restDefaultSeconds,
+        'useRir': snapshot.useRir,
+        'autoStartRestTimer': snapshot.autoStartRestTimer,
+        'restTimerNotifications': snapshot.restTimerNotifications,
+        'timerVibration': snapshot.timerVibration,
+        'pushCoachingFeedback': snapshot.pushCoachingFeedback,
+        'communityReactionNotifications':
+            snapshot.communityReactionNotifications,
       },
       'profile': {
+        'nickname': snapshot.nickname,
         'goals': snapshot.goals,
         'heightCm': snapshot.heightCm,
         'weight': snapshot.weight,
@@ -102,6 +110,16 @@ abstract final class AppSnapshotCodec {
         weightUnit: preferences['weightUnit'] as String? ?? 'kg',
         restDefaultSeconds:
             (preferences['restDefaultSeconds'] as num?)?.toInt() ?? 90,
+        nickname: profile['nickname'] as String?,
+        useRir: preferences['useRir'] as bool? ?? false,
+        autoStartRestTimer: preferences['autoStartRestTimer'] as bool? ?? true,
+        restTimerNotifications:
+            preferences['restTimerNotifications'] as bool? ?? true,
+        timerVibration: preferences['timerVibration'] as bool? ?? true,
+        pushCoachingFeedback:
+            preferences['pushCoachingFeedback'] as bool? ?? true,
+        communityReactionNotifications:
+            preferences['communityReactionNotifications'] as bool? ?? false,
         sessions: sessions,
         routines: routines,
         goals: (profile['goals'] as List<dynamic>? ?? const [])
@@ -162,6 +180,9 @@ abstract final class AppSnapshotCodec {
               'completed': set.completed,
               'type': set.type,
               'restSeconds': set.restSeconds,
+              'durationSeconds': set.durationSeconds,
+              'distanceKm': set.distanceKm,
+              'intensityRpe': set.intensityRpe,
             },
           )
           .toList(),
@@ -185,6 +206,9 @@ abstract final class AppSnapshotCodec {
           completed: set['completed'] as bool? ?? false,
           type: set['type'] as String? ?? '일반',
           restSeconds: (set['restSeconds'] as num?)?.toInt() ?? 90,
+          durationSeconds: (set['durationSeconds'] as num?)?.toInt() ?? 0,
+          distanceKm: (set['distanceKm'] as num?)?.toDouble() ?? 0,
+          intensityRpe: (set['intensityRpe'] as num?)?.toDouble() ?? 0,
         ),
       );
     }
@@ -204,9 +228,38 @@ abstract final class AppSnapshotCodec {
       'description': routine.description,
       'color': routine.color.toARGB32(),
       'exerciseIds': routine.exercises.map((item) => item.id).toList(),
+      'exercises': routine.exercises
+          .map(
+            (exercise) => {
+              'id': exercise.id,
+              'name': exercise.name,
+              'muscle': exercise.muscle,
+              'sets': routine
+                  .setsFor(exercise)
+                  .map(
+                    (set) => {
+                      'number': set.number,
+                      'weight': set.weight,
+                      'reps': set.reps,
+                      'type': set.type,
+                      'restSeconds': set.restSeconds,
+                      'durationSeconds': set.durationSeconds,
+                      'distanceKm': set.distanceKm,
+                      'intensityRpe': set.intensityRpe,
+                    },
+                  )
+                  .toList(),
+            },
+          )
+          .toList(),
       'author': routine.author,
       'level': routine.level,
       'accessTier': routine.accessTier.name,
+      'sourceMarketRoutineId': routine.sourceMarketRoutineId,
+      'sourceCoachingRoutineId': routine.sourceCoachingRoutineId,
+      'authorTrainerId': routine.authorTrainerId,
+      'authorGymId': routine.authorGymId,
+      'authorType': routine.authorType.name,
     };
   }
 
@@ -217,10 +270,57 @@ abstract final class AppSnapshotCodec {
     final id = json['id'] as String?;
     final name = json['name'] as String?;
     if (id == null || name == null) return null;
-    final exercises = (json['exerciseIds'] as List<dynamic>? ?? const [])
-        .map((value) => templates[value as String?])
-        .whereType<ExerciseTemplate>()
-        .toList();
+    final exercises = <ExerciseTemplate>[];
+    final setPlans = <String, List<RoutineSetPlan>>{};
+    final inlineExercises = json['exercises'];
+    if (inlineExercises is List) {
+      for (final raw in inlineExercises) {
+        if (raw is! Map) continue;
+        final exerciseJson = Map<String, dynamic>.from(raw);
+        final exerciseId = exerciseJson['id'] as String?;
+        if (exerciseId == null || exerciseId.isEmpty) continue;
+        final exercise =
+            templates[exerciseId] ??
+            ExerciseTemplate(
+              id: exerciseId,
+              name: exerciseJson['name'] as String? ?? '운동',
+              muscle: exerciseJson['muscle'] as String? ?? '전신',
+              icon: Icons.fitness_center_rounded,
+            );
+        exercises.add(exercise);
+        final plans = <RoutineSetPlan>[];
+        final rawSets = exerciseJson['sets'];
+        if (rawSets is List) {
+          for (final rawSet in rawSets) {
+            if (rawSet is! Map) continue;
+            final setJson = Map<String, dynamic>.from(rawSet);
+            plans.add(
+              RoutineSetPlan(
+                number:
+                    (setJson['number'] as num?)?.toInt() ?? plans.length + 1,
+                weight: (setJson['weight'] as num?)?.toDouble() ?? 0,
+                reps: (setJson['reps'] as num?)?.toInt() ?? 0,
+                type: setJson['type'] as String? ?? '일반',
+                restSeconds: (setJson['restSeconds'] as num?)?.toInt() ?? 90,
+                durationSeconds:
+                    (setJson['durationSeconds'] as num?)?.toInt() ?? 0,
+                distanceKm: (setJson['distanceKm'] as num?)?.toDouble() ?? 0,
+                intensityRpe:
+                    (setJson['intensityRpe'] as num?)?.toDouble() ?? 0,
+              ),
+            );
+          }
+        }
+        if (plans.isNotEmpty) setPlans[exercise.id] = plans;
+      }
+    }
+    if (exercises.isEmpty) {
+      exercises.addAll(
+        (json['exerciseIds'] as List<dynamic>? ?? const [])
+            .map((value) => templates[value as String?])
+            .whereType<ExerciseTemplate>(),
+      );
+    }
     return RoutineData(
       id: id,
       name: name,
@@ -234,6 +334,16 @@ abstract final class AppSnapshotCodec {
               .where((item) => item.name == json['accessTier'])
               .firstOrNull ??
           RoutineAccessTier.free,
+      setPlans: setPlans,
+      sourceMarketRoutineId: json['sourceMarketRoutineId'] as String?,
+      sourceCoachingRoutineId: json['sourceCoachingRoutineId'] as String?,
+      authorTrainerId: json['authorTrainerId'] as String?,
+      authorGymId: json['authorGymId'] as String?,
+      authorType:
+          RoutineAuthorType.values
+              .where((item) => item.name == json['authorType'])
+              .firstOrNull ??
+          RoutineAuthorType.system,
     );
   }
 

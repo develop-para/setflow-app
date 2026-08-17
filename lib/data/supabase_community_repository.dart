@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models.dart';
+import '../services/user_image_optimizer.dart';
 import 'community_repository.dart';
 
 class SupabaseCommunityRepository implements CommunityRepository {
@@ -14,14 +15,8 @@ class SupabaseCommunityRepository implements CommunityRepository {
   static const _commentsTable = 'comments';
   static const _likesTable = 'post_likes';
   static const _imageBucket = 'post-images';
-  static const _maxImageBytes = 6 * 1024 * 1024;
-  static const _allowedImageTypes = {
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/heic',
-    'image/heif',
-  };
+  static const _maxImageBytes = 2 * 1024 * 1024;
+  static const _allowedImageTypes = {'image/jpeg', 'image/png', 'image/webp'};
   static const _postColumns =
       'id,user_id,author_name,content,metric,visual_key,image_url,'
       'image_color,location,routine_name,active_overlays,likes_count,created_at';
@@ -267,16 +262,24 @@ class SupabaseCommunityRepository implements CommunityRepository {
     String userId,
     CommunityPostMedia media,
   ) async {
-    if (media.bytes.isEmpty) {
-      throw const CommunityValidationException('선택한 사진이 비어 있습니다.');
+    OptimizedUserImage optimized;
+    try {
+      optimized = await const UserImageOptimizer().optimize(
+        bytes: media.bytes,
+        fileName: media.fileName,
+        reportedContentType: media.contentType,
+        purpose: UserImagePurpose.communityPost,
+      );
+    } on UserImageOptimizationException catch (error) {
+      throw CommunityValidationException(error.message);
     }
-    if (media.bytes.lengthInBytes > _maxImageBytes) {
-      throw const CommunityValidationException('사진은 6MB 이하만 업로드할 수 있습니다.');
+    if (optimized.bytes.lengthInBytes > _maxImageBytes) {
+      throw const CommunityValidationException('사진은 2MB 이하만 업로드할 수 있습니다.');
     }
-    final contentType = media.contentType.trim().toLowerCase();
+    final contentType = optimized.contentType;
     if (!_allowedImageTypes.contains(contentType)) {
       throw const CommunityValidationException(
-        'JPG, PNG, WebP, HEIC 이미지만 업로드할 수 있습니다.',
+        'JPG, PNG 또는 WebP 이미지만 업로드할 수 있습니다.',
       );
     }
 
@@ -287,7 +290,7 @@ class SupabaseCommunityRepository implements CommunityRepository {
     final bucket = _client.storage.from(_imageBucket);
     await bucket.uploadBinary(
       storagePath,
-      media.bytes,
+      optimized.bytes,
       fileOptions: FileOptions(
         cacheControl: '3600',
         upsert: false,
@@ -401,8 +404,6 @@ class SupabaseCommunityRepository implements CommunityRepository {
     return switch (contentType) {
       'image/png' => 'png',
       'image/webp' => 'webp',
-      'image/heic' => 'heic',
-      'image/heif' => 'heif',
       _ => 'jpg',
     };
   }

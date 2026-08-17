@@ -44,8 +44,8 @@ void main() {
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
     expect(find.text('4 / 4'), findsOneWidget);
-    expect(find.text('카카오로 계속'), findsOneWidget);
-    expect(find.text('Google로 계속'), findsOneWidget);
+    expect(find.text('카카오 로그인 · 연동 준비'), findsOneWidget);
+    expect(find.text('Google 로그인 · 연동 준비'), findsOneWidget);
     expect(find.text('네이버 로그인 · 연동 준비'), findsOneWidget);
 
     await tester.tap(find.text('이메일로 회원가입 · 로그인'));

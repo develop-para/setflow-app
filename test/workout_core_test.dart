@@ -66,7 +66,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('40').first);
+      await tester.tap(find.text('0').first);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), '1200');
       await tester.tap(find.text('저장'));
@@ -98,6 +98,7 @@ void main() {
     await state.initialize();
     state.addExercise(date, state.exercises.first);
     final exercise = state.sessions[date]!.exercises.single;
+    state.updateSet(exercise.sets.first, weight: 40);
 
     await tester.binding.setSurfaceSize(const Size(432, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -254,6 +255,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(state.recommendationForDate(targetDate), isNull);
+    expect(
+      find.byKey(const Key('goal-required-recommendation')),
+      findsOneWidget,
+    );
+    expect(find.text('운동 목표를 먼저 선택해주세요'), findsOneWidget);
+    expect(find.text('추천 세트 적용'), findsOneWidget);
+    expect(find.text('NEXT SESSION'), findsNothing);
+    expect(find.textContaining('8–10회'), findsNothing);
+    expect(find.textContaining('90초'), findsNothing);
+
     await tester.tap(find.text('추천 세트 적용'));
     await tester.pumpAndSettle();
     expect(find.text('목표를 작성해야 합니다. 작성창으로 이동하시겠습니까?'), findsOneWidget);
@@ -269,6 +281,59 @@ void main() {
     expect(state.sessions[targetDate]!.exercises.single.sets, hasLength(3));
     state.dispose();
   });
+
+  testWidgets(
+    'strength goal shows and applies the 4–6 rep prescription with 180s rest',
+    (tester) async {
+      final state = AppState();
+      await state.initialize();
+      final historyDate = DateTime(2026, 10, 1);
+      final targetDate = DateTime(2026, 10, 5);
+      state.setMemberProfile(goals: const ['근력 향상']);
+      state.addExercise(historyDate, state.exercises.first);
+      for (final set in state.sessions[historyDate]!.exercises.single.sets) {
+        state.updateSet(set, weight: 100, reps: 5);
+        state.toggleSet(set);
+      }
+      state.cancelRestTimer();
+
+      final recommendation = state.recommendationForDate(targetDate);
+      expect(recommendation, isNotNull);
+      expect(recommendation!.goal.label, '근력 향상');
+      expect(recommendation.minReps, 4);
+      expect(recommendation.maxReps, 6);
+      expect(recommendation.sets, 3);
+      expect(recommendation.restSeconds, 180);
+
+      await tester.binding.setSurfaceSize(const Size(432, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: DailyWorkoutScreen(date: targetDate),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('NEXT SESSION'), findsOneWidget);
+      expect(find.text('근력 향상'), findsOneWidget);
+      expect(find.textContaining('4–6회'), findsOneWidget);
+      expect(find.textContaining('3세트'), findsOneWidget);
+
+      await tester.tap(find.text('추천 세트 적용'));
+      await tester.pumpAndSettle();
+
+      final applied = state.sessions[targetDate]!.exercises.single;
+      expect(applied.template.id, 'bench');
+      expect(applied.sets, hasLength(3));
+      expect(applied.sets.map((set) => set.reps), everyElement(4));
+      expect(applied.sets.map((set) => set.restSeconds), everyElement(180));
+      state.dispose();
+    },
+  );
 
   testWidgets('finishing an exercise offers and adds the next goal exercise', (
     tester,
@@ -309,7 +374,10 @@ void main() {
       'incline',
     ]);
     expect(exercises.last.sets, hasLength(3));
-    expect(exercises.last.sets.map((set) => set.restSeconds), everyElement(90));
+    expect(
+      exercises.last.sets.map((set) => set.restSeconds),
+      everyElement(120),
+    );
     state.cancelRestTimer();
     state.dispose();
   });
@@ -381,7 +449,7 @@ void main() {
     expect(find.byKey(const Key('calendar-kpi-pr')), findsOneWidget);
     expect(find.byKey(const Key('calendar-kpi-next')), findsOneWidget);
     expect(find.text('바벨 벤치 프레스'), findsOneWidget);
-    expect(find.textContaining('바벨 벤치 프레스 · 102.5kg'), findsOneWidget);
+    expect(find.textContaining('바벨 벤치 프레스 · 100kg'), findsOneWidget);
     await tester.ensureVisible(find.text('오늘 운동에 적용'));
     await tester.tap(find.text('오늘 운동에 적용'));
     await tester.pumpAndSettle();
@@ -390,7 +458,7 @@ void main() {
     final applied = state.sessions[today]!.exercises.single;
     expect(applied.template.id, 'bench');
     expect(applied.sets, hasLength(3));
-    expect(applied.sets.map((set) => set.weight), everyElement(102.5));
+    expect(applied.sets.map((set) => set.weight), everyElement(100));
     expect(find.byType(DailyWorkoutScreen), findsOneWidget);
 
     state.dispose();
@@ -445,6 +513,7 @@ void main() {
     await state.initialize();
     state.addExercise(date, state.exercises.first);
     final exercise = state.sessions[date]!.exercises.single;
+    state.updateSet(exercise.sets.first, weight: 40);
 
     await tester.binding.setSurfaceSize(const Size(432, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -633,6 +702,56 @@ void main() {
       state.dispose();
     },
   );
+
+  test('routine application preserves every planned set field', () async {
+    final state = AppState();
+    await state.initialize();
+    addTearDown(state.dispose);
+    state.sessions.clear();
+    final target = DateTime(2026, 10, 9);
+    final exercise = state.exercises.first;
+    final routine = RoutineData(
+      id: 'planned-sets',
+      name: '원본 세트 보존',
+      description: '공유 루틴 적용 테스트',
+      color: Colors.teal,
+      exercises: [exercise],
+      setPlans: {
+        exercise.id: const [
+          RoutineSetPlan(
+            number: 1,
+            weight: 20,
+            reps: 12,
+            type: '웜업',
+            restSeconds: 45,
+          ),
+          RoutineSetPlan(
+            number: 2,
+            weight: 80,
+            reps: 8,
+            type: '일반',
+            restSeconds: 120,
+          ),
+          RoutineSetPlan(
+            number: 3,
+            weight: 60,
+            reps: 10,
+            type: '드랍',
+            restSeconds: 30,
+          ),
+        ],
+      },
+    );
+
+    expect(state.applyRoutine(routine, target), 1);
+    final sets = state.sessions[target]!.exercises.single.sets;
+    expect(sets.map((set) => set.number), [1, 2, 3]);
+    expect(sets.map((set) => set.weight), [20, 80, 60]);
+    expect(sets.map((set) => set.reps), [12, 8, 10]);
+    expect(sets.map((set) => set.type), ['웜업', '일반', '드랍']);
+    expect(sets.map((set) => set.restSeconds), [45, 120, 30]);
+    expect(sets.every((set) => !set.completed), isTrue);
+  });
 
   testWidgets('rest timer stays above a pushed workout route', (tester) async {
     await tester.binding.setSurfaceSize(const Size(432, 900));

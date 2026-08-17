@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'member_goal_screen.dart';
 
 class BodyCompositionScreen extends StatefulWidget {
   const BodyCompositionScreen({super.key});
@@ -582,7 +583,50 @@ class SettingDetailScreen extends StatefulWidget {
 class _SettingDetailScreenState extends State<SettingDetailScreen> {
   bool first = true;
   bool second = false;
+  bool shareWorkoutRecords = false;
+  bool _privacyLoaded = false;
+  bool _savingPrivacy = false;
   double timer = 90;
+  bool _settingsLoaded = false;
+  final _nicknameController = TextEditingController();
+  final _weightController = TextEditingController();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final state = AppScope.of(context);
+    if (!_settingsLoaded) {
+      timer = state.restDefaultSeconds.toDouble();
+      switch (widget.section) {
+        case SettingSection.account:
+          _nicknameController.text = state.memberDisplayName;
+          _weightController.text = state.weight?.toStringAsFixed(1) ?? '';
+        case SettingSection.workout:
+          first = state.useRir;
+          second = state.autoStartRestTimer;
+        case SettingSection.notifications:
+          first = state.restTimerNotifications;
+          second = state.timerVibration;
+        case SettingSection.privacy || SettingSection.display:
+          break;
+      }
+      _settingsLoaded = true;
+    }
+    if (widget.section != SettingSection.privacy || _privacyLoaded) return;
+    final preferences = state.memberSharingPreferences;
+    if (preferences == null) return;
+    first = preferences.shareBodyData;
+    shareWorkoutRecords = preferences.shareWorkoutRecords;
+    second = preferences.marketing;
+    _privacyLoaded = true;
+  }
+
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    _weightController.dispose();
+    super.dispose();
+  }
 
   String get title => switch (widget.section) {
     SettingSection.account => '계정 & 프로필',
@@ -601,10 +645,10 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
         children: switch (widget.section) {
           SettingSection.account => [
-            const SetflowCard(
+            SetflowCard(
               child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 28,
                     backgroundColor: Color(0xFFFFF4CB),
                     child: Icon(Icons.person, color: SetflowColors.orange),
@@ -615,15 +659,15 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '운동초보',
-                          style: TextStyle(
+                          state.memberDisplayName,
+                          style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         Text(
-                          '무료 플랜 · 루틴 2/4',
-                          style: TextStyle(
+                          '${state.hasPaidPlan ? '유료' : '무료'} 플랜 · 루틴 ${state.routines.length}/${state.hasPaidPlan ? '무제한' : '4'}',
+                          style: const TextStyle(
                             fontSize: 11,
                             color: SetflowColors.secondaryText,
                           ),
@@ -631,31 +675,38 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
                       ],
                     ),
                   ),
-                  Icon(Icons.edit_outlined),
+                  const Icon(Icons.edit_outlined),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            const TextField(
+            TextField(
               decoration: InputDecoration(labelText: '닉네임'),
-              controller: null,
+              controller: _nicknameController,
+              maxLength: 30,
             ),
             const SizedBox(height: 12),
-            const TextField(
+            TextField(
               decoration: InputDecoration(labelText: '몸무게', hintText: '70.9kg'),
+              controller: _weightController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const SizedBox(height: 12),
-            const TextField(
-              decoration: InputDecoration(
-                labelText: '운동 목표',
-                hintText: '근육 증가',
+            ListTile(
+              leading: const Icon(Icons.track_changes_rounded),
+              title: const Text('운동 목표'),
+              subtitle: Text(
+                state.goals.isEmpty ? '목표를 선택해주세요' : state.goals.join(' · '),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const MemberGoalScreen()),
               ),
             ),
             const SizedBox(height: 20),
-            PrimaryButton(
-              label: '프로필 저장',
-              onPressed: () => showMessage(context, '프로필을 저장했습니다.'),
-            ),
+            PrimaryButton(label: '프로필 저장', onPressed: _saveAccountProfile),
           ],
           SettingSection.workout => [
             ListTile(
@@ -678,22 +729,30 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
                 divisions: 9,
                 label: '${timer.toInt()}초',
                 onChanged: (value) => setState(() => timer = value),
+                onChangeEnd: (value) =>
+                    state.setRestDefaultSeconds(value.round()),
               ),
               trailing: Text('${timer.toInt()}초'),
             ),
             SwitchListTile(
               title: const Text('RIR 입력 필드'),
               value: first,
-              onChanged: (value) => setState(() => first = value),
+              onChanged: (value) {
+                setState(() => first = value);
+                state.setUseRir(value);
+              },
             ),
             SwitchListTile(
               title: const Text('세트 완료 시 자동 타이머'),
               value: second,
-              onChanged: (value) => setState(() => second = value),
+              onChanged: (value) {
+                setState(() => second = value);
+                state.setAutoStartRestTimer(value);
+              },
             ),
             const ListTile(
               title: Text('1RM 공식'),
-              subtitle: Text('Epley 공식'),
+              subtitle: Text('Epley·Brzycki 평균 · 제품 휴리스틱'),
               trailing: Icon(Icons.chevron_right),
             ),
           ],
@@ -701,36 +760,55 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             SwitchListTile(
               title: const Text('휴식 타이머 종료 알림'),
               value: first,
-              onChanged: (value) => setState(() => first = value),
+              onChanged: (value) {
+                setState(() => first = value);
+                state.setRestTimerNotifications(value);
+              },
             ),
             SwitchListTile(
               title: const Text('진동'),
               value: second,
-              onChanged: (value) => setState(() => second = value),
+              onChanged: (value) {
+                setState(() => second = value);
+                state.setTimerVibration(value);
+              },
             ),
             SwitchListTile(
               title: const Text('코칭 피드백 알림'),
-              value: true,
-              onChanged: (_) {},
+              value: state.pushCoachingFeedback,
+              onChanged: state.setPushCoachingFeedback,
             ),
             SwitchListTile(
               title: const Text('커뮤니티 반응 알림'),
-              value: false,
-              onChanged: (_) {},
+              value: state.communityReactionNotifications,
+              onChanged: state.setCommunityReactionNotifications,
             ),
           ],
           SettingSection.privacy => [
             SwitchListTile(
               title: const Text('담당 트레이너에게 체성분 공유'),
-              subtitle: const Text('별도 동의한 데이터만 공유됩니다.'),
+              subtitle: const Text('몸무게·체성분처럼 별도 동의한 정보만 공유됩니다.'),
               value: first,
-              onChanged: (value) => setState(() => first = value),
+              onChanged: _savingPrivacy
+                  ? null
+                  : (value) => _savePrivacy(shareBodyData: value),
+            ),
+            SwitchListTile(
+              title: const Text('담당자에게 운동 기록 공유'),
+              subtitle: const Text('운동 종목·세트·중량·횟수와 담당자 피드백에 사용됩니다.'),
+              value: shareWorkoutRecords,
+              onChanged: _savingPrivacy
+                  ? null
+                  : (value) => _savePrivacy(shareWorkoutRecords: value),
             ),
             SwitchListTile(
               title: const Text('마케팅 정보 수신'),
               value: second,
-              onChanged: (value) => setState(() => second = value),
+              onChanged: _savingPrivacy
+                  ? null
+                  : (value) => _savePrivacy(marketing: value),
             ),
+            if (_savingPrivacy) const LinearProgressIndicator(),
             const Divider(height: 32),
             ListTile(
               leading: const Icon(Icons.pause_circle_outline),
@@ -768,5 +846,75 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _saveAccountProfile() async {
+    final rawWeight = _weightController.text
+        .trim()
+        .replaceAll('kg', '')
+        .replaceAll(',', '');
+    final parsedWeight = rawWeight.isEmpty ? null : double.tryParse(rawWeight);
+    if (rawWeight.isNotEmpty && parsedWeight == null) {
+      AppSnackbar.error(context, '몸무게를 숫자로 입력해주세요.');
+      return;
+    }
+    final state = AppScope.of(context);
+    final updated = state.updateMemberAccountProfile(
+      nickname: _nicknameController.text,
+      weight: parsedWeight,
+    );
+    if (!updated) {
+      AppSnackbar.error(context, '닉네임은 2~30자, 몸무게는 20~1000kg로 입력해주세요.');
+      return;
+    }
+    try {
+      await state.flushPersistence();
+      if (mounted) AppSnackbar.success(context, '프로필을 계정에 저장했어요.');
+    } catch (_) {
+      if (mounted) {
+        AppSnackbar.info(context, '기기에 안전하게 보관했어요. 연결되면 서버에 다시 저장합니다.');
+      }
+    }
+  }
+
+  Future<void> _savePrivacy({
+    bool? shareBodyData,
+    bool? shareWorkoutRecords,
+    bool? marketing,
+  }) async {
+    final state = AppScope.of(context);
+    final previousBody = first;
+    final previousWorkout = this.shareWorkoutRecords;
+    final previousMarketing = second;
+    setState(() {
+      first = shareBodyData ?? first;
+      this.shareWorkoutRecords =
+          shareWorkoutRecords ?? this.shareWorkoutRecords;
+      second = marketing ?? second;
+      _savingPrivacy = true;
+    });
+    if (!state.usesLiveBusinessData) {
+      setState(() => _savingPrivacy = false);
+      return;
+    }
+    try {
+      await state.updateMemberSharingPreferences(
+        shareBodyData: first,
+        shareWorkoutRecords: this.shareWorkoutRecords,
+        marketing: second,
+      );
+      if (!mounted) return;
+      setState(() => _savingPrivacy = false);
+      AppSnackbar.success(context, '공유 설정을 저장했어요.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        first = previousBody;
+        this.shareWorkoutRecords = previousWorkout;
+        second = previousMarketing;
+        _savingPrivacy = false;
+      });
+      AppSnackbar.error(context, '공유 설정을 저장하지 못했어요.');
+    }
   }
 }
