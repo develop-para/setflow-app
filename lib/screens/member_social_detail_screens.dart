@@ -1346,6 +1346,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
   final trainerSearchController = TextEditingController();
   Timer? trainerSearchDebounce;
   List<PublicTrainer> trainerSearchResults = const [];
+  List<TopCoachingTrainer> topCoachingTrainers = const [];
   PublicTrainer? selectedTrainer;
   String? selectedTrainerId;
   String? trainerSearchNextCursor;
@@ -1355,7 +1356,10 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
   bool trainerSearchInitialized = false;
   bool isTrainerSearchLoading = false;
   bool isTrainerSearchLoadingMore = false;
+  bool isTopCoachingTrainersLoading = false;
+  String? topCoachingTrainersError;
   int trainerSearchRevision = 0;
+  int topCoachingTrainersRevision = 0;
 
   static const demoTrainers = {
     '김코치': '초보자 근력 향상',
@@ -1382,8 +1386,11 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
     if (!state.usesLiveBusinessData || hasDirectTarget) return;
     trainerSearchInitialized = true;
     trainerSearchResults = List.unmodifiable(state.publicTrainers.take(20));
+    topCoachingTrainers = List.unmodifiable(state.topCoachingTrainers.take(3));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _retryTrainerSearch();
+      if (!mounted) return;
+      _retryTrainerSearch();
+      _retryTopCoachingTrainers();
     });
   }
 
@@ -1441,6 +1448,31 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
       append: true,
       revision: revision,
     );
+  }
+
+  Future<void> _retryTopCoachingTrainers() async {
+    final revision = ++topCoachingTrainersRevision;
+    setState(() {
+      isTopCoachingTrainersLoading = true;
+      topCoachingTrainersError = null;
+    });
+    try {
+      final trainers = await AppScope.of(
+        context,
+      ).loadTopCoachingTrainers(limit: 3);
+      if (!mounted || revision != topCoachingTrainersRevision) return;
+      setState(() {
+        topCoachingTrainers = List.unmodifiable(trainers.take(3));
+        topCoachingTrainersError = null;
+        isTopCoachingTrainersLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || revision != topCoachingTrainersRevision) return;
+      setState(() {
+        topCoachingTrainersError = '현재 코칭 TOP 3를 불러오지 못했어요.';
+        isTopCoachingTrainersLoading = false;
+      });
+    }
   }
 
   Future<void> _loadTrainerSearch({
@@ -1569,6 +1601,9 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
         selectedTrainer != null &&
         !trainerSearchResults.any(
           (trainer) => trainer.profile.id == selectedTrainer!.profile.id,
+        ) &&
+        !topCoachingTrainers.any(
+          (entry) => entry.trainer.profile.id == selectedTrainer!.profile.id,
         );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1710,7 +1745,158 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
     );
   }
 
-  Widget _trainerResultCard(BuildContext context, PublicTrainer trainer) {
+  Widget _buildTopCoachingTrainers(BuildContext context) {
+    return Column(
+      key: const ValueKey('consultation-top-trainers'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: SetflowColors.primary.withValues(alpha: .22),
+                borderRadius: BorderRadius.circular(SetflowRadii.sm),
+              ),
+              child: const Icon(
+                Icons.emoji_events_rounded,
+                size: 20,
+                color: SetflowColors.ink,
+              ),
+            ),
+            const SizedBox(width: SetflowSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '현재 코칭 TOP 3',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    '현재 진행 중인 코칭 건수 기준',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.md),
+        if (isTopCoachingTrainersLoading && topCoachingTrainers.isEmpty)
+          const LoadingState(
+            key: ValueKey('consultation-top-trainers-loading'),
+            message: '현재 코칭 TOP 3를 불러오고 있어요',
+            itemCount: 2,
+            compact: true,
+          )
+        else if (topCoachingTrainersError != null &&
+            topCoachingTrainers.isEmpty)
+          SetflowCard(
+            key: const ValueKey('consultation-top-trainers-error'),
+            padding: const EdgeInsets.all(SetflowSpacing.md),
+            child: Column(
+              children: [
+                const Icon(Icons.cloud_off_rounded, size: 32),
+                const SizedBox(height: SetflowSpacing.sm),
+                Text(
+                  topCoachingTrainersError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                AppButton(
+                  key: const ValueKey('consultation-top-trainers-retry'),
+                  label: '다시 시도',
+                  icon: Icons.refresh_rounded,
+                  expanded: false,
+                  variant: AppButtonVariant.tonal,
+                  onPressed: _retryTopCoachingTrainers,
+                ),
+              ],
+            ),
+          )
+        else if (topCoachingTrainers.isEmpty)
+          const SetflowCard(
+            key: ValueKey('consultation-top-trainers-empty'),
+            padding: EdgeInsets.all(SetflowSpacing.md),
+            child: Row(
+              children: [
+                Icon(Icons.people_outline_rounded),
+                SizedBox(width: SetflowSpacing.sm),
+                Expanded(
+                  child: Text(
+                    '현재 상담 가능한 트레이너가 없어요.',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (
+                  var index = 0;
+                  index < topCoachingTrainers.length;
+                  index++
+                ) ...[
+                  SizedBox(
+                    width: 308,
+                    child: _trainerResultCard(
+                      context,
+                      topCoachingTrainers[index].trainer,
+                      cardKey: ValueKey(
+                        'consultation-top-trainer-${topCoachingTrainers[index].trainer.profile.id}',
+                      ),
+                      rank: index + 1,
+                      activeCoachingCount:
+                          topCoachingTrainers[index].activeCoachingCount,
+                    ),
+                  ),
+                  if (index < topCoachingTrainers.length - 1)
+                    const SizedBox(width: SetflowSpacing.sm),
+                ],
+              ],
+            ),
+          ),
+          if (topCoachingTrainersError != null) ...[
+            const SizedBox(height: SetflowSpacing.sm),
+            Text(
+              topCoachingTrainersError!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+            AppButton(
+              key: const ValueKey('consultation-top-trainers-retry'),
+              label: '다시 시도',
+              icon: Icons.refresh_rounded,
+              expanded: false,
+              variant: AppButtonVariant.tonal,
+              onPressed: _retryTopCoachingTrainers,
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _trainerResultCard(
+    BuildContext context,
+    PublicTrainer trainer, {
+    Key? cardKey,
+    int? rank,
+    int? activeCoachingCount,
+  }) {
     final profile = trainer.profile;
     final isSelected = selectedTrainerId == profile.id;
     final specialty =
@@ -1722,7 +1908,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
       if (profile.careerYears != null) '경력 ${profile.careerYears}년',
     ];
     return SetflowCard(
-      key: ValueKey('consultation-trainer-result-${profile.id}'),
+      key: cardKey ?? ValueKey('consultation-trainer-result-${profile.id}'),
       color: isSelected ? Theme.of(context).colorScheme.primaryContainer : null,
       onTap: () => _selectTrainer(trainer),
       padding: const EdgeInsets.all(SetflowSpacing.md),
@@ -1732,7 +1918,9 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
             radius: 23,
             backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
             child: Text(
-              profile.displayName.characters.isEmpty
+              rank != null
+                  ? '$rank'
+                  : profile.displayName.characters.isEmpty
                   ? 'T'
                   : profile.displayName.characters.first,
               style: const TextStyle(fontWeight: FontWeight.w900),
@@ -1771,12 +1959,30 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '평점 ${profile.rating.toStringAsFixed(1)} · 코칭 ${profile.coachingTotal}회',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                if (activeCoachingCount != null) ...[
+                  Text(
+                    '현재 코칭 $activeCoachingCount건',
+                    key: ValueKey(
+                      'consultation-top-trainer-active-count-${profile.id}',
+                    ),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
+                  Text(
+                    '평점 ${profile.rating.toStringAsFixed(1)} · 누적 코칭 ${profile.coachingTotal}회',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ] else
+                  Text(
+                    '평점 ${profile.rating.toStringAsFixed(1)} · 코칭 ${profile.coachingTotal}회',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1837,7 +2043,14 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                 ),
               )
             else if (liveData)
-              _buildTrainerSearch(context)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildTopCoachingTrainers(context),
+                  const SizedBox(height: SetflowSpacing.xl),
+                  _buildTrainerSearch(context),
+                ],
+              )
             else
               DropdownButtonFormField<String>(
                 initialValue: demoTrainer,
@@ -1879,15 +2092,25 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
               maxLines: 6,
               validator: (value) => _validate(value, '질문', 10),
             ),
-            const SizedBox(height: SetflowSpacing.xl),
-            AppButton(
-              key: const ValueKey('consultation-submit'),
-              label: '상담 신청하기',
-              icon: Icons.send_rounded,
-              isLoading: isSubmitting,
-              onPressed: canSubmit ? _submit : null,
-            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            18,
+            SetflowSpacing.sm,
+            18,
+            SetflowSpacing.md,
+          ),
+          child: AppButton(
+            key: const ValueKey('consultation-submit'),
+            label: '상담 신청하기',
+            icon: Icons.send_rounded,
+            isLoading: isSubmitting,
+            onPressed: canSubmit ? _submit : null,
+          ),
         ),
       ),
     );

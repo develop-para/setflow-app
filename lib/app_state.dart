@@ -58,6 +58,8 @@ class AppState extends ChangeNotifier {
   bool _disposed = false;
   int _accountEpoch = 0;
   int _businessRequestSequence = 0;
+  int _topCoachingTrainerRequestSequence = 0;
+  int _memberConsultationRequestSequence = 0;
   int _scheduleRequestSequence = 0;
   int _memberFeedbackRequestSequence = 0;
   int _memberDetailGeneration = 0;
@@ -126,7 +128,10 @@ class AppState extends ChangeNotifier {
   BusinessAccess? businessAccess;
   BusinessWorkspaceData? businessWorkspace;
   List<PublicTrainer> publicTrainers = const [];
+  List<TopCoachingTrainer> topCoachingTrainers = const [];
   List<BusinessConsultation> memberConsultations = const [];
+  bool memberConsultationsLoading = false;
+  Object? memberConsultationsError;
   MemberSharingPreferences? _memberSharingPreferences;
   List<RoutineShareRecord> incomingRoutineShares = const [];
   List<RoutineShareRecord> outgoingRoutineShares = const [];
@@ -1404,9 +1409,12 @@ class AppState extends ChangeNotifier {
   }) async {
     final accountEpoch = expectedAccountEpoch ?? _accountEpoch;
     final requestToken = ++_businessRequestSequence;
+    final memberConsultationRequestToken = ++_memberConsultationRequestSequence;
     if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
     businessLoading = true;
     businessError = null;
+    memberConsultationsLoading = true;
+    memberConsultationsError = null;
     _clearBusinessMemberDetailCache();
     notifyListeners();
     Object? auxiliaryError;
@@ -1446,11 +1454,25 @@ class AppState extends ChangeNotifier {
               await repository.listMyConsultations(),
             );
         if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
-        memberConsultations = refreshedMemberConsultations;
-        _syncMemberConsultationsFromCloud();
+        if (memberConsultationRequestToken ==
+            _memberConsultationRequestSequence) {
+          memberConsultations = refreshedMemberConsultations;
+          memberConsultationsError = null;
+          _syncMemberConsultationsFromCloud();
+        }
       } catch (error) {
         if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
-        rememberAuxiliaryError(error);
+        if (memberConsultationRequestToken ==
+            _memberConsultationRequestSequence) {
+          memberConsultationsError = error;
+          rememberAuxiliaryError(error);
+        }
+      } finally {
+        if (_isCurrentBusinessRequest(accountEpoch, requestToken) &&
+            memberConsultationRequestToken ==
+                _memberConsultationRequestSequence) {
+          memberConsultationsLoading = false;
+        }
       }
 
       try {
@@ -1575,10 +1597,19 @@ class AppState extends ChangeNotifier {
       }
     } catch (error) {
       if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+      if (memberConsultationsLoading &&
+          memberConsultationRequestToken ==
+              _memberConsultationRequestSequence) {
+        memberConsultationsError = error;
+      }
       businessError = error;
       rethrow;
     } finally {
       if (_isCurrentBusinessRequest(accountEpoch, requestToken)) {
+        if (memberConsultationRequestToken ==
+            _memberConsultationRequestSequence) {
+          memberConsultationsLoading = false;
+        }
         businessLoading = false;
         notifyListeners();
       }
@@ -1770,9 +1801,13 @@ class AppState extends ChangeNotifier {
             level: record.level ?? '',
             question: record.question ?? '',
             createdAt: record.createdAt ?? DateTime.now(),
-            status: response == null
-                ? ConsultationStatus.waiting
-                : ConsultationStatus.answered,
+            status: switch (record.status) {
+              BusinessConsultationStatus.answered ||
+              BusinessConsultationStatus.replied => ConsultationStatus.answered,
+              BusinessConsultationStatus.pending ||
+              BusinessConsultationStatus.assigned ||
+              BusinessConsultationStatus.unknown => ConsultationStatus.waiting,
+            },
             response: response,
           );
         }),
@@ -2655,6 +2690,66 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  Future<List<TopCoachingTrainer>> loadTopCoachingTrainers({
+    int limit = 3,
+  }) async {
+    final normalizedLimit = validateTopCoachingTrainerLimit(limit);
+    final requestToken = ++_topCoachingTrainerRequestSequence;
+    final repository = businessRepository;
+    if (repository case final TopCoachingTrainerRepository topRepository) {
+      final accountEpoch = _accountEpoch;
+      final result = List<TopCoachingTrainer>.unmodifiable(
+        await topRepository.listTopCoachingTrainers(limit: normalizedLimit),
+      );
+      if (result.length > normalizedLimit) {
+        throw const FormatException(
+          'Top coaching trainer repository returned too many rows.',
+        );
+      }
+      if (_accountEpoch != accountEpoch ||
+          requestToken != _topCoachingTrainerRequestSequence) {
+        return topCoachingTrainers;
+      }
+      topCoachingTrainers = result;
+      publicTrainers = List.unmodifiable(
+        {
+          for (final trainer in publicTrainers) trainer.profile.id: trainer,
+          for (final item in result) item.trainer.profile.id: item.trainer,
+        }.values,
+      );
+      notifyListeners();
+      return result;
+    }
+
+    // Demo/legacy repositories do not have an active-coaching aggregate. Keep
+    // them usable with the closest existing count while live Supabase traffic
+    // always follows the server-owned capability above.
+    final fallback = [...publicTrainers]
+      ..sort((left, right) {
+        final byCount = right.profile.coachingTotal.compareTo(
+          left.profile.coachingTotal,
+        );
+        if (byCount != 0) return byCount;
+        final byRating = right.profile.rating.compareTo(left.profile.rating);
+        if (byRating != 0) return byRating;
+        return left.profile.id.compareTo(right.profile.id);
+      });
+    topCoachingTrainers = List.unmodifiable(
+      fallback
+          .take(normalizedLimit)
+          .map(
+            (trainer) => TopCoachingTrainer(
+              trainer: trainer,
+              activeCoachingCount: trainer.profile.coachingTotal < 0
+                  ? 0
+                  : trainer.profile.coachingTotal,
+            ),
+          ),
+    );
+    notifyListeners();
+    return topCoachingTrainers;
+  }
+
   Future<void> addConsultation({
     String? trainerId,
     String? gymId,
@@ -2731,12 +2826,8 @@ class AppState extends ChangeNotifier {
         ),
       );
       if (!_isCurrentAccount(accountEpoch)) return;
-      final refreshedConsultations = List<BusinessConsultation>.unmodifiable(
-        await repository.listMyConsultations(),
-      );
+      await refreshMemberConsultations();
       if (!_isCurrentAccount(accountEpoch)) return;
-      memberConsultations = refreshedConsultations;
-      _syncMemberConsultationsFromCloud();
       _consultationCreateRequestIds.remove(requestKey);
       notifyListeners();
     });
@@ -2806,6 +2897,44 @@ class AppState extends ChangeNotifier {
     dashboardFor(role).lastSyncedAt = DateTime.now();
     _schedulePersist();
     notifyListeners();
+  }
+
+  Future<void> refreshMemberConsultations() async {
+    final repository = businessRepository;
+    if (repository == null) {
+      await refreshBusinessDashboard(role);
+      return;
+    }
+    final accountEpoch = _accountEpoch;
+    final requestToken = ++_memberConsultationRequestSequence;
+    memberConsultationsLoading = true;
+    memberConsultationsError = null;
+    notifyListeners();
+    try {
+      final refreshed = List<BusinessConsultation>.unmodifiable(
+        await repository.listMyConsultations(),
+      );
+      if (!_isCurrentAccount(accountEpoch) ||
+          requestToken != _memberConsultationRequestSequence) {
+        return;
+      }
+      memberConsultations = refreshed;
+      memberConsultationsError = null;
+      _syncMemberConsultationsFromCloud();
+    } catch (error) {
+      if (!_isCurrentAccount(accountEpoch) ||
+          requestToken != _memberConsultationRequestSequence) {
+        return;
+      }
+      memberConsultationsError = error;
+      rethrow;
+    } finally {
+      if (_isCurrentAccount(accountEpoch) &&
+          requestToken == _memberConsultationRequestSequence) {
+        memberConsultationsLoading = false;
+        notifyListeners();
+      }
+    }
   }
 
   void recordBusinessMemberFeedback({
@@ -4554,7 +4683,10 @@ class AppState extends ChangeNotifier {
     businessAccess = null;
     businessWorkspace = null;
     publicTrainers = const [];
+    topCoachingTrainers = const [];
     memberConsultations = const [];
+    memberConsultationsLoading = false;
+    memberConsultationsError = null;
     _memberSharingPreferences = null;
     memberSessionFeedbacks = const [];
     memberMemberships = const [];
@@ -4573,6 +4705,7 @@ class AppState extends ChangeNotifier {
     memberSessionFeedbackError = null;
     memberMembershipsError = null;
     _memberFeedbackRequestSequence++;
+    _memberConsultationRequestSequence++;
     _businessMutations.clear();
     _businessInviteAcceptRequestIds.clear();
     _sessionFeedbackRequestIds.clear();
@@ -4972,6 +5105,8 @@ class AppState extends ChangeNotifier {
     _disposed = true;
     _accountEpoch++;
     _businessRequestSequence++;
+    _topCoachingTrainerRequestSequence++;
+    _memberConsultationRequestSequence++;
     _scheduleRequestSequence++;
     _businessMutations.clear();
     _restTimer?.cancel();

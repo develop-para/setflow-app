@@ -7,6 +7,8 @@ import '../models.dart';
 import '../services/user_image_optimizer.dart';
 import 'business_repository.dart';
 
+const _memberConsultationPageSize = 200;
+
 const _consultationSelect = '''
   id,
   user_id,
@@ -191,6 +193,7 @@ class SupabaseBusinessRepository
     implements
         BusinessRepository,
         PublicTrainerSearchRepository,
+        TopCoachingTrainerRepository,
         MemberSessionFeedbackRepository,
         BusinessMembershipRepository,
         RoutineShareRevocationRepository {
@@ -689,14 +692,59 @@ class SupabaseBusinessRepository
   }
 
   @override
+  Future<List<TopCoachingTrainer>> listTopCoachingTrainers({
+    int limit = 3,
+  }) async {
+    _requireUser();
+    final normalizedLimit = validateTopCoachingTrainerLimit(limit);
+    final result = await _client.rpc(
+      'list_top_current_coaching_trainers',
+      params: {'result_limit': normalizedLimit},
+    );
+    final rows = _mapListValue(result);
+    if (rows.length > normalizedLimit) {
+      throw const FormatException(
+        'Top coaching trainer query returned more rows than requested.',
+      );
+    }
+    return List.unmodifiable(rows.map(_topCoachingTrainerFromRow));
+  }
+
+  @override
   Future<List<BusinessConsultation>> listMyConsultations() async {
     final user = _requireUser();
-    final rows = await _client
-        .from('consultations')
-        .select(_consultationSelect)
-        .eq('user_id', user.id)
-        .order('created_at', ascending: false);
-    return _consultationList(rows);
+    final consultations = <BusinessConsultation>[];
+    DateTime? cursorCreatedAt;
+    String? cursorId;
+    while (true) {
+      var query = _client
+          .from('consultations')
+          .select(_consultationSelect)
+          .eq('user_id', user.id);
+      if (cursorCreatedAt != null && cursorId != null) {
+        final cursorTimestamp = cursorCreatedAt.toUtc().toIso8601String();
+        query = query.or(
+          'created_at.lt.$cursorTimestamp,'
+          'and(created_at.eq.$cursorTimestamp,id.lt.$cursorId)',
+        );
+      }
+      final value = await query
+          .order('created_at', ascending: false)
+          .order('id', ascending: false)
+          .limit(_memberConsultationPageSize);
+      final rows = _mapListValue(value);
+      consultations.addAll(rows.map(_consultationFromRow));
+      if (rows.length < _memberConsultationPageSize) break;
+      final lastRow = rows.last;
+      cursorCreatedAt = _nullableDateTime(lastRow['created_at']);
+      cursorId = _nullableUuid(lastRow['id']);
+      if (cursorCreatedAt == null || cursorId == null) {
+        throw const FormatException(
+          'Consultation history cursor fields are missing.',
+        );
+      }
+    }
+    return List.unmodifiable(consultations);
   }
 
   @override
@@ -2077,6 +2125,19 @@ PublicTrainer _publicTrainerFromSearchRow(Map<String, dynamic> row) {
       'status': 'approved',
     }),
     specialties: List.unmodifiable(specialties),
+  );
+}
+
+TopCoachingTrainer _topCoachingTrainerFromRow(Map<String, dynamic> row) {
+  final activeCoachingCount = _nullableInt(row['active_coaching_count']);
+  if (activeCoachingCount == null || activeCoachingCount < 0) {
+    throw const FormatException(
+      'Top coaching trainer query returned an invalid active count.',
+    );
+  }
+  return TopCoachingTrainer(
+    trainer: _publicTrainerFromSearchRow({...row, 'match_rank': 0}),
+    activeCoachingCount: activeCoachingCount,
   );
 }
 

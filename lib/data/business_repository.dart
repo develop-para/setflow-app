@@ -745,6 +745,16 @@ class PublicTrainerSearchPage {
   bool get hasMore => nextCursor != null;
 }
 
+class TopCoachingTrainer {
+  const TopCoachingTrainer({
+    required this.trainer,
+    required this.activeCoachingCount,
+  });
+
+  final PublicTrainer trainer;
+  final int activeCoachingCount;
+}
+
 /// Normalizes a directory query before it is sent to the server.
 ///
 /// An empty query means "browse". One-character searches are intentionally
@@ -769,6 +779,13 @@ int validatePublicTrainerSearchPageSize(int pageSize) {
   return pageSize;
 }
 
+int validateTopCoachingTrainerLimit(int limit) {
+  if (limit < 1 || limit > 3) {
+    throw ArgumentError.value(limit, 'limit', 'Must be between 1 and 3.');
+  }
+  return limit;
+}
+
 /// Optional capability so existing repositories and test doubles do not need
 /// to implement directory pagination until they support the server contract.
 abstract interface class PublicTrainerSearchRepository {
@@ -777,6 +794,12 @@ abstract interface class PublicTrainerSearchRepository {
     String? cursor,
     int pageSize = 20,
   });
+}
+
+/// Optional capability so existing repositories and test doubles remain
+/// compatible while live repositories use the server-owned active count.
+abstract interface class TopCoachingTrainerRepository {
+  Future<List<TopCoachingTrainer>> listTopCoachingTrainers({int limit = 3});
 }
 
 class BusinessConsultation {

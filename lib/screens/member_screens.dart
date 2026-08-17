@@ -2558,9 +2558,32 @@ class CoachingScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _refresh(BuildContext context) async {
+    final state = AppScope.of(context);
+    try {
+      if (state.usesLiveBusinessData) {
+        await state.refreshMemberConsultations();
+      } else {
+        await state.refreshBusinessDashboard(state.role);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        AppSnackbar.error(context, '상담 내역을 불러오지 못했어요.');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final activeConsultations = _activeMemberConsultations(state);
+    final unknownStatusCount = state.usesLiveBusinessData
+        ? state.memberConsultations
+              .where(
+                (item) => item.status == BusinessConsultationStatus.unknown,
+              )
+              .length
+        : 0;
     return Scaffold(
       appBar: AppBar(title: const Text('코칭')),
       body: ListView(
@@ -2609,26 +2632,53 @@ class CoachingScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: SetflowSpacing.lg),
+          AppButton(
+            key: const ValueKey('coaching-new-consultation-primary'),
+            label: '새 상담 신청',
+            icon: Icons.edit_note_rounded,
+            onPressed: () => _newConsult(context),
+          ),
           const SizedBox(height: 24),
-          SectionTitle('내 상담 ${state.consultations.length}건'),
+          SectionTitle('진행 중 상담 ${activeConsultations.length}건'),
           const SizedBox(height: 10),
-          if (state.consultations.isEmpty)
-            EmptyState(
+          if (state.usesLiveBusinessData &&
+              state.memberConsultationsLoading &&
+              state.memberConsultations.isEmpty)
+            const LoadingState(
+              key: ValueKey('coaching-active-loading'),
+              message: '진행 중인 상담을 불러오고 있어요',
+              itemCount: 2,
+              compact: true,
+            )
+          else if (state.usesLiveBusinessData &&
+              state.memberConsultationsError != null &&
+              state.memberConsultations.isEmpty)
+            ErrorState(
+              key: const ValueKey('coaching-active-error'),
+              message: '진행 중인 상담을 확인하지 못했어요.',
+              onRetry: () => _refresh(context),
+            )
+          else if (activeConsultations.isEmpty)
+            const EmptyState(
+              key: ValueKey('coaching-active-empty'),
               icon: Icons.support_agent_rounded,
               title: '진행 중인 상담이 없어요',
               message: '운동 목표와 고민을 전문가에게 질문해보세요.',
-              actionLabel: '새 상담 신청',
-              onAction: () => _newConsult(context),
             )
           else
-            for (final consultation in state.consultations)
+            for (final entry in activeConsultations)
               Padding(
+                key: ValueKey(
+                  'coaching-active-consultation-${entry.consultation.id}',
+                ),
                 padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
                 child: SetflowCard(
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) =>
-                          ConsultationDetailScreen(consultation: consultation),
+                      builder: (_) => ConsultationDetailScreen(
+                        consultation: entry.consultation,
+                      ),
                     ),
                   ),
                   child: Column(
@@ -2649,13 +2699,13 @@ class CoachingScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  consultation.trainerName,
+                                  entry.consultation.trainerName,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
                                 Text(
-                                  consultation.specialty,
+                                  entry.consultation.specialty,
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: SetflowColors.secondaryText,
@@ -2664,12 +2714,12 @@ class CoachingScreen extends StatelessWidget {
                               ],
                             ),
                           ),
-                          _ConsultationBadge(status: consultation.status),
+                          _MemberConsultationBadge(entry: entry),
                         ],
                       ),
                       const Divider(height: 28),
                       Text(
-                        consultation.question,
+                        entry.consultation.question,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(height: 1.45),
@@ -2678,11 +2728,78 @@ class CoachingScreen extends StatelessWidget {
                   ),
                 ),
               ),
+          if (state.usesLiveBusinessData &&
+              state.memberConsultationsError != null &&
+              state.memberConsultations.isNotEmpty) ...[
+            const SizedBox(height: SetflowSpacing.sm),
+            SetflowCard(
+              key: const ValueKey('coaching-active-stale-warning'),
+              color: Theme.of(context).colorScheme.errorContainer,
+              padding: const EdgeInsets.all(SetflowSpacing.md),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.sync_problem_rounded,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: SetflowSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      '최신 상담 상태를 확인하지 못했어요. 표시된 내용은 이전 동기화 결과입니다.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: state.memberConsultationsLoading
+                        ? null
+                        : () => _refresh(context),
+                    child: const Text('재시도'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (unknownStatusCount > 0) ...[
+            const SizedBox(height: SetflowSpacing.sm),
+            SetflowCard(
+              key: const ValueKey('coaching-unknown-status-notice'),
+              color: Theme.of(context).colorScheme.errorContainer,
+              padding: const EdgeInsets.all(SetflowSpacing.md),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: SetflowSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      '상태 확인이 필요한 상담이 $unknownStatusCount건 있어요. '
+                      '새로고침 후에도 계속되면 고객센터에 문의해주세요.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w700,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           OutlinedButton.icon(
-            onPressed: () => _newConsult(context),
-            icon: const Icon(Icons.edit_note_rounded),
-            label: const Text('새 상담 신청'),
+            key: const ValueKey('coaching-consultation-history'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ConsultationHistoryScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.history_rounded),
+            label: const Text('과거 상담 이력'),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
               shape: RoundedRectangleBorder(
@@ -2717,17 +2834,268 @@ class CoachingScreen extends StatelessWidget {
   }
 }
 
-class _ConsultationBadge extends StatelessWidget {
-  const _ConsultationBadge({required this.status});
+class ConsultationHistoryScreen extends StatefulWidget {
+  const ConsultationHistoryScreen({super.key});
 
-  final ConsultationStatus status;
+  @override
+  State<ConsultationHistoryScreen> createState() =>
+      _ConsultationHistoryScreenState();
+}
+
+class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
+  Future<void> _refresh() async {
+    final state = AppScope.of(context);
+    try {
+      if (state.usesLiveBusinessData) {
+        await state.refreshMemberConsultations();
+      } else {
+        await state.refreshBusinessDashboard(state.role);
+      }
+    } catch (_) {
+      if (mounted) {
+        AppSnackbar.error(context, '과거 상담 이력을 새로고침하지 못했어요.');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      ConsultationStatus.waiting => ('답변 대기', SetflowColors.orange),
-      ConsultationStatus.answered => ('상담 완료', SetflowColors.green),
-      ConsultationStatus.coaching => ('코칭 중', SetflowColors.blue),
+    final state = AppScope.of(context);
+    final history = _historicalMemberConsultations(state);
+    final initialLoadFailed =
+        state.usesLiveBusinessData &&
+        state.memberConsultationsError != null &&
+        history.isEmpty;
+    final isLoading =
+        state.usesLiveBusinessData &&
+        state.memberConsultationsLoading &&
+        state.memberConsultations.isEmpty;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('과거 상담 이력'),
+        actions: [
+          IconButton(
+            key: const ValueKey('consultation-history-refresh'),
+            tooltip: '새로고침',
+            onPressed: state.memberConsultationsLoading ? null : _refresh,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        key: const ValueKey('consultation-history-refresh-indicator'),
+        onRefresh: _refresh,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            if (isLoading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: LoadingState(
+                  key: ValueKey('consultation-history-loading'),
+                  message: '과거 상담 이력을 불러오고 있어요',
+                ),
+              )
+            else if (initialLoadFailed && history.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: ErrorState(
+                  key: const ValueKey('consultation-history-error'),
+                  message: '과거 상담 이력을 불러오지 못했어요.',
+                  onRetry: _refresh,
+                ),
+              )
+            else if (history.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: EmptyState(
+                  key: ValueKey('consultation-history-empty'),
+                  icon: Icons.history_rounded,
+                  title: '아직 과거 상담 이력이 없어요',
+                  message: '답변이 완료된 상담이 여기에 모여요.',
+                ),
+              )
+            else ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  18,
+                  SetflowSpacing.md,
+                  18,
+                  SetflowSpacing.sm,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    '답변이 완료된 상담 ${history.length}건',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              if (state.usesLiveBusinessData &&
+                  state.memberConsultationsError != null)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                    18,
+                    0,
+                    18,
+                    SetflowSpacing.md,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: SetflowCard(
+                      key: const ValueKey('consultation-history-stale-warning'),
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      padding: const EdgeInsets.all(SetflowSpacing.md),
+                      child: Text(
+                        '최신 이력을 확인하지 못해 이전 동기화 결과를 표시하고 있어요.',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 32),
+                sliver: SliverList.separated(
+                  key: const ValueKey('consultation-history-list'),
+                  itemCount: history.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: SetflowSpacing.md),
+                  itemBuilder: (context, index) =>
+                      _ConsultationHistoryCard(entry: history[index]),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConsultationHistoryCard extends StatelessWidget {
+  const _ConsultationHistoryCard({required this.entry});
+
+  final _MemberConsultationEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final consultation = entry.consultation;
+    final answer = consultation.response?.trim();
+    return SetflowCard(
+      key: ValueKey('consultation-history-item-${consultation.id}'),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ConsultationDetailScreen(consultation: consultation),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const CircleAvatar(
+                backgroundColor: Color(0xFFEAF7F0),
+                child: Icon(
+                  Icons.support_agent_rounded,
+                  color: SetflowColors.green,
+                ),
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      consultation.trainerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      DateFormat(
+                        'yyyy.MM.dd HH:mm',
+                      ).format(consultation.createdAt.toLocal()),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _MemberConsultationBadge(entry: entry),
+            ],
+          ),
+          const Divider(height: SetflowSpacing.xl),
+          Text(
+            consultation.question.trim().isEmpty
+                ? '질문 내용이 저장되지 않았어요.'
+                : consultation.question,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800, height: 1.45),
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(SetflowSpacing.md),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(SetflowRadii.md),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '전문가 답변',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.xs),
+                Text(
+                  answer == null || answer.isEmpty
+                      ? '답변 내용을 상세 화면에서 확인해주세요.'
+                      : answer,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemberConsultationBadge extends StatelessWidget {
+  const _MemberConsultationBadge({required this.entry});
+
+  final _MemberConsultationEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (entry.cloud?.status) {
+      BusinessConsultationStatus.pending => ('답변 대기', SetflowColors.orange),
+      BusinessConsultationStatus.assigned => ('담당 배정', SetflowColors.blue),
+      BusinessConsultationStatus.answered => ('답변 완료', SetflowColors.green),
+      BusinessConsultationStatus.replied => ('상담 완료', SetflowColors.green),
+      BusinessConsultationStatus.unknown => ('상태 확인 필요', SetflowColors.red),
+      null => switch (entry.consultation.status) {
+        ConsultationStatus.waiting => ('답변 대기', SetflowColors.orange),
+        ConsultationStatus.answered => ('상담 완료', SetflowColors.green),
+        ConsultationStatus.coaching => ('코칭 중', SetflowColors.blue),
+      },
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -2745,6 +3113,91 @@ class _ConsultationBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MemberConsultationEntry {
+  const _MemberConsultationEntry({required this.consultation, this.cloud});
+
+  final ConsultationData consultation;
+  final BusinessConsultation? cloud;
+}
+
+List<_MemberConsultationEntry> _activeMemberConsultations(AppState state) {
+  if (!state.usesLiveBusinessData) {
+    return state.consultations
+        .where(
+          (item) =>
+              item.status == ConsultationStatus.waiting ||
+              item.status == ConsultationStatus.coaching,
+        )
+        .map((item) => _MemberConsultationEntry(consultation: item))
+        .toList(growable: false);
+  }
+  return state.memberConsultations
+      .where(
+        (item) =>
+            item.status == BusinessConsultationStatus.pending ||
+            item.status == BusinessConsultationStatus.assigned,
+      )
+      .map(_memberConsultationEntry)
+      .toList(growable: false);
+}
+
+List<_MemberConsultationEntry> _historicalMemberConsultations(AppState state) {
+  if (!state.usesLiveBusinessData) {
+    return state.consultations
+        .where((item) => item.status == ConsultationStatus.answered)
+        .map((item) => _MemberConsultationEntry(consultation: item))
+        .toList(growable: false);
+  }
+  return state.memberConsultations
+      .where(
+        (item) =>
+            item.status == BusinessConsultationStatus.answered ||
+            item.status == BusinessConsultationStatus.replied,
+      )
+      .map(_memberConsultationEntry)
+      .toList(growable: false);
+}
+
+_MemberConsultationEntry _memberConsultationEntry(BusinessConsultation cloud) {
+  return _MemberConsultationEntry(
+    consultation: _consultationDataFromCloud(cloud),
+    cloud: cloud,
+  );
+}
+
+ConsultationData _consultationDataFromCloud(BusinessConsultation record) {
+  final responseMessages =
+      record.messages
+          .where(
+            (message) =>
+                message.sender == BusinessMessageSender.trainer ||
+                message.sender == BusinessMessageSender.gym,
+          )
+          .toList()
+        ..sort(
+          (left, right) =>
+              (left.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+                  .compareTo(
+                    right.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+                  ),
+        );
+  return ConsultationData(
+    id: record.id,
+    trainerName: record.trainerName ?? record.gymName ?? '담당 전문가',
+    specialty: record.specialty ?? record.goal ?? '맞춤 운동 상담',
+    goal: record.goal ?? '',
+    level: record.level ?? '',
+    question: record.question ?? '',
+    createdAt: record.createdAt ?? DateTime.now(),
+    status:
+        record.status == BusinessConsultationStatus.answered ||
+            record.status == BusinessConsultationStatus.replied
+        ? ConsultationStatus.answered
+        : ConsultationStatus.waiting,
+    response: responseMessages.lastOrNull?.text,
+  );
 }
 
 class DashboardScreen extends StatelessWidget {
