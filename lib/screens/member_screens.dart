@@ -66,7 +66,11 @@ class _MemberShellState extends State<MemberShell> {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: index, children: pages),
+      body: MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: IndexedStack(index: index, children: pages),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),

@@ -250,6 +250,8 @@ class _RoutineExercisePickerSheet extends StatefulWidget {
 class _RoutineExercisePickerSheetState
     extends State<_RoutineExercisePickerSheet> {
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  final _searchFieldKey = GlobalKey();
   late final Set<String> _selectedIds = widget.initialSelection
       .map((exercise) => exercise.id)
       .toSet();
@@ -258,6 +260,7 @@ class _RoutineExercisePickerSheetState
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -269,61 +272,108 @@ class _RoutineExercisePickerSheetState
           exercise.name.toLowerCase().contains(query) ||
           exercise.muscle.toLowerCase().contains(query);
     }).toList();
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .78,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '루틴 운동 선택',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: SetflowSpacing.md),
-                  AppTextField(
-                    controller: _searchController,
-                    label: '운동 검색',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    onChanged: (value) => setState(() => _search = value),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final exercise = filtered[index];
-                  final selected = _selectedIds.contains(exercise.id);
-                  return CheckboxListTile(
-                    value: selected,
-                    onChanged: (_) => setState(
-                      () => selected
-                          ? _selectedIds.remove(exercise.id)
-                          : _selectedIds.add(exercise.id),
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final sheetHeight =
+                constraints.maxHeight * (keyboardInset > 0 ? 1 : .78);
+            final compactHeight = sheetHeight < 320;
+            return SizedBox(
+              height: sheetHeight,
+              child: compactHeight
+                  ? CustomScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      slivers: [
+                        SliverToBoxAdapter(child: _buildHeader()),
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) =>
+                                  _buildExerciseTile(filtered[index]),
+                              childCount: filtered.length,
+                            ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(child: _buildFooter()),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        _buildHeader(),
+                        Expanded(
+                          child: ListView.builder(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) =>
+                                _buildExerciseTile(filtered[index]),
+                          ),
+                        ),
+                        _buildFooter(),
+                      ],
                     ),
-                    secondary: Icon(exercise.icon),
-                    title: Text(exercise.name),
-                    subtitle: Text(exercise.muscle),
-                    controlAffinity: ListTileControlAffinity.trailing,
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: AppButton(
-                label: '선택 완료 (${_selectedIds.length})',
-                onPressed: _selectedIds.isEmpty ? null : _finish,
-              ),
-            ),
-          ],
+            );
+          },
         ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '루틴 운동 선택',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          AppTextField(
+            key: _searchFieldKey,
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            label: '운동 검색',
+            prefixIcon: const Icon(Icons.search_rounded),
+            onChanged: (value) => setState(() => _search = value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExerciseTile(ExerciseTemplate exercise) {
+    final selected = _selectedIds.contains(exercise.id);
+    return CheckboxListTile(
+      value: selected,
+      onChanged: (_) => setState(
+        () => selected
+            ? _selectedIds.remove(exercise.id)
+            : _selectedIds.add(exercise.id),
+      ),
+      secondary: Icon(exercise.icon),
+      title: Text(exercise.name),
+      subtitle: Text(exercise.muscle),
+      controlAffinity: ListTileControlAffinity.trailing,
+    );
+  }
+
+  Widget _buildFooter() {
+    return Padding(
+      padding: const EdgeInsets.all(18),
+      child: AppButton(
+        label: '선택 완료 (${_selectedIds.length})',
+        onPressed: _selectedIds.isEmpty ? null : _finish,
       ),
     );
   }

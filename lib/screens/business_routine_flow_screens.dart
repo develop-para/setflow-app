@@ -920,13 +920,19 @@ class _RoutineMemberShareSheet extends StatefulWidget {
 }
 
 class _RoutineMemberShareSheetState extends State<_RoutineMemberShareSheet> {
+  static const double _compactHeightBreakpoint = 440;
+  static const double _landscapeHeightBreakpoint = 560;
+
   final Set<String> _selectedIds = {};
+  final GlobalKey _messageFieldKey = GlobalKey();
   final TextEditingController _messageController = TextEditingController();
+  final FocusNode _messageFocusNode = FocusNode();
   bool _expires = true;
   bool _saving = false;
 
   @override
   void dispose() {
+    _messageFocusNode.dispose();
     _messageController.dispose();
     super.dispose();
   }
@@ -935,88 +941,137 @@ class _RoutineMemberShareSheetState extends State<_RoutineMemberShareSheet> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final members = state.businessMembers;
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .82,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            SetflowSpacing.lg,
-            0,
-            SetflowSpacing.lg,
-            MediaQuery.viewInsetsOf(context).bottom + SetflowSpacing.lg,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('회원에게 공유', style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: SetflowSpacing.xs),
-              Text(
-                widget.routine.title,
-                style: const TextStyle(color: SetflowColors.secondaryText),
-              ),
-              const SizedBox(height: SetflowSpacing.md),
-              Expanded(
-                child: members.isEmpty
-                    ? const EmptyState(
+    final media = MediaQuery.of(context);
+    final availableHeight =
+        (media.size.height -
+                media.viewInsets.bottom -
+                media.padding.top -
+                media.padding.bottom)
+            .clamp(0.0, media.size.height)
+            .toDouble();
+    final preferredHeight = media.size.height * .82;
+    final sheetHeight = preferredHeight < availableHeight
+        ? preferredHeight
+        : availableHeight;
+    final usesScrollableLayout =
+        sheetHeight < _compactHeightBreakpoint ||
+        (media.orientation == Orientation.landscape &&
+            sheetHeight < _landscapeHeightBreakpoint);
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: sheetHeight,
+          child: usesScrollableLayout
+              ? ListView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(
+                    SetflowSpacing.lg,
+                    0,
+                    SetflowSpacing.lg,
+                    SetflowSpacing.lg,
+                  ),
+                  children: [
+                    ..._buildHeader(context),
+                    if (members.isEmpty)
+                      const EmptyState(
                         icon: Icons.people_outline_rounded,
                         title: '담당 회원이 없어요',
                         message: '회원 배정이 완료되면 이곳에서 루틴을 바로 공유할 수 있어요.',
                       )
-                    : ListView.builder(
-                        itemCount: members.length,
-                        itemBuilder: (context, index) {
-                          final member = members[index];
-                          final linked = member.userId != null;
-                          return CheckboxListTile(
-                            value: _selectedIds.contains(member.id),
-                            enabled: linked && !_saving,
-                            title: Text(member.name),
-                            subtitle: Text(
-                              linked
-                                  ? member.goal ?? '운동 목표 미입력'
-                                  : '앱 계정 연결이 필요합니다',
-                            ),
-                            onChanged: (checked) => setState(() {
-                              if (checked == true) {
-                                _selectedIds.add(member.id);
-                              } else {
-                                _selectedIds.remove(member.id);
-                              }
-                            }),
-                          );
-                        },
+                    else
+                      ...members.map(_buildMemberTile),
+                    ..._buildFooter(),
+                  ],
+                )
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    SetflowSpacing.lg,
+                    0,
+                    SetflowSpacing.lg,
+                    SetflowSpacing.lg,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ..._buildHeader(context),
+                      Expanded(
+                        child: members.isEmpty
+                            ? const EmptyState(
+                                icon: Icons.people_outline_rounded,
+                                title: '담당 회원이 없어요',
+                                message: '회원 배정이 완료되면 이곳에서 루틴을 바로 공유할 수 있어요.',
+                              )
+                            : ListView.builder(
+                                itemCount: members.length,
+                                itemBuilder: (context, index) =>
+                                    _buildMemberTile(members[index]),
+                              ),
                       ),
-              ),
-              TextField(
-                controller: _messageController,
-                enabled: !_saving,
-                minLines: 2,
-                maxLines: 3,
-                maxLength: 300,
-                decoration: const InputDecoration(
-                  labelText: '회원에게 보낼 메시지 (선택)',
+                      ..._buildFooter(),
+                    ],
+                  ),
                 ),
-              ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                value: _expires,
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() => _expires = value),
-                title: const Text('14일 후 수락 만료'),
-              ),
-              AppButton(
-                label: '${_selectedIds.length}명에게 공유',
-                icon: Icons.send_rounded,
-                isLoading: _saving,
-                onPressed: _selectedIds.isEmpty || _saving ? null : _share,
-              ),
-            ],
-          ),
         ),
       ),
     );
   }
+
+  List<Widget> _buildHeader(BuildContext context) => [
+    Text('회원에게 공유', style: Theme.of(context).textTheme.headlineSmall),
+    const SizedBox(height: SetflowSpacing.xs),
+    Text(
+      widget.routine.title,
+      style: const TextStyle(color: SetflowColors.secondaryText),
+    ),
+    const SizedBox(height: SetflowSpacing.md),
+  ];
+
+  Widget _buildMemberTile(BusinessMember member) {
+    final linked = member.userId != null;
+    return CheckboxListTile(
+      value: _selectedIds.contains(member.id),
+      enabled: linked && !_saving,
+      title: Text(member.name),
+      subtitle: Text(linked ? member.goal ?? '운동 목표 미입력' : '앱 계정 연결이 필요합니다'),
+      onChanged: (checked) => setState(() {
+        if (checked == true) {
+          _selectedIds.add(member.id);
+        } else {
+          _selectedIds.remove(member.id);
+        }
+      }),
+    );
+  }
+
+  List<Widget> _buildFooter() => [
+    TextField(
+      key: _messageFieldKey,
+      controller: _messageController,
+      focusNode: _messageFocusNode,
+      enabled: !_saving,
+      minLines: 2,
+      maxLines: 3,
+      maxLength: 300,
+      decoration: const InputDecoration(labelText: '회원에게 보낼 메시지 (선택)'),
+    ),
+    SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      value: _expires,
+      onChanged: _saving ? null : (value) => setState(() => _expires = value),
+      title: const Text('14일 후 수락 만료'),
+    ),
+    AppButton(
+      label: '${_selectedIds.length}명에게 공유',
+      icon: Icons.send_rounded,
+      isLoading: _saving,
+      onPressed: _selectedIds.isEmpty || _saving ? null : _share,
+    ),
+  ];
 
   Future<void> _share() async {
     setState(() => _saving = true);
@@ -1243,12 +1298,12 @@ class AdminRoutineReviewCard extends StatelessWidget {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(
+        builder: (context, setSheetState) => KeyboardSafeBottomSheet(
+          padding: const EdgeInsets.fromLTRB(
             SetflowSpacing.lg,
             0,
             SetflowSpacing.lg,
-            MediaQuery.viewInsetsOf(sheetContext).bottom + SetflowSpacing.lg,
+            SetflowSpacing.lg,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

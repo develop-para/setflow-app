@@ -167,13 +167,8 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          4,
-          20,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
-        ),
+      builder: (sheetContext) => KeyboardSafeBottomSheet(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

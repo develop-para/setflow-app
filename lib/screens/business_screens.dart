@@ -56,7 +56,11 @@ class _BusinessShellState extends State<BusinessShell> {
     };
 
     return Scaffold(
-      body: IndexedStack(index: index, children: pages),
+      body: MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: IndexedStack(index: index, children: pages),
+      ),
       bottomNavigationBar: NavigationBar(
         height: 64,
         selectedIndex: index,
@@ -1860,254 +1864,274 @@ class _PeoplePageState extends State<PeoplePage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: .7,
-        builder: (_, controller) => ListView(
-          controller: controller,
-          padding: SetflowInsets.pageListTight,
-          children: [
-            Row(
+      builder: (sheetContext) => AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: SafeArea(
+          top: false,
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: .7,
+            builder: (_, controller) => ListView(
+              controller: controller,
+              padding: SetflowInsets.pageListTight,
               children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: SetflowColors.primary.withValues(alpha: .2),
-                  child: Text(
-                    person.$1.characters.first,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        person.$1,
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: SetflowColors.primary.withValues(
+                        alpha: .2,
+                      ),
+                      child: Text(
+                        person.$1.characters.first,
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      Text(
-                        person.$2,
-                        style: const TextStyle(
-                          color: SetflowColors.secondaryText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(sheetContext);
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => MemberDetailScreen(
-                      member:
-                          liveMember ??
-                          BusinessMember(
-                            id: 'demo-${person.$1}',
-                            gymId: 'demo',
-                            name: person.$1,
-                            goal: person.$2,
-                            remainingPtSessions: 0,
-                            completionRate: person.$4.toDouble(),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            person.$1,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
-                      role: widget.role,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.person_search_outlined),
-              label: const Text('회원 상세 보기'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-            if (widget.role == UserRole.gym) ...[
-              const SizedBox(height: SetflowSpacing.sm),
-              if (liveMember?.userId == null)
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(sheetContext);
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
-                        _showInviteSheet(context, member: liveMember);
-                      }
-                    });
-                  },
-                  icon: const Icon(Icons.link_rounded),
-                  label: const Text('회원 계정 연결 초대'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              if (liveMember?.userId == null)
-                const SizedBox(height: SetflowSpacing.sm),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(sheetContext);
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      _showAssignmentSheet(
-                        context,
-                        person.$1,
-                        memberId: person.$5,
-                      );
-                    }
-                  });
-                },
-                icon: const Icon(Icons.badge_outlined),
-                label: const Text('담당 트레이너 배정'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-              if (live && liveMember != null) ...[
-                const SizedBox(height: SetflowSpacing.sm),
-                OutlinedButton.icon(
-                  key: ValueKey('end-membership-${liveMember.id}'),
-                  onPressed: state.isEndingBusinessMembership(liveMember.id)
-                      ? null
-                      : () async {
-                          final confirmed = await _confirmEndMembership(
-                            sheetContext,
-                            memberName: liveMember.name,
-                            centerInitiated: true,
-                          );
-                          if (!confirmed) return;
-                          try {
-                            await state.endBusinessMembership(liveMember.id);
-                            if (!sheetContext.mounted || !context.mounted) {
-                              return;
-                            }
-                            Navigator.pop(sheetContext);
-                            AppSnackbar.success(
-                              context,
-                              '${liveMember.name} 회원의 센터 연결을 종료했어요.',
-                            );
-                          } catch (_) {
-                            if (context.mounted) {
-                              AppSnackbar.error(context, '회원 연결을 종료하지 못했어요.');
-                            }
-                          }
-                        },
-                  icon: const Icon(Icons.person_remove_outlined),
-                  label: const Text('센터 회원 연결 종료'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-            if (!live) ...[
-              const SizedBox(height: 22),
-              Row(
-                children: [
-                  MetricCard(
-                    label: '주간 완료율',
-                    value: '${person.$4}',
-                    suffix: '%',
-                    icon: Icons.check_circle_outline,
-                    tint: SetflowColors.teal,
-                  ),
-                  const SizedBox(width: 10),
-                  const MetricCard(
-                    label: '최근 볼륨',
-                    value: '4.8',
-                    suffix: 't',
-                    icon: Icons.monitor_weight_outlined,
-                    tint: SetflowColors.orange,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              const SectionTitle('최근 운동 기록'),
-              const SizedBox(height: 8),
-              const SetflowCard(
-                child: Column(
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        '상체 루틴',
-                        style: TextStyle(fontWeight: FontWeight.w900),
+                          Text(
+                            person.$2,
+                            style: const TextStyle(
+                              color: SetflowColors.secondaryText,
+                            ),
+                          ),
+                        ],
                       ),
-                      subtitle: Text('오늘 · 12세트 · 4.8t'),
-                      trailing: Icon(Icons.chevron_right),
-                    ),
-                    Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        '하체 루틴',
-                        style: TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                      subtitle: Text('3일 전 · 10세트 · 5.2t'),
-                      trailing: Icon(Icons.chevron_right),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 18),
-              Form(
-                key: formKey,
-                child: AppTextField(
-                  controller: feedbackController,
-                  maxLines: 3,
-                  label: '피드백',
-                  hint: '회원에게 전달할 피드백을 작성하세요.',
-                  validator: (value) {
-                    final feedback = value?.trim() ?? '';
-                    if (feedback.isEmpty) return '피드백 내용을 입력해주세요.';
-                    if (feedback.length < 10) return '피드백을 10자 이상 입력해주세요.';
-                    return null;
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => MemberDetailScreen(
+                          member:
+                              liveMember ??
+                              BusinessMember(
+                                id: 'demo-${person.$1}',
+                                gymId: 'demo',
+                                name: person.$1,
+                                goal: person.$2,
+                                remainingPtSessions: 0,
+                                completionRate: person.$4.toDouble(),
+                              ),
+                          role: widget.role,
+                        ),
+                      ),
+                    );
                   },
+                  icon: const Icon(Icons.person_search_outlined),
+                  label: const Text('회원 상세 보기'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              PrimaryButton(
-                label: '피드백 보내기',
-                onPressed: () {
-                  if (!(formKey.currentState?.validate() ?? false)) return;
-                  AppScope.of(context).recordBusinessMemberFeedback(
-                    role: widget.role,
-                    memberName: person.$1,
-                    feedback: feedbackController.text.trim(),
-                  );
-                  Navigator.pop(sheetContext);
-                  AppSnackbar.success(context, '${person.$1}님에게 피드백을 보냈어요.');
-                },
-              ),
-            ] else ...[
-              const SizedBox(height: SetflowSpacing.xl),
-              const EmptyState(
-                icon: Icons.lock_person_outlined,
-                title: '공유된 상세 운동 기록이 없어요',
-                message: '회원이 공유에 동의한 기록이 연결되면 상세 운동과 피드백 기능이 열립니다.',
-              ),
-            ],
-          ],
+                if (widget.role == UserRole.gym) ...[
+                  const SizedBox(height: SetflowSpacing.sm),
+                  if (liveMember?.userId == null)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            _showInviteSheet(context, member: liveMember);
+                          }
+                        });
+                      },
+                      icon: const Icon(Icons.link_rounded),
+                      label: const Text('회원 계정 연결 초대'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  if (liveMember?.userId == null)
+                    const SizedBox(height: SetflowSpacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          _showAssignmentSheet(
+                            context,
+                            person.$1,
+                            memberId: person.$5,
+                          );
+                        }
+                      });
+                    },
+                    icon: const Icon(Icons.badge_outlined),
+                    label: const Text('담당 트레이너 배정'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                  if (live && liveMember != null) ...[
+                    const SizedBox(height: SetflowSpacing.sm),
+                    OutlinedButton.icon(
+                      key: ValueKey('end-membership-${liveMember.id}'),
+                      onPressed: state.isEndingBusinessMembership(liveMember.id)
+                          ? null
+                          : () async {
+                              final confirmed = await _confirmEndMembership(
+                                sheetContext,
+                                memberName: liveMember.name,
+                                centerInitiated: true,
+                              );
+                              if (!confirmed) return;
+                              try {
+                                await state.endBusinessMembership(
+                                  liveMember.id,
+                                );
+                                if (!sheetContext.mounted || !context.mounted) {
+                                  return;
+                                }
+                                Navigator.pop(sheetContext);
+                                AppSnackbar.success(
+                                  context,
+                                  '${liveMember.name} 회원의 센터 연결을 종료했어요.',
+                                );
+                              } catch (_) {
+                                if (context.mounted) {
+                                  AppSnackbar.error(
+                                    context,
+                                    '회원 연결을 종료하지 못했어요.',
+                                  );
+                                }
+                              }
+                            },
+                      icon: const Icon(Icons.person_remove_outlined),
+                      label: const Text('센터 회원 연결 종료'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.error,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+                if (!live) ...[
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      MetricCard(
+                        label: '주간 완료율',
+                        value: '${person.$4}',
+                        suffix: '%',
+                        icon: Icons.check_circle_outline,
+                        tint: SetflowColors.teal,
+                      ),
+                      const SizedBox(width: 10),
+                      const MetricCard(
+                        label: '최근 볼륨',
+                        value: '4.8',
+                        suffix: 't',
+                        icon: Icons.monitor_weight_outlined,
+                        tint: SetflowColors.orange,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  const SectionTitle('최근 운동 기록'),
+                  const SizedBox(height: 8),
+                  const SetflowCard(
+                    child: Column(
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            '상체 루틴',
+                            style: TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          subtitle: Text('오늘 · 12세트 · 4.8t'),
+                          trailing: Icon(Icons.chevron_right),
+                        ),
+                        Divider(),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            '하체 루틴',
+                            style: TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          subtitle: Text('3일 전 · 10세트 · 5.2t'),
+                          trailing: Icon(Icons.chevron_right),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Form(
+                    key: formKey,
+                    child: AppTextField(
+                      controller: feedbackController,
+                      maxLines: 3,
+                      label: '피드백',
+                      hint: '회원에게 전달할 피드백을 작성하세요.',
+                      validator: (value) {
+                        final feedback = value?.trim() ?? '';
+                        if (feedback.isEmpty) return '피드백 내용을 입력해주세요.';
+                        if (feedback.length < 10) return '피드백을 10자 이상 입력해주세요.';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  PrimaryButton(
+                    label: '피드백 보내기',
+                    onPressed: () {
+                      if (!(formKey.currentState?.validate() ?? false)) return;
+                      AppScope.of(context).recordBusinessMemberFeedback(
+                        role: widget.role,
+                        memberName: person.$1,
+                        feedback: feedbackController.text.trim(),
+                      );
+                      Navigator.pop(sheetContext);
+                      AppSnackbar.success(
+                        context,
+                        '${person.$1}님에게 피드백을 보냈어요.',
+                      );
+                    },
+                  ),
+                ] else ...[
+                  const SizedBox(height: SetflowSpacing.xl),
+                  const EmptyState(
+                    icon: Icons.lock_person_outlined,
+                    title: '공유된 상세 운동 기록이 없어요',
+                    message: '회원이 공유에 동의한 기록이 연결되면 상세 운동과 피드백 기능이 열립니다.',
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -5019,6 +5043,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text(blocked ? '계정 제재를 해제할까요?' : '계정 이용을 제한할까요?'),
         content: Form(
           key: formKey,
@@ -5614,6 +5639,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
+          scrollable: true,
           title: const Text('인증을 반려할까요?'),
           content: Form(
             key: formKey,

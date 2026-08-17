@@ -42,13 +42,7 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        SetflowSpacing.xl,
-        SetflowSpacing.xs,
-        SetflowSpacing.xl,
-        MediaQuery.viewInsetsOf(context).bottom + SetflowSpacing.xxl,
-      ),
+    return KeyboardSafeBottomSheet(
       child: Form(
         key: formKey,
         child: Column(

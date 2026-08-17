@@ -177,6 +177,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
           theme: SetflowTheme.light,
           darkTheme: SetflowTheme.dark,
           themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          scrollBehavior: const SetflowScrollBehavior(),
           builder: (context, child) => Stack(
             children: [
               child ?? const SizedBox.shrink(),

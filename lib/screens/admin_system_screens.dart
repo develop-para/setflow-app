@@ -515,6 +515,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text(plan == null ? '새 플랜 추가' : '플랜 편집'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
