@@ -11,6 +11,7 @@ class AppSnapshot {
     this.nickname,
     this.useRir = false,
     this.autoStartRestTimer = true,
+    this.autoRecommendNextExercise = true,
     this.restTimerNotifications = true,
     this.timerVibration = true,
     this.pushCoachingFeedback = true,
@@ -23,6 +24,7 @@ class AppSnapshot {
     this.communityPosts = const [],
     this.consultations = const [],
     this.businessDashboards = const {},
+    this.customExercises = const [],
   });
 
   final UserRole role;
@@ -32,6 +34,7 @@ class AppSnapshot {
   final String? nickname;
   final bool useRir;
   final bool autoStartRestTimer;
+  final bool autoRecommendNextExercise;
   final bool restTimerNotifications;
   final bool timerVibration;
   final bool pushCoachingFeedback;
@@ -46,6 +49,7 @@ class AppSnapshot {
   final List<CommunityPost> communityPosts;
   final List<ConsultationData> consultations;
   final Map<UserRole, BusinessDashboardData> businessDashboards;
+  final List<ExerciseTemplate> customExercises;
 }
 
 /// A locally durable write that has not yet been acknowledged by Supabase.

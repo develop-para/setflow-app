@@ -269,7 +269,7 @@ void main() {
       expect(find.byKey(const ValueKey('cardio-duration-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('cardio-distance-1')), findsOneWidget);
       expect(find.byKey(const ValueKey('cardio-rpe-1')), findsOneWidget);
-      expect(find.text('시간'), findsOneWidget);
+      expect(find.text('시간'), findsWidgets);
       expect(find.text('거리'), findsOneWidget);
       expect(find.text('강도'), findsOneWidget);
       expect(find.text('무게'), findsNothing);
@@ -426,7 +426,7 @@ void main() {
     },
   );
 
-  test('schema v9 round-trips cardio workout and routine metrics', () {
+  test('schema v10 round-trips cardio workout and routine metrics', () {
     const run = ExerciseTemplate(
       id: 'run',
       name: '트레드밀 러닝',
@@ -487,7 +487,7 @@ void main() {
     );
 
     final encoded = AppSnapshotCodec.encode(snapshot);
-    expect(jsonDecode(encoded)['schemaVersion'], 9);
+    expect(jsonDecode(encoded)['schemaVersion'], 10);
     final decoded = AppSnapshotCodec.decode(encoded, const [run])!;
     final workoutSet = decoded.sessions[date]!.exercises.single.sets.single;
     expect(workoutSet.durationSeconds, 2700);

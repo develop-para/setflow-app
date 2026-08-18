@@ -21,6 +21,15 @@ void main() {
         isDarkMode: true,
         weightUnit: 'lb',
         restDefaultSeconds: 120,
+        autoRecommendNextExercise: false,
+        customExercises: const [
+          ExerciseTemplate(
+            id: 'custom_press',
+            name: '나만의 프레스',
+            muscle: '가슴',
+            icon: Icons.fitness_center,
+          ),
+        ],
         goals: const ['근육 증가', '체력 향상'],
         heightCm: 175.5,
         weight: 72.4,
@@ -139,6 +148,9 @@ void main() {
       expect(decoded.isDarkMode, isTrue);
       expect(decoded.weightUnit, 'lb');
       expect(decoded.restDefaultSeconds, 120);
+      expect(decoded.autoRecommendNextExercise, isFalse);
+      expect(decoded.customExercises.single.name, '나만의 프레스');
+      expect(decoded.customExercises.single.muscle, '가슴');
       expect(decoded.goals, ['근육 증가', '체력 향상']);
       expect(decoded.heightCm, 175.5);
       expect(decoded.weight, 72.4);
@@ -260,6 +272,48 @@ void main() {
         AppSnapshotCodec.decode('{"schemaVersion":999}', const []),
         isNull,
       );
+    });
+
+    test('restores sessions that reference a user-created exercise', () {
+      const custom = ExerciseTemplate(
+        id: 'custom_incline_press',
+        name: '나만의 인클라인 프레스',
+        muscle: '가슴',
+        icon: Icons.fitness_center,
+      );
+      final date = DateTime(2026, 8, 18);
+      final snapshot = AppSnapshot(
+        role: UserRole.member,
+        isDarkMode: false,
+        weightUnit: 'kg',
+        restDefaultSeconds: 90,
+        sessions: {
+          date: WorkoutSession(
+            date: date,
+            exercises: [
+              WorkoutExercise(
+                id: 'custom_workout',
+                template: custom,
+                sets: [WorkoutSetEntry(number: 1, weight: 42.5, reps: 10)],
+              ),
+            ],
+          ),
+        },
+        routines: const [],
+        customExercises: const [custom],
+      );
+
+      final decoded = AppSnapshotCodec.decode(
+        AppSnapshotCodec.encode(snapshot),
+        const [],
+      )!;
+
+      expect(decoded.customExercises.single.id, custom.id);
+      expect(
+        decoded.sessions[date]!.exercises.single.template.name,
+        custom.name,
+      );
+      expect(decoded.sessions[date]!.exercises.single.sets.single.weight, 42.5);
     });
   });
 

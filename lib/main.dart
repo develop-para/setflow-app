@@ -104,7 +104,12 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       onError: (_) {},
     );
     unawaited(_captureInitialAppLink());
-    unawaited(state.initialize());
+    unawaited(_initializeState());
+  }
+
+  Future<void> _initializeState() async {
+    await state.initialize();
+    await state.syncRestTimerFromPlatform();
   }
 
   void _handleAuthState(AuthState authState) {
@@ -133,6 +138,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         lifecycleState == AppLifecycleState.detached) {
       unawaited(state.flushPersistence().catchError((_) {}));
       return;
+    }
+    if (lifecycleState == AppLifecycleState.resumed) {
+      unawaited(state.syncRestTimerFromPlatform());
     }
     if (lifecycleState != AppLifecycleState.resumed ||
         !state.isInitialized ||

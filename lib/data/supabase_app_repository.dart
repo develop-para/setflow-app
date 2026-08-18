@@ -401,6 +401,7 @@ class SupabaseAppRepository
       nickname: source.nickname,
       useRir: source.useRir,
       autoStartRestTimer: source.autoStartRestTimer,
+      autoRecommendNextExercise: source.autoRecommendNextExercise,
       restTimerNotifications: source.restTimerNotifications,
       timerVibration: source.timerVibration,
       pushCoachingFeedback: source.pushCoachingFeedback,
@@ -436,6 +437,7 @@ class SupabaseAppRepository
           .where((consultation) => consultation.id != 'consult_1')
           .toList(growable: false),
       businessDashboards: const {},
+      customExercises: List<ExerciseTemplate>.of(source.customExercises),
     );
   }
 }
