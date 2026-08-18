@@ -270,12 +270,12 @@ class _ConsultationRetargetScreenState
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.fromLTRB(
+      builder: (sheetContext) => KeyboardSafeBottomSheet(
+        padding: const EdgeInsets.fromLTRB(
           SetflowSpacing.xxl,
           4,
           SetflowSpacing.xxl,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
+          24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

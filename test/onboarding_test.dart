@@ -44,27 +44,16 @@ void main() {
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
     expect(find.text('4 / 4'), findsOneWidget);
-    expect(find.text('카카오'), findsOneWidget);
+    expect(find.text('카카오 로그인 · 연동 준비'), findsOneWidget);
+    expect(find.text('Google 로그인 · 연동 준비'), findsOneWidget);
+    expect(find.text('네이버 로그인 · 연동 준비'), findsOneWidget);
 
-    await tester.tap(find.text('카카오'));
+    await tester.tap(find.text('이메일로 회원가입 · 로그인'));
     await tester.pumpAndSettle();
-    expect(find.text('준비 중'), findsOneWidget);
-    expect(find.text('카카오 로그인은 준비 중입니다.'), findsOneWidget);
-    await tester.tap(find.text('확인'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Apple'));
-    await tester.pumpAndSettle();
-    expect(find.text('Apple 로그인은 준비 중입니다.'), findsOneWidget);
-    await tester.tap(find.text('확인'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Google'));
-    await tester.pumpAndSettle();
-    expect(find.text('설정 필요'), findsOneWidget);
-    expect(find.text('Google 로그인 설정 후 사용할 수 있어요.'), findsOneWidget);
-    await tester.tap(find.text('확인'));
-    await tester.pumpAndSettle();
+    expect(find.text('이메일 회원가입'), findsOneWidget);
+    expect(find.text('회원가입'), findsOneWidget);
+    expect(find.text('이메일 인증 없이 가입 후 바로 시작할 수 있어요.'), findsOneWidget);
+    expect(find.text('이미 계정이 있나요? 로그인'), findsOneWidget);
 
     state.dispose();
   });

@@ -36,10 +36,14 @@ dependencies:
   cupertino_icons: ^1.0.8
   intl: ^0.20.3
   hive_ce_flutter: ^2.3.4
-  google_sign_in: 7.2.0
-  google_sign_in_web: 1.1.3
-  http: 1.6.0
-  flutter_secure_storage: 10.3.1
+  supabase_flutter: 2.17.2
+  image_picker: ^1.2.3
+  # Pure-Dart codec keeps image validation/downsampling identical on mobile,
+  # web and Windows. Pin it because upload bytes are part of our data contract.
+  image: 4.9.1
+  app_links: 7.2.1
+  share_plus: 10.1.4
+  url_launcher: 6.3.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -50,17 +54,31 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/branding/setflow_launcher_icon.png"
+  adaptive_icon_background: "#101113"
+  adaptive_icon_foreground: "assets/branding/setflow_launcher_foreground.png"
+  adaptive_icon_foreground_inset: 0
+  remove_alpha_ios: true
+  min_sdk_android: 21
+
 flutter:
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/branding/setflow_mark.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -223,6 +223,7 @@ class AppTextField extends StatelessWidget {
     this.minLines,
     this.autofillHints,
     this.inputFormatters,
+    this.scrollPadding = const EdgeInsets.fromLTRB(20, 20, 20, 104),
     super.key,
   });
 
@@ -245,6 +246,7 @@ class AppTextField extends StatelessWidget {
   final int? minLines;
   final Iterable<String>? autofillHints;
   final List<TextInputFormatter>? inputFormatters;
+  final EdgeInsets scrollPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -263,6 +265,7 @@ class AppTextField extends StatelessWidget {
       minLines: minLines,
       autofillHints: autofillHints,
       inputFormatters: inputFormatters,
+      scrollPadding: scrollPadding,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       style: Theme.of(context).textTheme.bodyLarge,
       decoration: InputDecoration(
@@ -274,6 +277,66 @@ class AppTextField extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Keeps compact form sheets usable while the software keyboard is visible.
+///
+/// The keyboard inset is consumed here exactly once. The child becomes
+/// scrollable when the remaining viewport is shorter than its content.
+class KeyboardSafeBottomSheet extends StatelessWidget {
+  const KeyboardSafeBottomSheet({
+    required this.child,
+    this.padding = const EdgeInsets.fromLTRB(
+      SetflowSpacing.xl,
+      SetflowSpacing.xs,
+      SetflowSpacing.xl,
+      SetflowSpacing.xxl,
+    ),
+    this.maxHeightFactor = .94,
+    super.key,
+  }) : assert(maxHeightFactor > 0 && maxHeightFactor <= 1);
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double maxHeightFactor;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final availableHeight =
+        (media.size.height - media.viewInsets.bottom - media.padding.top)
+            .clamp(0.0, media.size.height)
+            .toDouble();
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: availableHeight * maxHeightFactor,
+          ),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: padding,
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// App-wide scroll behavior: dragging a vertical form/list dismisses the
+/// keyboard without changing desktop mouse or trackpad scrolling semantics.
+class SetflowScrollBehavior extends MaterialScrollBehavior {
+  const SetflowScrollBehavior();
+
+  @override
+  ScrollViewKeyboardDismissBehavior getKeyboardDismissBehavior(
+    BuildContext context,
+  ) => ScrollViewKeyboardDismissBehavior.onDrag;
 }
 
 class SectionTitle extends StatelessWidget {

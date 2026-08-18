@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
@@ -36,6 +37,21 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
   bool second = true;
   double slider = 72;
   final keywords = <String>['무조건', '기적', '100% 보장', '한 달 완성'];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.tool == BusinessTool.calendar) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        try {
+          await AppScope.of(context).refreshCoachingSchedules();
+        } catch (_) {
+          // The calendar renders the repository error and retry action.
+        }
+      });
+    }
+  }
 
   String get title => switch (widget.tool) {
     BusinessTool.profile =>
@@ -151,48 +167,414 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     ),
   ];
 
-  List<Widget> _calendar(BuildContext context) => [
-    const SetflowCard(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+  List<Widget> _calendar(BuildContext context) {
+    final state = AppScope.of(context);
+    final now = DateTime.now();
+    final startOfWeek = DateTime(
+      now.year,
+      now.month,
+      now.day - now.weekday + 1,
+    );
+    final schedules = state.coachingSchedules;
+    final canCreate = widget.role == UserRole.trainer;
+    final widgets = <Widget>[
+      SetflowCard(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(7, (index) {
+            final day = startOfWeek.add(Duration(days: index));
+            final count = schedules
+                .where((item) => DateUtils.isSameDay(item.date, day))
+                .length;
+            return _Day(label: '월화수목금토일'[index], count: count);
+          }),
+        ),
+      ),
+      const SizedBox(height: 18),
+      Row(
         children: [
-          _Day(label: '월', count: 3),
-          _Day(label: '화', count: 5),
-          _Day(label: '수', count: 2),
-          _Day(label: '목', count: 4),
-          _Day(label: '금', count: 3),
-          _Day(label: '토', count: 1),
+          const Expanded(child: SectionTitle('코칭 일정')),
+          IconButton(
+            key: const Key('coaching-schedule-refresh'),
+            tooltip: '일정 새로고침',
+            onPressed: state.coachingSchedulesLoading
+                ? null
+                : () => _refreshCalendar(context),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+          if (canCreate)
+            FilledButton.icon(
+              key: const Key('coaching-schedule-create'),
+              onPressed: state.isCreatingCoachingSchedule
+                  ? null
+                  : () => _showCreateScheduleDialog(context),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('일정 추가'),
+            ),
         ],
       ),
-    ),
-    const SizedBox(height: 22),
-    const SectionTitle('오늘 일정'),
-    const SizedBox(height: 8),
-    for (final item in const [
-      ('10:00', '박민지', '운동 기록 피드백'),
-      ('13:30', '이준호', '4주차 상담'),
-      ('17:00', '정민아', '루틴 수정'),
-    ])
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: CircleAvatar(
-          backgroundColor: SetflowColors.primary.withValues(alpha: .18),
-          child: Text(
-            item.$1.substring(0, 2),
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+      const SizedBox(height: 8),
+    ];
+
+    if (state.coachingSchedulesLoading && schedules.isEmpty) {
+      widgets.add(
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 48),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+      return widgets;
+    }
+    if (state.coachingSchedulesError != null && schedules.isEmpty) {
+      widgets.add(
+        _ScheduleMessageCard(
+          icon: Icons.cloud_off_outlined,
+          title: '일정을 불러오지 못했어요',
+          subtitle: '서버 연결을 확인하고 다시 시도해주세요.',
+          actionLabel: '다시 시도',
+          onAction: () => _refreshCalendar(context),
+        ),
+      );
+      return widgets;
+    }
+    if (schedules.isEmpty) {
+      widgets.add(
+        _ScheduleMessageCard(
+          icon: Icons.event_available_outlined,
+          title: '등록된 코칭 일정이 없어요',
+          subtitle: canCreate
+              ? '회원과의 다음 코칭 일정을 추가해보세요.'
+              : '트레이너가 등록한 일정이 여기에 표시됩니다.',
+          actionLabel: canCreate ? '첫 일정 추가' : null,
+          onAction: canCreate ? () => _showCreateScheduleDialog(context) : null,
+        ),
+      );
+      return widgets;
+    }
+
+    DateTime? previousDate;
+    for (final schedule in schedules) {
+      if (previousDate == null ||
+          !DateUtils.isSameDay(previousDate, schedule.date)) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: Text(
+              _scheduleDateLabel(schedule.date),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
           ),
-        ),
-        title: Text(
-          item.$2,
-          style: const TextStyle(fontWeight: FontWeight.w900),
-        ),
-        subtitle: Text('${item.$1} · ${item.$3}'),
-        trailing: Checkbox(
-          value: false,
-          onChanged: (_) => showMessage(context, '${item.$2} 일정을 완료했습니다.'),
+        );
+        previousDate = schedule.date;
+      }
+      widgets.add(_scheduleTile(context, schedule));
+    }
+    return widgets;
+  }
+
+  Widget _scheduleTile(
+    BuildContext context,
+    BusinessCoachingSchedule schedule,
+  ) {
+    final state = AppScope.of(context);
+    final profile = state.businessWorkspace?.profile;
+    final canManage =
+        widget.role == UserRole.trainer &&
+        profile is TrainerBusinessProfile &&
+        profile.id == schedule.trainerId;
+    final pending =
+        state.isUpdatingCoachingSchedule(schedule.id) ||
+        state.isDeletingCoachingSchedule(schedule.id);
+    final counterpart =
+        schedule.memberName ??
+        schedule.gymName ??
+        (widget.role == UserRole.trainer
+            ? '개인 일정'
+            : schedule.trainerName ?? '담당 트레이너');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SetflowCard(
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: schedule.isCompleted
+                  ? SetflowColors.green.withValues(alpha: .14)
+                  : SetflowColors.primary.withValues(alpha: .18),
+              child: Icon(
+                schedule.isCompleted
+                    ? Icons.check_rounded
+                    : Icons.schedule_rounded,
+                color: schedule.isCompleted
+                    ? SetflowColors.green
+                    : SetflowColors.ink,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    schedule.title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      decoration: schedule.isCompleted
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${_scheduleTime(schedule.startMinutes)}–${_scheduleTime(schedule.endMinutes)} · $counterpart',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: SetflowColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (pending)
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else if (canManage) ...[
+              Checkbox(
+                key: Key('coaching-schedule-complete-${schedule.id}'),
+                value: schedule.isCompleted,
+                onChanged: (value) =>
+                    _toggleSchedule(context, schedule, value ?? false),
+              ),
+              IconButton(
+                key: Key('coaching-schedule-delete-${schedule.id}'),
+                tooltip: '일정 삭제',
+                onPressed: () => _deleteSchedule(context, schedule),
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ] else
+              Icon(
+                schedule.isCompleted
+                    ? Icons.check_circle_rounded
+                    : Icons.lock_outline_rounded,
+                color: schedule.isCompleted
+                    ? SetflowColors.green
+                    : SetflowColors.secondaryText,
+                size: 20,
+              ),
+          ],
         ),
       ),
-  ];
+    );
+  }
+
+  Future<void> _refreshCalendar(BuildContext context) async {
+    try {
+      await AppScope.of(context).refreshCoachingSchedules();
+    } catch (_) {
+      if (context.mounted) showMessage(context, '일정을 불러오지 못했습니다.');
+    }
+  }
+
+  Future<void> _toggleSchedule(
+    BuildContext context,
+    BusinessCoachingSchedule schedule,
+    bool completed,
+  ) async {
+    try {
+      await AppScope.of(
+        context,
+      ).setCoachingScheduleCompleted(schedule.id, completed: completed);
+      if (context.mounted) {
+        showMessage(context, completed ? '일정을 완료했습니다.' : '완료를 취소했습니다.');
+      }
+    } catch (_) {
+      if (context.mounted) showMessage(context, '완료 상태를 저장하지 못했습니다.');
+    }
+  }
+
+  Future<void> _deleteSchedule(
+    BuildContext context,
+    BusinessCoachingSchedule schedule,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('일정 삭제'),
+        content: Text('‘${schedule.title}’ 일정을 삭제할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await AppScope.of(context).deleteCoachingSchedule(schedule.id);
+      if (context.mounted) showMessage(context, '일정을 삭제했습니다.');
+    } catch (_) {
+      if (context.mounted) showMessage(context, '일정을 삭제하지 못했습니다.');
+    }
+  }
+
+  Future<void> _showCreateScheduleDialog(BuildContext context) async {
+    final state = AppScope.of(context);
+    final titleController = TextEditingController();
+    var date = DateTime.now();
+    var start = const TimeOfDay(hour: 10, minute: 0);
+    var end = const TimeOfDay(hour: 11, minute: 0);
+    String? memberId;
+    final linkedMembers = state.businessMembers
+        .where((member) => member.userId != null)
+        .toList(growable: false);
+
+    final shouldCreate = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('코칭 일정 추가'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  key: const Key('coaching-schedule-title'),
+                  controller: titleController,
+                  autofocus: true,
+                  maxLength: 120,
+                  decoration: const InputDecoration(
+                    labelText: '일정 제목',
+                    hintText: '예: 하체 PT · 4주차',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String?>(
+                  key: const Key('coaching-schedule-member'),
+                  initialValue: memberId,
+                  decoration: const InputDecoration(labelText: '회원'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('개인 일정'),
+                    ),
+                    for (final member in linkedMembers)
+                      DropdownMenuItem<String?>(
+                        value: member.id,
+                        child: Text(member.name),
+                      ),
+                  ],
+                  onChanged: (value) => setDialogState(() => memberId = value),
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.event_outlined),
+                  title: const Text('날짜'),
+                  subtitle: Text(_scheduleDateLabel(date)),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: dialogContext,
+                      initialDate: date,
+                      firstDate: DateTime.now().subtract(
+                        const Duration(days: 365),
+                      ),
+                      lastDate: DateTime.now().add(const Duration(days: 730)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => date = picked);
+                    }
+                  },
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('시작'),
+                        subtitle: Text(start.format(dialogContext)),
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: dialogContext,
+                            initialTime: start,
+                          );
+                          if (picked != null) {
+                            setDialogState(() => start = picked);
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('종료'),
+                        subtitle: Text(end.format(dialogContext)),
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: dialogContext,
+                            initialTime: end,
+                          );
+                          if (picked != null) {
+                            setDialogState(() => end = picked);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              key: const Key('coaching-schedule-save'),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('저장'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final title = titleController.text;
+    // showDialog completes when pop starts, while the reverse transition can
+    // still rebuild the field for a few frames.
+    Future<void>.delayed(
+      const Duration(milliseconds: 300),
+      titleController.dispose,
+    );
+    if (shouldCreate != true || !context.mounted) return;
+    try {
+      await AppScope.of(context).createCoachingSchedule(
+        title: title,
+        date: date,
+        startMinutes: start.hour * 60 + start.minute,
+        endMinutes: end.hour * 60 + end.minute,
+        memberId: memberId,
+      );
+      if (context.mounted) showMessage(context, '코칭 일정을 추가했습니다.');
+    } catch (error) {
+      if (context.mounted) {
+        showMessage(context, switch (error) {
+          CoachingScheduleConflictException() => error.toString(),
+          ArgumentError() => error.message?.toString() ?? '입력값을 확인해주세요.',
+          _ => '일정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.',
+        });
+      }
+    }
+  }
 
   List<Widget> _refunds(BuildContext context) => [
     const Row(
@@ -710,6 +1092,60 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         ),
       ),
   ];
+}
+
+class _ScheduleMessageCard extends StatelessWidget {
+  const _ScheduleMessageCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => SetflowCard(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        children: [
+          Icon(icon, size: 34, color: SetflowColors.secondaryText),
+          const SizedBox(height: 10),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              color: SetflowColors.secondaryText,
+            ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 12),
+            TextButton(onPressed: onAction, child: Text(actionLabel!)),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+String _scheduleDateLabel(DateTime date) {
+  const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+  return '${date.month}월 ${date.day}일 (${weekdays[date.weekday - 1]})';
+}
+
+String _scheduleTime(int minutes) {
+  final hour = (minutes ~/ 60).toString().padLeft(2, '0');
+  final minute = (minutes % 60).toString().padLeft(2, '0');
+  return '$hour:$minute';
 }
 
 class _Day extends StatelessWidget {

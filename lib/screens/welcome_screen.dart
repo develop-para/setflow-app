@@ -2,13 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app_state.dart';
-import '../services/custom_auth_service.dart';
+import '../data/business_repository.dart';
+import '../services/supabase_auth_service.dart';
+import '../services/trainer_document_picker.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import '../widgets/google_auth_button.dart';
+import 'email_auth_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -136,7 +138,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       MaterialPageRoute(builder: (_) => BusinessSetupScreen(role: role)),
     );
     if (result == true && context.mounted) {
-      AppScope.of(context).chooseRole(role);
+      final state = AppScope.of(context);
+      if (!state.usesLiveBusinessData) state.chooseRole(role);
     }
   }
 }
@@ -216,7 +219,7 @@ class MemberSetupScreen extends StatefulWidget {
 
 class _MemberSetupScreenState extends State<MemberSetupScreen> {
   final bodyFormKey = GlobalKey<FormState>();
-  final authService = CustomAuthService.instance;
+  final authService = SupabaseAuthService.instance;
   String unit = 'kg';
   int step = 0;
   final goals = <String>{};
@@ -225,26 +228,23 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   final ageController = TextEditingController();
   String? gender;
   bool isSubmitting = false;
-  bool googleReady = false;
-  bool googleExchangeInProgress = false;
+  bool awaitingOAuth = false;
   String? submitError;
-  StreamSubscription<GoogleSignInAccount>? googleSubscription;
+  StreamSubscription<AuthState>? authSubscription;
 
   @override
   void initState() {
     super.initState();
-    googleSubscription = authService.googleAccounts.listen(
-      _completeGoogleSignIn,
-      onError: (Object error, StackTrace stackTrace) {
-        _handleGoogleError(error);
-      },
-    );
-    unawaited(_initializeGoogle());
+    authSubscription = authService.authChanges.listen((state) {
+      if (awaitingOAuth && state.event == AuthChangeEvent.signedIn) {
+        unawaited(_completeAuthentication());
+      }
+    });
   }
 
   @override
   void dispose() {
-    unawaited(googleSubscription?.cancel());
+    unawaited(authSubscription?.cancel());
     heightController.dispose();
     weightController.dispose();
     ageController.dispose();
@@ -383,6 +383,7 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
 
   Widget _goals(BuildContext context) {
     const options = [
+      ('🏋️', '근력 향상', '더 무거운 중량과 주요 리프트 향상'),
       ('🔥', '체중 감량', '체지방을 줄이고 다이어트'),
       ('💪', '근육 증가', '근골격량을 늘려 탄탄하게'),
       ('🏃', '체력 향상', '기초 체력과 지구력 증진'),
@@ -404,7 +405,7 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
           ),
           const SizedBox(height: 10),
           const Text(
-            '가장 중요한 목표를 최대 2개까지 선택해주세요.',
+            '가장 중요한 주 목표를 먼저, 최대 2개까지 선택해주세요.',
             style: TextStyle(color: SetflowColors.secondaryText),
           ),
           const SizedBox(height: 28),
@@ -438,6 +439,29 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
                               fontSize: 16,
                             ),
                           ),
+                          if (selected && goals.first == option.$2) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: SetflowColors.orange.withValues(
+                                  alpha: .14,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                '주 목표',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: SetflowColors.orange,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 3),
                           Text(
                             option.$3,
@@ -623,43 +647,75 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             const SizedBox(height: SetflowSpacing.lg),
           ],
           AppButton(
-            label: '카카오',
-            onPressed: () => _showComingSoon('카카오'),
+            label: '이메일로 회원가입 · 로그인',
+            icon: Icons.mail_outline_rounded,
+            onPressed: isSubmitting ? null : _openEmailAuth,
             isLoading: isSubmitting,
           ),
-          const SizedBox(height: 12),
-          GoogleAuthButton(
-            ready: authService.googleConfigured && googleReady,
-            onPressed: _startGoogleSignIn,
-            isLoading: isSubmitting,
+          const SizedBox(height: SetflowSpacing.xl),
+          Row(
+            children: [
+              Expanded(child: Divider(color: Theme.of(context).dividerColor)),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
+                child: Text(
+                  'SNS 계정으로 계속',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: SetflowColors.secondaryText,
+                  ),
+                ),
+              ),
+              Expanded(child: Divider(color: Theme.of(context).dividerColor)),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.lg),
           AppButton(
-            label: 'Apple',
-            onPressed: () => _showComingSoon('Apple'),
-            variant: AppButtonVariant.outlined,
-            isLoading: isSubmitting,
-          ),
-          const SizedBox(height: 18),
-          Center(
-            child: TextButton(
-              onPressed: isSubmitting ? null : () => _showComingSoon('이메일'),
-              child: const Text('이메일'),
-            ),
-          ),
-          const SizedBox(height: 22),
-          Divider(color: Theme.of(context).dividerColor),
-          const SizedBox(height: 16),
-          const Text(
-            '우선 기기에만 저장할까요?',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: SetflowColors.secondaryText),
-          ),
-          const SizedBox(height: 12),
-          AppButton(
-            label: '가입 없이 바로 시작',
-            onPressed: isSubmitting ? null : _finish,
+            label: authService.isConfigured(SocialLoginProvider.kakao)
+                ? '카카오로 계속'
+                : '카카오 로그인 · 연동 준비',
+            onPressed:
+                isSubmitting ||
+                    !authService.isConfigured(SocialLoginProvider.kakao)
+                ? null
+                : () => _startSocialLogin(SocialLoginProvider.kakao),
             variant: AppButtonVariant.tonal,
+            isLoading: isSubmitting && awaitingOAuth,
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            label: authService.isConfigured(SocialLoginProvider.google)
+                ? 'Google로 계속'
+                : 'Google 로그인 · 연동 준비',
+            onPressed:
+                isSubmitting ||
+                    !authService.isConfigured(SocialLoginProvider.google)
+                ? null
+                : () => _startSocialLogin(SocialLoginProvider.google),
+            variant: AppButtonVariant.outlined,
+            isLoading: isSubmitting && awaitingOAuth,
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            label: authService.isConfigured(SocialLoginProvider.naver)
+                ? '네이버로 계속'
+                : '네이버 로그인 · 연동 준비',
+            onPressed:
+                isSubmitting ||
+                    !authService.isConfigured(SocialLoginProvider.naver)
+                ? null
+                : () => _startSocialLogin(SocialLoginProvider.naver),
+            variant: AppButtonVariant.outlined,
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+          const Text(
+            '가입하면 기록이 Supabase에 암호화 전송되며, 본인 계정만 접근할 수 있어요.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.45,
+              color: SetflowColors.secondaryText,
+            ),
           ),
         ],
       ),
@@ -693,105 +749,79 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
     return null;
   }
 
-  Future<void> _initializeGoogle() async {
-    if (!authService.googleConfigured) return;
-    try {
-      await authService.initializeGoogle();
-      if (mounted) setState(() => googleReady = true);
-    } catch (error) {
-      _handleGoogleError(error);
-    }
+  Future<void> _openEmailAuth() async {
+    _saveMemberProfile();
+    final authenticated = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const EmailAuthScreen()));
+    if (authenticated == true && mounted) await _completeAuthentication();
   }
 
-  Future<void> _startGoogleSignIn() async {
+  Future<void> _startSocialLogin(SocialLoginProvider provider) async {
     if (isSubmitting) return;
-    if (!authService.googleConfigured) {
-      await _showGoogleSetup();
-      return;
-    }
-    try {
-      await authService.beginGoogleSignIn();
-    } on GoogleSignInException catch (error) {
-      if (error.code == GoogleSignInExceptionCode.canceled ||
-          error.code == GoogleSignInExceptionCode.interrupted) {
-        return;
-      }
-      _handleGoogleError(error);
-    } catch (error) {
-      _handleGoogleError(error);
-    }
-  }
-
-  Future<void> _completeGoogleSignIn(GoogleSignInAccount account) async {
-    if (googleExchangeInProgress || !mounted) return;
-    googleExchangeInProgress = true;
+    _saveMemberProfile();
     setState(() {
       isSubmitting = true;
+      awaitingOAuth = true;
       submitError = null;
     });
     try {
-      await authService.signInWithGoogle(account);
-      if (!mounted) return;
-      AppSnackbar.success(context, '로그인됐어요.');
-      Navigator.of(context).pop(true);
+      final launched = await authService.signInWithSocial(provider);
+      if (!launched) {
+        throw const SupabaseAuthUiException('로그인 화면을 열지 못했어요. 다시 시도해주세요.');
+      }
     } catch (error) {
-      if (!mounted) return;
-      _handleGoogleError(error);
-    } finally {
-      googleExchangeInProgress = false;
-      if (mounted) setState(() => isSubmitting = false);
+      if (mounted) {
+        setState(() {
+          isSubmitting = false;
+          awaitingOAuth = false;
+          submitError = authService.messageFor(error);
+        });
+      }
     }
   }
 
-  void _handleGoogleError(Object error) {
-    if (!mounted) return;
-    final message = error is CustomAuthException
-        ? error.message
-        : 'Google 로그인에 실패했어요. 다시 시도해주세요.';
+  Future<void> _completeAuthentication() async {
+    if (!mounted || authService.currentUser == null) return;
     setState(() {
-      isSubmitting = false;
-      submitError = message;
+      isSubmitting = true;
+      awaitingOAuth = false;
+      submitError = null;
     });
+    try {
+      await AppScope.of(context).syncAfterAuthentication();
+      if (!mounted) return;
+      AppSnackbar.success(context, '로그인됐어요. 기록을 안전하게 동기화합니다.');
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          isSubmitting = false;
+          submitError = '로그인은 완료됐지만 기록 동기화에 실패했어요. 다시 시도해주세요.';
+        });
+      }
+    }
   }
 
-  Future<void> _showGoogleSetup() {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('설정 필요'),
-        content: const Text('Google 로그인 설정 후 사용할 수 있어요.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
+  void _saveMemberProfile() {
+    AppScope.of(context).setMemberProfile(
+      goals: goals,
+      heightCm: double.tryParse(heightController.text.trim()),
+      weight: double.tryParse(weightController.text.trim()),
+      age: int.tryParse(ageController.text.trim()),
+      gender: gender,
     );
   }
-
-  Future<void> _showComingSoon(String provider) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('준비 중'),
-        content: Text('$provider 로그인은 준비 중입니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _finish() => Navigator.of(context).pop(true);
 }
 
 class BusinessSetupScreen extends StatefulWidget {
-  const BusinessSetupScreen({required this.role, super.key});
+  const BusinessSetupScreen({
+    required this.role,
+    this.trainerDocumentPicker,
+    super.key,
+  });
   final UserRole role;
+  final TrainerDocumentPicker? trainerDocumentPicker;
 
   @override
   State<BusinessSetupScreen> createState() => _BusinessSetupScreenState();
@@ -806,12 +836,18 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   final nameController = TextEditingController();
   final numberController = TextEditingController();
   _TrainerStep trainerStep = _TrainerStep.register;
-  final uploadedDocs = <int>{};
+  final uploadedDocs = <int, PickedTrainerDocument>{};
+  TrainerApplicationDocumentType certificationDocumentType =
+      TrainerApplicationDocumentType.nationalCertificate;
   _GymStep gymStep = _GymStep.register;
   bool gymDocUploaded = false;
   bool gymHometaxVerified = false;
   bool isSubmitting = false;
+  bool editingRejectedApplication = false;
   String? submitError;
+
+  TrainerDocumentPicker get _trainerDocumentPicker =>
+      widget.trainerDocumentPicker ?? ImagePickerTrainerDocumentPicker();
 
   @override
   void dispose() {
@@ -822,10 +858,87 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    if (state.usesLiveBusinessData && !editingRejectedApplication) {
+      final application = widget.role == UserRole.trainer
+          ? state.businessAccess?.trainerApplication
+          : state.businessAccess?.gymApplication;
+      if (application?.status == BusinessApplicationStatus.pending ||
+          application?.status == BusinessApplicationStatus.rejected) {
+        return _buildExistingApplication(application!);
+      }
+    }
     if (widget.role != UserRole.trainer) {
       return _buildGymWizard(context);
     }
     return _buildTrainerWizard(context);
+  }
+
+  Widget _buildExistingApplication(BusinessApplication application) {
+    final pending = application.status == BusinessApplicationStatus.pending;
+    final accent = pending ? SetflowColors.orange : SetflowColors.red;
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: '닫기',
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: Text(widget.role == UserRole.trainer ? '트레이너 등록' : '센터 등록'),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: SetflowInsets.pageForm,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 44,
+                backgroundColor: accent.withValues(alpha: .14),
+                child: Icon(
+                  pending
+                      ? Icons.hourglass_top_rounded
+                      : Icons.error_outline_rounded,
+                  size: 42,
+                  color: accent,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.xxl),
+              Text(
+                pending ? '관리자 심사 중이에요' : '신청이 반려됐어요',
+                style: Theme.of(context).textTheme.headlineMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              Text(
+                pending
+                    ? '접수된 신청서를 확인하고 있습니다. 같은 신청을 다시 제출하지 않아도 돼요.'
+                    : application.rejectReason ?? '등록 정보를 보완한 뒤 다시 신청해주세요.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.xxl),
+              if (pending)
+                AppButton(
+                  label: '확인',
+                  onPressed: () => Navigator.maybePop(context),
+                )
+              else
+                AppButton(
+                  label: '정보 보완 후 다시 신청',
+                  icon: Icons.edit_outlined,
+                  onPressed: () {
+                    setState(() => editingRejectedApplication = true);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildGymWizard(BuildContext context) {
@@ -869,6 +982,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _gymRegister(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     final filled =
         nameController.text.trim().isNotEmpty &&
         numberController.text.trim().isNotEmpty;
@@ -923,12 +1037,18 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
             const SizedBox(height: 30),
             PrimaryButton(
-              label: '다음',
-              icon: Icons.arrow_forward_rounded,
+              label: live ? '신청 내용 확인' : '다음',
+              icon: live
+                  ? Icons.fact_check_outlined
+                  : Icons.arrow_forward_rounded,
               onPressed: filled
                   ? () {
                       if (businessFormKey.currentState?.validate() ?? false) {
-                        setState(() => gymStep = _GymStep.docs);
+                        setState(
+                          () => gymStep = live
+                              ? _GymStep.complete
+                              : _GymStep.docs,
+                        );
                       }
                     }
                   : null,
@@ -940,12 +1060,21 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _gymDocs(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     return SingleChildScrollView(
       key: const ValueKey('gymDocs'),
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (live) ...[
+            const _OnboardingAlert(
+              message: '사업자 서류 업로드는 서버 연동 준비 중이에요.',
+              color: SetflowColors.orange,
+              icon: Icons.cloud_off_outlined,
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
           const Text(
             '사업자등록증을\n제출해주세요',
             style: TextStyle(
@@ -961,7 +1090,9 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           ),
           const SizedBox(height: 28),
           SetflowCard(
-            onTap: () => setState(() => gymDocUploaded = !gymDocUploaded),
+            onTap: live
+                ? null
+                : () => setState(() => gymDocUploaded = !gymDocUploaded),
             child: Row(
               children: [
                 Icon(
@@ -998,18 +1129,20 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               color: SetflowColors.soft,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.verified_user_outlined,
                   size: 20,
                   color: SetflowColors.green,
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 제출 상태를 전환해보세요.',
-                    style: TextStyle(
+                    live
+                        ? '실제 파일 업로드가 연결되기 전에는 제출 완료 상태를 만들지 않아요.'
+                        : '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 제출 상태를 전환해보세요.',
+                    style: const TextStyle(
                       fontSize: 12,
                       height: 1.45,
                       color: SetflowColors.secondaryText,
@@ -1029,10 +1162,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             const SizedBox(height: SetflowSpacing.lg),
           ],
           AppButton(
-            label: '서류 제출하기',
+            label: live ? '서버 연동 준비 중' : '서류 제출하기',
             icon: Icons.arrow_forward_rounded,
             isLoading: isSubmitting,
-            onPressed: gymDocUploaded ? _submitGymDocuments : null,
+            onPressed: !live && gymDocUploaded ? _submitGymDocuments : null,
           ),
         ],
       ),
@@ -1040,6 +1173,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _gymHometax(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     final bizNumber = numberController.text.trim();
     return SingleChildScrollView(
       key: const ValueKey('gymHometax'),
@@ -1065,8 +1199,8 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
-          const Text(
-            '국세청 홈택스와 연동하여 사업자 상태를 실시간으로 확인해요.',
+          Text(
+            live ? '국세청 사업자 상태 조회 서버 연동을 준비 중이에요.' : '국세청 홈택스 인증 흐름을 데모로 확인해요.',
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
           const SizedBox(height: 28),
@@ -1108,18 +1242,20 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 color: SetflowColors.soft,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline_rounded,
                     size: 20,
                     color: SetflowColors.purple,
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '안전한 코칭 환경을 위해 실제 영업 중인 사업자만 인증됩니다. 데모에서는 버튼을 누르면 바로 인증됩니다.',
-                      style: TextStyle(
+                      live
+                          ? '실제 사업자 조회가 연결되기 전에는 인증 완료 상태를 만들지 않아요.'
+                          : '안전한 코칭 환경을 위해 실제 영업 중인 사업자만 인증됩니다. 데모에서는 버튼을 누르면 바로 인증됩니다.',
+                      style: const TextStyle(
                         fontSize: 12,
                         height: 1.45,
                         color: SetflowColors.secondaryText,
@@ -1164,10 +1300,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           const SizedBox(height: 30),
           if (!gymHometaxVerified)
             AppButton(
-              label: '홈택스 인증하기',
+              label: live ? '서버 연동 준비 중' : '홈택스 인증하기',
               icon: Icons.fact_check_rounded,
               isLoading: isSubmitting,
-              onPressed: bizNumber.isEmpty ? null : _verifyHometax,
+              onPressed: live || bizNumber.isEmpty ? null : _verifyHometax,
             )
           else
             PrimaryButton(
@@ -1181,6 +1317,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _gymComplete(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     return SingleChildScrollView(
       key: const ValueKey('gymComplete'),
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
@@ -1200,21 +1337,24 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          const Text(
-            '가입 심사 완료!',
+          Text(
+            live ? '센터 신청 준비 완료' : '가입 심사 완료!',
             style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
-          const Text(
-            '센터 인증이 성공적으로 완료되었습니다.\n지금 바로 회원과 트레이너 관리를 시작해보세요!',
+          Text(
+            live
+                ? '신청서를 제출하면 관리자가 사업자 정보를 확인합니다.\n승인 후 센터 운영 화면이 자동으로 열려요.'
+                : '센터 인증이 성공적으로 완료되었습니다.\n지금 바로 회원과 트레이너 관리를 시작해보세요!',
             textAlign: TextAlign.center,
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
           const SizedBox(height: 32),
           AppButton(
-            label: '운영 시작',
-            icon: Icons.rocket_launch_rounded,
-            onPressed: () => _completeBusiness('센터 등록이 완료됐어요.'),
+            label: live ? '센터 신청 제출' : '운영 시작',
+            icon: live ? Icons.send_rounded : Icons.rocket_launch_rounded,
+            onPressed: () =>
+                _completeBusiness(live ? '센터 인증 신청이 접수됐어요.' : '센터 등록이 완료됐어요.'),
           ),
         ],
       ),
@@ -1263,6 +1403,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _trainerRegister(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     final filled =
         nameController.text.trim().isNotEmpty &&
         numberController.text.trim().isNotEmpty;
@@ -1314,11 +1455,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               validator: _trainerNumberValidator,
             ),
             const SizedBox(height: 30),
-            PrimaryButton(
-              label: '다음',
+            AppButton(
+              label: live ? '다음 · 서류 제출' : '다음',
               icon: Icons.arrow_forward_rounded,
+              isLoading: isSubmitting,
               onPressed: filled
-                  ? () {
+                  ? () async {
                       if (businessFormKey.currentState?.validate() ?? false) {
                         setState(() => trainerStep = _TrainerStep.docs);
                       }
@@ -1332,6 +1474,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _trainerDocs(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     const docLabels = ['자격증 서류 (국가/민간)', '신분증 사본 (필수)'];
     return SingleChildScrollView(
       key: const ValueKey('trainerDocs'),
@@ -1353,18 +1496,49 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
           const SizedBox(height: 28),
+          if (live) ...[
+            DropdownButtonFormField<TrainerApplicationDocumentType>(
+              key: const Key('trainer-certificate-type'),
+              initialValue: certificationDocumentType,
+              decoration: const InputDecoration(labelText: '자격증 구분'),
+              items: const [
+                DropdownMenuItem(
+                  value: TrainerApplicationDocumentType.nationalCertificate,
+                  child: Text('국가 자격증'),
+                ),
+                DropdownMenuItem(
+                  value: TrainerApplicationDocumentType.privateCertificate,
+                  child: Text('민간 자격증'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => certificationDocumentType = value);
+                }
+              },
+            ),
+            const SizedBox(height: 14),
+          ],
           ...List.generate(docLabels.length, (index) {
-            final uploaded = uploadedDocs.contains(index);
+            final uploaded = uploadedDocs.containsKey(index);
+            final document = uploadedDocs[index];
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: SetflowCard(
-                onTap: () => setState(() {
-                  if (uploaded) {
-                    uploadedDocs.remove(index);
-                  } else {
-                    uploadedDocs.add(index);
-                  }
-                }),
+                key: Key('trainer-document-$index'),
+                onTap: live
+                    ? () => _pickTrainerDocument(index)
+                    : () => setState(() {
+                        if (uploaded) {
+                          uploadedDocs.remove(index);
+                        } else {
+                          uploadedDocs[index] = PickedTrainerDocument(
+                            bytes: Uint8List.fromList(const [1]),
+                            fileName: 'demo-document.jpg',
+                            contentType: 'image/jpeg',
+                          );
+                        }
+                      }),
                 child: Row(
                   children: [
                     Icon(
@@ -1375,9 +1549,24 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        docLabels[index],
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            docLabels[index],
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          if (document != null)
+                            Text(
+                              document.fileName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: SetflowColors.secondaryText,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     Text(
@@ -1400,18 +1589,20 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               color: SetflowColors.soft,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.verified_user_outlined,
                   size: 20,
                   color: SetflowColors.green,
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 서류 제출 상태를 전환해보세요.',
-                    style: TextStyle(
+                    live
+                        ? '카드를 눌러 카메라로 촬영하거나 갤러리 이미지를 선택하세요. 파일은 비공개 저장소에 업로드됩니다.'
+                        : '데모에서는 카드를 눌러 서류 제출 상태를 전환할 수 있어요.',
+                    style: const TextStyle(
                       fontSize: 12,
                       height: 1.45,
                       color: SetflowColors.secondaryText,
@@ -1444,6 +1635,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Widget _trainerPending(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     return SingleChildScrollView(
       key: const ValueKey('trainerPending'),
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -1486,54 +1678,87 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               color: SetflowColors.soft,
               borderRadius: BorderRadius.circular(18),
             ),
-            child: Column(
-              children: [
-                const Text(
-                  '데모 시뮬레이션',
-                  style: TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  '심사 결과를 직접 선택해보세요.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: SetflowColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppButton(
-                        label: '심사 승인',
-                        icon: Icons.check_circle_outline,
-                        onPressed: () {
-                          AppSnackbar.success(context, '트레이너 심사가 승인됐어요.');
-                          setState(() => trainerStep = _TrainerStep.complete);
-                        },
+            child: live
+                ? const Column(
+                    children: [
+                      Icon(Icons.admin_panel_settings_outlined),
+                      SizedBox(height: 8),
+                      Text(
+                        '승인 권한은 관리자에게만 있어요',
+                        style: TextStyle(fontWeight: FontWeight.w900),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () =>
-                            setState(() => trainerStep = _TrainerStep.rejected),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 54),
-                          foregroundColor: SetflowColors.red,
-                          side: const BorderSide(color: SetflowColors.red),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
+                      SizedBox(height: 4),
+                      Text(
+                        '심사 결과는 계정에 자동 반영됩니다.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: SetflowColors.secondaryText,
                         ),
-                        child: const Text('심사 반려'),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      const Text(
+                        '데모 시뮬레이션',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '심사 결과를 직접 선택해보세요.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: SetflowColors.secondaryText,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: AppButton(
+                              label: '심사 승인',
+                              icon: Icons.check_circle_outline,
+                              onPressed: () {
+                                AppSnackbar.success(context, '트레이너 심사가 승인됐어요.');
+                                setState(
+                                  () => trainerStep = _TrainerStep.complete,
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => setState(
+                                () => trainerStep = _TrainerStep.rejected,
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 54),
+                                foregroundColor: SetflowColors.red,
+                                side: const BorderSide(
+                                  color: SetflowColors.red,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              child: const Text('심사 반려'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
           ),
+          if (live) ...[
+            const SizedBox(height: SetflowSpacing.xl),
+            AppButton(
+              label: '확인',
+              icon: Icons.check_rounded,
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
         ],
       ),
     );
@@ -1646,7 +1871,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
 
   void _goBusinessBack() {
     submitError = null;
+    final live = AppScope.of(context).usesLiveBusinessData;
     if (widget.role == UserRole.trainer) {
+      if (live && trainerStep == _TrainerStep.pending) {
+        Navigator.of(context).pop(true);
+        return;
+      }
       if (trainerStep == _TrainerStep.register) {
         Navigator.of(context).pop();
         return;
@@ -1670,7 +1900,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       gymStep = switch (gymStep) {
         _GymStep.docs => _GymStep.register,
         _GymStep.hometax => _GymStep.docs,
-        _GymStep.complete => _GymStep.hometax,
+        _GymStep.complete => live ? _GymStep.register : _GymStep.hometax,
         _GymStep.register => _GymStep.register,
       };
     });
@@ -1698,6 +1928,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Future<void> _submitGymDocuments() async {
+    if (AppScope.of(context).usesLiveBusinessData) {
+      setState(() {
+        submitError = '사업자 서류 업로드는 서버 연동 준비 중이에요.';
+      });
+      return;
+    }
     await _runSubmission(
       successMessage: '사업자등록증이 안전하게 제출됐어요.',
       onSuccess: () => gymStep = _GymStep.hometax,
@@ -1705,6 +1941,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Future<void> _verifyHometax() async {
+    if (AppScope.of(context).usesLiveBusinessData) {
+      setState(() {
+        submitError = '홈택스 사업자 조회는 서버 연동 준비 중이에요.';
+      });
+      return;
+    }
     await _runSubmission(
       successMessage: '홈택스 사업자 인증이 완료됐어요.',
       delay: const Duration(milliseconds: 850),
@@ -1712,7 +1954,110 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     );
   }
 
+  Future<void> _pickTrainerDocument(int index) async {
+    final source = await showModalBottomSheet<TrainerDocumentSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              key: const Key('trainer-document-camera'),
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('카메라로 촬영'),
+              onTap: () =>
+                  Navigator.pop(sheetContext, TrainerDocumentSource.camera),
+            ),
+            ListTile(
+              key: const Key('trainer-document-gallery'),
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('갤러리에서 선택'),
+              onTap: () =>
+                  Navigator.pop(sheetContext, TrainerDocumentSource.gallery),
+            ),
+            if (uploadedDocs.containsKey(index))
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: SetflowColors.red,
+                ),
+                title: const Text('선택한 파일 제거'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  setState(() => uploadedDocs.remove(index));
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    try {
+      final document = await _trainerDocumentPicker.pick(source);
+      if (document == null || !mounted) return;
+      setState(() {
+        uploadedDocs[index] = document;
+        submitError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        submitError = error is FormatException
+            ? error.message.toString()
+            : '이미지를 불러오지 못했어요. 다시 시도해주세요.';
+      });
+    }
+  }
+
+  List<TrainerApplicationDocumentInput> _trainerDocumentInputs() {
+    final certification = uploadedDocs[0];
+    final identity = uploadedDocs[1];
+    if (certification == null || identity == null) {
+      throw StateError('자격증과 신분증 이미지를 모두 선택해주세요.');
+    }
+    return [
+      TrainerApplicationDocumentInput(
+        type: certificationDocumentType,
+        bytes: certification.bytes,
+        fileName: certification.fileName,
+        contentType: certification.contentType,
+      ),
+      TrainerApplicationDocumentInput(
+        type: TrainerApplicationDocumentType.identity,
+        bytes: identity.bytes,
+        fileName: identity.fileName,
+        contentType: identity.contentType,
+      ),
+    ];
+  }
+
   Future<void> _submitTrainerDocuments() async {
+    final state = AppScope.of(context);
+    if (state.usesLiveBusinessData) {
+      if (isSubmitting) return;
+      setState(() {
+        isSubmitting = true;
+        submitError = null;
+      });
+      try {
+        if (!await _ensureBusinessAuthentication()) return;
+        await state.submitTrainerBusinessApplication(
+          displayName: nameController.text.trim(),
+          credentialNumber: numberController.text.trim(),
+          documents: _trainerDocumentInputs(),
+        );
+        if (!mounted) return;
+        setState(() => trainerStep = _TrainerStep.pending);
+        AppSnackbar.success(context, '트레이너 인증 신청이 접수됐어요.');
+      } catch (_) {
+        if (mounted) {
+          setState(() => submitError = '신청을 제출하지 못했어요. 잠시 후 다시 시도해주세요.');
+        }
+      } finally {
+        if (mounted) setState(() => isSubmitting = false);
+      }
+      return;
+    }
     await _runSubmission(
       successMessage: '인증 서류가 제출됐어요.',
       onSuccess: () => trainerStep = _TrainerStep.pending,
@@ -1742,15 +2087,61 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     }
   }
 
-  void _completeBusiness(String message) {
+  Future<void> _completeBusiness(String message) async {
+    if (!await _ensureBusinessAuthentication()) return;
+    if (!mounted) return;
+    final state = AppScope.of(context);
+    if (state.usesLiveBusinessData) {
+      try {
+        if (widget.role == UserRole.gym) {
+          await state.submitGymBusinessApplication(
+            gymName: nameController.text.trim(),
+            businessNumber: numberController.text.trim(),
+          );
+        } else {
+          await state.submitTrainerBusinessApplication(
+            displayName: nameController.text.trim(),
+            credentialNumber: numberController.text.trim(),
+            documents: _trainerDocumentInputs(),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          AppSnackbar.error(context, '인증 신청을 제출하지 못했어요. 입력 내용을 확인해주세요.');
+        }
+        return;
+      }
+      if (!mounted) return;
+      AppSnackbar.success(context, message);
+      Navigator.of(context).pop(true);
+      return;
+    }
     if (widget.role == UserRole.gym) {
-      AppScope.of(context).completeGymOnboarding(
+      state.completeGymOnboarding(
         displayName: nameController.text.trim(),
         businessNumber: numberController.text.trim(),
       );
     }
     AppSnackbar.success(context, message);
     Navigator.of(context).pop(true);
+  }
+
+  Future<bool> _ensureBusinessAuthentication() async {
+    if (SupabaseAuthService.instance.currentUser == null) {
+      final authenticated = await Navigator.of(
+        context,
+      ).push<bool>(MaterialPageRoute(builder: (_) => const EmailAuthScreen()));
+      if (authenticated != true || !mounted) return false;
+      try {
+        await AppScope.of(context).syncAfterAuthentication();
+      } catch (_) {
+        if (mounted) {
+          AppSnackbar.error(context, '로그인은 완료됐지만 기록 동기화에 실패했어요.');
+        }
+        return false;
+      }
+    }
+    return mounted;
   }
 
   String _formatBusinessNumber(String value) {

@@ -46,9 +46,9 @@ class AdminSystemScreen extends StatelessWidget {
         itemBuilder: (context, index) {
           final item = _items[index];
           return SetflowCard(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => _screenFor(index)),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => _screenFor(index))),
             child: Row(
               children: [
                 Container(
@@ -197,8 +197,7 @@ class _AdminSystemRankingScreenState extends State<AdminSystemRankingScreen> {
                   label: '코칭결제 (W_purchase)',
                   value: _purchaseWeight,
                   max: 200,
-                  onChanged: (value) =>
-                      setState(() => _purchaseWeight = value),
+                  onChanged: (value) => setState(() => _purchaseWeight = value),
                 ),
                 const SizedBox(height: 16),
                 _WeightSlider(
@@ -399,8 +398,7 @@ class AdminSystemPlansScreen extends StatefulWidget {
   const AdminSystemPlansScreen({super.key});
 
   @override
-  State<AdminSystemPlansScreen> createState() =>
-      _AdminSystemPlansScreenState();
+  State<AdminSystemPlansScreen> createState() => _AdminSystemPlansScreenState();
 }
 
 class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
@@ -517,6 +515,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text(plan == null ? '새 플랜 추가' : '플랜 편집'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -549,9 +548,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
         ],
       ),
     );
-    if (saved == true &&
-        nameController.text.trim().isNotEmpty &&
-        mounted) {
+    if (saved == true && nameController.text.trim().isNotEmpty && mounted) {
       final entry = (
         id: plan?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         name: nameController.text.trim(),
@@ -568,7 +565,10 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
           if (index != -1) _plans[index] = entry;
         }
       });
-      showMessage(context, plan == null ? '플랜을 추가했습니다. (데모)' : '플랜을 수정했습니다. (데모)');
+      showMessage(
+        context,
+        plan == null ? '플랜을 추가했습니다. (데모)' : '플랜을 수정했습니다. (데모)',
+      );
     }
     nameController.dispose();
     priceController.dispose();
@@ -585,8 +585,7 @@ class AdminSystemKeywordsScreen extends StatefulWidget {
       _AdminSystemKeywordsScreenState();
 }
 
-class _AdminSystemKeywordsScreenState
-    extends State<AdminSystemKeywordsScreen> {
+class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
   final _controller = TextEditingController();
   final _keywords = ['불법약물', '스테로이드', '텔레그램', '대리결제', '카톡상담'];
 

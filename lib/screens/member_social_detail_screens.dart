@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../app_state.dart';
+import '../data/business_repository.dart';
+import '../data/community_repository.dart';
+import '../services/post_media_picker.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
@@ -37,13 +42,7 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        SetflowSpacing.xl,
-        SetflowSpacing.xs,
-        SetflowSpacing.xl,
-        MediaQuery.viewInsetsOf(context).bottom + SetflowSpacing.xxl,
-      ),
+    return KeyboardSafeBottomSheet(
       child: Form(
         key: formKey,
         child: Column(
@@ -92,7 +91,9 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
 }
 
 class SocialPostComposerScreen extends StatefulWidget {
-  const SocialPostComposerScreen({super.key});
+  const SocialPostComposerScreen({this.mediaPicker, super.key});
+
+  final PostMediaPicker? mediaPicker;
 
   @override
   State<SocialPostComposerScreen> createState() =>
@@ -102,11 +103,20 @@ class SocialPostComposerScreen extends StatefulWidget {
 class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
   final formKey = GlobalKey<FormState>();
   final contentController = TextEditingController();
-  bool hasImage = false;
+  late final PostMediaPicker mediaPicker;
+  CommunityPostMedia? selectedMedia;
   bool includeWorkout = true;
   bool isSubmitting = false;
+  bool isSelectingMedia = false;
   String visualKey = 'strength';
-  final overlays = <String>{'날짜', '시간', '위치', '완료 루틴'};
+  final overlays = <String>{'날짜', '시간', '완료 루틴'};
+
+  @override
+  void initState() {
+    super.initState();
+    mediaPicker = widget.mediaPicker ?? ImagePickerPostMediaPicker();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _recoverLostMedia());
+  }
 
   @override
   void dispose() {
@@ -117,21 +127,96 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
   Future<void> _submit() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
     setState(() => isSubmitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    if (!mounted) return;
-    AppScope.of(context).addCommunityPost(
-      content: contentController.text.trim().isEmpty
-          ? '오늘 운동 기록을 공유했습니다.'
-          : contentController.text.trim(),
-      includeWorkout: includeWorkout,
-      visualKey: visualKey,
+    try {
+      await AppScope.of(context).addCommunityPost(
+        content: contentController.text.trim().isEmpty
+            ? '오늘 운동 기록을 공유했습니다.'
+            : contentController.text.trim(),
+        includeWorkout: includeWorkout,
+        visualKey: visualKey,
+        media: selectedMedia,
+        activeOverlays: overlays.toList(growable: false),
+      );
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => isSubmitting = false);
+      AppSnackbar.error(context, _communityErrorMessage(error));
+    }
+  }
+
+  Future<void> _recoverLostMedia() async {
+    try {
+      final media = await mediaPicker.recoverLostImage();
+      if (media != null && mounted) setState(() => selectedMedia = media);
+    } catch (error) {
+      if (mounted) AppSnackbar.error(context, _mediaErrorMessage(error));
+    }
+  }
+
+  Future<void> _pickMedia(PostMediaSource source) async {
+    if (isSelectingMedia || isSubmitting) return;
+    setState(() => isSelectingMedia = true);
+    try {
+      final media = await mediaPicker.pick(source);
+      if (media != null && mounted) setState(() => selectedMedia = media);
+    } catch (error) {
+      if (mounted) AppSnackbar.error(context, _mediaErrorMessage(error));
+    } finally {
+      if (mounted) setState(() => isSelectingMedia = false);
+    }
+  }
+
+  Future<void> _showMediaOptions() async {
+    final source = await showModalBottomSheet<PostMediaSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text(
+                '사진 변경',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('카메라로 촬영'),
+              onTap: () => Navigator.pop(sheetContext, PostMediaSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('갤러리에서 선택'),
+              onTap: () => Navigator.pop(sheetContext, PostMediaSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline,
+                color: SetflowColors.red,
+              ),
+              title: const Text(
+                '사진 삭제',
+                style: TextStyle(color: SetflowColors.red),
+              ),
+              onTap: () {
+                setState(() => selectedMedia = null);
+                Navigator.pop(sheetContext);
+              },
+            ),
+          ],
+        ),
+      ),
     );
-    HapticFeedback.lightImpact();
-    Navigator.pop(context, true);
+    if (source != null) await _pickMedia(source);
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('새 글 쓰기'),
@@ -148,12 +233,13 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
           children: [
             _WorkoutVisualPreview(
-              hasImage: hasImage,
+              media: selectedMedia,
+              isLoading: isSelectingMedia,
               visualKey: visualKey,
               overlays: overlays,
-              onCamera: () => setState(() => hasImage = true),
-              onGallery: () => setState(() => hasImage = true),
-              onChange: () => setState(() => hasImage = false),
+              onCamera: () => _pickMedia(PostMediaSource.camera),
+              onGallery: () => _pickMedia(PostMediaSource.gallery),
+              onChange: _showMediaOptions,
             ),
             const SizedBox(height: SetflowSpacing.xl),
             const SectionTitle('사진 스타일'),
@@ -186,7 +272,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
             Wrap(
               spacing: SetflowSpacing.sm,
               runSpacing: SetflowSpacing.sm,
-              children: ['날짜', '시간', '위치', '완료 루틴']
+              children: ['날짜', '시간', '완료 루틴']
                   .map(
                     (item) => FilterChip(
                       label: Text(item),
@@ -208,7 +294,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
               minLines: 4,
               maxLines: 6,
               validator: (value) {
-                if ((value?.trim().isEmpty ?? true) && !hasImage) {
+                if ((value?.trim().isEmpty ?? true) && selectedMedia == null) {
                   return '사진을 추가하거나 운동 기록을 입력해주세요.';
                 }
                 if ((value?.trim().length ?? 0) > 500) {
@@ -224,7 +310,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
                 '오늘 운동 기록 첨부',
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
-              subtitle: const Text('하체 · 12세트 · 4.2t'),
+              subtitle: Text(state.todayWorkoutMetric),
               value: includeWorkout,
               onChanged: (value) => setState(() => includeWorkout = value),
             ),
@@ -274,9 +360,30 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
   }
 }
 
+String _mediaErrorMessage(Object error) {
+  if (error is FormatException) return error.message.toString();
+  if (error is PlatformException) {
+    final code = error.code.toLowerCase();
+    if (code.contains('camera_access_denied')) {
+      return '카메라 권한이 필요해요. 기기 설정에서 Setflow의 카메라 접근을 허용해주세요.';
+    }
+    if (code.contains('photo_access_denied')) {
+      return '사진 접근 권한이 필요해요. 기기 설정에서 사진 접근을 허용해주세요.';
+    }
+  }
+  return '사진을 불러오지 못했어요. 잠시 후 다시 시도해주세요.';
+}
+
+String _communityErrorMessage(Object error) {
+  if (error is CommunityValidationException) return error.message;
+  if (error is CommunityAuthenticationRequired) return error.toString();
+  return '게시물을 등록하지 못했어요. 네트워크를 확인한 뒤 다시 시도해주세요.';
+}
+
 class _WorkoutVisualPreview extends StatelessWidget {
   const _WorkoutVisualPreview({
-    required this.hasImage,
+    required this.media,
+    required this.isLoading,
     required this.visualKey,
     required this.overlays,
     required this.onCamera,
@@ -284,7 +391,8 @@ class _WorkoutVisualPreview extends StatelessWidget {
     required this.onChange,
   });
 
-  final bool hasImage;
+  final CommunityPostMedia? media;
+  final bool isLoading;
   final String visualKey;
   final Set<String> overlays;
   final VoidCallback onCamera;
@@ -293,7 +401,7 @@ class _WorkoutVisualPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!hasImage) {
+    if (media == null) {
       return AspectRatio(
         aspectRatio: 1,
         child: DecoratedBox(
@@ -305,22 +413,25 @@ class _WorkoutVisualPreview extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _MediaButton(
-                    icon: Icons.camera_alt_outlined,
-                    label: '촬영',
-                    onTap: onCamera,
-                  ),
-                  const SizedBox(width: SetflowSpacing.md),
-                  _MediaButton(
-                    icon: Icons.photo_library_outlined,
-                    label: '갤러리',
-                    onTap: onGallery,
-                  ),
-                ],
-              ),
+              if (isLoading)
+                const CircularProgressIndicator()
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _MediaButton(
+                      icon: Icons.camera_alt_outlined,
+                      label: '촬영',
+                      onTap: onCamera,
+                    ),
+                    const SizedBox(width: SetflowSpacing.md),
+                    _MediaButton(
+                      icon: Icons.photo_library_outlined,
+                      label: '갤러리',
+                      onTap: onGallery,
+                    ),
+                  ],
+                ),
               const SizedBox(height: SetflowSpacing.lg),
               const Text(
                 '운동 결과 사진을 올려보세요.',
@@ -358,13 +469,16 @@ class _WorkoutVisualPreview extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Center(
-                  child: Icon(
-                    icon,
-                    size: 124,
-                    color: color.withValues(alpha: .72),
+                Image.memory(
+                  media!.bytes,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => ColoredBox(
+                    color: color.withValues(alpha: .18),
+                    child: Center(child: Icon(icon, size: 124, color: color)),
                   ),
                 ),
+                ColoredBox(color: Colors.black.withValues(alpha: .12)),
                 if (overlays.contains('날짜'))
                   _PreviewLabel(
                     alignment: Alignment.topLeft,
@@ -375,15 +489,10 @@ class _WorkoutVisualPreview extends StatelessWidget {
                     alignment: Alignment.topRight,
                     text: DateFormat('HH:mm').format(now),
                   ),
-                if (overlays.contains('위치'))
-                  const _PreviewLabel(
-                    alignment: Alignment.bottomLeft,
-                    text: '강남구 역삼동',
-                  ),
                 if (overlays.contains('완료 루틴'))
                   const _PreviewLabel(
-                    alignment: Alignment.bottomRight,
-                    text: '하체 집중 루틴',
+                    alignment: Alignment.bottomLeft,
+                    text: '오늘 운동 완료',
                   ),
                 Center(
                   child: Container(
@@ -539,8 +648,17 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
 
   final RoutineData routine;
 
-  void _import(BuildContext context) {
-    final result = AppScope.of(context).importRoutine(routine);
+  Future<void> _import(BuildContext context) async {
+    RoutineImportResult result;
+    try {
+      result = await AppScope.of(context).importMarketRoutine(routine);
+    } catch (_) {
+      if (context.mounted) {
+        AppSnackbar.error(context, '루틴을 저장하지 못했어요. 잠시 후 다시 시도해주세요.');
+      }
+      return;
+    }
+    if (!context.mounted) return;
     switch (result) {
       case RoutineImportResult.imported:
         HapticFeedback.lightImpact();
@@ -549,14 +667,35 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
         AppSnackbar.info(context, '이미 내 루틴에 저장되어 있어요.');
       case RoutineImportResult.limitReached:
         AppSnackbar.error(context, '무료 플랜은 루틴을 4개까지 저장할 수 있어요.');
+      case RoutineImportResult.paidPlanRequired:
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            icon: const Icon(Icons.workspace_premium_rounded),
+            title: const Text('유료 플랜이 필요해요'),
+            content: const Text(
+              '이 루틴은 유료 회원 전용이에요. 결제 기능이 연결되면 이 화면에서 바로 업그레이드할 수 있습니다.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+        );
     }
   }
 
   Future<void> _requestConsultation(BuildContext context) async {
-    final trainer = routine.author.split(' · ').first;
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => ConsultationCreateScreen(initialTrainer: trainer),
+        builder: (_) => ConsultationCreateScreen(
+          initialTrainerId: routine.authorTrainerId,
+          initialGymId: routine.authorGymId,
+          initialTargetName: routine.author,
+          routineId: routine.sourceCoachingRoutineId,
+        ),
       ),
     );
     if (created == true && context.mounted) {
@@ -597,9 +736,27 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
             spacing: SetflowSpacing.sm,
             runSpacing: SetflowSpacing.sm,
             children: [
+              Chip(
+                avatar: Icon(
+                  routine.isPaid
+                      ? Icons.workspace_premium_rounded
+                      : Icons.lock_open_rounded,
+                  size: 16,
+                ),
+                label: Text(routine.accessTier.label),
+              ),
               Chip(label: Text('#${routine.level}')),
-              Chip(label: Text('#${routine.exercises.first.muscle}')),
-              const Chip(label: Text('#근력')),
+              if (routine.exercises.isNotEmpty)
+                Chip(label: Text('#${routine.exercises.first.muscle}')),
+              Chip(
+                label: Text(
+                  routine.exercises.every((exercise) => exercise.isCardio)
+                      ? '#유산소'
+                      : routine.exercises.any((exercise) => exercise.isCardio)
+                      ? '#근력·유산소'
+                      : '#근력',
+                ),
+              ),
             ],
           ),
           const SizedBox(height: SetflowSpacing.md),
@@ -688,56 +845,139 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           const SizedBox(height: SetflowSpacing.section),
           const SectionTitle('루틴 리스트'),
           const SizedBox(height: SetflowSpacing.sm),
-          for (var index = 0; index < routine.exercises.length; index++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: SetflowSpacing.sm),
-              child: SetflowCard(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: routine.color.withValues(alpha: .12),
-                        borderRadius: BorderRadius.circular(SetflowRadii.sm),
-                      ),
-                      child: Text(
-                        '${index + 1}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
+          if (routine.isPaid && routine.exercises.isEmpty)
+            const SetflowCard(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.lock_outline_rounded,
+                    size: 38,
+                    color: SetflowColors.purple,
+                  ),
+                  SizedBox(height: SetflowSpacing.sm),
+                  Text(
+                    '유료 플랜에서 전체 구성을 확인할 수 있어요',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  SizedBox(height: SetflowSpacing.xs),
+                  Text(
+                    '저항운동의 세트·중량·횟수와 유산소의 시간·거리·RPE는 플랜 인증 후 안전하게 불러옵니다.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: SetflowColors.secondaryText,
+                      fontSize: 12,
                     ),
-                    const SizedBox(width: SetflowSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            routine.exercises[index].name,
-                            style: const TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                          Text(
-                            routine.exercises[index].muscle,
-                            style: const TextStyle(
-                              color: SetflowColors.secondaryText,
-                              fontSize: 11,
+                  ),
+                ],
+              ),
+            ),
+          for (var index = 0; index < routine.exercises.length; index++)
+            Builder(
+              builder: (context) {
+                final exercise = routine.exercises[index];
+                final sets = routine.setsFor(exercise);
+                final reps = sets
+                    .map((set) => set.reps)
+                    .where((value) => value > 0);
+                final minReps = reps.isEmpty
+                    ? null
+                    : reps.reduce((a, b) => a < b ? a : b);
+                final maxReps = reps.isEmpty
+                    ? null
+                    : reps.reduce((a, b) => a > b ? a : b);
+                final repsLabel = minReps == null
+                    ? '횟수 미정'
+                    : minReps == maxReps
+                    ? '$minReps회'
+                    : '$minReps~$maxReps회';
+                final cardioDurationSeconds = sets.fold<int>(
+                  0,
+                  (sum, set) => sum + set.durationSeconds,
+                );
+                final cardioDistanceKm = sets.fold<double>(
+                  0,
+                  (sum, set) => sum + set.distanceKm,
+                );
+                final cardioRpes = sets
+                    .map((set) => set.intensityRpe)
+                    .where((value) => value > 0)
+                    .toList(growable: false);
+                final cardioRpeMin = cardioRpes.isEmpty
+                    ? null
+                    : cardioRpes.reduce((a, b) => a < b ? a : b);
+                final cardioRpeMax = cardioRpes.isEmpty
+                    ? null
+                    : cardioRpes.reduce((a, b) => a > b ? a : b);
+                final cardioRpeLabel = cardioRpeMin == null
+                    ? ''
+                    : cardioRpeMin == cardioRpeMax
+                    ? '\nRPE ${cardioRpeMin.toStringAsFixed(cardioRpeMin % 1 == 0 ? 0 : 1)}'
+                    : '\nRPE ${cardioRpeMin.toStringAsFixed(cardioRpeMin % 1 == 0 ? 0 : 1)}–${cardioRpeMax!.toStringAsFixed(cardioRpeMax % 1 == 0 ? 0 : 1)}';
+                final planLabel = exercise.isCardio
+                    ? cardioDurationSeconds <= 0
+                          ? '시간 미정'
+                          : '${(cardioDurationSeconds / 60).round()}분'
+                                '${cardioDistanceKm > 0 ? '\n${cardioDistanceKm.toStringAsFixed(1)}km' : ''}'
+                                '$cardioRpeLabel'
+                    : sets.isEmpty
+                    ? '세트 미정\n$repsLabel'
+                    : '${sets.length}세트\n$repsLabel';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: SetflowSpacing.sm),
+                  child: SetflowCard(
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: routine.color.withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.sm,
                             ),
                           ),
-                        ],
-                      ),
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        const SizedBox(width: SetflowSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                exercise.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              Text(
+                                exercise.muscle,
+                                style: const TextStyle(
+                                  color: SetflowColors.secondaryText,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          planLabel,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            color: SetflowColors.secondaryText,
+                            fontSize: 11,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
-                    const Text(
-                      '3세트\n8~12회',
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        color: SetflowColors.secondaryText,
-                        fontSize: 11,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           const SizedBox(height: SetflowSpacing.xl),
           const Row(
@@ -759,7 +999,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: SetflowSpacing.xl),
           AppButton(
-            label: '내 루틴으로 저장',
+            label: routine.isPaid ? '유료 루틴 저장' : '무료로 내 루틴에 저장',
             icon: Icons.download_rounded,
             onPressed: () => _import(context),
           ),
@@ -822,16 +1062,21 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
     super.dispose();
   }
 
-  void _addComment() {
+  Future<void> _addComment() async {
     final value = commentController.text.trim();
     if (value.isEmpty) {
       AppSnackbar.error(context, '댓글 내용을 입력해주세요.');
       return;
     }
-    AppScope.of(context).addPostComment(widget.post, value);
-    commentController.clear();
-    HapticFeedback.selectionClick();
-    AppSnackbar.success(context, '댓글을 등록했어요.');
+    try {
+      await AppScope.of(context).addPostComment(widget.post, value);
+      if (!mounted) return;
+      commentController.clear();
+      HapticFeedback.selectionClick();
+      AppSnackbar.success(context, '댓글을 등록했어요.');
+    } catch (error) {
+      if (mounted) AppSnackbar.error(context, _communityErrorMessage(error));
+    }
   }
 
   Future<void> _reportPost() async {
@@ -903,12 +1148,40 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                 ),
                 AspectRatio(
                   aspectRatio: 1,
-                  child: ColoredBox(
-                    color: post.color.withValues(alpha: .16),
-                    child: Center(
-                      child: Icon(post.icon, size: 126, color: post.color),
-                    ),
-                  ),
+                  child: post.imageUrl == null
+                      ? ColoredBox(
+                          color: post.color.withValues(alpha: .16),
+                          child: Center(
+                            child: Icon(
+                              post.icon,
+                              size: 126,
+                              color: post.color,
+                            ),
+                          ),
+                        )
+                      : Image.network(
+                          post.imageUrl!,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, progress) =>
+                              progress == null
+                              ? child
+                              : ColoredBox(
+                                  color: post.color.withValues(alpha: .1),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                          errorBuilder: (_, _, _) => ColoredBox(
+                            color: post.color.withValues(alpha: .16),
+                            child: Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                size: 64,
+                                color: post.color,
+                              ),
+                            ),
+                          ),
+                        ),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(SetflowSpacing.lg),
@@ -936,9 +1209,18 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                         children: [
                           IconButton(
                             tooltip: post.isLiked ? '좋아요 취소' : '좋아요',
-                            onPressed: () {
-                              state.togglePostLike(post);
-                              HapticFeedback.selectionClick();
+                            onPressed: () async {
+                              try {
+                                await state.togglePostLike(post);
+                                HapticFeedback.selectionClick();
+                              } catch (error) {
+                                if (context.mounted) {
+                                  AppSnackbar.error(
+                                    context,
+                                    _communityErrorMessage(error),
+                                  );
+                                }
+                              }
                             },
                             icon: Icon(
                               post.isLiked
@@ -1032,9 +1314,18 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
 }
 
 class ConsultationCreateScreen extends StatefulWidget {
-  const ConsultationCreateScreen({this.initialTrainer, super.key});
+  const ConsultationCreateScreen({
+    this.initialTrainerId,
+    this.initialGymId,
+    this.initialTargetName,
+    this.routineId,
+    super.key,
+  }) : assert(initialTrainerId == null || initialGymId == null);
 
-  final String? initialTrainer;
+  final String? initialTrainerId;
+  final String? initialGymId;
+  final String? initialTargetName;
+  final String? routineId;
 
   @override
   State<ConsultationCreateScreen> createState() =>
@@ -1046,10 +1337,25 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
   final goalController = TextEditingController();
   final levelController = TextEditingController();
   final questionController = TextEditingController();
-  late String trainer;
+  final trainerSearchController = TextEditingController();
+  Timer? trainerSearchDebounce;
+  List<PublicTrainer> trainerSearchResults = const [];
+  List<TopCoachingTrainer> topCoachingTrainers = const [];
+  PublicTrainer? selectedTrainer;
+  String? selectedTrainerId;
+  String? trainerSearchNextCursor;
+  String? trainerSearchError;
+  String? demoTrainer;
   bool isSubmitting = false;
+  bool trainerSearchInitialized = false;
+  bool isTrainerSearchLoading = false;
+  bool isTrainerSearchLoadingMore = false;
+  bool isTopCoachingTrainersLoading = false;
+  String? topCoachingTrainersError;
+  int trainerSearchRevision = 0;
+  int topCoachingTrainersRevision = 0;
 
-  static const trainers = {
+  static const demoTrainers = {
     '김코치': '초보자 근력 향상',
     '레이나 코치': '바디프로필 · 체지방 감량',
     '박트레이너': '직장인 단기 루틴',
@@ -1058,33 +1364,222 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
   @override
   void initState() {
     super.initState();
-    trainer = trainers.containsKey(widget.initialTrainer)
-        ? widget.initialTrainer!
-        : trainers.keys.first;
+    final initialDemoTrainer = widget.initialTargetName?.split(' · ').first;
+    demoTrainer = demoTrainers.containsKey(initialDemoTrainer)
+        ? initialDemoTrainer
+        : demoTrainers.keys.first;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (trainerSearchInitialized) return;
+    final state = AppScope.of(context);
+    final hasDirectTarget =
+        widget.initialTrainerId != null || widget.initialGymId != null;
+    if (!state.usesLiveBusinessData || hasDirectTarget) return;
+    trainerSearchInitialized = true;
+    trainerSearchResults = List.unmodifiable(state.publicTrainers.take(20));
+    topCoachingTrainers = List.unmodifiable(state.topCoachingTrainers.take(3));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _retryTrainerSearch();
+      _retryTopCoachingTrainers();
+    });
   }
 
   @override
   void dispose() {
+    trainerSearchDebounce?.cancel();
     goalController.dispose();
     levelController.dispose();
     questionController.dispose();
+    trainerSearchController.dispose();
     super.dispose();
+  }
+
+  void _scheduleTrainerSearch(String query) {
+    trainerSearchDebounce?.cancel();
+    final revision = ++trainerSearchRevision;
+    setState(() {
+      isTrainerSearchLoading = true;
+      isTrainerSearchLoadingMore = false;
+      trainerSearchError = null;
+      trainerSearchNextCursor = null;
+    });
+    trainerSearchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _loadTrainerSearch(query: query, revision: revision),
+    );
+  }
+
+  Future<void> _retryTrainerSearch() async {
+    trainerSearchDebounce?.cancel();
+    final revision = ++trainerSearchRevision;
+    setState(() {
+      isTrainerSearchLoading = true;
+      isTrainerSearchLoadingMore = false;
+      trainerSearchError = null;
+      trainerSearchNextCursor = null;
+    });
+    await _loadTrainerSearch(
+      query: trainerSearchController.text,
+      revision: revision,
+    );
+  }
+
+  Future<void> _loadMoreTrainers() async {
+    final cursor = trainerSearchNextCursor;
+    if (cursor == null || isTrainerSearchLoadingMore) return;
+    final revision = ++trainerSearchRevision;
+    setState(() {
+      isTrainerSearchLoadingMore = true;
+      trainerSearchError = null;
+    });
+    await _loadTrainerSearch(
+      query: trainerSearchController.text,
+      cursor: cursor,
+      append: true,
+      revision: revision,
+    );
+  }
+
+  Future<void> _retryTopCoachingTrainers() async {
+    final revision = ++topCoachingTrainersRevision;
+    setState(() {
+      isTopCoachingTrainersLoading = true;
+      topCoachingTrainersError = null;
+    });
+    try {
+      final trainers = await AppScope.of(
+        context,
+      ).loadTopCoachingTrainers(limit: 3);
+      if (!mounted || revision != topCoachingTrainersRevision) return;
+      setState(() {
+        topCoachingTrainers = List.unmodifiable(trainers.take(3));
+        topCoachingTrainersError = null;
+        isTopCoachingTrainersLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || revision != topCoachingTrainersRevision) return;
+      setState(() {
+        topCoachingTrainersError = '현재 코칭 TOP 3를 불러오지 못했어요.';
+        isTopCoachingTrainersLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadTrainerSearch({
+    required String query,
+    required int revision,
+    String? cursor,
+    bool append = false,
+  }) async {
+    if (!mounted || revision != trainerSearchRevision) return;
+    try {
+      final page = await AppScope.of(
+        context,
+      ).searchPublicTrainers(query: query, cursor: cursor, pageSize: 20);
+      if (!mounted || revision != trainerSearchRevision) return;
+      final merged = <String, PublicTrainer>{
+        if (append)
+          for (final trainer in trainerSearchResults)
+            trainer.profile.id: trainer,
+        for (final trainer in page.items) trainer.profile.id: trainer,
+      };
+      setState(() {
+        trainerSearchResults = List.unmodifiable(merged.values);
+        trainerSearchNextCursor = page.nextCursor;
+        trainerSearchError = null;
+        isTrainerSearchLoading = false;
+        isTrainerSearchLoadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted || revision != trainerSearchRevision) return;
+      setState(() {
+        trainerSearchError = '트레이너 목록을 불러오지 못했어요.';
+        isTrainerSearchLoading = false;
+        isTrainerSearchLoadingMore = false;
+      });
+    }
+  }
+
+  void _selectTrainer(PublicTrainer trainer) {
+    setState(() {
+      selectedTrainer = trainer;
+      selectedTrainerId = trainer.profile.id;
+    });
+  }
+
+  void _clearTrainerSearch() {
+    trainerSearchController.clear();
+    _scheduleTrainerSearch('');
   }
 
   Future<void> _submit() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
+    final state = AppScope.of(context);
+    String? trainerId;
+    String? gymId;
+    late String targetName;
+    late String specialty;
+
+    if (state.usesLiveBusinessData) {
+      trainerId = widget.initialTrainerId ?? selectedTrainerId;
+      gymId = widget.initialGymId;
+      if (trainerId == null && gymId == null) {
+        AppSnackbar.error(context, '상담할 트레이너를 선택해주세요.');
+        return;
+      }
+
+      final selectedTrainer = trainerId == null
+          ? null
+          : this.selectedTrainer?.profile.id == trainerId
+          ? this.selectedTrainer
+          : state.publicTrainers
+                .where((item) => item.profile.id == trainerId)
+                .firstOrNull;
+      if (widget.initialTrainerId == null &&
+          trainerId != null &&
+          selectedTrainer == null) {
+        AppSnackbar.error(context, '선택한 트레이너 정보를 다시 확인해주세요.');
+        return;
+      }
+      targetName =
+          widget.initialTargetName ??
+          selectedTrainer?.profile.displayName ??
+          (gymId == null ? '루틴 작성 트레이너' : '루틴 작성 센터');
+      specialty =
+          selectedTrainer?.specialties.firstOrNull ??
+          (gymId == null ? '맞춤 운동 상담' : '센터 루틴 상담');
+    } else {
+      targetName = demoTrainer ?? demoTrainers.keys.first;
+      specialty = demoTrainers[targetName] ?? '맞춤 운동 상담';
+    }
+
     setState(() => isSubmitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    AppScope.of(context).addConsultation(
-      trainerName: trainer,
-      specialty: trainers[trainer]!,
-      goal: goalController.text.trim(),
-      level: levelController.text.trim(),
-      question: questionController.text.trim(),
-    );
-    HapticFeedback.lightImpact();
-    Navigator.pop(context, true);
+    try {
+      if (!state.usesLiveBusinessData) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      await state.addConsultation(
+        trainerId: trainerId,
+        gymId: gymId,
+        routineId: widget.routineId,
+        trainerName: targetName,
+        specialty: specialty,
+        goal: goalController.text.trim(),
+        level: levelController.text.trim(),
+        question: questionController.text.trim(),
+      );
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      Navigator.pop(context, true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => isSubmitting = false);
+      AppSnackbar.error(context, '상담 신청에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
   }
 
   String? _validate(String? value, String label, int minimum) {
@@ -1094,8 +1589,427 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
     return null;
   }
 
+  Widget _buildTrainerSearch(BuildContext context) {
+    final query = trainerSearchController.text.trim();
+    final selectedIsOutsideResults =
+        selectedTrainer != null &&
+        !trainerSearchResults.any(
+          (trainer) => trainer.profile.id == selectedTrainer!.profile.id,
+        ) &&
+        !topCoachingTrainers.any(
+          (entry) => entry.trainer.profile.id == selectedTrainer!.profile.id,
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTextField(
+          key: const ValueKey('consultation-trainer-search'),
+          controller: trainerSearchController,
+          label: '상담 트레이너 검색',
+          hint: '이름, 센터, 전문분야를 검색하세요',
+          prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: query.isEmpty
+              ? null
+              : IconButton(
+                  key: const ValueKey('consultation-trainer-clear-input'),
+                  tooltip: '검색어 지우기',
+                  onPressed: _clearTrainerSearch,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+          inputFormatters: [LengthLimitingTextInputFormatter(50)],
+          onChanged: _scheduleTrainerSearch,
+          textInputAction: TextInputAction.search,
+          onSubmitted: (_) => _retryTrainerSearch(),
+        ),
+        const SizedBox(height: SetflowSpacing.md),
+        if (selectedIsOutsideResults) ...[
+          Text(
+            '선택한 트레이너',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          _trainerResultCard(context, selectedTrainer!),
+          const SizedBox(height: SetflowSpacing.md),
+        ],
+        if (isTrainerSearchLoading && trainerSearchResults.isEmpty)
+          const LoadingState(
+            key: ValueKey('consultation-trainer-loading'),
+            message: '상담 가능한 트레이너를 찾고 있어요',
+            itemCount: 2,
+            compact: true,
+          )
+        else if (trainerSearchError != null && trainerSearchResults.isEmpty)
+          SetflowCard(
+            child: Column(
+              children: [
+                const Icon(Icons.cloud_off_rounded, size: 34),
+                const SizedBox(height: SetflowSpacing.sm),
+                Text(
+                  trainerSearchError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                AppButton(
+                  key: const ValueKey('consultation-trainer-retry'),
+                  label: '다시 시도',
+                  icon: Icons.refresh_rounded,
+                  expanded: false,
+                  variant: AppButtonVariant.tonal,
+                  onPressed: _retryTrainerSearch,
+                ),
+              ],
+            ),
+          )
+        else if (trainerSearchResults.isEmpty)
+          SetflowCard(
+            child: Column(
+              children: [
+                const Icon(Icons.person_search_rounded, size: 36),
+                const SizedBox(height: SetflowSpacing.sm),
+                Text(
+                  query.isEmpty ? '상담 가능한 트레이너가 없어요' : '검색 결과가 없어요',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: SetflowSpacing.xs),
+                Text(
+                  query.isEmpty
+                      ? '인증된 트레이너가 등록되면 상담을 신청할 수 있어요.'
+                      : '다른 이름, 센터 또는 전문분야로 검색해보세요.',
+                  textAlign: TextAlign.center,
+                ),
+                if (query.isNotEmpty) ...[
+                  const SizedBox(height: SetflowSpacing.md),
+                  AppButton(
+                    key: const ValueKey('consultation-trainer-clear'),
+                    label: '검색 초기화',
+                    icon: Icons.restart_alt_rounded,
+                    expanded: false,
+                    variant: AppButtonVariant.tonal,
+                    onPressed: _clearTrainerSearch,
+                  ),
+                ],
+              ],
+            ),
+          )
+        else ...[
+          Text(
+            query.isEmpty
+                ? '상담 가능한 트레이너'
+                : '검색 결과 ${trainerSearchResults.length}명',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          for (final trainer in trainerSearchResults) ...[
+            _trainerResultCard(context, trainer),
+            const SizedBox(height: SetflowSpacing.sm),
+          ],
+          if (trainerSearchError != null) ...[
+            Text(
+              trainerSearchError!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+            AppButton(
+              key: const ValueKey('consultation-trainer-retry'),
+              label: '다시 시도',
+              icon: Icons.refresh_rounded,
+              expanded: false,
+              variant: AppButtonVariant.tonal,
+              onPressed: _retryTrainerSearch,
+            ),
+          ] else if (trainerSearchNextCursor != null)
+            AppButton(
+              key: const ValueKey('consultation-trainer-load-more'),
+              label: '트레이너 더 보기',
+              isLoading: isTrainerSearchLoadingMore,
+              expanded: false,
+              variant: AppButtonVariant.outlined,
+              onPressed: isTrainerSearchLoadingMore ? null : _loadMoreTrainers,
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTopCoachingTrainers(BuildContext context) {
+    return Column(
+      key: const ValueKey('consultation-top-trainers'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: SetflowColors.primary.withValues(alpha: .22),
+                borderRadius: BorderRadius.circular(SetflowRadii.sm),
+              ),
+              child: const Icon(
+                Icons.emoji_events_rounded,
+                size: 20,
+                color: SetflowColors.ink,
+              ),
+            ),
+            const SizedBox(width: SetflowSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '현재 코칭 TOP 3',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    '현재 진행 중인 코칭 건수 기준',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.md),
+        if (isTopCoachingTrainersLoading && topCoachingTrainers.isEmpty)
+          const LoadingState(
+            key: ValueKey('consultation-top-trainers-loading'),
+            message: '현재 코칭 TOP 3를 불러오고 있어요',
+            itemCount: 2,
+            compact: true,
+          )
+        else if (topCoachingTrainersError != null &&
+            topCoachingTrainers.isEmpty)
+          SetflowCard(
+            key: const ValueKey('consultation-top-trainers-error'),
+            padding: const EdgeInsets.all(SetflowSpacing.md),
+            child: Column(
+              children: [
+                const Icon(Icons.cloud_off_rounded, size: 32),
+                const SizedBox(height: SetflowSpacing.sm),
+                Text(
+                  topCoachingTrainersError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                AppButton(
+                  key: const ValueKey('consultation-top-trainers-retry'),
+                  label: '다시 시도',
+                  icon: Icons.refresh_rounded,
+                  expanded: false,
+                  variant: AppButtonVariant.tonal,
+                  onPressed: _retryTopCoachingTrainers,
+                ),
+              ],
+            ),
+          )
+        else if (topCoachingTrainers.isEmpty)
+          const SetflowCard(
+            key: ValueKey('consultation-top-trainers-empty'),
+            padding: EdgeInsets.all(SetflowSpacing.md),
+            child: Row(
+              children: [
+                Icon(Icons.people_outline_rounded),
+                SizedBox(width: SetflowSpacing.sm),
+                Expanded(
+                  child: Text(
+                    '현재 상담 가능한 트레이너가 없어요.',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (
+                  var index = 0;
+                  index < topCoachingTrainers.length;
+                  index++
+                ) ...[
+                  SizedBox(
+                    width: 308,
+                    child: _trainerResultCard(
+                      context,
+                      topCoachingTrainers[index].trainer,
+                      cardKey: ValueKey(
+                        'consultation-top-trainer-${topCoachingTrainers[index].trainer.profile.id}',
+                      ),
+                      rank: index + 1,
+                      activeCoachingCount:
+                          topCoachingTrainers[index].activeCoachingCount,
+                    ),
+                  ),
+                  if (index < topCoachingTrainers.length - 1)
+                    const SizedBox(width: SetflowSpacing.sm),
+                ],
+              ],
+            ),
+          ),
+          if (topCoachingTrainersError != null) ...[
+            const SizedBox(height: SetflowSpacing.sm),
+            Text(
+              topCoachingTrainersError!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+            AppButton(
+              key: const ValueKey('consultation-top-trainers-retry'),
+              label: '다시 시도',
+              icon: Icons.refresh_rounded,
+              expanded: false,
+              variant: AppButtonVariant.tonal,
+              onPressed: _retryTopCoachingTrainers,
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _trainerResultCard(
+    BuildContext context,
+    PublicTrainer trainer, {
+    Key? cardKey,
+    int? rank,
+    int? activeCoachingCount,
+  }) {
+    final profile = trainer.profile;
+    final isSelected = selectedTrainerId == profile.id;
+    final specialty =
+        trainer.specialties.firstOrNull ?? profile.keyword ?? '맞춤 운동 상담';
+    final details = <String>[
+      if (profile.centerName != null && profile.centerName!.trim().isNotEmpty)
+        profile.centerName!,
+      specialty,
+      if (profile.careerYears != null) '경력 ${profile.careerYears}년',
+    ];
+    return SetflowCard(
+      key: cardKey ?? ValueKey('consultation-trainer-result-${profile.id}'),
+      color: isSelected ? Theme.of(context).colorScheme.primaryContainer : null,
+      onTap: () => _selectTrainer(trainer),
+      padding: const EdgeInsets.all(SetflowSpacing.md),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 23,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+            child: Text(
+              rank != null
+                  ? '$rank'
+                  : profile.displayName.characters.isEmpty
+                  ? 'T'
+                  : profile.displayName.characters.first,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+          const SizedBox(width: SetflowSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        profile.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    if (profile.verified) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.verified_rounded,
+                        size: 17,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  details.join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 4),
+                if (activeCoachingCount != null) ...[
+                  Text(
+                    '현재 코칭 $activeCoachingCount건',
+                    key: ValueKey(
+                      'consultation-top-trainer-active-count-${profile.id}',
+                    ),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    '평점 ${profile.rating.toStringAsFixed(1)} · 누적 코칭 ${profile.coachingTotal}회',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ] else
+                  Text(
+                    '평점 ${profile.rating.toStringAsFixed(1)} · 코칭 ${profile.coachingTotal}회',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: SetflowSpacing.sm),
+          Icon(
+            isSelected
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outline,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final liveData = state.usesLiveBusinessData;
+    final hasDirectTarget =
+        widget.initialTrainerId != null || widget.initialGymId != null;
+    final selectableTrainerId =
+        selectedTrainer?.profile.id == selectedTrainerId ||
+            state.publicTrainers.any(
+              (item) => item.profile.id == selectedTrainerId,
+            )
+        ? selectedTrainerId
+        : null;
+    final canSubmit =
+        !isSubmitting &&
+        (!liveData || hasDirectTarget || selectableTrainerId != null);
     return Scaffold(
       appBar: AppBar(title: const Text('새 상담 신청')),
       body: Form(
@@ -1112,20 +2026,41 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
               ),
             ),
             const SizedBox(height: SetflowSpacing.xl),
-            DropdownButtonFormField<String>(
-              initialValue: trainer,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: '상담 트레이너'),
-              items: trainers.entries
-                  .map(
-                    (entry) => DropdownMenuItem(
-                      value: entry.key,
-                      child: Text('${entry.key} · ${entry.value}'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => trainer = value ?? trainer),
-            ),
+            if (liveData && hasDirectTarget)
+              InputDecorator(
+                decoration: const InputDecoration(labelText: '상담 대상'),
+                child: Text(
+                  widget.initialTargetName ??
+                      (widget.initialGymId == null ? '루틴 작성 트레이너' : '루틴 작성 센터'),
+                  key: const ValueKey('consultation-direct-target'),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              )
+            else if (liveData)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildTopCoachingTrainers(context),
+                  const SizedBox(height: SetflowSpacing.xl),
+                  _buildTrainerSearch(context),
+                ],
+              )
+            else
+              DropdownButtonFormField<String>(
+                initialValue: demoTrainer,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: '상담 트레이너'),
+                items: demoTrainers.entries
+                    .map(
+                      (entry) => DropdownMenuItem(
+                        value: entry.key,
+                        child: Text('${entry.key} · ${entry.value}'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => demoTrainer = value ?? demoTrainer),
+              ),
             const SizedBox(height: SetflowSpacing.md),
             AppTextField(
               controller: goalController,
@@ -1151,14 +2086,25 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
               maxLines: 6,
               validator: (value) => _validate(value, '질문', 10),
             ),
-            const SizedBox(height: SetflowSpacing.xl),
-            AppButton(
-              label: '상담 신청하기',
-              icon: Icons.send_rounded,
-              isLoading: isSubmitting,
-              onPressed: isSubmitting ? null : _submit,
-            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            18,
+            SetflowSpacing.sm,
+            18,
+            SetflowSpacing.md,
+          ),
+          child: AppButton(
+            key: const ValueKey('consultation-submit'),
+            label: '상담 신청하기',
+            icon: Icons.send_rounded,
+            isLoading: isSubmitting,
+            onPressed: canSubmit ? _submit : null,
+          ),
         ),
       ),
     );
@@ -1177,6 +2123,22 @@ class ConsultationDetailScreen extends StatefulWidget {
 
 class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   Future<void> _startCoaching() async {
+    if (AppScope.of(context).usesLiveBusinessData) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('결제 API 연동 준비 중'),
+          content: const Text('실제 결제와 에스크로 연동이 완료된 후 코칭을 시작할 수 있어요.'),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     final confirmed =
         await showDialog<bool>(
           context: context,
@@ -1205,6 +2167,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   }
 
   Future<void> _rate() async {
+    if (AppScope.of(context).usesLiveBusinessData) {
+      AppSnackbar.info(context, '평점 API 연동을 준비하고 있어요.');
+      return;
+    }
     var rating = widget.consultation.rating ?? 5;
     final result = await showDialog<int>(
       context: context,
@@ -1246,6 +2212,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final consultation = widget.consultation;
+    final liveData = AppScope.of(context).usesLiveBusinessData;
     return Scaffold(
       appBar: AppBar(title: const Text('상담 상세')),
       body: ListView(
@@ -1359,25 +2326,30 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      '맞춤 루틴 · 주 1회 피드백 · 72시간 응답 보장',
-                      style: TextStyle(color: SetflowColors.secondaryText),
+                    Text(
+                      liveData
+                          ? '실제 결제·에스크로 API 연동 후 이용할 수 있어요.'
+                          : '맞춤 루틴 · 주 1회 피드백 · 72시간 응답 보장',
+                      style: const TextStyle(
+                        color: SetflowColors.secondaryText,
+                      ),
                     ),
                     const SizedBox(height: SetflowSpacing.lg),
                     Row(
                       children: [
-                        const Text(
-                          '149,000원',
-                          style: TextStyle(
+                        Text(
+                          liveData ? '결제 API 준비 중' : '149,000원',
+                          style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         const Spacer(),
                         AppButton(
+                          key: const ValueKey('coaching-start'),
                           expanded: false,
-                          label: '코칭 시작',
-                          onPressed: _startCoaching,
+                          label: liveData ? '연동 준비 중' : '코칭 시작',
+                          onPressed: liveData ? null : _startCoaching,
                         ),
                       ],
                     ),
@@ -1391,17 +2363,19 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                   color: SetflowColors.green.withValues(alpha: .1),
                   borderRadius: BorderRadius.circular(SetflowRadii.lg),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.verified_user_outlined,
                       color: SetflowColors.green,
                     ),
-                    SizedBox(width: SetflowSpacing.sm),
+                    const SizedBox(width: SetflowSpacing.sm),
                     Expanded(
                       child: Text(
-                        '코칭이 진행 중입니다. 결제 금액은 에스크로로 안전하게 보호됩니다.',
-                        style: TextStyle(height: 1.45),
+                        liveData
+                            ? '코칭 상태는 서버 기록으로 표시됩니다. 결제·에스크로 연동은 준비 중입니다.'
+                            : '코칭이 진행 중입니다. 결제 금액은 에스크로로 안전하게 보호됩니다.',
+                        style: const TextStyle(height: 1.45),
                       ),
                     ),
                   ],
@@ -1409,11 +2383,16 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
               ),
               const SizedBox(height: SetflowSpacing.md),
               AppButton(
-                label: consultation.rating == null
+                key: const ValueKey('coaching-rating'),
+                label: liveData
+                    ? '평점 연동 준비 중'
+                    : consultation.rating == null
                     ? '코칭 만족도 남기기'
                     : '만족도 ${consultation.rating}점 전송 완료',
                 variant: AppButtonVariant.outlined,
-                onPressed: consultation.rating == null ? _rate : null,
+                onPressed: !liveData && consultation.rating == null
+                    ? _rate
+                    : null,
               ),
             ],
           ],

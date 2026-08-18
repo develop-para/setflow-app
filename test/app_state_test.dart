@@ -46,5 +46,15 @@ void main() {
       expect(state.routines.length, before + 1);
       state.dispose();
     });
+
+    test('does not grant administrator access from a local role switch', () {
+      final state = AppState();
+
+      state.chooseRole(UserRole.admin);
+
+      expect(state.isAdmin, isFalse);
+      expect(state.role, isNot(UserRole.admin));
+      state.dispose();
+    });
   });
 }

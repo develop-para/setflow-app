@@ -2,6 +2,18 @@ import 'package:flutter/material.dart';
 
 enum UserRole { guest, member, trainer, gym, admin }
 
+enum RoutineAccessTier {
+  free,
+  paid;
+
+  String get label => switch (this) {
+    free => '무료',
+    paid => '유료',
+  };
+}
+
+enum RoutineAuthorType { trainer, gym, system }
+
 class ExerciseTemplate {
   const ExerciseTemplate({
     required this.id,
@@ -14,6 +26,8 @@ class ExerciseTemplate {
   final String name;
   final String muscle;
   final IconData icon;
+
+  bool get isCardio => muscle == '유산소';
 }
 
 class WorkoutSetEntry {
@@ -23,6 +37,10 @@ class WorkoutSetEntry {
     required this.reps,
     this.completed = false,
     this.type = '일반',
+    this.restSeconds = 90,
+    this.durationSeconds = 0,
+    this.distanceKm = 0,
+    this.intensityRpe = 0,
   });
 
   int number;
@@ -30,6 +48,10 @@ class WorkoutSetEntry {
   int reps;
   bool completed;
   String type;
+  int restSeconds;
+  int durationSeconds;
+  double distanceKm;
+  double intensityRpe;
 
   double get volume => completed ? weight * reps : 0;
 
@@ -39,6 +61,59 @@ class WorkoutSetEntry {
     reps: reps,
     completed: false,
     type: type,
+    restSeconds: restSeconds,
+    durationSeconds: durationSeconds,
+    distanceKm: distanceKm,
+    intensityRpe: intensityRpe,
+  );
+}
+
+String workoutSetTypeLabel(String value) =>
+    switch (value.trim().toLowerCase()) {
+      'warmup' || '웜업' => '웜업',
+      'drop' || '드랍' => '드랍',
+      'failure' || '실패' => '실패',
+      _ => '일반',
+    };
+
+String workoutSetTypeDatabaseValue(String value) =>
+    switch (workoutSetTypeLabel(value)) {
+      '웜업' => 'warmup',
+      '드랍' => 'drop',
+      '실패' => 'failure',
+      _ => 'normal',
+    };
+
+class RoutineSetPlan {
+  const RoutineSetPlan({
+    required this.number,
+    required this.weight,
+    required this.reps,
+    this.type = '일반',
+    this.restSeconds = 90,
+    this.durationSeconds = 0,
+    this.distanceKm = 0,
+    this.intensityRpe = 0,
+  });
+
+  final int number;
+  final double weight;
+  final int reps;
+  final String type;
+  final int restSeconds;
+  final int durationSeconds;
+  final double distanceKm;
+  final double intensityRpe;
+
+  WorkoutSetEntry toWorkoutSetEntry() => WorkoutSetEntry(
+    number: number,
+    weight: weight,
+    reps: reps,
+    type: type,
+    restSeconds: restSeconds,
+    durationSeconds: durationSeconds,
+    distanceKm: distanceKm,
+    intensityRpe: intensityRpe,
   );
 }
 
@@ -75,6 +150,19 @@ class WorkoutSession {
     0,
     (sum, item) => sum + item.sets.fold(0, (s, set) => s + set.volume),
   );
+  int get cardioDurationSeconds => exercises
+      .where((exercise) => exercise.template.isCardio)
+      .fold(
+        0,
+        (sum, exercise) =>
+            sum +
+            exercise.sets
+                .where((set) => set.completed)
+                .fold(0, (seconds, set) => seconds + set.durationSeconds),
+      );
+  bool get hasCardio => exercises.any((exercise) => exercise.template.isCardio);
+  bool get hasResistance =>
+      exercises.any((exercise) => !exercise.template.isCardio);
   double get completion => totalSets == 0 ? 0 : completedSets / totalSets;
 }
 
@@ -87,6 +175,13 @@ class RoutineData {
     required this.exercises,
     this.author = '나',
     this.level = '중급',
+    this.accessTier = RoutineAccessTier.free,
+    this.setPlans = const {},
+    this.sourceMarketRoutineId,
+    this.sourceCoachingRoutineId,
+    this.authorTrainerId,
+    this.authorGymId,
+    this.authorType = RoutineAuthorType.system,
   });
 
   final String id;
@@ -96,6 +191,18 @@ class RoutineData {
   final List<ExerciseTemplate> exercises;
   final String author;
   final String level;
+  final RoutineAccessTier accessTier;
+  final Map<String, List<RoutineSetPlan>> setPlans;
+  final String? sourceMarketRoutineId;
+  final String? sourceCoachingRoutineId;
+  final String? authorTrainerId;
+  final String? authorGymId;
+  final RoutineAuthorType authorType;
+
+  bool get isPaid => accessTier == RoutineAccessTier.paid;
+
+  List<RoutineSetPlan> setsFor(ExerciseTemplate exercise) =>
+      setPlans[exercise.id] ?? const [];
 }
 
 class PostComment {
@@ -124,6 +231,10 @@ class CommunityPost {
     this.likes = 0,
     this.isLiked = false,
     this.isMine = false,
+    this.imageUrl,
+    this.location,
+    this.routineName,
+    this.activeOverlays = const [],
     List<PostComment>? comments,
   }) : comments = comments ?? [];
 
@@ -137,6 +248,10 @@ class CommunityPost {
   int likes;
   bool isLiked;
   final bool isMine;
+  final String? imageUrl;
+  final String? location;
+  final String? routineName;
+  final List<String> activeOverlays;
   final List<PostComment> comments;
 
   IconData get icon => switch (visualKey) {
@@ -225,4 +340,9 @@ class BusinessDashboardData {
   DateTime lastSyncedAt;
 }
 
-enum RoutineImportResult { imported, alreadySaved, limitReached }
+enum RoutineImportResult {
+  imported,
+  alreadySaved,
+  limitReached,
+  paidPlanRequired,
+}

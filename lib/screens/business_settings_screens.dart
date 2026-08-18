@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'evidence_library_screen.dart';
 
 /// 사업자(트레이너/헬스장) 설정 목록 화면.
 class BusinessSettingsListScreen extends StatelessWidget {
@@ -48,34 +49,55 @@ class BusinessSettingsListScreen extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.workspace_premium_outlined),
               title: const Text('요금제'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => BusinessSettingsPlanScreen(role: role),
-                ),
-              ),
+              subtitle: state.usesLiveBusinessData
+                  ? const Text('결제 서버 연동 준비 중')
+                  : null,
+              trailing: state.usesLiveBusinessData
+                  ? const Icon(Icons.lock_clock_outlined)
+                  : const Icon(Icons.chevron_right),
+              onTap: state.usesLiveBusinessData
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => BusinessSettingsPlanScreen(role: role),
+                      ),
+                    ),
             ),
             ListTile(
               leading: const Icon(Icons.notifications_none),
               title: const Text('알림 설정'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      BusinessSettingsNotificationsScreen(role: role),
-                ),
-              ),
+              subtitle: state.usesLiveBusinessData
+                  ? const Text('알림 서버 저장 연동 준비 중')
+                  : null,
+              trailing: state.usesLiveBusinessData
+                  ? const Icon(Icons.lock_clock_outlined)
+                  : const Icon(Icons.chevron_right),
+              onTap: state.usesLiveBusinessData
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            BusinessSettingsNotificationsScreen(role: role),
+                      ),
+                    ),
             ),
             if (!_isGym)
               ListTile(
                 leading: const Icon(Icons.verified_outlined),
                 title: const Text('인증 뱃지 갱신'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const BusinessBadgeRenewScreen(),
-                  ),
-                ),
+                subtitle: state.usesLiveBusinessData
+                    ? const Text('서류 업로드 연동 준비 중')
+                    : null,
+                trailing: state.usesLiveBusinessData
+                    ? const Icon(Icons.lock_clock_outlined)
+                    : const Icon(Icons.chevron_right),
+                onTap: state.usesLiveBusinessData
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const BusinessBadgeRenewScreen(),
+                        ),
+                      ),
               ),
             const Divider(height: SetflowSpacing.section),
             const ListTile(
@@ -100,20 +122,58 @@ class BusinessSettingsListScreen extends StatelessWidget {
               onChanged: (_) => state.toggleTheme(),
             ),
             const Divider(height: 30),
+            const ListTile(
+              title: Text(
+                '참고자료',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: SetflowColors.secondaryText,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
             ListTile(
-              leading: const Icon(
+              key: const ValueKey('business-settings-evidence-library'),
+              leading: const Icon(Icons.science_outlined),
+              title: const Text('관련 논문'),
+              subtitle: const Text('추천 계산과 운동 구성에 참고한 근거'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const EvidenceLibraryScreen(),
+                ),
+              ),
+            ),
+            const Divider(height: 30),
+            ListTile(
+              leading: Icon(
                 Icons.person_off_outlined,
-                color: SetflowColors.red,
+                color: state.usesLiveBusinessData
+                    ? SetflowColors.secondaryText
+                    : SetflowColors.red,
               ),
               title: Text(
                 _isGym ? '헬스장 탈퇴' : '탈퇴',
-                style: const TextStyle(color: SetflowColors.red),
-              ),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => BusinessSettingsWithdrawScreen(role: role),
+                style: TextStyle(
+                  color: state.usesLiveBusinessData
+                      ? SetflowColors.secondaryText
+                      : SetflowColors.red,
                 ),
               ),
+              subtitle: state.usesLiveBusinessData
+                  ? const Text('계정 탈퇴 서버 처리 연동 준비 중')
+                  : null,
+              trailing: state.usesLiveBusinessData
+                  ? const Icon(Icons.lock_clock_outlined)
+                  : null,
+              onTap: state.usesLiveBusinessData
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            BusinessSettingsWithdrawScreen(role: role),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -209,12 +269,19 @@ class _BusinessSettingsPlanScreenState
 
   @override
   Widget build(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     return Scaffold(
       appBar: AppBar(title: const Text('요금제')),
       body: _SettingsWidth(
         child: ListView(
           padding: SetflowInsets.pageList,
           children: [
+            if (live) ...[
+              const _LiveIntegrationNotice(
+                message: '요금제 변경은 결제 서버 연동 후 사용할 수 있어요.',
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
+            ],
             for (final plan in _plans) ...[
               SetflowCard(
                 color: plan.id == _currentPlanId
@@ -309,42 +376,48 @@ class _BusinessSettingsPlanScreenState
                       const SizedBox(height: 6),
                       PrimaryButton(
                         label: plan.id == 'enterprise' ? '문의' : '변경',
-                        onPressed: () async {
-                          if (plan.id == 'enterprise') {
-                            showMessage(context, '담당자가 플랜 상담을 도와드릴게요.');
-                            return;
-                          }
-                          final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (dialogContext) => AlertDialog(
-                              title: const Text('요금제 변경'),
-                              content: Text('${plan.name} 요금제로 변경할까요?'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dialogContext, false),
-                                  child: const Text('취소'),
-                                ),
-                                FilledButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dialogContext, true),
-                                  child: const Text('변경'),
-                                ),
-                              ],
-                            ),
-                          );
-                          if (confirmed != true || !context.mounted) return;
-                          AppScope.of(context).setBusinessPlan(
-                            role: widget.role,
-                            planId: plan.id,
-                            planName: _isGym ? '${plan.name} 플랜' : plan.name,
-                          );
-                          setState(() => _currentPlanId = plan.id);
-                          AppSnackbar.success(
-                            context,
-                            '${plan.name} 요금제로 변경했어요.',
-                          );
-                        },
+                        onPressed: live
+                            ? null
+                            : () async {
+                                if (plan.id == 'enterprise') {
+                                  showMessage(context, '담당자가 플랜 상담을 도와드릴게요.');
+                                  return;
+                                }
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (dialogContext) => AlertDialog(
+                                    title: const Text('요금제 변경'),
+                                    content: Text('${plan.name} 요금제로 변경할까요?'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext, false),
+                                        child: const Text('취소'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext, true),
+                                        child: const Text('변경'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed != true || !context.mounted) {
+                                  return;
+                                }
+                                AppScope.of(context).setBusinessPlan(
+                                  role: widget.role,
+                                  planId: plan.id,
+                                  planName: _isGym
+                                      ? '${plan.name} 플랜'
+                                      : plan.name,
+                                );
+                                setState(() => _currentPlanId = plan.id);
+                                AppSnackbar.success(
+                                  context,
+                                  '${plan.name} 요금제로 변경했어요.',
+                                );
+                              },
                       ),
                     ],
                   ],
@@ -409,12 +482,19 @@ class _BusinessSettingsNotificationsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     return Scaffold(
       appBar: AppBar(title: const Text('알림 설정')),
       body: _SettingsWidth(
         child: ListView(
           padding: SetflowInsets.pageList,
           children: [
+            if (live) ...[
+              const _LiveIntegrationNotice(
+                message: '알림 설정을 서버에 저장하는 기능을 준비 중이에요.',
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+            ],
             const ListTile(
               title: Text(
                 '활동 알림',
@@ -430,21 +510,27 @@ class _BusinessSettingsNotificationsScreenState
               title: Text(_isGym ? '신규 회원 문의' : '신규 상담 요청'),
               subtitle: Text(_isGym ? '센터 등록/이용 문의 알림' : '새로운 회원의 코칭 문의 알림'),
               value: _primaryActivity,
-              onChanged: (value) => _setPreference('primary', value),
+              onChanged: live
+                  ? null
+                  : (value) => _setPreference('primary', value),
             ),
             SwitchListTile(
               secondary: const Icon(Icons.fitness_center),
               title: Text(_isGym ? '트레이너 활동 알림' : '회원 운동 기록 및 피드백'),
               subtitle: Text(_isGym ? '소속 트레이너 활동 현황 알림' : '코칭 중인 회원의 새로운 활동'),
               value: _feedback,
-              onChanged: (value) => _setPreference('feedback', value),
+              onChanged: live
+                  ? null
+                  : (value) => _setPreference('feedback', value),
             ),
             SwitchListTile(
               secondary: const Icon(Icons.payments_outlined),
               title: const Text('정산 및 환불 현황'),
               subtitle: const Text('주기적인 정산 금액 및 분쟁 알림'),
               value: _settlement,
-              onChanged: (value) => _setPreference('settlement', value),
+              onChanged: live
+                  ? null
+                  : (value) => _setPreference('settlement', value),
             ),
             const Divider(height: 30),
             const ListTile(
@@ -462,7 +548,9 @@ class _BusinessSettingsNotificationsScreenState
               title: const Text('마케팅 정보 수신 동의'),
               subtitle: const Text('플랫폼 이벤트 및 혜택 안내'),
               value: _marketing,
-              onChanged: (value) => _setPreference('marketing', value),
+              onChanged: live
+                  ? null
+                  : (value) => _setPreference('marketing', value),
             ),
           ],
         ),
@@ -516,12 +604,19 @@ class _BusinessSettingsWithdrawScreenState
 
   @override
   Widget build(BuildContext context) {
-    final canWithdraw = _reason != null && _agreed;
+    final live = AppScope.of(context).usesLiveBusinessData;
+    final canWithdraw = !live && _reason != null && _agreed;
     return Scaffold(
       appBar: AppBar(title: Text(_isGym ? '헬스장 탈퇴' : '탈퇴')),
       body: ListView(
         padding: SetflowInsets.pageList,
         children: [
+          if (live) ...[
+            const _LiveIntegrationNotice(
+              message: '계정 탈퇴는 서버 유예·정산 처리 연동 후 사용할 수 있어요.',
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -685,11 +780,18 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final live = AppScope.of(context).usesLiveBusinessData;
     return Scaffold(
       appBar: AppBar(title: const Text('인증 뱃지 갱신')),
       body: ListView(
         padding: SetflowInsets.pageList,
         children: [
+          if (live) ...[
+            const _LiveIntegrationNotice(
+              message: '자격 서류 업로드와 갱신 심사 서버 연동을 준비 중이에요.',
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -761,7 +863,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
           const SizedBox(height: 10),
           if (!_fileAttached)
             SetflowCard(
-              onTap: () => setState(() => _fileAttached = true),
+              onTap: live ? null : () => setState(() => _fileAttached = true),
               color: SetflowColors.blue.withValues(alpha: .06),
               padding: const EdgeInsets.all(28),
               child: Column(
@@ -841,7 +943,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
           PrimaryButton(
             label: _submitting ? '제출 중...' : '자격 갱신 서류 제출하기',
             icon: Icons.shield_outlined,
-            onPressed: !_fileAttached || _submitting
+            onPressed: !_fileAttached || _submitting || live
                 ? null
                 : () async {
                     setState(() => _submitting = true);
@@ -910,14 +1012,22 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
         title: Text(_isGym ? '센터 프로필 편집' : '프로필 편집'),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               if (!(_formKey.currentState?.validate() ?? false)) return;
-              AppScope.of(context).updateBusinessProfile(
-                role: widget.role,
-                displayName: _nameController.text.trim(),
-                keyword: _keywordController.text.trim(),
-                intro: _introController.text.trim(),
-              );
+              try {
+                await AppScope.of(context).updateBusinessProfile(
+                  role: widget.role,
+                  displayName: _nameController.text.trim(),
+                  keyword: _keywordController.text.trim(),
+                  intro: _introController.text.trim(),
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  AppSnackbar.error(context, '프로필을 저장하지 못했어요.');
+                }
+                return;
+              }
+              if (!context.mounted) return;
               AppSnackbar.success(context, '프로필을 저장했어요.');
               Navigator.of(context).pop();
             },
@@ -991,6 +1101,46 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LiveIntegrationNotice extends StatelessWidget {
+  const _LiveIntegrationNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(SetflowSpacing.lg),
+      decoration: BoxDecoration(
+        color: SetflowColors.orange.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        border: Border.all(color: SetflowColors.orange.withValues(alpha: .24)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.cloud_off_outlined,
+            size: 20,
+            color: SetflowColors.orange,
+          ),
+          const SizedBox(width: SetflowSpacing.sm),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.45,
+                fontWeight: FontWeight.w700,
+                color: SetflowColors.secondaryText,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
