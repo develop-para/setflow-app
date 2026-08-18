@@ -1,15 +1,33 @@
 import 'package:flutter/material.dart';
 
-/// Backward-compatible brand constants used throughout the existing screens.
+/// Brand + neutral tokens. The neutral ramp is deliberately **warm-tinted** to
+/// harmonise with the warm Supernova yellow — a warm accent over cool-grey
+/// neutrals is the classic "yellow looks cheap" mistake, so every grey here
+/// carries a touch of the brand's warmth.
 abstract final class SetflowColors {
+  /// Supernova yellow (#FFCA10) — the official brand accent. Used as a precise
+  /// accent/indicator, never as a large fill (large yellow reads cheap).
   static const primary = Color(0xFFFFCA10);
-  static const ink = Color(0xFF241F20);
-  static const secondaryText = Color(0xFF6B7280);
-  static const disabled = Color(0xFF9CA3AF);
+
+  /// Kinetic ink — warm near-black primary text (never pure #000).
+  static const ink = Color(0xFF17140F);
+
+  /// Structural near-black for hero blocks and inverted CTAs — warm, matched to
+  /// the hero gradient so black fields feel intentional, not harsh.
+  static const inkBlock = Color(0xFF141210);
+
+  /// Disciplined steel for secondary data, kept muted so ink + yellow lead.
+  static const steel = Color(0xFF5F5C57);
+
+  /// Warm secondary text (taupe-grey), not cool slate.
+  static const secondaryText = Color(0xFF7A746B);
+  static const disabled = Color(0xFFA9A399);
   static const surface = Color(0xFFFFFFFF);
-  static const soft = Color(0xFFF7F8FA);
-  static const elevated = Color(0xFFF1F3F6);
-  static const divider = Color(0xFFE3E5E5);
+  static const soft = Color(0xFFF7F5F1);
+  static const elevated = Color(0xFFF0EDE7);
+
+  /// Warm editorial hairline.
+  static const divider = Color(0xFFE8E4DB);
   static const teal = Color(0xFF10CEBD);
   static const orange = Color(0xFFFFB20C);
   static const blue = Color(0xFF3B82F6);
@@ -18,6 +36,23 @@ abstract final class SetflowColors {
   static const red = Color(0xFFEF4444);
   static const warning = Color(0xFFF59E0B);
   static const info = Color(0xFF3B82F6);
+}
+
+/// Warm neutral ramp — the single source of grey for the whole system. Every
+/// surface, border, and text grey is drawn from this one warm family so nothing
+/// drifts cool against the Supernova yellow. Referenced by the tokens above.
+abstract final class SetflowNeutral {
+  static const n0 = Color(0xFFFFFFFF); // pure surface
+  static const n50 = Color(0xFFF7F5F1); // low container
+  static const n100 = Color(0xFFF0EDE7); // container
+  static const n200 = Color(0xFFE8E4DB); // hairline / high container
+  static const n300 = Color(0xFFD8D2C7); // strong border
+  static const n400 = Color(0xFFA9A399); // disabled / hint
+  static const n500 = Color(0xFF8A847A); // muted label
+  static const n600 = Color(0xFF7A746B); // secondary text
+  static const n700 = Color(0xFF57534C); // strong secondary
+  static const n800 = Color(0xFF2A2620); // dark elevated
+  static const n900 = Color(0xFF141210); // ink block
 }
 
 @immutable
@@ -36,11 +71,12 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     required this.orange,
   });
 
+  // Warm-tinted surface ramp (light): stone/sand neutrals, not cool greys.
   static const light = SetflowSemanticColors(
-    surfaceContainerLow: Color(0xFFF7F8FA),
-    surfaceContainer: Color(0xFFF4F6F9),
-    surfaceContainerHigh: Color(0xFFEEF1F5),
-    disabled: Color(0xFF9CA3AF),
+    surfaceContainerLow: Color(0xFFF7F5F1),
+    surfaceContainer: Color(0xFFF2EFE9),
+    surfaceContainerHigh: Color(0xFFECE8E0),
+    disabled: Color(0xFFA9A399),
     success: Color(0xFF22C55E),
     warning: Color(0xFFF59E0B),
     info: Color(0xFF3B82F6),
@@ -50,18 +86,20 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     orange: Color(0xFFFFB20C),
   );
 
+  // Warm near-black ramp (dark): matched to the hero gradient so surfaces feel
+  // like one warm material rather than a cold slate.
   static const dark = SetflowSemanticColors(
-    surfaceContainerLow: Color(0xFF1E1D20),
-    surfaceContainer: Color(0xFF232227),
-    surfaceContainerHigh: Color(0xFF2A2930),
-    disabled: Color(0xFF6B7280),
-    success: Color(0xFF22C55E),
+    surfaceContainerLow: Color(0xFF1A1815),
+    surfaceContainer: Color(0xFF211E19),
+    surfaceContainerHigh: Color(0xFF2A2620),
+    disabled: Color(0xFF635E56),
+    success: Color(0xFF34D399),
     warning: Color(0xFFF59E0B),
     info: Color(0xFF60A5FA),
     teal: Color(0xFF2DD4BF),
     blue: Color(0xFF60A5FA),
     purple: Color(0xFFA78BFA),
-    orange: Color(0xFFFBBF24),
+    orange: Color(0xFFFFB020),
   );
 
   final Color surfaceContainerLow;
@@ -166,30 +204,37 @@ abstract final class SetflowInsets {
 }
 
 abstract final class SetflowRadii {
-  static const xs = 8.0;
-  static const sm = 12.0;
-  static const md = 16.0;
-  static const lg = 20.0;
-  static const xl = 28.0;
+  // Kinetic runs tighter than stock Material — corners read as "printed"
+  // panels, not soft bubbles. Pills stay full-round for chips/toggles.
+  static const xs = 6.0;
+  static const sm = 10.0;
+  static const md = 14.0;
+  static const lg = 18.0;
+  static const xl = 24.0;
   static const full = 999.0;
 }
 
 abstract final class SetflowMotion {
-  static const micro = Duration(milliseconds: 150);
-  static const standard = Duration(milliseconds: 260);
-  static const page = Duration(milliseconds: 320);
+  // Kinetic motion snaps — quick, confident, slight overshoot on emphasis.
+  static const micro = Duration(milliseconds: 130);
+  static const standard = Duration(milliseconds: 240);
+  static const page = Duration(milliseconds: 300);
   static const standardCurve = Curves.easeOutCubic;
   static const emphasisCurve = Curves.easeOutBack;
+  // Number counters and stat reveals use a fast expo settle.
+  static const kineticCurve = Cubic(0.16, 1, 0.3, 1); // easeOutExpo-ish
 }
 
 abstract final class SetflowShadows {
+  // Editorial = mostly flat. Shadows are tight and low-spread, reserved for
+  // genuinely floating elements (sheets, FABs, the rest-timer chip).
   static const level1 = [
-    BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, 4)),
+    BoxShadow(color: Color(0x0F000000), blurRadius: 8, offset: Offset(0, 2)),
   ];
   static const level2 = [
-    BoxShadow(color: Color(0x1A000000), blurRadius: 24, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x16000000), blurRadius: 18, offset: Offset(0, 6)),
   ];
   static const level3 = [
-    BoxShadow(color: Color(0x24000000), blurRadius: 40, offset: Offset(0, 16)),
+    BoxShadow(color: Color(0x20000000), blurRadius: 32, offset: Offset(0, 12)),
   ];
 }

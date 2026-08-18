@@ -743,3 +743,425 @@ abstract final class AppSnackbar {
 void showMessage(BuildContext context, String message) {
   AppSnackbar.info(context, message);
 }
+
+class StatusChip extends StatelessWidget {
+  const StatusChip({
+    required this.label,
+    required this.color,
+    this.icon,
+    super.key,
+  });
+
+  final String label;
+  final Color color;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SetflowSpacing.sm,
+        vertical: SetflowSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(SetflowRadii.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: SetflowSpacing.xs),
+          ],
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TintedIconBadge extends StatelessWidget {
+  const TintedIconBadge({
+    required this.icon,
+    required this.color,
+    this.size = 44,
+    this.square = false,
+    this.iconSize,
+    super.key,
+  });
+
+  final IconData icon;
+  final Color color;
+  final double size;
+  final bool square;
+  final double? iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        shape: square ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: square ? BorderRadius.circular(SetflowRadii.sm) : null,
+      ),
+      child: Icon(icon, color: color, size: iconSize ?? size * .48),
+    );
+  }
+}
+
+class AppIconButton extends StatelessWidget {
+  const AppIconButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+    this.color,
+    super.key,
+  });
+
+  final IconData icon;
+  final VoidCallback? onTap;
+  final String? tooltip;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final button = Material(
+      color: context.setflowColors.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(SetflowRadii.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(SetflowRadii.sm),
+        onTap: onTap == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                onTap?.call();
+              },
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Icon(
+            icon,
+            size: 19,
+            color: color ?? theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
+  }
+}
+
+class SheetAction<T> {
+  const SheetAction({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.subtitle,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final T value;
+  final String? subtitle;
+  final bool destructive;
+}
+
+Future<T?> showAppActionSheet<T>(
+  BuildContext context, {
+  String? title,
+  String? subtitle,
+  required List<SheetAction<T>> actions,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) {
+      final theme = Theme.of(sheetContext);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.lg,
+            0,
+            SetflowSpacing.lg,
+            SetflowSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    SetflowSpacing.sm,
+                    0,
+                    SetflowSpacing.sm,
+                    SetflowSpacing.sm,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            subtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              for (final action in actions)
+                ListTile(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.pop(sheetContext, action.value);
+                  },
+                  leading: Icon(
+                    action.icon,
+                    color: action.destructive
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  title: Text(
+                    action.label,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: action.destructive
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  subtitle: action.subtitle == null
+                      ? null
+                      : Text(
+                          action.subtitle!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class SetflowNavItem {
+  const SetflowNavItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+}
+
+class SetflowNavBar extends StatelessWidget {
+  const SetflowNavBar({
+    required this.items,
+    required this.selectedIndex,
+    required this.onSelected,
+    super.key,
+  });
+
+  final List<SetflowNavItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 62,
+          child: Row(
+            children: [
+              for (var i = 0; i < items.length; i++)
+                Expanded(
+                  child: _SetflowNavDestination(
+                    item: items[i],
+                    selected: i == selectedIndex,
+                    onTap: () {
+                      if (i != selectedIndex) HapticFeedback.selectionClick();
+                      onSelected(i);
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SetflowNavDestination extends StatelessWidget {
+  const _SetflowNavDestination({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final SetflowNavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = selected
+        ? theme.colorScheme.onSurface
+        : theme.colorScheme.onSurfaceVariant;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: item.label,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: SetflowMotion.standard,
+              curve: SetflowMotion.kineticCurve,
+              height: 3,
+              width: selected ? 24 : 0,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(3),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    selected ? item.selectedIcon : item.icon,
+                    size: 24,
+                    color: color,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      letterSpacing: .1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SegPills extends StatelessWidget {
+  const SegPills({
+    required this.items,
+    required this.selectedIndex,
+    required this.onChanged,
+    super.key,
+  });
+
+  final List<String> items;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var i = 0; i < items.length; i++)
+            Padding(
+              padding: EdgeInsets.only(
+                right: i == items.length - 1 ? 0 : SetflowSpacing.sm,
+              ),
+              child: Material(
+                color: i == selectedIndex
+                    ? theme.colorScheme.primary
+                    : context.setflowColors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(SetflowRadii.full),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(SetflowRadii.full),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onChanged(i);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: SetflowSpacing.lg,
+                      vertical: SetflowSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(SetflowRadii.full),
+                      border: Border.all(
+                        color: i == selectedIndex
+                            ? Colors.transparent
+                            : theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Text(
+                      items[i],
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: i == selectedIndex
+                            ? theme.colorScheme.onPrimary
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

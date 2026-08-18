@@ -976,16 +976,21 @@ class _RoutineMemberShareSheetState extends State<_RoutineMemberShareSheet> {
                     SetflowSpacing.lg,
                   ),
                   children: [
-                    ..._buildHeader(context),
-                    if (members.isEmpty)
-                      const EmptyState(
-                        icon: Icons.people_outline_rounded,
-                        title: '담당 회원이 없어요',
-                        message: '회원 배정이 완료되면 이곳에서 루틴을 바로 공유할 수 있어요.',
-                      )
-                    else
-                      ...members.map(_buildMemberTile),
-                    ..._buildFooter(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ..._buildHeader(context),
+                        if (members.isEmpty)
+                          const EmptyState(
+                            icon: Icons.people_outline_rounded,
+                            title: '담당 회원이 없어요',
+                            message: '회원 배정이 완료되면 이곳에서 루틴을 바로 공유할 수 있어요.',
+                          )
+                        else
+                          ...members.map(_buildMemberTile),
+                        ..._buildFooter(),
+                      ],
+                    ),
                   ],
                 )
               : Padding(

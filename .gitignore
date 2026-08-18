@@ -47,3 +47,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /artifacts/
+
+# Local agent and MCP runtime state
+.fry/
+.omc/
+.mcp.json
