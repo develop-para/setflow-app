@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <application
-        android:label="setflow"
+        android:label="Setflow"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -37,7 +37,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="com.setflow.setflow"
+                    android:scheme="com.teampara.setflow"
                     android:host="login-callback" />
             </intent-filter>
             <intent-filter>
@@ -45,7 +45,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="com.setflow.setflow"
+                    android:scheme="com.teampara.setflow"
                     android:host="routine-share" />
             </intent-filter>
             <intent-filter>
@@ -53,7 +53,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="com.setflow.setflow"
+                    android:scheme="com.teampara.setflow"
                     android:host="business-invite" />
             </intent-filter>
         </activity>

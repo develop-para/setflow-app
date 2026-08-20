@@ -1257,7 +1257,7 @@ void main() {
 
       repository.personalRoutines = [_sharedPersonalRoutine(memberUserId)];
       final uri = Uri.parse(
-        'com.setflow.setflow://routine-share/opaque-share-token',
+        'com.teampara.setflow://routine-share/opaque-share-token',
       );
       state.captureRoutineShareUri(uri);
       expect(state.pendingRoutineShareToken, 'opaque-share-token');
@@ -2162,7 +2162,7 @@ class _FakeBusinessRepository implements BusinessRepository {
     return RoutineShareLink(
       shareId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
       token: 'test-token',
-      uri: Uri.parse('com.setflow.setflow://routine-share/test-token'),
+      uri: Uri.parse('com.teampara.setflow://routine-share/test-token'),
       expiresAt: expiresAt ?? DateTime(2026, 9),
     );
   }

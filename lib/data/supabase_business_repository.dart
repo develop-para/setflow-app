@@ -1282,7 +1282,7 @@ class SupabaseBusinessRepository
       uri: token == null
           ? null
           : Uri(
-              scheme: 'com.setflow.setflow',
+              scheme: 'com.teampara.setflow',
               host: 'business-invite',
               path: '/$token',
             ),
@@ -1803,7 +1803,7 @@ class SupabaseBusinessRepository
         shareId: _requiredUuid(row, 'id'),
         token: token,
         uri: Uri(
-          scheme: 'com.setflow.setflow',
+          scheme: 'com.teampara.setflow',
           host: 'routine-share',
           pathSegments: [token],
         ),

@@ -1,4 +1,4 @@
-package com.setflow.setflow
+package com.teampara.setflow
 
 import android.Manifest
 import android.content.pm.PackageManager

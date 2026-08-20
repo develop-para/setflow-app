@@ -10,7 +10,7 @@ class RestTimerStatus {
 /// Bridges the in-app timer to Android's foreground timer and home widget.
 /// Calls are best-effort so non-Android platforms keep using the Dart timer.
 abstract final class RestTimerPlatform {
-  static const _channel = MethodChannel('com.setflow.setflow/rest_timer');
+  static const _channel = MethodChannel('com.teampara.setflow/rest_timer');
 
   static Future<void> start({
     required int seconds,

@@ -1,4 +1,4 @@
-package com.setflow.setflow
+package com.teampara.setflow
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -216,14 +216,14 @@ class RestTimerService : Service() {
     }
 
     companion object {
-        const val CHANNEL_NAME = "com.setflow.setflow/rest_timer"
+        const val CHANNEL_NAME = "com.teampara.setflow/rest_timer"
         const val PREFERENCES_NAME = "setflow_rest_timer"
         const val KEY_ENDS_AT = "ends_at"
         const val KEY_ACTIVE = "active"
         private const val KEY_SHOW_COMPLETION = "show_completion"
         private const val KEY_VIBRATE = "vibrate"
-        private const val ACTION_START = "com.setflow.setflow.action.START_REST_TIMER"
-        private const val ACTION_CANCEL = "com.setflow.setflow.action.CANCEL_REST_TIMER"
+        private const val ACTION_START = "com.teampara.setflow.action.START_REST_TIMER"
+        private const val ACTION_CANCEL = "com.teampara.setflow.action.CANCEL_REST_TIMER"
         private const val EXTRA_SECONDS = "seconds"
         private const val EXTRA_SHOW_COMPLETION = "show_completion"
         private const val EXTRA_VIBRATE = "vibrate"

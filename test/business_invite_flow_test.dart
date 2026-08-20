@@ -24,13 +24,13 @@ void main() {
     addTearDown(state.dispose);
 
     state.captureIncomingUri(
-      Uri.parse('com.setflow.setflow://business-invite/$_token'),
+      Uri.parse('com.teampara.setflow://business-invite/$_token'),
     );
 
     expect(state.pendingBusinessInviteToken, _token);
 
     state.captureIncomingUri(
-      Uri.parse('com.setflow.setflow://routine-share/unrelated-token'),
+      Uri.parse('com.teampara.setflow://routine-share/unrelated-token'),
     );
     expect(state.pendingBusinessInviteToken, _token);
 
@@ -204,7 +204,7 @@ void main() {
       expect(repository.loadAccessCount, 1);
 
       state.captureIncomingUri(
-        Uri.parse('com.setflow.setflow://business-invite/$_token'),
+        Uri.parse('com.teampara.setflow://business-invite/$_token'),
       );
       final result = await state.acceptBusinessInviteToken();
 
@@ -230,7 +230,7 @@ void main() {
       addTearDown(state.dispose);
       await state.initialize();
       state.captureIncomingUri(
-        Uri.parse('com.setflow.setflow://business-invite/$_token'),
+        Uri.parse('com.teampara.setflow://business-invite/$_token'),
       );
 
       await expectLater(
@@ -266,7 +266,7 @@ void main() {
       addTearDown(state.dispose);
       await state.initialize();
       state.captureIncomingUri(
-        Uri.parse('com.setflow.setflow://business-invite/$_token'),
+        Uri.parse('com.teampara.setflow://business-invite/$_token'),
       );
 
       final result = await state.acceptBusinessInviteToken();
@@ -344,7 +344,7 @@ BusinessInviteCreation _creation() => BusinessInviteCreation(
   invite: _invite(),
   tokenIssued: true,
   token: _token,
-  uri: Uri.parse('com.setflow.setflow://business-invite/$_token'),
+  uri: Uri.parse('com.teampara.setflow://business-invite/$_token'),
 );
 
 BusinessInviteAcceptance _acceptance({required bool accepted}) =>

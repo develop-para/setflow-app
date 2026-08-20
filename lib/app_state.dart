@@ -253,7 +253,7 @@ class AppState extends ChangeNotifier {
   List<RoutineData> get marketRoutines => List.unmodifiable(_marketRoutines);
 
   void captureIncomingUri(Uri uri) {
-    if (uri.scheme == 'com.setflow.setflow' && uri.host == 'routine-share') {
+    if (uri.scheme == 'com.teampara.setflow' && uri.host == 'routine-share') {
       final token = uri.pathSegments.firstOrNull?.trim();
       if (token == null || token.isEmpty) return;
       pendingRoutineShareToken = token;
@@ -261,7 +261,7 @@ class AppState extends ChangeNotifier {
       return;
     }
     final businessToken = switch ((uri.scheme, uri.host)) {
-      ('com.setflow.setflow', 'business-invite') =>
+      ('com.teampara.setflow', 'business-invite') =>
         uri.pathSegments.firstOrNull?.trim(),
       ('https', 'setflow.app') when uri.path == '/invite/business' =>
         uri.queryParameters['token']?.trim(),
@@ -4563,7 +4563,7 @@ class AppState extends ChangeNotifier {
     final normalized = input.trim();
     final uri = Uri.tryParse(normalized);
     if (uri != null &&
-        uri.scheme == 'com.setflow.setflow' &&
+        uri.scheme == 'com.teampara.setflow' &&
         uri.host == 'routine-share' &&
         uri.pathSegments.isNotEmpty) {
       return uri.pathSegments.first.trim();

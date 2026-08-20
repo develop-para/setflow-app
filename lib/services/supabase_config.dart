@@ -11,7 +11,7 @@ abstract final class SupabaseConfig {
     defaultValue: 'sb_publishable_C9fh17Vm_9AV1xnCcyFX6A_frY8lgdM',
   );
 
-  static const mobileAuthRedirect = 'com.setflow.setflow://login-callback';
+  static const mobileAuthRedirect = 'com.teampara.setflow://login-callback';
 
   /// OAuth providers stay disabled until the matching provider is enabled in
   /// Supabase Auth and the release build opts in explicitly. This keeps a
