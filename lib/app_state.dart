@@ -14,6 +14,7 @@ import 'models.dart';
 import 'services/cardio_prescription_engine.dart';
 import 'services/exercise_recommendation_engine.dart';
 import 'services/performance_engine.dart';
+import 'services/rest_timer_platform.dart';
 import 'services/supabase_auth_service.dart';
 
 export 'models.dart';
@@ -96,6 +97,7 @@ class AppState extends ChangeNotifier {
   String memberNickname = '';
   bool useRir = false;
   bool autoStartRestTimer = true;
+  bool autoRecommendNextExercise = true;
   bool restTimerNotifications = true;
   bool timerVibration = true;
   bool pushCoachingFeedback = true;
@@ -115,8 +117,10 @@ class AppState extends ChangeNotifier {
   String? gender;
   int restRemaining = 0;
   Timer? _restTimer;
+  DateTime? _restTimerEndsAt;
 
-  final List<ExerciseTemplate> exercises = exerciseCatalog;
+  final List<ExerciseTemplate> exercises = List.of(exerciseCatalog);
+  final List<ExerciseTemplate> customExercises = [];
 
   final Map<DateTime, WorkoutSession> sessions = {};
   final List<RoutineData> routines = [];
@@ -588,6 +592,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAutoRecommendNextExercise(bool value) {
+    autoRecommendNextExercise = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
   void setRestTimerNotifications(bool value) {
     restTimerNotifications = value;
     _schedulePersist();
@@ -620,6 +630,36 @@ class AppState extends ChangeNotifier {
       key,
       () => WorkoutSession(date: key, exercises: []),
     );
+  }
+
+  ExerciseTemplate? createCustomExercise({
+    required String name,
+    required String muscle,
+  }) {
+    final normalizedName = name.trim();
+    final normalizedMuscle = muscle.trim();
+    const muscles = {'가슴', '등', '어깨', '하체', '팔', '복근', '유산소'};
+    if (normalizedName.isEmpty ||
+        normalizedName.length > 50 ||
+        !muscles.contains(normalizedMuscle)) {
+      return null;
+    }
+    final duplicate = exercises.any(
+      (exercise) =>
+          exercise.name.trim().toLowerCase() == normalizedName.toLowerCase(),
+    );
+    if (duplicate) return null;
+    final exercise = ExerciseTemplate(
+      id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
+      name: normalizedName,
+      muscle: normalizedMuscle,
+      icon: exerciseIconForMuscle(normalizedMuscle),
+    );
+    customExercises.add(exercise);
+    exercises.add(exercise);
+    _schedulePersist();
+    notifyListeners();
+    return exercise;
   }
 
   ExercisePerformanceSummary? performanceFor(
@@ -1087,7 +1127,10 @@ class AppState extends ChangeNotifier {
 
   void toggleSet(WorkoutSetEntry set, {bool startRest = true}) {
     set.completed = !set.completed;
-    if (set.completed && startRest && set.restSeconds > 0) {
+    if (set.completed &&
+        startRest &&
+        autoStartRestTimer &&
+        set.restSeconds > 0) {
       startRestTimer(set.restSeconds);
     }
     _schedulePersist();
@@ -4562,6 +4605,7 @@ class AppState extends ChangeNotifier {
     nickname: memberNickname.trim().isEmpty ? null : memberNickname.trim(),
     useRir: useRir,
     autoStartRestTimer: autoStartRestTimer,
+    autoRecommendNextExercise: autoRecommendNextExercise,
     restTimerNotifications: restTimerNotifications,
     timerVibration: timerVibration,
     pushCoachingFeedback: pushCoachingFeedback,
@@ -4582,18 +4626,61 @@ class AppState extends ChangeNotifier {
     businessDashboards: businessRepository == null
         ? Map<UserRole, BusinessDashboardData>.unmodifiable(businessDashboards)
         : const {},
+    customExercises: List<ExerciseTemplate>.unmodifiable(customExercises),
   );
 
   void startRestTimer(int seconds) {
     _restTimer?.cancel();
-    restRemaining = seconds;
+    final safeSeconds = seconds.clamp(1, 3600);
+    _restTimerEndsAt = DateTime.now().add(Duration(seconds: safeSeconds));
+    restRemaining = safeSeconds;
+    unawaited(
+      RestTimerPlatform.start(
+        seconds: safeSeconds,
+        showCompletionNotification: restTimerNotifications,
+        vibrate: timerVibration,
+      ),
+    );
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (restRemaining <= 1) {
-        restRemaining = 0;
-        timer.cancel();
-      } else {
-        restRemaining--;
-      }
+      _refreshRestRemaining();
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  void _refreshRestRemaining() {
+    final endsAt = _restTimerEndsAt;
+    if (endsAt == null) {
+      restRemaining = 0;
+      _restTimer?.cancel();
+      return;
+    }
+    final milliseconds = endsAt.difference(DateTime.now()).inMilliseconds;
+    if (milliseconds <= 0) {
+      restRemaining = 0;
+      _restTimerEndsAt = null;
+      _restTimer?.cancel();
+      return;
+    }
+    restRemaining = (milliseconds / 1000).ceil();
+  }
+
+  Future<void> syncRestTimerFromPlatform() async {
+    final status = await RestTimerPlatform.status();
+    if (_disposed || status == null) return;
+    _restTimer?.cancel();
+    if (status.remainingSeconds <= 0) {
+      restRemaining = 0;
+      _restTimerEndsAt = null;
+      notifyListeners();
+      return;
+    }
+    _restTimerEndsAt = status.endsAtMillis == null
+        ? DateTime.now().add(Duration(seconds: status.remainingSeconds))
+        : DateTime.fromMillisecondsSinceEpoch(status.endsAtMillis!);
+    _refreshRestRemaining();
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _refreshRestRemaining();
       notifyListeners();
     });
     notifyListeners();
@@ -4601,7 +4688,9 @@ class AppState extends ChangeNotifier {
 
   void cancelRestTimer() {
     _restTimer?.cancel();
+    _restTimerEndsAt = null;
     restRemaining = 0;
+    unawaited(RestTimerPlatform.cancel());
     notifyListeners();
   }
 
@@ -4613,6 +4702,7 @@ class AppState extends ChangeNotifier {
     memberNickname = snapshot.nickname?.trim() ?? '';
     useRir = snapshot.useRir;
     autoStartRestTimer = snapshot.autoStartRestTimer;
+    autoRecommendNextExercise = snapshot.autoRecommendNextExercise;
     restTimerNotifications = snapshot.restTimerNotifications;
     timerVibration = snapshot.timerVibration;
     pushCoachingFeedback = snapshot.pushCoachingFeedback;
@@ -4622,6 +4712,13 @@ class AppState extends ChangeNotifier {
     weight = snapshot.weight;
     age = snapshot.age;
     gender = snapshot.gender;
+    customExercises
+      ..clear()
+      ..addAll(snapshot.customExercises);
+    exercises
+      ..clear()
+      ..addAll(exerciseCatalog)
+      ..addAll(customExercises);
     sessions.clear();
     for (final entry in snapshot.sessions.entries) {
       final userExercises = entry.value.exercises
@@ -4662,6 +4759,7 @@ class AppState extends ChangeNotifier {
     memberNickname = '';
     useRir = false;
     autoStartRestTimer = true;
+    autoRecommendNextExercise = true;
     restTimerNotifications = true;
     timerVibration = true;
     pushCoachingFeedback = true;
@@ -4671,6 +4769,10 @@ class AppState extends ChangeNotifier {
     weight = null;
     age = null;
     gender = null;
+    customExercises.clear();
+    exercises
+      ..clear()
+      ..addAll(exerciseCatalog);
     sessions.clear();
     routines.clear();
     communityPosts.clear();

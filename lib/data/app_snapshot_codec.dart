@@ -6,7 +6,7 @@ import '../models.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 9;
+  static const schemaVersion = 10;
 
   static String encode(AppSnapshot snapshot) => jsonEncode(toJson(snapshot));
 
@@ -20,6 +20,7 @@ abstract final class AppSnapshotCodec {
         'restDefaultSeconds': snapshot.restDefaultSeconds,
         'useRir': snapshot.useRir,
         'autoStartRestTimer': snapshot.autoStartRestTimer,
+        'autoRecommendNextExercise': snapshot.autoRecommendNextExercise,
         'restTimerNotifications': snapshot.restTimerNotifications,
         'timerVibration': snapshot.timerVibration,
         'pushCoachingFeedback': snapshot.pushCoachingFeedback,
@@ -34,6 +35,15 @@ abstract final class AppSnapshotCodec {
         'age': snapshot.age,
         'gender': snapshot.gender,
       },
+      'customExercises': snapshot.customExercises
+          .map(
+            (exercise) => {
+              'id': exercise.id,
+              'name': exercise.name,
+              'muscle': exercise.muscle,
+            },
+          )
+          .toList(),
       'sessions': snapshot.sessions.values.map(_sessionToJson).toList(),
       'routines': snapshot.routines.map(_routineToJson).toList(),
       'communityPosts': snapshot.communityPosts.map(_postToJson).toList(),
@@ -61,8 +71,35 @@ abstract final class AppSnapshotCodec {
       }
       final preferences = root['preferences'] as Map<String, dynamic>? ?? {};
       final profile = root['profile'] as Map<String, dynamic>? ?? {};
+      final customExercises = <ExerciseTemplate>[];
+      final knownIds = exerciseCatalog.map((exercise) => exercise.id).toSet();
+      const supportedMuscles = {'가슴', '등', '어깨', '하체', '팔', '복근', '유산소'};
+      for (final raw in root['customExercises'] as List<dynamic>? ?? const []) {
+        if (raw is! Map) continue;
+        final value = Map<String, dynamic>.from(raw);
+        final id = value['id']?.toString().trim() ?? '';
+        final name = value['name']?.toString().trim() ?? '';
+        final muscle = value['muscle']?.toString().trim() ?? '';
+        if (!id.startsWith('custom_') ||
+            id.length > 80 ||
+            name.isEmpty ||
+            name.length > 50 ||
+            !supportedMuscles.contains(muscle) ||
+            !knownIds.add(id)) {
+          continue;
+        }
+        customExercises.add(
+          ExerciseTemplate(
+            id: id,
+            name: name,
+            muscle: muscle,
+            icon: exerciseIconForMuscle(muscle),
+          ),
+        );
+      }
       final templates = {
         for (final exercise in exerciseCatalog) exercise.id: exercise,
+        for (final exercise in customExercises) exercise.id: exercise,
       };
       final sessions = <DateTime, WorkoutSession>{};
       for (final raw in root['sessions'] as List<dynamic>? ?? const []) {
@@ -113,6 +150,8 @@ abstract final class AppSnapshotCodec {
         nickname: profile['nickname'] as String?,
         useRir: preferences['useRir'] as bool? ?? false,
         autoStartRestTimer: preferences['autoStartRestTimer'] as bool? ?? true,
+        autoRecommendNextExercise:
+            preferences['autoRecommendNextExercise'] as bool? ?? true,
         restTimerNotifications:
             preferences['restTimerNotifications'] as bool? ?? true,
         timerVibration: preferences['timerVibration'] as bool? ?? true,
@@ -132,6 +171,7 @@ abstract final class AppSnapshotCodec {
         communityPosts: posts,
         consultations: consultations,
         businessDashboards: businessDashboards,
+        customExercises: customExercises,
       );
     } on FormatException {
       return null;

@@ -39,6 +39,9 @@ void main() {
 
     await tester.tap(find.text('검색 초기화'));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('exercise-muscle-grid')), findsOneWidget);
+    await tester.tap(find.text('가슴'));
+    await tester.pumpAndSettle();
     expect(find.text('바벨 벤치 프레스'), findsOneWidget);
 
     state.dispose();
@@ -68,13 +71,19 @@ void main() {
 
       await tester.tap(find.text('0').first);
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField), '1200');
-      await tester.tap(find.text('저장'));
+      await tester.enterText(
+        find.byKey(const Key('number-dial-direct-input')),
+        '1200',
+      );
+      await tester.tap(find.text('적용'));
       await tester.pump();
       expect(find.text('0~999 범위로 입력해주세요.'), findsOneWidget);
 
-      await tester.enterText(find.byType(TextFormField), '42.5');
-      await tester.tap(find.text('저장'));
+      await tester.enterText(
+        find.byKey(const Key('number-dial-direct-input')),
+        '42.5',
+      );
+      await tester.tap(find.text('적용'));
       await tester.pumpAndSettle();
       expect(exercise.sets.first.weight, 42.5);
 
@@ -228,62 +237,51 @@ void main() {
     state.dispose();
   });
 
-  testWidgets('recommendation apply asks for a missing goal and opens editor', (
-    tester,
-  ) async {
-    final state = AppState();
-    await state.initialize();
-    final historyDate = DateTime(2026, 10, 1);
-    final targetDate = DateTime(2026, 10, 5);
-    state.addExercise(historyDate, state.exercises.first);
-    for (final set in state.sessions[historyDate]!.exercises.single.sets) {
-      state.updateSet(set, weight: 100, reps: 10);
-      state.toggleSet(set);
-    }
-    state.cancelRestTimer();
+  testWidgets(
+    'recommendation controls stay compact before workout completion',
+    (tester) async {
+      final state = AppState();
+      await state.initialize();
+      final historyDate = DateTime(2026, 10, 1);
+      final targetDate = DateTime(2026, 10, 5);
+      state.addExercise(historyDate, state.exercises.first);
+      for (final set in state.sessions[historyDate]!.exercises.single.sets) {
+        state.updateSet(set, weight: 100, reps: 10);
+        state.toggleSet(set);
+      }
+      state.cancelRestTimer();
 
-    await tester.binding.setSurfaceSize(const Size(432, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(
-      AppScope(
-        notifier: state,
-        child: MaterialApp(
-          theme: SetflowTheme.light,
-          home: DailyWorkoutScreen(date: targetDate),
+      await tester.binding.setSurfaceSize(const Size(432, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: DailyWorkoutScreen(date: targetDate),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(state.recommendationForDate(targetDate), isNull);
-    expect(
-      find.byKey(const Key('goal-required-recommendation')),
-      findsOneWidget,
-    );
-    expect(find.text('운동 목표를 먼저 선택해주세요'), findsOneWidget);
-    expect(find.text('추천 세트 적용'), findsOneWidget);
-    expect(find.text('NEXT SESSION'), findsNothing);
-    expect(find.textContaining('8–10회'), findsNothing);
-    expect(find.textContaining('90초'), findsNothing);
+      expect(state.recommendationForDate(targetDate), isNull);
+      expect(find.byKey(const Key('auto-recommend-toggle')), findsOneWidget);
+      expect(find.text('추천 ON'), findsOneWidget);
+      expect(find.text('추천 세트 적용'), findsNothing);
+      expect(find.text('NEXT SESSION'), findsNothing);
+      expect(find.textContaining('8–10회'), findsNothing);
+      expect(find.textContaining('90초'), findsNothing);
 
-    await tester.tap(find.text('추천 세트 적용'));
-    await tester.pumpAndSettle();
-    expect(find.text('목표를 작성해야 합니다. 작성창으로 이동하시겠습니까?'), findsOneWidget);
-    await tester.tap(find.text('목표 작성하기'));
-    await tester.pumpAndSettle();
-    expect(find.text('운동 목표 설정'), findsOneWidget);
-    await tester.tap(find.text('근육 증가'));
-    await tester.tap(find.text('목표 저장'));
-    await tester.pumpAndSettle();
-
-    expect(state.goals, contains('근육 증가'));
-    expect(state.sessions[targetDate]!.exercises.single.template.id, 'bench');
-    expect(state.sessions[targetDate]!.exercises.single.sets, hasLength(3));
-    state.dispose();
-  });
+      await tester.tap(find.byKey(const Key('auto-recommend-toggle')));
+      await tester.pump();
+      expect(state.autoRecommendNextExercise, isFalse);
+      expect(find.text('추천 OFF'), findsOneWidget);
+      state.dispose();
+    },
+  );
 
   testWidgets(
-    'strength goal shows and applies the 4–6 rep prescription with 180s rest',
+    'strength recommendation appears only after every workout set is done',
     (tester) async {
       final state = AppState();
       await state.initialize();
@@ -305,6 +303,13 @@ void main() {
       expect(recommendation.sets, 3);
       expect(recommendation.restSeconds, 180);
 
+      state.addExercise(targetDate, state.exercises.first);
+      for (final set in state.sessions[targetDate]!.exercises.single.sets) {
+        state.updateSet(set, weight: 102.5, reps: 5);
+        state.toggleSet(set);
+      }
+      state.cancelRestTimer();
+
       await tester.binding.setSurfaceSize(const Size(432, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
@@ -321,19 +326,31 @@ void main() {
       expect(find.text('NEXT SESSION'), findsOneWidget);
       expect(find.text('근력 향상'), findsOneWidget);
       expect(find.textContaining('4–6회'), findsOneWidget);
-      expect(find.textContaining('3세트'), findsOneWidget);
-
-      await tester.tap(find.text('추천 세트 적용'));
-      await tester.pumpAndSettle();
-
-      final applied = state.sessions[targetDate]!.exercises.single;
-      expect(applied.template.id, 'bench');
-      expect(applied.sets, hasLength(3));
-      expect(applied.sets.map((set) => set.reps), everyElement(4));
-      expect(applied.sets.map((set) => set.restSeconds), everyElement(180));
+      expect(find.textContaining('3세트'), findsWidgets);
+      expect(find.text('추천 세트 적용'), findsNothing);
       state.dispose();
     },
   );
+
+  testWidgets('long pressing an inline set reveals its delete action', (
+    tester,
+  ) async {
+    final date = DateTime(2026, 11, 4);
+    final state = await pumpWorkoutScreen(
+      tester,
+      DailyWorkoutScreen(date: DateTime(2026, 11, 4)),
+    );
+    state.addExercise(date, state.exercises.first);
+    await tester.pumpAndSettle();
+
+    final set = state.sessions[date]!.exercises.single.sets.first;
+    await tester.longPress(find.byKey(ObjectKey(set)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('길게 눌러 삭제 메뉴를 열었어요.'), findsOneWidget);
+    expect(find.text('세트 삭제'), findsWidgets);
+    state.dispose();
+  });
 
   testWidgets('finishing an exercise offers and adds the next goal exercise', (
     tester,

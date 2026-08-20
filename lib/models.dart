@@ -30,6 +30,17 @@ class ExerciseTemplate {
   bool get isCardio => muscle == '유산소';
 }
 
+IconData exerciseIconForMuscle(String muscle) => switch (muscle) {
+  '가슴' => Icons.fitness_center_rounded,
+  '등' => Icons.rowing_rounded,
+  '어깨' => Icons.accessibility_new_rounded,
+  '하체' => Icons.directions_walk_rounded,
+  '팔' => Icons.sports_gymnastics_rounded,
+  '복근' => Icons.self_improvement_rounded,
+  '유산소' => Icons.directions_run_rounded,
+  _ => Icons.fitness_center_rounded,
+};
+
 class WorkoutSetEntry {
   WorkoutSetEntry({
     required this.number,

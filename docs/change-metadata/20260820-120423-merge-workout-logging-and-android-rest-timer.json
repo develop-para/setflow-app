@@ -1,0 +1,1223 @@
+{
+  "schema_version": "1.0",
+  "change_id": "20260820-120423-merge-workout-logging-and-android-rest-timer",
+  "created_at": "2026-08-20T12:04:23+09:00",
+  "repository": "setflow",
+  "branch": "main",
+  "baseline_commit": "2546d1df8940b67b3ac6580ebd2d4de6c0ed17c9",
+  "request": "Pull and integrate the latest remote workout-intelligence branch changes.",
+  "title": "Merge workout logging and Android rest timer",
+  "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+  "files": [
+    {
+      "path": "android/app/src/main/kotlin/com/setflow/setflow/MainActivity.kt",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 3,
+          "new_end": 6
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 8,
+          "new_end": 8
+        },
+        {
+          "old_start": 5,
+          "old_end": 5,
+          "new_start": 10,
+          "new_end": 54
+        }
+      ],
+      "working_tree_sha256": "a2af26e808c13bace4a0cce7fb9a0f4de800a126bfdd690a83280b623841e3e9",
+      "symbols": [
+        "MainActivity.configureFlutterEngine",
+        "rest_timer MethodChannel"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "The Android activity did not expose native rest timer controls to Flutter.",
+      "new_behavior": "The activity handles start, cancel, and status calls for the Android rest timer service.",
+      "data_impact": "none; commands only manipulate device-local timer state.",
+      "access_control_impact": "none; the channel is available only inside the application process.",
+      "risks": [
+        "Malformed channel arguments could prevent a timer command from starting."
+      ],
+      "rollback": "Revert MainActivity.kt with the rest timer service and Dart bridge; no server data rollback is needed."
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/setflow/setflow/RestTimerService.kt",
+      "change_type": "added",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1,
+          "new_end": 284
+        }
+      ],
+      "working_tree_sha256": "ed2752ec23cfcdb6c404b308c6c4b87c71ffcb39afd955a6c731cccfa288296b",
+      "symbols": [
+        "RestTimerService"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "No Android foreground service kept a rest countdown active outside the Flutter screen.",
+      "new_behavior": "A foreground service persists countdown deadlines, updates ongoing and completion notifications, supports cancellation, and restores active timers.",
+      "data_impact": "writes device-local SharedPreferences for timer deadline and duration; no remote data is touched.",
+      "access_control_impact": "none; Android service exposure is constrained by the application manifest.",
+      "risks": [
+        "OEM background restrictions may delay notification updates or vibration."
+      ],
+      "rollback": "Revert the service, its manifest declarations, notification resources, and Flutter bridge; clear app-local timer preferences if needed."
+    },
+    {
+      "path": "android/app/src/main/kotlin/com/setflow/setflow/RestTimerWidgetProvider.kt",
+      "change_type": "added",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1,
+          "new_end": 75
+        }
+      ],
+      "working_tree_sha256": "80704ef13dfb62ccc55bc22c56405ae7c74b296216600fa587ab82cdf359972e",
+      "symbols": [
+        "RestTimerWidgetProvider"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "No Android home-screen widget showed rest timer status.",
+      "new_behavior": "The widget renders current rest time and refreshes when the native service changes state.",
+      "data_impact": "reads device-local timer SharedPreferences; no remote writes.",
+      "access_control_impact": "none; the widget exposes status only and launches no privileged action.",
+      "risks": [
+        "Some launchers may refresh widgets less frequently than expected."
+      ],
+      "rollback": "Revert the provider, widget resources, and manifest receiver; existing workout data remains compatible."
+    },
+    {
+      "path": "lib/app_state.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 17,
+          "new_end": 17
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 100,
+          "new_end": 100
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 120,
+          "new_end": 120
+        },
+        {
+          "old_start": 119,
+          "old_end": 119,
+          "new_start": 122,
+          "new_end": 123
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 595,
+          "new_end": 600
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 635,
+          "new_end": 664
+        },
+        {
+          "old_start": 1090,
+          "old_end": 1090,
+          "new_start": 1130,
+          "new_end": 1133
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 4608,
+          "new_end": 4608
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 4629,
+          "new_end": 4629
+        },
+        {
+          "old_start": 4589,
+          "old_end": 4589,
+          "new_start": 4634,
+          "new_end": 4643
+        },
+        {
+          "old_start": 4591,
+          "old_end": 4596,
+          "new_start": 4645,
+          "new_end": 4683
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 4691,
+          "new_end": 4691
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 4693,
+          "new_end": 4693
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 4705,
+          "new_end": 4705
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 4715,
+          "new_end": 4721
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 4762,
+          "new_end": 4762
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 4772,
+          "new_end": 4775
+        }
+      ],
+      "working_tree_sha256": "e509efce627b87f4f99294df0d7effbd28302d000dd320cac8755c1f14357819",
+      "symbols": [
+        "AppState.addCustomExercise",
+        "AppState.setAutoRecommendNextExercise",
+        "AppState.startRestTimer",
+        "AppState.syncRestTimerFromPlatform"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Workout state used only catalog exercises, always followed the previous recommendation behavior, and kept rest timing only in Dart memory.",
+      "new_behavior": "Workout state supports validated custom exercises, a persisted auto-recommend preference, deadline-based rest timing, and native timer synchronization.",
+      "data_impact": "adds custom exercises and the auto-recommend flag to the local and Supabase-backed snapshot; timer status remains device-local.",
+      "access_control_impact": "none; account isolation and repository authorization paths are unchanged.",
+      "risks": [
+        "Timer state may briefly differ if the platform channel is unavailable during resume."
+      ],
+      "rollback": "Revert AppState and snapshot changes together; schema 10 snapshots must be read with a compatible codec or restored from an earlier snapshot."
+    },
+    {
+      "path": "lib/data/app_repository.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 14,
+          "new_end": 14
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 27,
+          "new_end": 27
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 37,
+          "new_end": 37
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 52,
+          "new_end": 52
+        }
+      ],
+      "working_tree_sha256": "b68d6d8a00fb17f8ed8ba35bc867ddc102445b50a581d4d9e6ae1dcf81318caf",
+      "symbols": [
+        "AppSnapshot.autoRecommendNextExercise",
+        "AppSnapshot.customExercises"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Snapshots did not carry the recommendation preference or user-created exercise templates.",
+      "new_behavior": "Snapshots now carry both fields so workout setup survives restart and account switching.",
+      "data_impact": "adds two fields to serialized account snapshots.",
+      "access_control_impact": "none; repository access boundaries are unchanged.",
+      "risks": [
+        "Older consumers may ignore the new fields."
+      ],
+      "rollback": "Revert with the codec and repository projections; preserve a schema 9-compatible backup if downgrading."
+    },
+    {
+      "path": "lib/data/app_snapshot_codec.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": 9,
+          "old_end": 9,
+          "new_start": 9,
+          "new_end": 9
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 23,
+          "new_end": 23
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 38,
+          "new_end": 46
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 74,
+          "new_end": 99
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 102,
+          "new_end": 102
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 153,
+          "new_end": 154
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 174,
+          "new_end": 174
+        }
+      ],
+      "working_tree_sha256": "686894821f554890be690a6394f3f563fe7ec8cc36a59197f68de9b9625f4f00",
+      "symbols": [
+        "AppSnapshotCodec schemaVersion 10",
+        "custom exercise encode/decode"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Snapshot schema 9 could not persist custom exercises or the auto-recommend preference.",
+      "new_behavior": "Schema 10 validates and restores custom exercises and the preference while retaining legacy snapshot decoding.",
+      "data_impact": "migrates local snapshot serialization to version 10 with backward-compatible defaults; no destructive backfill.",
+      "access_control_impact": "none; codec validation does not alter authorization.",
+      "risks": [
+        "Invalid custom exercise rows are discarded during decoding to protect the catalog."
+      ],
+      "rollback": "Revert to the schema 9 codec only after removing schema 10 snapshots or converting them to schema 9."
+    },
+    {
+      "path": "lib/data/supabase_app_repository.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 404,
+          "new_end": 404
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 440,
+          "new_end": 440
+        }
+      ],
+      "working_tree_sha256": "202385d8e20a4b1dc2ca91b3e570f0bbbb5cd73e758f5266f8bcbea5b90f33af",
+      "symbols": [
+        "SupabaseAppRepository snapshot projection"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Supabase snapshot projection omitted custom exercises and the recommendation preference.",
+      "new_behavior": "Supabase-backed account snapshots include both new workout configuration fields.",
+      "data_impact": "reads and writes the expanded snapshot payload for the authenticated account.",
+      "access_control_impact": "none; authenticated UID checks and RLS expectations are unchanged.",
+      "risks": [
+        "A server payload written by this client may be unreadable by older clients that reject schema 10."
+      ],
+      "rollback": "Revert the projection and codec together, and deploy an older-client compatibility plan before downgrade."
+    },
+    {
+      "path": "lib/main.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": 107,
+          "old_end": 107,
+          "new_start": 107,
+          "new_end": 112
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 142,
+          "new_end": 144
+        }
+      ],
+      "working_tree_sha256": "795124fd3df4b87ee467748716d2a4a6d8b5afd0b6bb093eb2af093c59439d70",
+      "symbols": [
+        "_SetflowAppState._initializeState"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Application startup initialized AppState without reconciling an active native rest timer.",
+      "new_behavior": "Startup initializes account state and then synchronizes any Android timer that survived process suspension.",
+      "data_impact": "reads device-local native timer status after state initialization; no server mutation is added.",
+      "access_control_impact": "none; authentication initialization and session listeners are unchanged.",
+      "risks": [
+        "A platform-channel failure is intentionally tolerated and may leave the in-app timer stale until restarted."
+      ],
+      "rollback": "Revert the initialization wrapper and native timer bridge; account data is unaffected."
+    },
+    {
+      "path": "lib/models.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 33,
+          "new_end": 43
+        }
+      ],
+      "working_tree_sha256": "62354bb9f502faada6043075f2ba2baa072359359dcb46cff567bcd7b19c3bbc",
+      "symbols": [
+        "ExerciseTemplate custom metadata"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Exercise templates represented catalog entries without explicit user-created metadata.",
+      "new_behavior": "Exercise templates can represent validated user-created exercises for persistence and UI labeling.",
+      "data_impact": "adds serializable metadata to exercise templates stored in account snapshots.",
+      "access_control_impact": "none; model changes do not alter roles or permissions.",
+      "risks": [
+        "Incorrect IDs could collide with catalog exercises, mitigated by AppState validation."
+      ],
+      "rollback": "Revert with custom-exercise state and codec changes; convert or discard custom templates before downgrade."
+    },
+    {
+      "path": "lib/screens/workout_screens.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 2,
+          "new_end": 2
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 20,
+          "new_end": 21
+        },
+        {
+          "old_start": 62,
+          "old_end": 90,
+          "new_start": 65,
+          "new_end": 70
+        },
+        {
+          "old_start": 128,
+          "old_end": 148,
+          "new_start": 108,
+          "new_end": 108
+        },
+        {
+          "old_start": 155,
+          "old_end": 165,
+          "new_start": null,
+          "new_end": null
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 244,
+          "new_end": 359
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 645,
+          "new_end": 653
+        },
+        {
+          "old_start": 625,
+          "old_end": 625,
+          "new_start": 699,
+          "new_end": 704
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 716,
+          "new_end": 728
+        },
+        {
+          "old_start": 678,
+          "old_end": 712,
+          "new_start": 770,
+          "new_end": 822
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 849,
+          "new_end": 850
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1000,
+          "new_end": 1000
+        },
+        {
+          "old_start": 999,
+          "old_end": 1007,
+          "new_start": 1112,
+          "new_end": 1121
+        },
+        {
+          "old_start": 1009,
+          "old_end": 1010,
+          "new_start": 1123,
+          "new_end": 1130
+        },
+        {
+          "old_start": 1012,
+          "old_end": 1027,
+          "new_start": 1132,
+          "new_end": 1150
+        },
+        {
+          "old_start": 1030,
+          "old_end": 1040,
+          "new_start": 1153,
+          "new_end": 1163
+        },
+        {
+          "old_start": 1043,
+          "old_end": 1068,
+          "new_start": 1166,
+          "new_end": 1171
+        },
+        {
+          "old_start": 1070,
+          "old_end": 1071,
+          "new_start": 1173,
+          "new_end": 1221
+        },
+        {
+          "old_start": 1075,
+          "old_end": 1080,
+          "new_start": 1225,
+          "new_end": 1242
+        },
+        {
+          "old_start": 1084,
+          "old_end": 1092,
+          "new_start": 1246,
+          "new_end": 1255
+        },
+        {
+          "old_start": 1095,
+          "old_end": 1106,
+          "new_start": null,
+          "new_end": null
+        },
+        {
+          "old_start": 1108,
+          "old_end": 1109,
+          "new_start": 1259,
+          "new_end": 1294
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1299,
+          "new_end": 1322
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1330,
+          "new_end": 1330
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1344,
+          "new_end": 1352
+        },
+        {
+          "old_start": 1135,
+          "old_end": 1135,
+          "new_start": 1354,
+          "new_end": 1354
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1401,
+          "new_end": 1401
+        },
+        {
+          "old_start": 1253,
+          "old_end": 1261,
+          "new_start": 1473,
+          "new_end": 1482
+        },
+        {
+          "old_start": 1263,
+          "old_end": 1264,
+          "new_start": 1484,
+          "new_end": 1491
+        },
+        {
+          "old_start": 1266,
+          "old_end": 1320,
+          "new_start": 1493,
+          "new_end": 1500
+        },
+        {
+          "old_start": 1322,
+          "old_end": 1326,
+          "new_start": null,
+          "new_end": null
+        },
+        {
+          "old_start": 1328,
+          "old_end": 1329,
+          "new_start": 1503,
+          "new_end": 1504
+        },
+        {
+          "old_start": 1332,
+          "old_end": 1335,
+          "new_start": 1507,
+          "new_end": 1509
+        },
+        {
+          "old_start": 1340,
+          "old_end": 1360,
+          "new_start": 1514,
+          "new_end": 1527
+        },
+        {
+          "old_start": 1362,
+          "old_end": 1370,
+          "new_start": 1529,
+          "new_end": 1568
+        },
+        {
+          "old_start": 1372,
+          "old_end": 1380,
+          "new_start": 1570,
+          "new_end": 1575
+        },
+        {
+          "old_start": 1382,
+          "old_end": 1385,
+          "new_start": 1577,
+          "new_end": 1679
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1684,
+          "new_end": 1707
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1714,
+          "new_end": 1714
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1732,
+          "new_end": 1740
+        },
+        {
+          "old_start": 1414,
+          "old_end": 1414,
+          "new_start": 1742,
+          "new_end": 1742
+        },
+        {
+          "old_start": 1625,
+          "old_end": 1625,
+          "new_start": 1953,
+          "new_end": 1953
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1972,
+          "new_end": 1972
+        },
+        {
+          "old_start": 1647,
+          "old_end": 1647,
+          "new_start": 1976,
+          "new_end": 1976
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1978,
+          "new_end": 1982
+        },
+        {
+          "old_start": 1664,
+          "old_end": 1683,
+          "new_start": 1998,
+          "new_end": 1998
+        },
+        {
+          "old_start": 1686,
+          "old_end": 1686,
+          "new_start": null,
+          "new_end": null
+        },
+        {
+          "old_start": 1688,
+          "old_end": 1688,
+          "new_start": 2002,
+          "new_end": 2031
+        },
+        {
+          "old_start": 1697,
+          "old_end": 1697,
+          "new_start": 2040,
+          "new_end": 2040
+        },
+        {
+          "old_start": 1700,
+          "old_end": 1715,
+          "new_start": 2043,
+          "new_end": 2053
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 2055,
+          "new_end": 2055
+        },
+        {
+          "old_start": 1718,
+          "old_end": 1753,
+          "new_start": 2057,
+          "new_end": 2066
+        },
+        {
+          "old_start": 1755,
+          "old_end": 1758,
+          "new_start": 2068,
+          "new_end": 2137
+        },
+        {
+          "old_start": 1760,
+          "old_end": 1761,
+          "new_start": 2139,
+          "new_end": 2140
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 2157,
+          "new_end": 2181
+        },
+        {
+          "old_start": 1790,
+          "old_end": 1791,
+          "new_start": 2194,
+          "new_end": 2195
+        },
+        {
+          "old_start": 1793,
+          "old_end": 1793,
+          "new_start": 2197,
+          "new_end": 2222
+        },
+        {
+          "old_start": 1797,
+          "old_end": 1803,
+          "new_start": 2226,
+          "new_end": 2235
+        },
+        {
+          "old_start": 1805,
+          "old_end": 1808,
+          "new_start": 2237,
+          "new_end": 2244
+        },
+        {
+          "old_start": 1810,
+          "old_end": 1816,
+          "new_start": 2246,
+          "new_end": 2276
+        },
+        {
+          "old_start": 1821,
+          "old_end": 1833,
+          "new_start": 2281,
+          "new_end": 2347
+        },
+        {
+          "old_start": 1835,
+          "old_end": 1842,
+          "new_start": 2349,
+          "new_end": 2356
+        },
+        {
+          "old_start": 1844,
+          "old_end": 1845,
+          "new_start": 2358,
+          "new_end": 2405
+        },
+        {
+          "old_start": 1856,
+          "old_end": 1856,
+          "new_start": null,
+          "new_end": null
+        },
+        {
+          "old_start": 1862,
+          "old_end": 1862,
+          "new_start": null,
+          "new_end": null
+        },
+        {
+          "old_start": 1921,
+          "old_end": 1921,
+          "new_start": 2479,
+          "new_end": 2479
+        },
+        {
+          "old_start": 1929,
+          "old_end": 1936,
+          "new_start": 2487,
+          "new_end": 2504
+        },
+        {
+          "old_start": 2150,
+          "old_end": 2169,
+          "new_start": 2718,
+          "new_end": 2747
+        },
+        {
+          "old_start": 2173,
+          "old_end": 2192,
+          "new_start": 2751,
+          "new_end": 2770
+        },
+        {
+          "old_start": 2195,
+          "old_end": 2209,
+          "new_start": 2773,
+          "new_end": 2787
+        },
+        {
+          "old_start": 2212,
+          "old_end": 2219,
+          "new_start": 2790,
+          "new_end": 2817
+        },
+        {
+          "old_start": 2221,
+          "old_end": 2240,
+          "new_start": null,
+          "new_end": null
+        },
+        {
+          "old_start": 2242,
+          "old_end": 2261,
+          "new_start": 2820,
+          "new_end": 2843
+        },
+        {
+          "old_start": 2263,
+          "old_end": 2289,
+          "new_start": 2845,
+          "new_end": 2845
+        },
+        {
+          "old_start": 2292,
+          "old_end": 2292,
+          "new_start": 2848,
+          "new_end": 2873
+        },
+        {
+          "old_start": 2294,
+          "old_end": 2295,
+          "new_start": 2875,
+          "new_end": 2876
+        },
+        {
+          "old_start": 2441,
+          "old_end": 2448,
+          "new_start": 3022,
+          "new_end": 3029
+        },
+        {
+          "old_start": 2488,
+          "old_end": 2490,
+          "new_start": 3069,
+          "new_end": 3097
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 3099,
+          "new_end": 3101
+        },
+        {
+          "old_start": 2494,
+          "old_end": 2495,
+          "new_start": 3104,
+          "new_end": 3109
+        },
+        {
+          "old_start": 2498,
+          "old_end": 2498,
+          "new_start": 3112,
+          "new_end": 3112
+        },
+        {
+          "old_start": 2501,
+          "old_end": 2503,
+          "new_start": 3115,
+          "new_end": 3127
+        },
+        {
+          "old_start": 2508,
+          "old_end": 2508,
+          "new_start": 3132,
+          "new_end": 3135
+        },
+        {
+          "old_start": 2513,
+          "old_end": 2513,
+          "new_start": 3140,
+          "new_end": 3141
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 3145,
+          "new_end": 3156
+        },
+        {
+          "old_start": 2518,
+          "old_end": 2519,
+          "new_start": 3158,
+          "new_end": 3164
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 3166,
+          "new_end": 3166
+        },
+        {
+          "old_start": 2525,
+          "old_end": 2533,
+          "new_start": 3171,
+          "new_end": 3180
+        },
+        {
+          "old_start": 2535,
+          "old_end": 2551,
+          "new_start": 3182,
+          "new_end": 3245
+        },
+        {
+          "old_start": 2553,
+          "old_end": 2559,
+          "new_start": null,
+          "new_end": null
+        }
+      ],
+      "working_tree_sha256": "2a596c7da5928ae191770595d0f76a9561e55f82b5ac9f710b90890505b6207f",
+      "symbols": [
+        "DailyWorkoutScreen",
+        "_WorkoutSummaryBar",
+        "_ExerciseCardState",
+        "_InlineCardioRowState",
+        "_InlineSetRowState",
+        "_ExerciseLibraryScreenState",
+        "_CreateExerciseSheet",
+        "_NumberDialSheet"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Workout logging used the earlier layout, direct delete controls, catalog-only exercise selection, and previous recommendation timing.",
+      "new_behavior": "Workout logging has a compact summary, gesture-based deletion, custom exercise creation, improved numeric dials, refined recommendations, and native-aware rest controls.",
+      "data_impact": "reads and writes the same workout sessions plus newly supported custom exercises and preference through AppState.",
+      "access_control_impact": "none; workout screens retain the same signed-in account and role boundaries.",
+      "risks": [
+        "Gesture discoverability and dense layouts need physical-device usability review."
+      ],
+      "rollback": "Revert this screen with AppState and model changes; existing completed sessions remain valid but custom exercise presentation would be lost."
+    },
+    {
+      "path": "lib/services/rest_timer_platform.dart",
+      "change_type": "added",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1,
+          "new_end": 63
+        }
+      ],
+      "working_tree_sha256": "397ce0a905a45d8f286eeb2487cf62e391248ca1ce2baeaf7f48b001f6d5bc89",
+      "symbols": [
+        "RestTimerStatus",
+        "RestTimerPlatform"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Flutter had no abstraction for an operating-system rest timer.",
+      "new_behavior": "A guarded method-channel API starts, cancels, and queries the native Android timer while remaining a no-op on unsupported platforms.",
+      "data_impact": "reads and writes only Android device-local timer state.",
+      "access_control_impact": "none; the bridge has no authentication or authorization responsibility.",
+      "risks": [
+        "Unsupported or failed platform calls are swallowed, so callers must rely on in-app fallback state."
+      ],
+      "rollback": "Remove the bridge and revert callers; no persisted workout records need migration."
+    },
+    {
+      "path": "test/app_repository_test.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 24,
+          "new_end": 32
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 151,
+          "new_end": 153
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 276,
+          "new_end": 317
+        }
+      ],
+      "working_tree_sha256": "74dab5b517d692aa36b1f0c7a0b3ac606c7367c6e3766cf9286fab4b3fd18a04",
+      "symbols": [
+        "schema 10 snapshot tests",
+        "custom exercise round-trip tests"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Repository tests did not cover custom exercise persistence or new snapshot defaults.",
+      "new_behavior": "Tests verify schema 10 round trips and safe restoration of sessions referencing user-created exercises.",
+      "data_impact": "none; tests use in-memory fixtures only.",
+      "access_control_impact": "none; tests exercise no live permission system.",
+      "risks": [
+        "Fixture coverage cannot prove compatibility with every historical payload."
+      ],
+      "rollback": "Revert these tests together with the schema 10 implementation."
+    },
+    {
+      "path": "test/cardio_workout_integration_test.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": 272,
+          "old_end": 272,
+          "new_start": 272,
+          "new_end": 272
+        },
+        {
+          "old_start": 429,
+          "old_end": 429,
+          "new_start": 429,
+          "new_end": 429
+        },
+        {
+          "old_start": 490,
+          "old_end": 490,
+          "new_start": 490,
+          "new_end": 490
+        }
+      ],
+      "working_tree_sha256": "acf3f42fc09e596e4d8f3a416d75f29ed99759943ad352596c812963d5791f63",
+      "symbols": [
+        "cardio workout integration expectations"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Cardio integration expectations matched the previous workout layout and controls.",
+      "new_behavior": "Expectations now cover the refined workout interaction while preserving cardio-specific fields.",
+      "data_impact": "none; widget tests use local state only.",
+      "access_control_impact": "none; no live authorization is exercised.",
+      "risks": [
+        "Widget tests do not cover native Android notification behavior."
+      ],
+      "rollback": "Revert expectations with the workout UI implementation."
+    },
+    {
+      "path": "test/workout_core_test.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 42,
+          "new_end": 44
+        },
+        {
+          "old_start": 71,
+          "old_end": 72,
+          "new_start": 74,
+          "new_end": 78
+        },
+        {
+          "old_start": 76,
+          "old_end": 77,
+          "new_start": 82,
+          "new_end": 86
+        },
+        {
+          "old_start": 231,
+          "old_end": 243,
+          "new_start": 240,
+          "new_end": 252
+        },
+        {
+          "old_start": 245,
+          "old_end": 252,
+          "new_start": 254,
+          "new_end": 262
+        },
+        {
+          "old_start": 254,
+          "old_end": 267,
+          "new_start": 264,
+          "new_end": 265
+        },
+        {
+          "old_start": 269,
+          "old_end": 277,
+          "new_start": 267,
+          "new_end": 273
+        },
+        {
+          "old_start": 279,
+          "old_end": 283,
+          "new_start": 275,
+          "new_end": 281
+        },
+        {
+          "old_start": 286,
+          "old_end": 286,
+          "new_start": 284,
+          "new_end": 284
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 306,
+          "new_end": 312
+        },
+        {
+          "old_start": 324,
+          "old_end": 333,
+          "new_start": 329,
+          "new_end": 330
+        },
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 335,
+          "new_end": 354
+        }
+      ],
+      "working_tree_sha256": "99dcc3a424cf950a5de5d42cb845e96edc521fcd43911fde1372f5e5528b7549",
+      "symbols": [
+        "workout logging interaction tests",
+        "recommendation timing tests",
+        "custom exercise tests",
+        "rest timer route test"
+      ],
+      "purpose": "Integrate the latest workout logging improvements and native Android rest timer service and widget into main.",
+      "previous_behavior": "Core tests covered the earlier recommendation, delete, and workout editor behavior.",
+      "new_behavior": "Core tests cover compact recommendations, completion gating, long-press delete, custom exercises, numeric editing, and rest timer continuity.",
+      "data_impact": "none; tests use isolated in-memory repositories.",
+      "access_control_impact": "none; tests do not change access control.",
+      "risks": [
+        "Platform service behavior is covered only by successful Android compilation, not instrumentation tests."
+      ],
+      "rollback": "Revert these tests with the corresponding workout behavior."
+    }
+  ],
+  "production_safety": {
+    "operational_data": "No production data was read, created, updated, or deleted; verification used local fixtures and build tooling.",
+    "schema_migration": "No database migration; account snapshot serialization advances from schema 9 to schema 10 with backward-compatible defaults.",
+    "external_side_effects": [
+      "No deployment, remote push, external API mutation, or message was performed.",
+      "Android SDK Build-Tools 36, Platform 36, and CMake 3.22.1 were installed in the local Android SDK by the debug build."
+    ]
+  },
+  "verification": [
+    {
+      "command": "flutter analyze",
+      "result": "passed",
+      "evidence": "Analyzer completed with No issues found."
+    },
+    {
+      "command": "flutter test",
+      "result": "passed",
+      "evidence": "Full suite completed with 275 passing tests and 1 skipped test."
+    },
+    {
+      "command": "flutter build apk --debug",
+      "result": "passed",
+      "evidence": "Gradle assembled build/app/outputs/flutter-apk/app-debug.apk including the native rest timer service and widget."
+    }
+  ],
+  "residual_risks": [
+    "Android notification, vibration, service restoration, and launcher widget refresh still need a physical-device manual test.",
+    "Flutter reported that share_plus still applies the Kotlin Gradle Plugin and may need a future dependency upgrade for Built-in Kotlin compatibility."
+  ],
+  "commit": "same-as-metadata-file"
+}
