@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "change_id": "20260820-120914-configure-project-scoped-notion-mcp",
+  "created_at": "2026-08-20T12:09:14+09:00",
+  "repository": "setflow",
+  "branch": "main",
+  "baseline_commit": "fcb8206d33e6a4b18e6936a549f6a084e4a7a8f6",
+  "request": "Configure Claude and Codex Notion MCP access for the current project only.",
+  "title": "Configure project-scoped Notion MCP",
+  "purpose": "Allow Claude Code and Codex to discover the Notion remote MCP server only while working in this repository.",
+  "files": [
+    {
+      "path": ".codex/config.toml",
+      "change_type": "added",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1,
+          "new_end": 2
+        }
+      ],
+      "working_tree_sha256": "c4480f80f6dd107c7ed8822868937762ce8d00b453a9a978d4be556a6249147d",
+      "symbols": [
+        "mcp_servers.notion"
+      ],
+      "purpose": "Allow Claude Code and Codex to discover the Notion remote MCP server only while working in this repository.",
+      "previous_behavior": "Codex had no repository-scoped Notion MCP endpoint.",
+      "new_behavior": "Trusted Codex sessions opened from this repository discover the Notion streamable HTTP MCP server without changing the user-level Codex configuration.",
+      "data_impact": "none: this file stores only a public MCP endpoint and does not read or modify Notion workspace data.",
+      "access_control_impact": "Notion access remains gated by each user's OAuth approval; no token or workspace grant is stored in the repository.",
+      "risks": [
+        "Codex ignores project configuration when the repository is not trusted, and an existing session must be restarted before discovery."
+      ],
+      "rollback": "Remove .codex/config.toml and restart Codex; revoke the Notion OAuth grant separately if authentication was completed."
+    }
+  ],
+  "production_safety": {
+    "operational_data": "No Notion or application production data was read, created, updated, or deleted.",
+    "schema_migration": "none: no database or application schema was changed.",
+    "external_side_effects": [
+      "Claude and Codex project configuration files were created or updated locally; no OAuth consent was granted and no remote workspace mutation occurred."
+    ]
+  },
+  "verification": [
+    {
+      "command": "Python json and tomllib parse of .mcp.json and .codex/config.toml",
+      "result": "passed",
+      "evidence": "Both project configuration files parsed successfully."
+    },
+    {
+      "command": "claude mcp get notion",
+      "result": "passed",
+      "evidence": "Claude reported Project config with the expected HTTP endpoint and Pending approval status."
+    },
+    {
+      "command": "codex mcp -c 'mcp_servers.notion.url=\"https://mcp.notion.com/mcp\"' get notion",
+      "result": "passed",
+      "evidence": "Codex parsed the same table as an enabled streamable_http server; the official manual confirms project .codex/config.toml is loaded for trusted repositories."
+    }
+  ],
+  "residual_risks": [
+    "Claude still needs project-server approval and Notion OAuth consent in an interactive Claude session.",
+    "Codex needs a restarted session and Notion OAuth authentication before tools can access a workspace."
+  ],
+  "commit": "same-as-metadata-file"
+}

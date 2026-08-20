@@ -51,4 +51,3 @@ app.*.map.json
 # Local agent and MCP runtime state
 .fry/
 .omc/
-.mcp.json
