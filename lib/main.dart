@@ -81,6 +81,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _appLinkSubscription;
   StreamSubscription<AuthState>? _authSubscription;
+  Timer? _persistenceSyncTimer;
   String? _observedAuthUserId;
 
   @override
@@ -93,6 +94,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       routineCatalogRepository: widget.routineCatalogRepository,
       communityRepository: widget.communityRepository,
     );
+    _persistenceSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      unawaited(state.syncPersistenceToServer().catchError((_) {}));
+    });
     _appLinks = AppLinks();
     _observedAuthUserId = SupabaseAuthService.instance.currentUser?.id;
     _authSubscription = SupabaseAuthService.instance.authChanges.listen(
@@ -136,11 +140,12 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         lifecycleState == AppLifecycleState.paused ||
         lifecycleState == AppLifecycleState.hidden ||
         lifecycleState == AppLifecycleState.detached) {
-      unawaited(state.flushPersistence().catchError((_) {}));
+      unawaited(state.syncPersistenceToServer().catchError((_) {}));
       return;
     }
     if (lifecycleState == AppLifecycleState.resumed) {
       unawaited(state.syncRestTimerFromPlatform());
+      unawaited(state.syncPersistenceToServer().catchError((_) {}));
     }
     if (lifecycleState != AppLifecycleState.resumed ||
         !state.isInitialized ||
@@ -169,6 +174,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_authSubscription?.cancel());
     unawaited(_appLinkSubscription?.cancel());
+    _persistenceSyncTimer?.cancel();
     state.dispose();
     super.dispose();
   }

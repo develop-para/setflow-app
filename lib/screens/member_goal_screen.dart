@@ -98,7 +98,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            '먼저 선택한 목표를 주 목표로 사용합니다. 최대 2개까지 추천 운동과 세트 구성에 반영됩니다.',
+            '먼저 선택한 목표 하나를 추천 기준으로 사용하며, 최대 2개까지 프로필에 저장할 수 있습니다.',
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.45),
           ),
           const SizedBox(height: 22),

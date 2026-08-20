@@ -13,6 +13,8 @@ class NextExerciseRecommendation {
     required this.startingWeight,
     required this.goalLabel,
     required this.reason,
+    this.evidenceIds = const {},
+    this.evidenceNote = '',
     this.cardioPrescription,
   });
 
@@ -24,6 +26,8 @@ class NextExerciseRecommendation {
   final double startingWeight;
   final String goalLabel;
   final String reason;
+  final Set<String> evidenceIds;
+  final String evidenceNote;
   final CardioPrescription? cardioPrescription;
 
   bool get isCardio => cardioPrescription != null || template.isCardio;
@@ -39,6 +43,37 @@ abstract final class ExerciseRecommendationEngine {
     required WorkoutExercise completedExercise,
     required List<String> goals,
     Iterable<WorkoutSession> weeklyHistory = const [],
+    Set<String> excludedTemplateIds = const {},
+  }) => _recommend(
+    catalog: catalog,
+    session: session,
+    completedExercise: completedExercise,
+    goals: goals,
+    weeklyHistory: weeklyHistory,
+    excludedTemplateIds: excludedTemplateIds,
+  );
+
+  static NextExerciseRecommendation? recommendFirst({
+    required List<ExerciseTemplate> catalog,
+    required WorkoutSession session,
+    required List<String> goals,
+    Iterable<WorkoutSession> weeklyHistory = const [],
+    Set<String> excludedTemplateIds = const {},
+  }) => _recommend(
+    catalog: catalog,
+    session: session,
+    goals: goals,
+    weeklyHistory: weeklyHistory,
+    excludedTemplateIds: excludedTemplateIds,
+  );
+
+  static NextExerciseRecommendation? _recommend({
+    required List<ExerciseTemplate> catalog,
+    required WorkoutSession session,
+    required List<String> goals,
+    required Iterable<WorkoutSession> weeklyHistory,
+    required Set<String> excludedTemplateIds,
+    WorkoutExercise? completedExercise,
   }) {
     if (goals.isEmpty) return null;
     final existing = session.exercises
@@ -49,7 +84,7 @@ abstract final class ExerciseRecommendationEngine {
     final focus = _focus(trainingGoal);
     final orderedIds = _candidateIds(
       focus: focus,
-      completedId: completedExercise.template.id,
+      completedId: completedExercise?.template.id ?? '',
     );
     final templateById = {for (final item in catalog) item.id: item};
     final candidates = <ExerciseTemplate>[];
@@ -57,18 +92,20 @@ abstract final class ExerciseRecommendationEngine {
       final item = templateById[id];
       if (item != null &&
           !existing.contains(item.id) &&
+          !excludedTemplateIds.contains(item.id) &&
           !candidates.any((candidate) => candidate.id == item.id)) {
         candidates.add(item);
       }
     }
     final preferredMuscles = _preferredMuscles(
       focus: focus,
-      completedMuscle: completedExercise.template.muscle,
+      completedMuscle: completedExercise?.template.muscle ?? '',
     );
     for (final muscle in preferredMuscles) {
       for (final item in catalog) {
         if (item.muscle == muscle &&
             !existing.contains(item.id) &&
+            !excludedTemplateIds.contains(item.id) &&
             !candidates.any((candidate) => candidate.id == item.id)) {
           candidates.add(item);
         }
@@ -76,6 +113,7 @@ abstract final class ExerciseRecommendationEngine {
     }
     for (final item in catalog) {
       if (!existing.contains(item.id) &&
+          !excludedTemplateIds.contains(item.id) &&
           !candidates.any((candidate) => candidate.id == item.id)) {
         candidates.add(item);
       }
@@ -85,9 +123,20 @@ abstract final class ExerciseRecommendationEngine {
     }
     if (candidates.isEmpty) return null;
 
-    final history = weeklyHistory.isEmpty
+    final referenceDay = DateTime(
+      session.date.year,
+      session.date.month,
+      session.date.day,
+    );
+    final historySource = weeklyHistory.isEmpty
         ? <WorkoutSession>[session]
         : weeklyHistory;
+    final history = historySource
+        .where((item) {
+          final day = DateTime(item.date.year, item.date.month, item.date.day);
+          return !day.isAfter(referenceDay);
+        })
+        .toList(growable: false);
     final weeklySets = _weeklyCompletedSetsByMuscle(history, session.date);
     final weeklyCardioMinutes = _weeklyCardioMinutes(history, session.date);
     final originalOrder = {
@@ -95,12 +144,18 @@ abstract final class ExerciseRecommendationEngine {
         candidates[index].id: index,
     };
     if (focus == _GoalFocus.muscleGain) {
-      final completedMuscle = completedExercise.template.muscle;
-      final completedMuscleSets = weeklySets[completedMuscle] ?? 0;
-      final sameMuscle = candidates
-          .where((candidate) => candidate.muscle == completedMuscle)
-          .toList();
-      if (completedMuscleSets < 10 && sameMuscle.isNotEmpty) {
+      final completedMuscle = completedExercise?.template.muscle;
+      final completedMuscleSets = completedMuscle == null
+          ? 0
+          : weeklySets[completedMuscle] ?? 0;
+      final sameMuscle = completedMuscle == null
+          ? const <ExerciseTemplate>[]
+          : candidates
+                .where((candidate) => candidate.muscle == completedMuscle)
+                .toList();
+      if (completedMuscle != null &&
+          completedMuscleSets < 10 &&
+          sameMuscle.isNotEmpty) {
         candidates
           ..removeWhere((candidate) => candidate.muscle == completedMuscle)
           ..insertAll(0, sameMuscle);
@@ -121,41 +176,71 @@ abstract final class ExerciseRecommendationEngine {
         return left.isCardio ? 1 : -1;
       });
     }
-    final candidate = candidates.first;
+    final primaryCandidate = candidates.first;
+    final candidate = _selectVariedCandidate(
+      candidates: candidates,
+      history: history,
+      referenceDay: referenceDay,
+      focus: focus,
+      rotateTies: completedExercise == null,
+    );
 
     final prescription = PerformanceEngine.prescriptionFor(trainingGoal);
     final cardioPrescription = candidate.isCardio
         ? CardioPrescriptionEngine.recommend(
             exerciseId: candidate.id,
             goal: trainingGoal,
-            history: _cardioHistoryRecords(weeklyHistory),
+            history: _cardioHistoryRecords(history),
           )
         : null;
+    final historicalRecommendation = candidate.isCardio
+        ? null
+        : PerformanceEngine.recommend(
+            sessions: history,
+            template: candidate,
+            goal: trainingGoal,
+          );
     final weeklyMuscleSets = weeklySets[candidate.muscle] ?? 0;
     final remainingCardio = 150 - weeklyCardioMinutes;
-    final reason = switch (focus) {
-      _GoalFocus.strength => '사용자 우선순위와 오늘 미완료 복합 동작을 기준으로 세션 앞쪽 운동을 제안합니다.',
+    final baseReason = switch (focus) {
+      _GoalFocus.strength =>
+        completedExercise == null
+            ? '근력 목표의 종목 우선순위와 주간 완료 기록을 기준으로 세션의 첫 운동을 제안합니다.'
+            : '근력 목표의 종목 우선순위와 오늘 미완료 복합 동작을 기준으로 세션 앞쪽 운동을 제안합니다.',
       _GoalFocus.muscleGain =>
-        '${candidate.muscle} 주동근 완료량 $weeklyMuscleSets세트를 기준으로 부족한 주간 볼륨을 보완하는 규칙 제안입니다.',
+        '${candidate.muscle} 주동근 완료량 $weeklyMuscleSets세트와 주간 볼륨 연구를 참고한 규칙 제안입니다. 10세트는 개인의 절대 최소값이 아닙니다.',
       _GoalFocus.fatLoss =>
         candidate.isCardio
-            ? '주간 중강도 환산 목표까지 약 ${remainingCardio.clamp(0, 150)}분 남아 유산소 활동을 제안합니다.'
+            ? '앱에 기록된 주간 중강도 환산 목표까지 약 ${remainingCardio.clamp(0, 150)}분 남아 유산소 활동을 제안합니다.'
             : '제지방 보존을 위한 저항운동과 주간 유산소 활동량을 함께 채우는 규칙 제안입니다.',
       _GoalFocus.fitness =>
         candidate.isCardio
-            ? '주간 중강도 환산 목표까지 약 ${remainingCardio.clamp(0, 150)}분 남아 심폐 운동을 제안합니다.'
+            ? '앱에 기록된 주간 중강도 환산 목표까지 약 ${remainingCardio.clamp(0, 150)}분 남아 심폐 운동을 제안합니다.'
             : '심폐 체력과 전신 근지구력을 함께 구성하기 위한 규칙 제안입니다.',
       _GoalFocus.health => '밀기·당기기·하체·유산소 활동이 한쪽으로 치우치지 않게 하는 규칙 기반 제안입니다.',
     };
+    final reason = candidate.id == primaryCandidate.id
+        ? baseReason
+        : '$baseReason 최근 4주의 반복을 줄이고 종목을 고르게 순환했습니다.';
     return NextExerciseRecommendation(
       template: candidate,
       sets: prescription.sets,
       minReps: prescription.minReps,
       maxReps: prescription.maxReps,
       restSeconds: prescription.restSeconds,
-      startingWeight: startingWeightFor(candidate),
+      // A population-level paper cannot determine a safe kilogram value for
+      // someone with no history on this exact exercise. Reuse only the
+      // member's own eligible records; otherwise leave weight for direct input.
+      startingWeight: historicalRecommendation?.weight ?? 0,
       goalLabel: trainingGoal.label,
       reason: reason,
+      evidenceIds:
+          cardioPrescription?.evidenceIds ??
+          {...prescription.evidenceIds, 'nunes_2021_exercise_order'},
+      evidenceNote:
+          cardioPrescription?.safetyNote ??
+          '세트·반복·휴식과 운동 우선순위는 연구 원칙을 반영합니다. '
+              '특정 종목 선택은 목표·주간 기록을 조합한 앱 규칙입니다.',
       cardioPrescription: cardioPrescription,
     );
   }
@@ -369,53 +454,104 @@ abstract final class ExerciseRecommendationEngine {
     return [...cardioFirst, '하체', '등', '복근', '가슴', '어깨', '팔'];
   }
 
-  static double startingWeightFor(ExerciseTemplate template) {
-    if (template.muscle == '유산소' || template.muscle == '복근') return 0;
-    return switch (template.id) {
-      'pushup' ||
-      'dips' ||
-      'pullup' ||
-      'assisted_pullup' ||
-      'bench_dip' ||
-      'back_extension' ||
-      'glute_bridge' => 0,
-      'squat' ||
-      'deadlift' ||
-      'romanian_deadlift' ||
-      'front_squat' ||
-      'legpress' ||
-      'hack_squat' ||
-      'hip_thrust' => 40,
-      'bench' ||
-      'latpull' ||
-      'row' ||
-      'chest_press' ||
-      'seated_cable_row' ||
-      'tbar_row' ||
-      'rack_pull' => 30,
-      'incline' ||
-      'incline_barbell' ||
-      'dumbbell_bench' ||
-      'decline_bench' ||
-      'ohp' ||
-      'dumbbell_shoulder_press' ||
-      'arnold_press' ||
-      'goblet_squat' ||
-      'bulgarian_split_squat' ||
-      'walking_lunge' => 20,
-      'lateral' ||
-      'cable_lateral_raise' ||
-      'front_raise' ||
-      'rear_delt_raise' ||
-      'reverse_pec_deck' ||
-      'curl' ||
-      'barbell_curl' ||
-      'hammer_curl' ||
-      'preacher_curl' ||
-      'cable_curl' ||
-      'reverse_curl' => 8,
-      _ => 15,
+  static ExerciseTemplate _selectVariedCandidate({
+    required List<ExerciseTemplate> candidates,
+    required List<WorkoutSession> history,
+    required DateTime referenceDay,
+    required _GoalFocus focus,
+    required bool rotateTies,
+  }) {
+    final desiredPoolSize = switch (focus) {
+      _GoalFocus.strength => 6,
+      _GoalFocus.muscleGain => 8,
+      _GoalFocus.fatLoss || _GoalFocus.fitness => 6,
+      _GoalFocus.health => 7,
     };
+    final poolSize = candidates.length < desiredPoolSize
+        ? candidates.length
+        : desiredPoolSize;
+    final pool = candidates.take(poolSize).toList(growable: false);
+    if (pool.length < 2) return pool.first;
+
+    final recentStart = referenceDay.subtract(const Duration(days: 28));
+    final usage = <String, _ExerciseUsage>{};
+    for (final session in history) {
+      final day = DateTime(
+        session.date.year,
+        session.date.month,
+        session.date.day,
+      );
+      if (day.isAfter(referenceDay)) continue;
+      final completedIds = <String>{};
+      for (final exercise in session.exercises) {
+        if (exercise.sets.any((set) => set.completed)) {
+          completedIds.add(exercise.template.id);
+        }
+      }
+      for (final id in completedIds) {
+        final item = usage.putIfAbsent(id, _ExerciseUsage.new);
+        if (!day.isBefore(recentStart)) item.recentSessionCount++;
+        if (item.lastCompletedAt == null ||
+            day.isAfter(item.lastCompletedAt!)) {
+          item.lastCompletedAt = day;
+        }
+      }
+    }
+
+    // Keep one follow-up exposure for a known cardio modality so duration and
+    // distance progression can use that member's own baseline. After the
+    // second recent exposure, the normal novelty ranking rotates modalities.
+    if (focus == _GoalFocus.fatLoss ||
+        focus == _GoalFocus.fitness ||
+        focus == _GoalFocus.health) {
+      final familiarCardio =
+          pool
+              .where(
+                (candidate) =>
+                    candidate.isCardio &&
+                    (usage[candidate.id]?.recentSessionCount ?? 0) == 1,
+              )
+              .toList(growable: false)
+            ..sort((left, right) {
+              final leftDate = usage[left.id]!.lastCompletedAt!;
+              final rightDate = usage[right.id]!.lastCompletedAt!;
+              return rightDate.compareTo(leftDate);
+            });
+      if (familiarCardio.isNotEmpty) return familiarCardio.first;
+    }
+
+    final dayNumber =
+        DateTime.utc(
+          referenceDay.year,
+          referenceDay.month,
+          referenceDay.day,
+        ).millisecondsSinceEpoch ~/
+        Duration.millisecondsPerDay;
+    final rotationOffset = rotateTies ? dayNumber % pool.length : 0;
+    int rotatedRank(ExerciseTemplate item) {
+      final index = pool.indexWhere((candidate) => candidate.id == item.id);
+      return (index - rotationOffset + pool.length) % pool.length;
+    }
+
+    final ranked = List<ExerciseTemplate>.of(pool)
+      ..sort((left, right) {
+        final leftUsage = usage[left.id] ?? _ExerciseUsage();
+        final rightUsage = usage[right.id] ?? _ExerciseUsage();
+        final byFrequency = leftUsage.recentSessionCount.compareTo(
+          rightUsage.recentSessionCount,
+        );
+        if (byFrequency != 0) return byFrequency;
+        final leftLast = leftUsage.lastCompletedAt;
+        final rightLast = rightUsage.lastCompletedAt;
+        if (leftLast == null && rightLast != null) return -1;
+        if (leftLast != null && rightLast == null) return 1;
+        if (leftLast != null && rightLast != null) {
+          final byRecency = leftLast.compareTo(rightLast);
+          if (byRecency != 0) return byRecency;
+        }
+        return rotatedRank(left).compareTo(rotatedRank(right));
+      });
+    return ranked.first;
   }
 
   static Map<String, int> _weeklyCompletedSetsByMuscle(
@@ -516,3 +652,10 @@ abstract final class ExerciseRecommendationEngine {
 }
 
 enum _GoalFocus { strength, fatLoss, muscleGain, fitness, health }
+
+class _ExerciseUsage {
+  _ExerciseUsage({this.recentSessionCount = 0, this.lastCompletedAt});
+
+  int recentSessionCount;
+  DateTime? lastCompletedAt;
+}

@@ -81,6 +81,21 @@ abstract interface class AccountSnapshotOutbox {
   Future<void> clearPending(String userId);
 }
 
+/// Account-scoped last-known-good snapshot used to start without a network.
+///
+/// Unlike the outbox, this cache remains after Supabase acknowledges a write.
+/// It must never be shared between user ids.
+abstract interface class AccountSnapshotCache {
+  Future<AppSnapshot?> loadCached(
+    String userId,
+    List<ExerciseTemplate> exerciseCatalog,
+  );
+
+  Future<void> storeCached(String userId, AppSnapshot snapshot);
+
+  Future<void> clearCached(String userId);
+}
+
 /// Explicitly claimed source for the one-time pre-authentication Hive import.
 ///
 /// An unclaimed legacy snapshot must never be inferred to belong to whichever
@@ -97,6 +112,15 @@ abstract interface class ClaimedLegacySnapshotSource {
 /// Optional signal that lets AppState retry a durable outbox after loading.
 abstract interface class PendingSaveAwareRepository {
   bool get hasPendingSave;
+}
+
+/// Repository capability for local-first persistence with deferred cloud sync.
+abstract interface class DeferredSyncAppRepository {
+  bool get hasPendingSave;
+
+  Object? get lastSyncError;
+
+  Future<void> syncPending();
 }
 
 abstract interface class AppRepository {

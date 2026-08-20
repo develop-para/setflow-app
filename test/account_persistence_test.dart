@@ -75,6 +75,69 @@ void main() {
   });
 
   group('SupabaseAppRepository durable account outbox', () {
+    test(
+      'completed set weight survives an offline restart before cloud sync',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'setflow_weight_restart_',
+        );
+        HiveAppRepository? localStore;
+        AppState? firstState;
+        AppState? restoredState;
+        try {
+          final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+          localStore = await HiveAppRepository.openAtPath(
+            directory.path,
+            boxName: 'completed_weight_restart',
+          );
+          final repository = SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: localStore,
+            cache: localStore,
+          );
+          firstState = AppState(repository: repository);
+          await firstState.initialize();
+          final date = DateTime(2026, 8, 18);
+          final bench = firstState.exercises.firstWhere(
+            (exercise) => exercise.id == 'bench',
+          );
+          firstState.addExercise(date, bench);
+          final set = firstState.sessions[date]!.exercises.single.sets.first;
+          firstState.updateSet(set, weight: 87.5, reps: 8);
+          firstState.toggleSet(set, startRest: false);
+          await firstState.flushPersistence();
+
+          expect(gateway.rows, isEmpty);
+          await localStore.close();
+          localStore = await HiveAppRepository.openAtPath(
+            directory.path,
+            boxName: 'completed_weight_restart',
+          );
+          gateway.loadFailuresRemaining = 1;
+          restoredState = AppState(
+            repository: SupabaseAppRepository.withGateway(
+              gateway,
+              outbox: localStore,
+              cache: localStore,
+            ),
+          );
+          await restoredState.initialize();
+
+          final restoredSet =
+              restoredState.sessions[date]!.exercises.single.sets.first;
+          expect(restoredSet.weight, 87.5);
+          expect(restoredSet.reps, 8);
+          expect(restoredSet.completed, isTrue);
+          await restoredState.flushPersistence();
+        } finally {
+          firstState?.dispose();
+          restoredState?.dispose();
+          await localStore?.close();
+          if (await directory.exists()) await directory.delete(recursive: true);
+        }
+      },
+    );
+
     test('failed save is recovered from outbox after app restart', () async {
       final gateway = _FakeSupabaseGateway(currentUserId: 'account-a')
         ..saveFailuresRemaining = 1;
@@ -83,8 +146,10 @@ void main() {
       await first.load(const []);
       final latest = _snapshot(goals: const ['체력 향상'], heightCm: 177);
 
-      await expectLater(first.save(latest), throwsA(isA<StateError>()));
+      await first.save(latest);
       expect(outbox.pendingByUser['account-a']?.snapshot.goals, ['체력 향상']);
+      expect(gateway.rows, isEmpty);
+      await expectLater(first.syncPending(), throwsA(isA<StateError>()));
 
       final restarted = SupabaseAppRepository.withGateway(
         gateway,
@@ -164,16 +229,45 @@ void main() {
           gateway.currentUserId = 'account-b';
         };
 
-        await expectLater(
-          repository.save(_snapshot(goals: const ['account-a-goal'])),
-          throwsA(isA<StateError>()),
-        );
+        await repository.save(_snapshot(goals: const ['account-a-goal']));
+        await expectLater(repository.syncPending(), throwsA(isA<StateError>()));
 
         expect(gateway.expectedSaveUserIds, ['account-a']);
         expect(gateway.rows, isNot(contains('account-b')));
         expect(outbox.pendingByUser['account-a']?.snapshot.goals, [
           'account-a-goal',
         ]);
+      },
+    );
+
+    test(
+      'acknowledged snapshot remains available during an offline start',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final localStore = _MemoryOutbox();
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: localStore,
+        );
+        await repository.load(const []);
+        await repository.save(_snapshot(goals: const ['근력 향상'], heightCm: 180));
+
+        expect(gateway.rows, isEmpty);
+        expect(localStore.cachedByUser['account-a']?.heightCm, 180);
+        await repository.syncPending();
+        expect(localStore.pendingByUser, isNot(contains('account-a')));
+        expect(localStore.cachedByUser['account-a']?.heightCm, 180);
+
+        gateway.loadFailuresRemaining = 1;
+        final restarted = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: localStore,
+        );
+        final restored = await restarted.load(const []);
+
+        expect(restored?.goals, ['근력 향상']);
+        expect(restored?.heightCm, 180);
+        expect(restarted.lastSyncError, isA<StateError>());
       },
     );
 
@@ -352,13 +446,25 @@ class _RecordingRepository implements AppRepository {
   Future<void> clear() async => savedSnapshots.clear();
 }
 
-class _MemoryOutbox implements AccountSnapshotOutbox {
+class _MemoryOutbox implements AccountSnapshotOutbox, AccountSnapshotCache {
   final Map<String, PendingAppSnapshot> pendingByUser = {};
+  final Map<String, AppSnapshot> cachedByUser = {};
+
+  @override
+  Future<void> clearCached(String userId) async {
+    cachedByUser.remove(userId);
+  }
 
   @override
   Future<void> clearPending(String userId) async {
     pendingByUser.remove(userId);
   }
+
+  @override
+  Future<AppSnapshot?> loadCached(
+    String userId,
+    List<ExerciseTemplate> exerciseCatalog,
+  ) async => cachedByUser[userId];
 
   @override
   Future<PendingAppSnapshot?> loadPending(
@@ -369,6 +475,12 @@ class _MemoryOutbox implements AccountSnapshotOutbox {
   @override
   Future<void> stagePending(String userId, PendingAppSnapshot pending) async {
     pendingByUser[userId] = pending;
+    cachedByUser[userId] = pending.snapshot;
+  }
+
+  @override
+  Future<void> storeCached(String userId, AppSnapshot snapshot) async {
+    cachedByUser[userId] = snapshot;
   }
 }
 
@@ -391,6 +503,7 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
   String? currentUserId;
   final Map<String, SupabaseAppSnapshotRow> rows = {};
   int saveFailuresRemaining = 0;
+  int loadFailuresRemaining = 0;
   int _version = 0;
   void Function()? beforeServerAuthorization;
   final List<String> expectedSaveUserIds = [];
@@ -408,8 +521,13 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
   Future<DateTime?> latestWorkoutUpdatedAt(String userId) async => null;
 
   @override
-  Future<SupabaseAppSnapshotRow?> loadSnapshot(String userId) async =>
-      rows[userId];
+  Future<SupabaseAppSnapshotRow?> loadSnapshot(String userId) async {
+    if (loadFailuresRemaining > 0) {
+      loadFailuresRemaining--;
+      throw StateError('network unavailable');
+    }
+    return rows[userId];
+  }
 
   @override
   Future<DateTime> saveSnapshot({

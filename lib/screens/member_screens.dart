@@ -8,7 +8,6 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'detail_screens.dart';
 import 'evidence_library_screen.dart';
-import 'member_goal_screen.dart';
 import 'member_membership_screen.dart';
 import 'member_social_detail_screens.dart';
 import 'routine_editor_screen.dart';
@@ -125,9 +124,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final performance = state.featuredPerformance;
-    final recommendation = state.hasTrainingGoal
-        ? state.featuredRecommendation
-        : null;
 
     return SafeArea(
       child: Column(
@@ -361,13 +357,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 const SizedBox(height: 12),
                                 _CalendarKpiSection(
                                   summary: performance,
-                                  recommendation: recommendation,
                                   unit: state.weightUnit,
-                                  hasGoal: state.hasTrainingGoal,
                                   onViewDashboard: () =>
                                       _openDashboard(context),
-                                  onApply: () =>
-                                      _handleKpiAction(context, recommendation),
+                                  onStartWorkout: () =>
+                                      _handleDayTap(context, DateTime.now()),
                                 ),
                                 _MemberCoachingScheduleSection(
                                   schedules: state.coachingSchedules,
@@ -456,49 +450,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
       context,
       '${target.month}월 ${target.day}일에 운동 $copied개를 복사했어요.',
     );
-  }
-
-  Future<void> _applyRecommendation(
-    BuildContext context,
-    WorkoutRecommendation recommendation,
-  ) async {
-    final state = AppScope.of(context);
-    final hasGoals = await ensureMemberTrainingGoals(context);
-    if (!hasGoals || !context.mounted) return;
-    final today = state.dateOnly(DateTime.now());
-    final refreshed = state.recommendationForDate(today);
-    if (refreshed == null) return;
-    state.applyRecommendation(today, refreshed);
-    AppSnackbar.success(
-      context,
-      '${refreshed.template.name} 추천 세트를 오늘 운동에 적용했어요.',
-    );
-    _handleDayTap(context, today);
-  }
-
-  Future<void> _handleKpiAction(
-    BuildContext context,
-    WorkoutRecommendation? recommendation,
-  ) async {
-    final state = AppScope.of(context);
-    if (state.featuredPerformance == null) {
-      _handleDayTap(context, DateTime.now());
-      return;
-    }
-    if (!state.hasTrainingGoal) {
-      final hasGoals = await ensureMemberTrainingGoals(context);
-      if (!hasGoals || !context.mounted) return;
-      final refreshed = state.featuredRecommendation;
-      if (refreshed != null) {
-        await _applyRecommendation(context, refreshed);
-      }
-      return;
-    }
-    if (recommendation == null) {
-      _handleDayTap(context, DateTime.now());
-      return;
-    }
-    await _applyRecommendation(context, recommendation);
   }
 
   List<DateTime> _calendarDays(DateTime target) {
@@ -670,24 +621,19 @@ class _MemberScheduleRow extends StatelessWidget {
 class _CalendarKpiSection extends StatelessWidget {
   const _CalendarKpiSection({
     required this.summary,
-    required this.recommendation,
     required this.unit,
-    required this.hasGoal,
     required this.onViewDashboard,
-    required this.onApply,
+    required this.onStartWorkout,
   });
 
   final ExercisePerformanceSummary? summary;
-  final WorkoutRecommendation? recommendation;
   final String unit;
-  final bool hasGoal;
   final VoidCallback onViewDashboard;
-  final VoidCallback onApply;
+  final VoidCallback onStartWorkout;
 
   @override
   Widget build(BuildContext context) {
     final summary = this.summary;
-    final recommendation = this.recommendation;
     final change = summary?.changeFromPrevious;
     final changeIcon = change == null || change == 0
         ? Icons.trending_flat_rounded
@@ -702,12 +648,6 @@ class _CalendarKpiSection extends StatelessWidget {
     final changeValue = change == null
         ? '—'
         : '${change > 0 ? '+' : ''}${change.toStringAsFixed(1)}$unit';
-    final nextValue = recommendation == null
-        ? hasGoal
-              ? '—'
-              : '목표 설정'
-        : recommendation.template.name;
-
     return Column(
       key: const Key('calendar-kpi-section'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -800,16 +740,11 @@ class _CalendarKpiSection extends StatelessWidget {
                   accent: SetflowColors.purple,
                 ),
                 _ => _CalendarKpiTile(
-                  key: const Key('calendar-kpi-next'),
-                  label: '다음 운동',
-                  value: nextValue,
-                  caption: recommendation == null
-                      ? hasGoal
-                            ? '추천 기록 필요'
-                            : '맞춤 추천 받기'
-                      : '${recommendation.goal.label} · '
-                            '${recommendation.prescriptionSummary(unit)}',
-                  icon: Icons.flag_outlined,
+                  key: const Key('calendar-kpi-sessions'),
+                  label: '기록 세션',
+                  value: summary == null ? '—' : '${summary.sessionCount}회',
+                  caption: summary == null ? '완료 세트 필요' : '완료 운동일 기준',
+                  icon: Icons.history_rounded,
                   accent: SetflowColors.blue,
                 ),
               },
@@ -817,13 +752,7 @@ class _CalendarKpiSection extends StatelessWidget {
           },
         ),
         const SizedBox(height: 10),
-        _KpiActionCard(
-          summary: summary,
-          recommendation: recommendation,
-          unit: unit,
-          hasGoal: hasGoal,
-          onTap: onApply,
-        ),
+        _KpiActionCard(summary: summary, onTap: onStartWorkout),
       ],
     );
   }
@@ -920,41 +849,17 @@ class _CalendarKpiTile extends StatelessWidget {
 }
 
 class _KpiActionCard extends StatelessWidget {
-  const _KpiActionCard({
-    required this.summary,
-    required this.recommendation,
-    required this.unit,
-    required this.hasGoal,
-    required this.onTap,
-  });
+  const _KpiActionCard({required this.summary, required this.onTap});
 
   final ExercisePerformanceSummary? summary;
-  final WorkoutRecommendation? recommendation;
-  final String unit;
-  final bool hasGoal;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final currentRecommendation = recommendation;
-    final title = !hasGoal
-        ? '목표 설정하기'
-        : currentRecommendation != null
-        ? summary == null
-              ? '오늘 운동 이어가기'
-              : '오늘 운동에 적용'
-        : summary == null
-        ? '오늘 운동 기록하기'
-        : '오늘 운동 기록하기';
-    final description = !hasGoal
-        ? '내 목표에 맞는 운동 구성을 추천해요'
-        : currentRecommendation != null
-        ? '${currentRecommendation.goal.label} · '
-              '${currentRecommendation.template.name} · '
-              '${currentRecommendation.prescriptionSummary(unit)}'
-        : summary == null
+    const title = '오늘 운동 기록하기';
+    final description = summary == null
         ? '첫 기록부터 KPI를 자동으로 만들어요'
-        : '운동을 완료하면 다음 구성을 추천해요';
+        : '운동 화면에서 종목과 세트를 추가하세요';
 
     return SetflowCard(
       key: const Key('calendar-kpi-action'),
@@ -3253,9 +3158,6 @@ class DashboardScreen extends StatelessWidget {
         .where((session) => (session?.completedSets ?? 0) > 0)
         .length;
     final summary = state.featuredPerformance;
-    final recommendation = state.hasTrainingGoal
-        ? state.featuredRecommendation
-        : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('운동 대시보드')),
@@ -3462,50 +3364,6 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
             ),
-            if (recommendation != null) ...[
-              const SizedBox(height: 22),
-              const SectionTitle('NEXT SESSION'),
-              const SizedBox(height: 10),
-              SetflowCard(
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.track_changes_rounded,
-                      color: SetflowColors.teal,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            recommendation.template.name,
-                            style: const TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                          Text(
-                            recommendation.prescriptionSummary(
-                              state.weightUnit,
-                            ),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: SetflowColors.secondaryText,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      recommendation.goal.label,
-                      style: const TextStyle(
-                        color: SetflowColors.teal,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ],
       ),

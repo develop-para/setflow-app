@@ -49,6 +49,17 @@ void main() {
     expect(acsm2026.year, 2026);
     expect(acsm2026.doi, '10.1249/MSS.0000000000003897');
     expect(acsm2026.officialUrl.host, 'pubmed.ncbi.nlm.nih.gov');
+
+    final reynolds = evidenceCatalog.singleWhere(
+      (reference) => reference.id == 'reynolds_2006_rm_prediction',
+    );
+    expect(reynolds.limitations, contains('70명'));
+    expect(reynolds.limitations, contains('남성 34명·여성 36명'));
+
+    final brzycki = evidenceCatalog.singleWhere(
+      (reference) => reference.id == 'brzycki-1993',
+    );
+    expect(brzycki.limitations, contains('직접 검증 근거는 없으며'));
   });
 
   testWidgets('evidence screen explains rules and opens the official link', (
