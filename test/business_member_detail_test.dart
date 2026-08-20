@@ -145,6 +145,7 @@ BusinessMemberDetail _memberDetail({required bool canReadWorkouts}) {
     memberId: _memberId,
     memberUserId: _memberUserId,
     shareBodyData: canReadWorkouts,
+    shareWorkoutRecords: canReadWorkouts,
     canReadWorkouts: canReadWorkouts,
     // The server may still return a defensive payload. The UI must honor the
     // explicit consent decision before rendering any nested workout data.

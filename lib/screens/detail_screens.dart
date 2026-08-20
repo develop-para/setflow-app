@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'member_goal_screen.dart';
+import 'recommendation_profile_screen.dart';
 
 class BodyCompositionScreen extends StatefulWidget {
   const BodyCompositionScreen({super.key});
@@ -159,69 +160,77 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
     );
   }
 
-  void _addEntry(BuildContext context) {
+  Future<void> _addEntry(BuildContext context) async {
     final weight = TextEditingController(text: '70.5');
     final muscle = TextEditingController(text: '32.6');
     final fat = TextEditingController(text: '19.4');
-    showModalBottomSheet<void>(
+    Future<void>? sheetCompleted;
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => KeyboardSafeBottomSheet(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '체성분 직접 입력',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: weight,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '체중(kg)'),
+      builder: (sheetContext) {
+        sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+        return KeyboardSafeBottomSheet(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '체성분 직접 입력',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: weight,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: '체중(kg)'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: muscle,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '골격근량'),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: muscle,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: '골격근량'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: fat,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: '체지방률(%)'),
-            ),
-            const SizedBox(height: 20),
-            PrimaryButton(
-              label: '기록 저장',
-              onPressed: () {
-                setState(
-                  () => entries.add((
-                    date: '오늘',
-                    weight: double.tryParse(weight.text) ?? 0,
-                    muscle: double.tryParse(muscle.text) ?? 0,
-                    fat: double.tryParse(fat.text) ?? 0,
-                  )),
-                );
-                Navigator.pop(sheetContext);
-              },
-            ),
-          ],
-        ),
-      ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: fat,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '체지방률(%)'),
+              ),
+              const SizedBox(height: 20),
+              PrimaryButton(
+                label: '기록 저장',
+                onPressed: () {
+                  setState(
+                    () => entries.add((
+                      date: '오늘',
+                      weight: double.tryParse(weight.text) ?? 0,
+                      muscle: double.tryParse(muscle.text) ?? 0,
+                      fat: double.tryParse(fat.text) ?? 0,
+                    )),
+                  );
+                  Navigator.pop(sheetContext);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
+    await sheetCompleted;
+    weight.dispose();
+    muscle.dispose();
+    fat.dispose();
   }
 }
 
@@ -698,6 +707,22 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const MemberGoalScreen()),
+              ),
+            ),
+            ListTile(
+              key: const ValueKey('recommendation-profile-settings'),
+              leading: const Icon(Icons.tune_rounded),
+              title: const Text('정밀 운동 추천 정보'),
+              subtitle: Text(
+                state.recommendationProfile == null
+                    ? '부상·통증, 장비, 숙련도와 회복 상태를 설정하세요'
+                    : '${state.recommendationProfile!.experienceLevel.label} · 장비 ${state.recommendationProfile!.availableEquipment.length}개',
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const RecommendationProfileScreen(),
+                ),
               ),
             ),
             const SizedBox(height: 20),

@@ -436,125 +436,126 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     final linkedMembers = state.businessMembers
         .where((member) => member.userId != null)
         .toList(growable: false);
+    Future<void>? dialogCompleted;
 
     final shouldCreate = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('코칭 일정 추가'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  key: const Key('coaching-schedule-title'),
-                  controller: titleController,
-                  autofocus: true,
-                  maxLength: 120,
-                  decoration: const InputDecoration(
-                    labelText: '일정 제목',
-                    hintText: '예: 하체 PT · 4주차',
+      builder: (dialogContext) {
+        dialogCompleted ??= ModalRoute.of(dialogContext)?.completed;
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Text('코칭 일정 추가'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    key: const Key('coaching-schedule-title'),
+                    controller: titleController,
+                    autofocus: true,
+                    maxLength: 120,
+                    decoration: const InputDecoration(
+                      labelText: '일정 제목',
+                      hintText: '예: 하체 PT · 4주차',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String?>(
-                  key: const Key('coaching-schedule-member'),
-                  initialValue: memberId,
-                  decoration: const InputDecoration(labelText: '회원'),
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('개인 일정'),
-                    ),
-                    for (final member in linkedMembers)
-                      DropdownMenuItem<String?>(
-                        value: member.id,
-                        child: Text(member.name),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String?>(
+                    key: const Key('coaching-schedule-member'),
+                    initialValue: memberId,
+                    decoration: const InputDecoration(labelText: '회원'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('개인 일정'),
                       ),
-                  ],
-                  onChanged: (value) => setDialogState(() => memberId = value),
-                ),
-                const SizedBox(height: 10),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.event_outlined),
-                  title: const Text('날짜'),
-                  subtitle: Text(_scheduleDateLabel(date)),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: dialogContext,
-                      initialDate: date,
-                      firstDate: DateTime.now().subtract(
-                        const Duration(days: 365),
+                      for (final member in linkedMembers)
+                        DropdownMenuItem<String?>(
+                          value: member.id,
+                          child: Text(member.name),
+                        ),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => memberId = value),
+                  ),
+                  const SizedBox(height: 10),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.event_outlined),
+                    title: const Text('날짜'),
+                    subtitle: Text(_scheduleDateLabel(date)),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: dialogContext,
+                        initialDate: date,
+                        firstDate: DateTime.now().subtract(
+                          const Duration(days: 365),
+                        ),
+                        lastDate: DateTime.now().add(const Duration(days: 730)),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => date = picked);
+                      }
+                    },
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('시작'),
+                          subtitle: Text(start.format(dialogContext)),
+                          onTap: () async {
+                            final picked = await showTimePicker(
+                              context: dialogContext,
+                              initialTime: start,
+                            );
+                            if (picked != null) {
+                              setDialogState(() => start = picked);
+                            }
+                          },
+                        ),
                       ),
-                      lastDate: DateTime.now().add(const Duration(days: 730)),
-                    );
-                    if (picked != null) {
-                      setDialogState(() => date = picked);
-                    }
-                  },
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('시작'),
-                        subtitle: Text(start.format(dialogContext)),
-                        onTap: () async {
-                          final picked = await showTimePicker(
-                            context: dialogContext,
-                            initialTime: start,
-                          );
-                          if (picked != null) {
-                            setDialogState(() => start = picked);
-                          }
-                        },
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('종료'),
+                          subtitle: Text(end.format(dialogContext)),
+                          onTap: () async {
+                            final picked = await showTimePicker(
+                              context: dialogContext,
+                              initialTime: end,
+                            );
+                            if (picked != null) {
+                              setDialogState(() => end = picked);
+                            }
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('종료'),
-                        subtitle: Text(end.format(dialogContext)),
-                        onTap: () async {
-                          final picked = await showTimePicker(
-                            context: dialogContext,
-                            initialTime: end,
-                          );
-                          if (picked != null) {
-                            setDialogState(() => end = picked);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                key: const Key('coaching-schedule-save'),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('저장'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('취소'),
-            ),
-            FilledButton(
-              key: const Key('coaching-schedule-save'),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('저장'),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
     final title = titleController.text;
-    // showDialog completes when pop starts, while the reverse transition can
-    // still rebuild the field for a few frames.
-    Future<void>.delayed(
-      const Duration(milliseconds: 300),
-      titleController.dispose,
-    );
+    await dialogCompleted;
+    titleController.dispose();
     if (shouldCreate != true || !context.mounted) return;
     try {
       await AppScope.of(context).createCoachingSchedule(

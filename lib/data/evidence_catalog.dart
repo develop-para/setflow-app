@@ -209,6 +209,25 @@ final evidenceCatalog = List<EvidenceReference>.unmodifiable([
         '포함 연구 15개의 실패 정의와 측정 방법이 서로 달랐습니다. 특정 RIR 값이 모든 사람과 운동에서 최적이라는 직접 근거는 아닙니다.',
   ),
   EvidenceReference(
+    id: 'craven_2022_sleep_loss',
+    category: EvidenceCategory.effort,
+    title:
+        'Effects of Acute Sleep Loss on Physical Performance: A Systematic and Meta-Analytical Review',
+    authors:
+        'Jonathan Craven, Danielle McCartney, Ben Desbrow, Surendran Sabapathy, Phillip Bellinger, Llion Roberts, Christopher Irwin',
+    year: 2022,
+    source: 'Sports Medicine, 52(11), 2669–2690',
+    evidenceType: '체계적 문헌고찰 · 메타분석',
+    doi: '10.1007/s40279-022-01706-y',
+    officialUrl: Uri.parse('https://pubmed.ncbi.nlm.nih.gov/35708888/'),
+    appRules: const [
+      '회복 설문에서 피로 또는 수면 부족을 선택한 당일에만 운동량과 기록 기반 시작 중량을 보수적으로 낮춥니다.',
+      '오래된 회복 응답은 다음 날 이후 추천에 적용하지 않습니다.',
+    ],
+    limitations:
+        '69개 연구의 집단 평균 결과이고 연구 간 차이가 컸습니다. 앱의 세트 1개·중량 10%·유산소 시간 25% 감량 폭은 논문이 검증한 개인 처방값이 아니라 위험을 낮추기 위한 제품 규칙입니다.',
+  ),
+  EvidenceReference(
     id: 'acsm_garber_2011_prescription',
     category: EvidenceCategory.generalActivity,
     title:

@@ -1,4 +1,5 @@
 import '../domain/cardio.dart';
+import '../domain/exercise_recommendation_traits.dart';
 import '../models.dart';
 import 'cardio_prescription_engine.dart';
 import 'performance_engine.dart';
@@ -44,6 +45,7 @@ abstract final class ExerciseRecommendationEngine {
     required List<String> goals,
     Iterable<WorkoutSession> weeklyHistory = const [],
     Set<String> excludedTemplateIds = const {},
+    RecommendationProfile? recommendationProfile,
   }) => _recommend(
     catalog: catalog,
     session: session,
@@ -51,6 +53,7 @@ abstract final class ExerciseRecommendationEngine {
     goals: goals,
     weeklyHistory: weeklyHistory,
     excludedTemplateIds: excludedTemplateIds,
+    recommendationProfile: recommendationProfile,
   );
 
   static NextExerciseRecommendation? recommendFirst({
@@ -59,12 +62,14 @@ abstract final class ExerciseRecommendationEngine {
     required List<String> goals,
     Iterable<WorkoutSession> weeklyHistory = const [],
     Set<String> excludedTemplateIds = const {},
+    RecommendationProfile? recommendationProfile,
   }) => _recommend(
     catalog: catalog,
     session: session,
     goals: goals,
     weeklyHistory: weeklyHistory,
     excludedTemplateIds: excludedTemplateIds,
+    recommendationProfile: recommendationProfile,
   );
 
   static NextExerciseRecommendation? _recommend({
@@ -73,9 +78,13 @@ abstract final class ExerciseRecommendationEngine {
     required List<String> goals,
     required Iterable<WorkoutSession> weeklyHistory,
     required Set<String> excludedTemplateIds,
+    required RecommendationProfile? recommendationProfile,
     WorkoutExercise? completedExercise,
   }) {
     if (goals.isEmpty) return null;
+    if (recommendationProfile?.shouldPauseAutomaticRecommendation ?? false) {
+      return null;
+    }
     final existing = session.exercises
         .map((exercise) => exercise.template.id)
         .toSet();
@@ -91,6 +100,7 @@ abstract final class ExerciseRecommendationEngine {
     for (final id in orderedIds) {
       final item = templateById[id];
       if (item != null &&
+          _isEligibleForProfile(item, recommendationProfile) &&
           !existing.contains(item.id) &&
           !excludedTemplateIds.contains(item.id) &&
           !candidates.any((candidate) => candidate.id == item.id)) {
@@ -104,6 +114,7 @@ abstract final class ExerciseRecommendationEngine {
     for (final muscle in preferredMuscles) {
       for (final item in catalog) {
         if (item.muscle == muscle &&
+            _isEligibleForProfile(item, recommendationProfile) &&
             !existing.contains(item.id) &&
             !excludedTemplateIds.contains(item.id) &&
             !candidates.any((candidate) => candidate.id == item.id)) {
@@ -112,7 +123,8 @@ abstract final class ExerciseRecommendationEngine {
       }
     }
     for (final item in catalog) {
-      if (!existing.contains(item.id) &&
+      if (_isEligibleForProfile(item, recommendationProfile) &&
+          !existing.contains(item.id) &&
           !excludedTemplateIds.contains(item.id) &&
           !candidates.any((candidate) => candidate.id == item.id)) {
         candidates.add(item);
@@ -186,13 +198,26 @@ abstract final class ExerciseRecommendationEngine {
     );
 
     final prescription = PerformanceEngine.prescriptionFor(trainingGoal);
-    final cardioPrescription = candidate.isCardio
+    final recoveryIsCurrent =
+        recommendationProfile?.hasRecoveryFor(referenceDay) ?? false;
+    final recoveryIsLow =
+        recoveryIsCurrent &&
+        recommendationProfile?.recoveryStatus ==
+            TrainingRecoveryStatus.fatigued;
+    final baseCardioPrescription = candidate.isCardio
         ? CardioPrescriptionEngine.recommend(
             exerciseId: candidate.id,
             goal: trainingGoal,
             history: _cardioHistoryRecords(history),
+            now: referenceDay,
+            experience: _cardioExperience(
+              recommendationProfile?.experienceLevel,
+            ),
           )
         : null;
+    final cardioPrescription = recoveryIsLow && baseCardioPrescription != null
+        ? _reduceCardioForLowRecovery(baseCardioPrescription)
+        : baseCardioPrescription;
     final historicalRecommendation = candidate.isCardio
         ? null
         : PerformanceEngine.recommend(
@@ -222,26 +247,97 @@ abstract final class ExerciseRecommendationEngine {
     final reason = candidate.id == primaryCandidate.id
         ? baseReason
         : '$baseReason 최근 4주의 반복을 줄이고 종목을 고르게 순환했습니다.';
+    final personalizedReason = [
+      reason,
+      if (recommendationProfile != null) '입력한 장비·숙련도와 직접 지정한 제외 동작을 반영했습니다.',
+      if (recoveryIsLow) '오늘 회복 상태가 낮아 운동량과 기록 기반 시작 중량을 보수적으로 낮췄습니다.',
+    ].join(' ');
+    final startingWeight = historicalRecommendation?.weight ?? 0;
+    final evidenceIds = <String>{
+      ...(cardioPrescription?.evidenceIds ??
+          {...prescription.evidenceIds, 'nunes_2021_exercise_order'}),
+      if (recoveryIsLow) 'craven_2022_sleep_loss',
+    };
     return NextExerciseRecommendation(
       template: candidate,
-      sets: prescription.sets,
+      sets: recoveryIsLow && prescription.sets > 1
+          ? prescription.sets - 1
+          : prescription.sets,
       minReps: prescription.minReps,
       maxReps: prescription.maxReps,
       restSeconds: prescription.restSeconds,
       // A population-level paper cannot determine a safe kilogram value for
       // someone with no history on this exact exercise. Reuse only the
       // member's own eligible records; otherwise leave weight for direct input.
-      startingWeight: historicalRecommendation?.weight ?? 0,
+      startingWeight: recoveryIsLow
+          ? _reducedStartingWeight(startingWeight)
+          : startingWeight,
       goalLabel: trainingGoal.label,
-      reason: reason,
-      evidenceIds:
-          cardioPrescription?.evidenceIds ??
-          {...prescription.evidenceIds, 'nunes_2021_exercise_order'},
+      reason: personalizedReason,
+      evidenceIds: evidenceIds,
       evidenceNote:
           cardioPrescription?.safetyNote ??
           '세트·반복·휴식과 운동 우선순위는 연구 원칙을 반영합니다. '
-              '특정 종목 선택은 목표·주간 기록을 조합한 앱 규칙입니다.',
+              '특정 종목, 장비, 숙련도, 제외 동작 필터는 설문과 기록을 조합한 앱 규칙이며 의학적 진단이 아닙니다.',
       cardioPrescription: cardioPrescription,
+    );
+  }
+
+  static bool _isEligibleForProfile(
+    ExerciseTemplate exercise,
+    RecommendationProfile? profile,
+  ) {
+    if (profile == null) return true;
+    return exerciseRecommendationTraits[exercise.id]?.isEligibleFor(profile) ??
+        false;
+  }
+
+  static CardioExperience _cardioExperience(
+    TrainingExperienceLevel? experience,
+  ) => switch (experience) {
+    TrainingExperienceLevel.intermediate => CardioExperience.regular,
+    TrainingExperienceLevel.advanced => CardioExperience.advanced,
+    TrainingExperienceLevel.beginner || null => CardioExperience.beginner,
+  };
+
+  static double _reducedStartingWeight(double weight) {
+    if (weight <= 0) return 0;
+    return (weight * .9 * 2).floorToDouble() / 2;
+  }
+
+  static CardioPrescription _reduceCardioForLowRecovery(
+    CardioPrescription prescription,
+  ) {
+    final reducedSeconds = (prescription.sessionDuration.inSeconds * .75)
+        .round();
+    final safeSeconds = reducedSeconds < 600 ? 600 : reducedSeconds;
+    final maximumRpe = prescription.maximumRpe > 5
+        ? 5
+        : prescription.maximumRpe;
+    final minimumRpe = prescription.minimumRpe > maximumRpe
+        ? maximumRpe
+        : prescription.minimumRpe;
+    return CardioPrescription(
+      definition: prescription.definition,
+      goal: prescription.goal,
+      structure: CardioSessionStructure.continuous,
+      sessionDuration: Duration(seconds: safeSeconds),
+      intensity: CardioIntensity.moderate,
+      minimumRpe: minimumRpe,
+      maximumRpe: maximumRpe,
+      weeklyTargetModerateEquivalentMinutes:
+          prescription.weeklyTargetModerateEquivalentMinutes,
+      completedModerateEquivalentMinutes:
+          prescription.completedModerateEquivalentMinutes,
+      metrics: prescription.metrics,
+      evidenceIds: {...prescription.evidenceIds, 'craven_2022_sleep_loss'},
+      reason: '${prescription.reason} 오늘 회복 설문을 반영해 지속시간과 강도를 낮췄습니다.',
+      safetyNote:
+          '${prescription.safetyNote} 회복 조정 폭은 연구 결과를 개인에게 그대로 대입한 값이 아니라 보수적인 앱 규칙입니다.',
+      targetDistanceKm: prescription.targetDistanceKm == null
+          ? null
+          : prescription.targetDistanceKm! * .75,
+      targetHeartRate: null,
     );
   }
 

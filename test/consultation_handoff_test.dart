@@ -73,6 +73,18 @@ void main() {
     );
     addTearDown(state.dispose);
     await state.initialize();
+    final recordedAt = DateTime.utc(2026, 8, 21, 5);
+    final sharedProfile = RecommendationProfile(
+      experienceLevel: TrainingExperienceLevel.beginner,
+      availableEquipment: const {TrainingEquipment.bodyweight},
+      painRegions: const {TrainingPainRegion.knee},
+      painLevel: 2,
+      restrictedMovements: const {TrainingMovementRestriction.squatLunge},
+      injuryNote: '무릎 굽힘이 불편함',
+      recoveryStatus: TrainingRecoveryStatus.normal,
+      recoveryRecordedAt: recordedAt,
+      updatedAt: recordedAt,
+    );
 
     Future<void> create() => state.addConsultation(
       gymId: _gymId,
@@ -81,6 +93,7 @@ void main() {
       goal: '근력 향상',
       level: '초급',
       question: '안전한 운동 구성을 알려주세요.',
+      sharedRecommendationProfile: sharedProfile,
     );
     await expectLater(create(), throwsA(isA<StateError>()));
     await create();
@@ -89,6 +102,14 @@ void main() {
     expect(
       repository.createInputs[1].requestId,
       repository.createInputs[0].requestId,
+    );
+    expect(
+      repository.createInputs[1].recommendationProfile?.toJson(),
+      repository.createInputs[0].recommendationProfile?.toJson(),
+    );
+    expect(
+      repository.createInputs[1].recommendationProfile?.toJson(),
+      sharedProfile.toJson(),
     );
   });
 
@@ -288,6 +309,10 @@ class _HandoffRepository implements BusinessRepository {
       goal: input.goal,
       level: input.level,
       question: input.question,
+      sharedRecommendationProfile: input.recommendationProfile,
+      recommendationProfileSharedAt: input.recommendationProfile == null
+          ? null
+          : DateTime.now().toUtc(),
       messages: const [],
     );
     return consultation;

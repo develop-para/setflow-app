@@ -6,7 +6,7 @@ import '../models.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
-  static const schemaVersion = 10;
+  static const schemaVersion = 11;
 
   static String encode(AppSnapshot snapshot) => jsonEncode(toJson(snapshot));
 
@@ -34,6 +34,9 @@ abstract final class AppSnapshotCodec {
         'weight': snapshot.weight,
         'age': snapshot.age,
         'gender': snapshot.gender,
+        'precisionRecommendationPrompted':
+            snapshot.precisionRecommendationPrompted,
+        'recommendationProfile': snapshot.recommendationProfile?.toJson(),
       },
       'customExercises': snapshot.customExercises
           .map(
@@ -168,6 +171,11 @@ abstract final class AppSnapshotCodec {
         weight: (profile['weight'] as num?)?.toDouble(),
         age: (profile['age'] as num?)?.toInt(),
         gender: profile['gender'] as String?,
+        precisionRecommendationPrompted:
+            profile['precisionRecommendationPrompted'] as bool? ?? false,
+        recommendationProfile: RecommendationProfile.tryFromJson(
+          profile['recommendationProfile'],
+        ),
         communityPosts: posts,
         consultations: consultations,
         businessDashboards: businessDashboards,
@@ -476,6 +484,12 @@ abstract final class AppSnapshotCodec {
       'status': consultation.status.name,
       'response': consultation.response,
       'rating': consultation.rating,
+      'sharedRecommendationProfile': consultation.sharedRecommendationProfile
+          ?.toJson(),
+      'recommendationProfileShareRevokedAt': consultation
+          .recommendationProfileShareRevokedAt
+          ?.toUtc()
+          .toIso8601String(),
     };
   }
 
@@ -499,6 +513,12 @@ abstract final class AppSnapshotCodec {
       status: status ?? ConsultationStatus.waiting,
       response: json['response'] as String?,
       rating: (json['rating'] as num?)?.toInt(),
+      sharedRecommendationProfile: RecommendationProfile.tryFromJson(
+        json['sharedRecommendationProfile'],
+      ),
+      recommendationProfileShareRevokedAt: DateTime.tryParse(
+        json['recommendationProfileShareRevokedAt'] as String? ?? '',
+      ),
     );
   }
 

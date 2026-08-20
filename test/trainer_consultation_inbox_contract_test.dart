@@ -105,7 +105,15 @@ void main() {
       expect(find.text('상담 요청 회원'), findsOneWidget);
       expect(find.text('근력 향상'), findsOneWidget);
       expect(find.text('스쿼트 중량을 어떻게 올리면 좋을까요?'), findsOneWidget);
+      expect(find.text('정밀 추천 정보 공유됨'), findsOneWidget);
       expect(find.text('미답변 1'), findsOneWidget);
+      await tester.tap(find.text('상담 요청 회원'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('trainer-shared-recommendation-profile')),
+        findsOneWidget,
+      );
+      expect(find.text('오른쪽 어깨 불편'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 300));
     },
   );
@@ -132,7 +140,7 @@ class _InboxRepository extends Fake implements BusinessRepository {
     trainer: profile,
   );
 
-  static const pendingConsultation = BusinessConsultation(
+  static final pendingConsultation = BusinessConsultation(
     id: _consultationId,
     userId: '44444444-4444-4444-8444-444444444444',
     trainerId: _trainerId,
@@ -142,10 +150,11 @@ class _InboxRepository extends Fake implements BusinessRepository {
     goal: '근력 향상',
     level: '초급',
     question: '스쿼트 중량을 어떻게 올리면 좋을까요?',
+    sharedRecommendationProfile: _recommendationProfile(),
     messages: [],
   );
 
-  static const workspace = BusinessWorkspaceData(
+  static final workspace = BusinessWorkspaceData(
     role: UserRole.trainer,
     access: access,
     profile: profile,
@@ -163,7 +172,7 @@ class _InboxRepository extends Fake implements BusinessRepository {
   Future<List<PublicTrainer>> listPublicTrainers() async => const [];
 
   @override
-  Future<List<BusinessConsultation>> listMyConsultations() async => const [
+  Future<List<BusinessConsultation>> listMyConsultations() async => [
     pendingConsultation,
   ];
 
@@ -192,4 +201,19 @@ class _InboxRepository extends Fake implements BusinessRepository {
 
   @override
   Future<List<PersonalRoutineRecord>> listPersonalRoutines() async => const [];
+}
+
+RecommendationProfile _recommendationProfile() {
+  final recordedAt = DateTime.utc(2026, 8, 21);
+  return RecommendationProfile(
+    experienceLevel: TrainingExperienceLevel.intermediate,
+    availableEquipment: const {TrainingEquipment.dumbbells},
+    painRegions: const {TrainingPainRegion.shoulder},
+    painLevel: 3,
+    restrictedMovements: const {TrainingMovementRestriction.overheadPress},
+    injuryNote: '오른쪽 어깨 불편',
+    recoveryStatus: TrainingRecoveryStatus.normal,
+    recoveryRecordedAt: recordedAt,
+    updatedAt: recordedAt,
+  );
 }

@@ -54,6 +54,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
   ];
 
   Set<String>? selected;
+  bool isSaving = false;
 
   @override
   void didChangeDependencies() {
@@ -62,6 +63,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
   }
 
   void _toggle(String goal) {
+    if (isSaving) return;
     setState(() {
       if (!selected!.remove(goal) && selected!.length < 2) {
         selected!.add(goal);
@@ -69,11 +71,13 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (selected!.isEmpty) {
       AppSnackbar.info(context, '운동 목표를 하나 이상 선택해주세요.');
       return;
     }
+    if (isSaving) return;
+    setState(() => isSaving = true);
     final state = AppScope.of(context);
     state.setMemberProfile(
       goals: selected!,
@@ -82,7 +86,19 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
       age: state.age,
       gender: state.gender,
     );
-    Navigator.pop(context, true);
+    try {
+      await state.syncPersistenceToServer();
+      if (mounted) Navigator.pop(context, true);
+    } catch (_) {
+      if (!mounted) return;
+      if (state.persistenceError != null) {
+        setState(() => isSaving = false);
+        AppSnackbar.error(context, '목표를 기기에 저장하지 못했어요. 다시 시도해주세요.');
+        return;
+      }
+      AppSnackbar.info(context, '목표는 기기에 저장됐어요. 클라우드는 연결되는 즉시 다시 동기화합니다.');
+      Navigator.pop(context, true);
+    }
   }
 
   @override
@@ -179,7 +195,8 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
         child: AppButton(
           label: '목표 저장',
           icon: Icons.check_rounded,
-          onPressed: _save,
+          isLoading: isSaving,
+          onPressed: isSaving ? null : _save,
         ),
       ),
     );

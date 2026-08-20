@@ -1298,93 +1298,98 @@ class AdminRoutineReviewCard extends StatelessWidget {
   Future<void> _showReviewSheet(BuildContext context) async {
     var tier = RoutineAccessTier.free;
     final reasonController = TextEditingController();
+    Future<void>? sheetCompleted;
     final decision = await showModalBottomSheet<_RoutineReviewDecision>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => KeyboardSafeBottomSheet(
-          padding: const EdgeInsets.fromLTRB(
-            SetflowSpacing.lg,
-            0,
-            SetflowSpacing.lg,
-            SetflowSpacing.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('루틴 심사', style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: SetflowSpacing.md),
-              SegmentedButton<RoutineAccessTier>(
-                segments: const [
-                  ButtonSegment(
-                    value: RoutineAccessTier.free,
-                    icon: Icon(Icons.lock_open_rounded),
-                    label: Text('무료 승인'),
-                  ),
-                  ButtonSegment(
-                    value: RoutineAccessTier.paid,
-                    icon: Icon(Icons.workspace_premium_rounded),
-                    label: Text('유료 승인'),
-                  ),
-                ],
-                selected: {tier},
-                onSelectionChanged: (value) =>
-                    setSheetState(() => tier = value.first),
-              ),
-              const SizedBox(height: SetflowSpacing.md),
-              TextField(
-                controller: reasonController,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: '반려 사유',
-                  hintText: '반려할 때는 사유를 반드시 입력해주세요.',
-                ),
-              ),
-              const SizedBox(height: SetflowSpacing.lg),
-              Row(
-                children: [
-                  Expanded(
-                    child: AppButton(
-                      label: '반려',
-                      variant: AppButtonVariant.outlined,
-                      onPressed: () {
-                        final reason = reasonController.text.trim();
-                        if (reason.isEmpty) {
-                          AppSnackbar.error(context, '반려 사유를 입력해주세요.');
-                          return;
-                        }
-                        Navigator.pop(
-                          sheetContext,
-                          _RoutineReviewDecision(
-                            approve: false,
-                            tier: tier,
-                            reason: reason,
-                          ),
-                        );
-                      },
+      builder: (sheetContext) {
+        sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+        return StatefulBuilder(
+          builder: (context, setSheetState) => KeyboardSafeBottomSheet(
+            padding: const EdgeInsets.fromLTRB(
+              SetflowSpacing.lg,
+              0,
+              SetflowSpacing.lg,
+              SetflowSpacing.lg,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('루틴 심사', style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: SetflowSpacing.md),
+                SegmentedButton<RoutineAccessTier>(
+                  segments: const [
+                    ButtonSegment(
+                      value: RoutineAccessTier.free,
+                      icon: Icon(Icons.lock_open_rounded),
+                      label: Text('무료 승인'),
                     ),
+                    ButtonSegment(
+                      value: RoutineAccessTier.paid,
+                      icon: Icon(Icons.workspace_premium_rounded),
+                      label: Text('유료 승인'),
+                    ),
+                  ],
+                  selected: {tier},
+                  onSelectionChanged: (value) =>
+                      setSheetState(() => tier = value.first),
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                TextField(
+                  controller: reasonController,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: '반려 사유',
+                    hintText: '반려할 때는 사유를 반드시 입력해주세요.',
                   ),
-                  const SizedBox(width: SetflowSpacing.sm),
-                  Expanded(
-                    child: AppButton(
-                      label: '승인 · 게시',
-                      icon: Icons.publish_rounded,
-                      onPressed: () => Navigator.pop(
-                        sheetContext,
-                        _RoutineReviewDecision(approve: true, tier: tier),
+                ),
+                const SizedBox(height: SetflowSpacing.lg),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(
+                        label: '반려',
+                        variant: AppButtonVariant.outlined,
+                        onPressed: () {
+                          final reason = reasonController.text.trim();
+                          if (reason.isEmpty) {
+                            AppSnackbar.error(context, '반려 사유를 입력해주세요.');
+                            return;
+                          }
+                          Navigator.pop(
+                            sheetContext,
+                            _RoutineReviewDecision(
+                              approve: false,
+                              tier: tier,
+                              reason: reason,
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Expanded(
+                      child: AppButton(
+                        label: '승인 · 게시',
+                        icon: Icons.publish_rounded,
+                        onPressed: () => Navigator.pop(
+                          sheetContext,
+                          _RoutineReviewDecision(approve: true, tier: tier),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
+    await sheetCompleted;
     reasonController.dispose();
     if (decision == null || !context.mounted) return;
     try {

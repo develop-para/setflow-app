@@ -487,7 +487,7 @@ void main() {
     );
 
     final encoded = AppSnapshotCodec.encode(snapshot);
-    expect(jsonDecode(encoded)['schemaVersion'], 10);
+    expect(jsonDecode(encoded)['schemaVersion'], 11);
     final decoded = AppSnapshotCodec.decode(encoded, const [run])!;
     final workoutSet = decoded.sessions[date]!.exercises.single.sets.single;
     expect(workoutSet.durationSeconds, 2700);

@@ -1907,6 +1907,7 @@ class _FakeBusinessRepository implements BusinessRepository {
     memberId: memberId,
     memberUserId: _member().userId,
     shareBodyData: false,
+    shareWorkoutRecords: false,
     canReadWorkouts: false,
     sessions: const [],
   );

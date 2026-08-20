@@ -7,6 +7,7 @@ import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/recommendation_profile_summary.dart';
 import 'admin_content_screens.dart';
 import 'admin_system_screens.dart';
 import 'business_detail_screens.dart';
@@ -464,9 +465,11 @@ class _BusinessHeader extends StatelessWidget {
                   '로그아웃',
                   style: TextStyle(color: SetflowColors.red),
                 ),
-                onTap: () {
+                onTap: () async {
+                  final route = ModalRoute.of(sheetContext);
                   Navigator.pop(sheetContext);
-                  state.logout();
+                  await route?.completed;
+                  await state.logout();
                 },
               ),
             ],
@@ -525,9 +528,11 @@ class _BusinessHeader extends StatelessWidget {
                 '로그아웃',
                 style: TextStyle(color: SetflowColors.red),
               ),
-              onTap: () {
+              onTap: () async {
+                final route = ModalRoute.of(sheetContext);
                 Navigator.pop(sheetContext);
-                state.logout();
+                await route?.completed;
+                await state.logout();
               },
             ),
           ],
@@ -1853,6 +1858,7 @@ class _PeoplePageState extends State<PeoplePage> {
   ) async {
     final feedbackController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    Future<void>? sheetCompleted;
     final state = AppScope.of(context);
     final live = state.usesLiveBusinessData;
     final liveMember = person.$5 == null
@@ -1864,128 +1870,85 @@ class _PeoplePageState extends State<PeoplePage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
-        ),
-        child: SafeArea(
-          top: false,
-          child: DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: .7,
-            builder: (_, controller) => ListView(
-              controller: controller,
-              padding: SetflowInsets.pageListTight,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: SetflowColors.primary.withValues(
-                        alpha: .2,
-                      ),
-                      child: Text(
-                        person.$1.characters.first,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
+      builder: (sheetContext) {
+        sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          child: SafeArea(
+            top: false,
+            child: DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: .7,
+              builder: (_, controller) => ListView(
+                controller: controller,
+                padding: SetflowInsets.pageListTight,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: SetflowColors.primary.withValues(
+                          alpha: .2,
+                        ),
+                        child: Text(
+                          person.$1.characters.first,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            person.$1,
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          Text(
-                            person.$2,
-                            style: const TextStyle(
-                              color: SetflowColors.secondaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(sheetContext);
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => MemberDetailScreen(
-                          member:
-                              liveMember ??
-                              BusinessMember(
-                                id: 'demo-${person.$1}',
-                                gymId: 'demo',
-                                name: person.$1,
-                                goal: person.$2,
-                                remainingPtSessions: 0,
-                                completionRate: person.$4.toDouble(),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              person.$1,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
                               ),
-                          role: widget.role,
+                            ),
+                            Text(
+                              person.$2,
+                              style: const TextStyle(
+                                color: SetflowColors.secondaryText,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.person_search_outlined),
-                  label: const Text('회원 상세 보기'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    ],
                   ),
-                ),
-                if (widget.role == UserRole.gym) ...[
-                  const SizedBox(height: SetflowSpacing.sm),
-                  if (liveMember?.userId == null)
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) {
-                            _showInviteSheet(context, member: liveMember);
-                          }
-                        });
-                      },
-                      icon: const Icon(Icons.link_rounded),
-                      label: const Text('회원 계정 연결 초대'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                    ),
-                  if (liveMember?.userId == null)
-                    const SizedBox(height: SetflowSpacing.sm),
+                  const SizedBox(height: 14),
                   OutlinedButton.icon(
                     onPressed: () {
                       Navigator.pop(sheetContext);
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) {
-                          _showAssignmentSheet(
-                            context,
-                            person.$1,
-                            memberId: person.$5,
-                          );
-                        }
-                      });
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => MemberDetailScreen(
+                            member:
+                                liveMember ??
+                                BusinessMember(
+                                  id: 'demo-${person.$1}',
+                                  gymId: 'demo',
+                                  name: person.$1,
+                                  goal: person.$2,
+                                  remainingPtSessions: 0,
+                                  completionRate: person.$4.toDouble(),
+                                ),
+                            role: widget.role,
+                          ),
+                        ),
+                      );
                     },
-                    icon: const Icon(Icons.badge_outlined),
-                    label: const Text('담당 트레이너 배정'),
+                    icon: const Icon(Icons.person_search_outlined),
+                    label: const Text('회원 상세 보기'),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                       shape: RoundedRectangleBorder(
@@ -1993,148 +1956,202 @@ class _PeoplePageState extends State<PeoplePage> {
                       ),
                     ),
                   ),
-                  if (live && liveMember != null) ...[
+                  if (widget.role == UserRole.gym) ...[
                     const SizedBox(height: SetflowSpacing.sm),
+                    if (liveMember?.userId == null)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              _showInviteSheet(context, member: liveMember);
+                            }
+                          });
+                        },
+                        icon: const Icon(Icons.link_rounded),
+                        label: const Text('회원 계정 연결 초대'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    if (liveMember?.userId == null)
+                      const SizedBox(height: SetflowSpacing.sm),
                     OutlinedButton.icon(
-                      key: ValueKey('end-membership-${liveMember.id}'),
-                      onPressed: state.isEndingBusinessMembership(liveMember.id)
-                          ? null
-                          : () async {
-                              final confirmed = await _confirmEndMembership(
-                                sheetContext,
-                                memberName: liveMember.name,
-                                centerInitiated: true,
-                              );
-                              if (!confirmed) return;
-                              try {
-                                await state.endBusinessMembership(
-                                  liveMember.id,
-                                );
-                                if (!sheetContext.mounted || !context.mounted) {
-                                  return;
-                                }
-                                Navigator.pop(sheetContext);
-                                AppSnackbar.success(
-                                  context,
-                                  '${liveMember.name} 회원의 센터 연결을 종료했어요.',
-                                );
-                              } catch (_) {
-                                if (context.mounted) {
-                                  AppSnackbar.error(
-                                    context,
-                                    '회원 연결을 종료하지 못했어요.',
-                                  );
-                                }
-                              }
-                            },
-                      icon: const Icon(Icons.person_remove_outlined),
-                      label: const Text('센터 회원 연결 종료'),
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            _showAssignmentSheet(
+                              context,
+                              person.$1,
+                              memberId: person.$5,
+                            );
+                          }
+                        });
+                      },
+                      icon: const Icon(Icons.badge_outlined),
+                      label: const Text('담당 트레이너 배정'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Theme.of(context).colorScheme.error,
                         minimumSize: const Size.fromHeight(48),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
                     ),
-                  ],
-                ],
-                if (!live) ...[
-                  const SizedBox(height: 22),
-                  Row(
-                    children: [
-                      MetricCard(
-                        label: '주간 완료율',
-                        value: '${person.$4}',
-                        suffix: '%',
-                        icon: Icons.check_circle_outline,
-                        tint: SetflowColors.teal,
-                      ),
-                      const SizedBox(width: 10),
-                      const MetricCard(
-                        label: '최근 볼륨',
-                        value: '4.8',
-                        suffix: 't',
-                        icon: Icons.monitor_weight_outlined,
-                        tint: SetflowColors.orange,
+                    if (live && liveMember != null) ...[
+                      const SizedBox(height: SetflowSpacing.sm),
+                      OutlinedButton.icon(
+                        key: ValueKey('end-membership-${liveMember.id}'),
+                        onPressed:
+                            state.isEndingBusinessMembership(liveMember.id)
+                            ? null
+                            : () async {
+                                final confirmed = await _confirmEndMembership(
+                                  sheetContext,
+                                  memberName: liveMember.name,
+                                  centerInitiated: true,
+                                );
+                                if (!confirmed) return;
+                                try {
+                                  await state.endBusinessMembership(
+                                    liveMember.id,
+                                  );
+                                  if (!sheetContext.mounted ||
+                                      !context.mounted) {
+                                    return;
+                                  }
+                                  Navigator.pop(sheetContext);
+                                  AppSnackbar.success(
+                                    context,
+                                    '${liveMember.name} 회원의 센터 연결을 종료했어요.',
+                                  );
+                                } catch (_) {
+                                  if (context.mounted) {
+                                    AppSnackbar.error(
+                                      context,
+                                      '회원 연결을 종료하지 못했어요.',
+                                    );
+                                  }
+                                }
+                              },
+                        icon: const Icon(Icons.person_remove_outlined),
+                        label: const Text('센터 회원 연결 종료'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 22),
-                  const SectionTitle('최근 운동 기록'),
-                  const SizedBox(height: 8),
-                  const SetflowCard(
-                    child: Column(
+                  ],
+                  if (!live) ...[
+                    const SizedBox(height: 22),
+                    Row(
                       children: [
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            '상체 루틴',
-                            style: TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                          subtitle: Text('오늘 · 12세트 · 4.8t'),
-                          trailing: Icon(Icons.chevron_right),
+                        MetricCard(
+                          label: '주간 완료율',
+                          value: '${person.$4}',
+                          suffix: '%',
+                          icon: Icons.check_circle_outline,
+                          tint: SetflowColors.teal,
                         ),
-                        Divider(),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            '하체 루틴',
-                            style: TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                          subtitle: Text('3일 전 · 10세트 · 5.2t'),
-                          trailing: Icon(Icons.chevron_right),
+                        const SizedBox(width: 10),
+                        const MetricCard(
+                          label: '최근 볼륨',
+                          value: '4.8',
+                          suffix: 't',
+                          icon: Icons.monitor_weight_outlined,
+                          tint: SetflowColors.orange,
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  Form(
-                    key: formKey,
-                    child: AppTextField(
-                      controller: feedbackController,
-                      maxLines: 3,
-                      label: '피드백',
-                      hint: '회원에게 전달할 피드백을 작성하세요.',
-                      validator: (value) {
-                        final feedback = value?.trim() ?? '';
-                        if (feedback.isEmpty) return '피드백 내용을 입력해주세요.';
-                        if (feedback.length < 10) return '피드백을 10자 이상 입력해주세요.';
-                        return null;
+                    const SizedBox(height: 22),
+                    const SectionTitle('최근 운동 기록'),
+                    const SizedBox(height: 8),
+                    const SetflowCard(
+                      child: Column(
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              '상체 루틴',
+                              style: TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                            subtitle: Text('오늘 · 12세트 · 4.8t'),
+                            trailing: Icon(Icons.chevron_right),
+                          ),
+                          Divider(),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              '하체 루틴',
+                              style: TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                            subtitle: Text('3일 전 · 10세트 · 5.2t'),
+                            trailing: Icon(Icons.chevron_right),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Form(
+                      key: formKey,
+                      child: AppTextField(
+                        controller: feedbackController,
+                        maxLines: 3,
+                        label: '피드백',
+                        hint: '회원에게 전달할 피드백을 작성하세요.',
+                        validator: (value) {
+                          final feedback = value?.trim() ?? '';
+                          if (feedback.isEmpty) return '피드백 내용을 입력해주세요.';
+                          if (feedback.length < 10) {
+                            return '피드백을 10자 이상 입력해주세요.';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    PrimaryButton(
+                      label: '피드백 보내기',
+                      onPressed: () {
+                        if (!(formKey.currentState?.validate() ?? false)) {
+                          return;
+                        }
+                        AppScope.of(context).recordBusinessMemberFeedback(
+                          role: widget.role,
+                          memberName: person.$1,
+                          feedback: feedbackController.text.trim(),
+                        );
+                        Navigator.pop(sheetContext);
+                        AppSnackbar.success(
+                          context,
+                          '${person.$1}님에게 피드백을 보냈어요.',
+                        );
                       },
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  PrimaryButton(
-                    label: '피드백 보내기',
-                    onPressed: () {
-                      if (!(formKey.currentState?.validate() ?? false)) return;
-                      AppScope.of(context).recordBusinessMemberFeedback(
-                        role: widget.role,
-                        memberName: person.$1,
-                        feedback: feedbackController.text.trim(),
-                      );
-                      Navigator.pop(sheetContext);
-                      AppSnackbar.success(
-                        context,
-                        '${person.$1}님에게 피드백을 보냈어요.',
-                      );
-                    },
-                  ),
-                ] else ...[
-                  const SizedBox(height: SetflowSpacing.xl),
-                  const EmptyState(
-                    icon: Icons.lock_person_outlined,
-                    title: '공유된 상세 운동 기록이 없어요',
-                    message: '회원이 공유에 동의한 기록이 연결되면 상세 운동과 피드백 기능이 열립니다.',
-                  ),
+                  ] else ...[
+                    const SizedBox(height: SetflowSpacing.xl),
+                    const EmptyState(
+                      icon: Icons.lock_person_outlined,
+                      title: '공유된 상세 운동 기록이 없어요',
+                      message: '회원이 공유에 동의한 기록이 연결되면 상세 운동과 피드백 기능이 열립니다.',
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
+    await sheetCompleted;
+    feedbackController.dispose();
   }
 
   Future<bool> _confirmEndMembership(
@@ -3558,201 +3575,208 @@ Future<void> _showRoutineCreate(BuildContext context, UserRole role) async {
   final formKey = GlobalKey<FormState>();
   final selectedExerciseIds = <String>{};
   var saving = false;
+  Future<void>? sheetCompleted;
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => StatefulBuilder(
-      builder: (sheetContext, setSheetState) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          SetflowSpacing.xxl,
-          SetflowSpacing.xs,
-          SetflowSpacing.xxl,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + SetflowSpacing.xxl,
-        ),
-        child: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  role == UserRole.gym ? '센터 루틴 만들기' : '전문가 루틴 만들기',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: SetflowSpacing.sm),
-                Text(
-                  state.usesLiveBusinessData
-                      ? '운동과 목표 세트를 선택하면 Supabase에 초안으로 저장됩니다.'
-                      : '저장 후 루틴 관리 목록에서 구성과 통계를 계속 편집할 수 있어요.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+    builder: (sheetContext) {
+      sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+      return StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            SetflowSpacing.xxl,
+            SetflowSpacing.xs,
+            SetflowSpacing.xxl,
+            MediaQuery.viewInsetsOf(sheetContext).bottom + SetflowSpacing.xxl,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    role == UserRole.gym ? '센터 루틴 만들기' : '전문가 루틴 만들기',
+                    style: Theme.of(context).textTheme.headlineMedium,
                   ),
-                ),
-                const SizedBox(height: SetflowSpacing.xl),
-                AppTextField(
-                  controller: nameController,
-                  label: '루틴 이름',
-                  hint: '예: 직장인 4주 근력 루틴',
-                  textInputAction: TextInputAction.next,
-                  validator: (value) {
-                    final name = value?.trim() ?? '';
-                    if (name.isEmpty) return '루틴 이름을 입력해주세요.';
-                    if (name.length < 3) return '루틴 이름을 3자 이상 입력해주세요.';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: SetflowSpacing.md),
-                AppTextField(
-                  controller: descriptionController,
-                  label: '루틴 설명',
-                  hint: '대상과 운동 목표를 설명해주세요.',
-                  maxLines: 3,
-                  validator: (value) {
-                    if ((value?.trim().length ?? 0) < 10) {
-                      return '루틴 설명을 10자 이상 입력해주세요.';
-                    }
-                    return null;
-                  },
-                ),
-                if (state.usesLiveBusinessData) ...[
-                  const SizedBox(height: SetflowSpacing.xl),
-                  const SectionTitle('운동 선택'),
                   const SizedBox(height: SetflowSpacing.sm),
-                  Wrap(
-                    spacing: SetflowSpacing.sm,
-                    runSpacing: SetflowSpacing.sm,
-                    children: [
-                      for (final exercise in state.exercises)
-                        FilterChip(
-                          label: Text(exercise.name),
-                          selected: selectedExerciseIds.contains(exercise.id),
-                          onSelected: saving
-                              ? null
-                              : (selected) => setSheetState(() {
-                                  if (selected) {
-                                    selectedExerciseIds.add(exercise.id);
-                                  } else {
-                                    selectedExerciseIds.remove(exercise.id);
-                                  }
-                                }),
-                        ),
-                    ],
+                  Text(
+                    state.usesLiveBusinessData
+                        ? '운동과 목표 세트를 선택하면 Supabase에 초안으로 저장됩니다.'
+                        : '저장 후 루틴 관리 목록에서 구성과 통계를 계속 편집할 수 있어요.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                  const SizedBox(height: SetflowSpacing.lg),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: setCountController,
-                          label: '운동별 세트',
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          validator: (value) {
-                            final count = int.tryParse(value ?? '');
-                            if (count == null || count < 1 || count > 10) {
-                              return '1~10세트';
-                            }
-                            return null;
-                          },
+                  const SizedBox(height: SetflowSpacing.xl),
+                  AppTextField(
+                    controller: nameController,
+                    label: '루틴 이름',
+                    hint: '예: 직장인 4주 근력 루틴',
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      final name = value?.trim() ?? '';
+                      if (name.isEmpty) return '루틴 이름을 입력해주세요.';
+                      if (name.length < 3) return '루틴 이름을 3자 이상 입력해주세요.';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: SetflowSpacing.md),
+                  AppTextField(
+                    controller: descriptionController,
+                    label: '루틴 설명',
+                    hint: '대상과 운동 목표를 설명해주세요.',
+                    maxLines: 3,
+                    validator: (value) {
+                      if ((value?.trim().length ?? 0) < 10) {
+                        return '루틴 설명을 10자 이상 입력해주세요.';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (state.usesLiveBusinessData) ...[
+                    const SizedBox(height: SetflowSpacing.xl),
+                    const SectionTitle('운동 선택'),
+                    const SizedBox(height: SetflowSpacing.sm),
+                    Wrap(
+                      spacing: SetflowSpacing.sm,
+                      runSpacing: SetflowSpacing.sm,
+                      children: [
+                        for (final exercise in state.exercises)
+                          FilterChip(
+                            label: Text(exercise.name),
+                            selected: selectedExerciseIds.contains(exercise.id),
+                            onSelected: saving
+                                ? null
+                                : (selected) => setSheetState(() {
+                                    if (selected) {
+                                      selectedExerciseIds.add(exercise.id);
+                                    } else {
+                                      selectedExerciseIds.remove(exercise.id);
+                                    }
+                                  }),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: SetflowSpacing.lg),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppTextField(
+                            controller: setCountController,
+                            label: '운동별 세트',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            validator: (value) {
+                              final count = int.tryParse(value ?? '');
+                              if (count == null || count < 1 || count > 10) {
+                                return '1~10세트';
+                              }
+                              return null;
+                            },
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: SetflowSpacing.sm),
-                      Expanded(
-                        child: AppTextField(
-                          controller: repsController,
-                          label: '목표 횟수',
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          validator: (value) {
-                            final reps = int.tryParse(value ?? '');
-                            if (reps == null || reps < 1 || reps > 100) {
-                              return '1~100회';
-                            }
-                            return null;
-                          },
+                        const SizedBox(width: SetflowSpacing.sm),
+                        Expanded(
+                          child: AppTextField(
+                            controller: repsController,
+                            label: '목표 횟수',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            validator: (value) {
+                              final reps = int.tryParse(value ?? '');
+                              if (reps == null || reps < 1 || reps > 100) {
+                                return '1~100회';
+                              }
+                              return null;
+                            },
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: SetflowSpacing.xl),
+                  AppButton(
+                    label: saving ? '저장 중...' : '루틴 저장',
+                    icon: Icons.save_outlined,
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            if (!(formKey.currentState?.validate() ?? false)) {
+                              return;
+                            }
+                            final selectedExercises = state.exercises
+                                .where(
+                                  (exercise) =>
+                                      selectedExerciseIds.contains(exercise.id),
+                                )
+                                .toList(growable: false);
+                            if (state.usesLiveBusinessData &&
+                                selectedExercises.isEmpty) {
+                              AppSnackbar.info(context, '운동을 한 개 이상 선택해주세요.');
+                              return;
+                            }
+                            setSheetState(() => saving = true);
+                            try {
+                              if (state.usesLiveBusinessData) {
+                                await state.createBusinessRoutine(
+                                  ownerRole: role,
+                                  title: nameController.text.trim(),
+                                  description: descriptionController.text
+                                      .trim(),
+                                  routineExercises: selectedExercises,
+                                  setCount: int.parse(setCountController.text),
+                                  targetReps: int.parse(repsController.text),
+                                );
+                              } else {
+                                final created = state.createRoutine(
+                                  nameController.text.trim(),
+                                  descriptionController.text.trim(),
+                                );
+                                if (!created) {
+                                  AppSnackbar.error(
+                                    context,
+                                    '현재 플랜의 루틴 저장 한도에 도달했어요.',
+                                  );
+                                  setSheetState(() => saving = false);
+                                  return;
+                                }
+                              }
+                            } catch (_) {
+                              if (context.mounted) {
+                                AppSnackbar.error(context, '루틴을 저장하지 못했어요.');
+                              }
+                              if (sheetContext.mounted) {
+                                setSheetState(() => saving = false);
+                              }
+                              return;
+                            }
+                            if (!sheetContext.mounted || !context.mounted) {
+                              return;
+                            }
+                            Navigator.pop(sheetContext);
+                            AppSnackbar.success(context, '새 루틴을 저장했어요.');
+                          },
                   ),
                 ],
-                const SizedBox(height: SetflowSpacing.xl),
-                AppButton(
-                  label: saving ? '저장 중...' : '루틴 저장',
-                  icon: Icons.save_outlined,
-                  onPressed: saving
-                      ? null
-                      : () async {
-                          if (!(formKey.currentState?.validate() ?? false)) {
-                            return;
-                          }
-                          final selectedExercises = state.exercises
-                              .where(
-                                (exercise) =>
-                                    selectedExerciseIds.contains(exercise.id),
-                              )
-                              .toList(growable: false);
-                          if (state.usesLiveBusinessData &&
-                              selectedExercises.isEmpty) {
-                            AppSnackbar.info(context, '운동을 한 개 이상 선택해주세요.');
-                            return;
-                          }
-                          setSheetState(() => saving = true);
-                          try {
-                            if (state.usesLiveBusinessData) {
-                              await state.createBusinessRoutine(
-                                ownerRole: role,
-                                title: nameController.text.trim(),
-                                description: descriptionController.text.trim(),
-                                routineExercises: selectedExercises,
-                                setCount: int.parse(setCountController.text),
-                                targetReps: int.parse(repsController.text),
-                              );
-                            } else {
-                              final created = state.createRoutine(
-                                nameController.text.trim(),
-                                descriptionController.text.trim(),
-                              );
-                              if (!created) {
-                                AppSnackbar.error(
-                                  context,
-                                  '현재 플랜의 루틴 저장 한도에 도달했어요.',
-                                );
-                                setSheetState(() => saving = false);
-                                return;
-                              }
-                            }
-                          } catch (_) {
-                            if (context.mounted) {
-                              AppSnackbar.error(context, '루틴을 저장하지 못했어요.');
-                            }
-                            if (sheetContext.mounted) {
-                              setSheetState(() => saving = false);
-                            }
-                            return;
-                          }
-                          if (!sheetContext.mounted || !context.mounted) {
-                            return;
-                          }
-                          Navigator.pop(sheetContext);
-                          AppSnackbar.success(context, '새 루틴을 저장했어요.');
-                        },
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    ),
+      );
+    },
   );
-  // A modal route's Future can complete before its reverse animation has
-  // unmounted every text field. These route-local controllers are therefore
-  // left for garbage collection after the sheet releases its widget tree.
+  await sheetCompleted;
+  nameController.dispose();
+  descriptionController.dispose();
+  setCountController.dispose();
+  repsController.dispose();
 }
 
 class ConsultationQueuePage extends StatefulWidget {
@@ -4176,6 +4200,20 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(item.goal ?? '운동 목표 미등록'),
+                                      if (item.sharedRecommendationProfile !=
+                                              null &&
+                                          item.recommendationProfileShareRevokedAt ==
+                                              null)
+                                        Text(
+                                          '정밀 추천 정보 공유됨',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                color: SetflowColors.teal,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                        ),
                                       Text(
                                         item.question ?? '질문 내용이 없습니다.',
                                         maxLines: 1,
@@ -4236,153 +4274,196 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
         activeTrainers.any((item) => item.trainerId == assignedTrainerId)
         ? assignedTrainerId
         : null;
+    Future<void>? sheetCompleted;
     try {
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (sheetContext) => StatefulBuilder(
-          builder: (sheetContext, setSheetState) => Padding(
-            padding: EdgeInsets.fromLTRB(
-              SetflowSpacing.xxl,
-              4,
-              SetflowSpacing.xxl,
-              MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
-            ),
-            child: Form(
-              key: formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${consultation.memberName ?? '회원'}님의 상담',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(consultation.question ?? '질문 내용이 없습니다.'),
-                    if (widget.role == UserRole.gym) ...[
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        key: const Key('consultation-trainer-select'),
-                        initialValue: selectedTrainerId,
-                        decoration: const InputDecoration(labelText: '담당 트레이너'),
-                        items: [
-                          for (final trainer in activeTrainers)
-                            DropdownMenuItem(
-                              value: trainer.trainerId,
-                              child: Text(trainer.displayName!),
-                            ),
-                        ],
-                        onChanged: assigning
-                            ? null
-                            : (value) => setSheetState(
-                                () => selectedTrainerId = value,
-                              ),
+        builder: (sheetContext) {
+          sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+          return StatefulBuilder(
+            builder: (sheetContext, setSheetState) => Padding(
+              padding: EdgeInsets.fromLTRB(
+                SetflowSpacing.xxl,
+                4,
+                SetflowSpacing.xxl,
+                MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
+              ),
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${consultation.memberName ?? '회원'}님의 상담',
+                        style: Theme.of(context).textTheme.headlineMedium,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
+                      Text(consultation.question ?? '질문 내용이 없습니다.'),
+                      if (consultation.sharedRecommendationProfile != null &&
+                          consultation.recommendationProfileShareRevokedAt ==
+                              null) ...[
+                        const SizedBox(height: 16),
+                        SetflowCard(
+                          key: const ValueKey(
+                            'trainer-shared-recommendation-profile',
+                          ),
+                          color: SetflowColors.teal.withValues(alpha: .07),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '회원이 공유한 정밀 추천 정보',
+                                style: TextStyle(fontWeight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '이 상담을 위해 회원이 명시적으로 제공한 설문 사본입니다. 회복 상태의 기록 날짜를 함께 확인하세요.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                      height: 1.4,
+                                    ),
+                              ),
+                              const Divider(height: 22),
+                              RecommendationProfileSummary(
+                                profile:
+                                    consultation.sharedRecommendationProfile!,
+                                compact: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (widget.role == UserRole.gym) ...[
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          key: const Key('consultation-trainer-select'),
+                          initialValue: selectedTrainerId,
+                          decoration: const InputDecoration(
+                            labelText: '담당 트레이너',
+                          ),
+                          items: [
+                            for (final trainer in activeTrainers)
+                              DropdownMenuItem(
+                                value: trainer.trainerId,
+                                child: Text(trainer.displayName!),
+                              ),
+                          ],
+                          onChanged: assigning
+                              ? null
+                              : (value) => setSheetState(
+                                  () => selectedTrainerId = value,
+                                ),
+                        ),
+                        const SizedBox(height: 10),
+                        AppButton(
+                          key: const Key('consultation-assign-trainer'),
+                          label: assigning ? '배정 중...' : '트레이너에게 배정',
+                          icon: Icons.assignment_ind_outlined,
+                          variant: AppButtonVariant.tonal,
+                          onPressed:
+                              assigning ||
+                                  selectedTrainerId == null ||
+                                  selectedTrainerId == assignedTrainerId
+                              ? null
+                              : () async {
+                                  setSheetState(() => assigning = true);
+                                  try {
+                                    await AppScope.of(
+                                      context,
+                                    ).assignBusinessConsultation(
+                                      consultationId: consultation.id,
+                                      trainerId: selectedTrainerId!,
+                                    );
+                                    if (!sheetContext.mounted || !mounted) {
+                                      return;
+                                    }
+                                    setSheetState(() {
+                                      assignedTrainerId = selectedTrainerId;
+                                      assigning = false;
+                                    });
+                                    AppSnackbar.success(
+                                      context,
+                                      '담당 트레이너에게 상담을 배정했어요.',
+                                    );
+                                  } catch (_) {
+                                    if (mounted) {
+                                      AppSnackbar.error(
+                                        context,
+                                        '상담을 배정하지 못했어요.',
+                                      );
+                                    }
+                                    if (sheetContext.mounted) {
+                                      setSheetState(() => assigning = false);
+                                    }
+                                  }
+                                },
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      AppTextField(
+                        controller: controller,
+                        maxLines: 4,
+                        label: '답변 작성',
+                        hint: '회원이 바로 실행할 수 있도록 구체적으로 작성해주세요.',
+                        validator: (value) {
+                          final answer = value?.trim() ?? '';
+                          if (answer.length < 10) return '답변을 10자 이상 입력해주세요.';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       AppButton(
-                        key: const Key('consultation-assign-trainer'),
-                        label: assigning ? '배정 중...' : '트레이너에게 배정',
-                        icon: Icons.assignment_ind_outlined,
-                        variant: AppButtonVariant.tonal,
-                        onPressed:
-                            assigning ||
-                                selectedTrainerId == null ||
-                                selectedTrainerId == assignedTrainerId
+                        label: submitting
+                            ? '전송 중...'
+                            : doneLabel(_hasBusinessReply(consultation)),
+                        icon: Icons.send_rounded,
+                        onPressed: submitting
                             ? null
                             : () async {
-                                setSheetState(() => assigning = true);
+                                if (!(formKey.currentState?.validate() ??
+                                    false)) {
+                                  return;
+                                }
+                                setSheetState(() => submitting = true);
                                 try {
                                   await AppScope.of(
                                     context,
-                                  ).assignBusinessConsultation(
+                                  ).answerBusinessConsultationById(
+                                    role: widget.role,
                                     consultationId: consultation.id,
-                                    trainerId: selectedTrainerId!,
+                                    answer: controller.text.trim(),
                                   );
                                   if (!sheetContext.mounted || !mounted) return;
-                                  setSheetState(() {
-                                    assignedTrainerId = selectedTrainerId;
-                                    assigning = false;
-                                  });
-                                  AppSnackbar.success(
-                                    context,
-                                    '담당 트레이너에게 상담을 배정했어요.',
-                                  );
+                                  Navigator.pop(sheetContext);
+                                  AppSnackbar.success(context, '상담 답변을 보냈어요.');
                                 } catch (_) {
                                   if (mounted) {
-                                    AppSnackbar.error(
-                                      context,
-                                      '상담을 배정하지 못했어요.',
-                                    );
+                                    AppSnackbar.error(context, '답변을 보내지 못했어요.');
                                   }
                                   if (sheetContext.mounted) {
-                                    setSheetState(() => assigning = false);
+                                    setSheetState(() => submitting = false);
                                   }
                                 }
                               },
                       ),
                     ],
-                    const SizedBox(height: 18),
-                    AppTextField(
-                      controller: controller,
-                      maxLines: 4,
-                      label: '답변 작성',
-                      hint: '회원이 바로 실행할 수 있도록 구체적으로 작성해주세요.',
-                      validator: (value) {
-                        final answer = value?.trim() ?? '';
-                        if (answer.length < 10) return '답변을 10자 이상 입력해주세요.';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    AppButton(
-                      label: submitting
-                          ? '전송 중...'
-                          : doneLabel(_hasBusinessReply(consultation)),
-                      icon: Icons.send_rounded,
-                      onPressed: submitting
-                          ? null
-                          : () async {
-                              if (!(formKey.currentState?.validate() ??
-                                  false)) {
-                                return;
-                              }
-                              setSheetState(() => submitting = true);
-                              try {
-                                await AppScope.of(
-                                  context,
-                                ).answerBusinessConsultationById(
-                                  role: widget.role,
-                                  consultationId: consultation.id,
-                                  answer: controller.text.trim(),
-                                );
-                                if (!sheetContext.mounted || !mounted) return;
-                                Navigator.pop(sheetContext);
-                                AppSnackbar.success(context, '상담 답변을 보냈어요.');
-                              } catch (_) {
-                                if (mounted) {
-                                  AppSnackbar.error(context, '답변을 보내지 못했어요.');
-                                }
-                                if (sheetContext.mounted) {
-                                  setSheetState(() => submitting = false);
-                                }
-                              }
-                            },
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       );
     } finally {
-      Future<void>.delayed(
-        const Duration(milliseconds: 300),
-        controller.dispose,
-      );
+      await sheetCompleted;
+      controller.dispose();
       if (mounted) {
         setState(() => _openConsultationIds.remove(consultation.id));
       }
@@ -4396,73 +4477,82 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
   ) async {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    Future<void>? sheetCompleted;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          SetflowSpacing.xxl,
-          4,
-          SetflowSpacing.xxl,
-          MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
-        ),
-        child: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${item.$1}님의 상담',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${item.$2} · ${item.$3}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+      builder: (sheetContext) {
+        sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            SetflowSpacing.xxl,
+            4,
+            SetflowSpacing.xxl,
+            MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${item.$1}님의 상담',
+                    style: Theme.of(context).textTheme.headlineMedium,
                   ),
-                ),
-                const SizedBox(height: 18),
-                AppTextField(
-                  controller: controller,
-                  maxLines: 4,
-                  label: '답변 작성',
-                  hint: '회원이 바로 실행할 수 있도록 구체적으로 작성해주세요.',
-                  validator: (value) {
-                    final answer = value?.trim() ?? '';
-                    if (answer.isEmpty) return '상담 답변을 입력해주세요.';
-                    if (answer.length < 10) return '답변을 10자 이상 입력해주세요.';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                AppButton(
-                  label: doneLabel(
-                    AppScope.of(
-                      context,
-                    ).isBusinessConsultationAnswered(widget.role, index),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${item.$2} · ${item.$3}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                  icon: Icons.send_rounded,
-                  onPressed: () {
-                    if (!(formKey.currentState?.validate() ?? false)) return;
-                    AppScope.of(context).answerBusinessConsultation(
-                      role: widget.role,
-                      consultationIndex: index,
-                      answer: controller.text.trim(),
-                    );
-                    Navigator.pop(sheetContext);
-                    AppSnackbar.success(context, '${item.$1}님에게 상담 답변을 보냈어요.');
-                  },
-                ),
-              ],
+                  const SizedBox(height: 18),
+                  AppTextField(
+                    controller: controller,
+                    maxLines: 4,
+                    label: '답변 작성',
+                    hint: '회원이 바로 실행할 수 있도록 구체적으로 작성해주세요.',
+                    validator: (value) {
+                      final answer = value?.trim() ?? '';
+                      if (answer.isEmpty) return '상담 답변을 입력해주세요.';
+                      if (answer.length < 10) return '답변을 10자 이상 입력해주세요.';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  AppButton(
+                    label: doneLabel(
+                      AppScope.of(
+                        context,
+                      ).isBusinessConsultationAnswered(widget.role, index),
+                    ),
+                    icon: Icons.send_rounded,
+                    onPressed: () {
+                      if (!(formKey.currentState?.validate() ?? false)) return;
+                      AppScope.of(context).answerBusinessConsultation(
+                        role: widget.role,
+                        consultationIndex: index,
+                        answer: controller.text.trim(),
+                      );
+                      Navigator.pop(sheetContext);
+                      AppSnackbar.success(
+                        context,
+                        '${item.$1}님에게 상담 답변을 보냈어요.',
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
+    await sheetCompleted;
+    controller.dispose();
   }
 }
 

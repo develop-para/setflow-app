@@ -96,6 +96,45 @@ void main() {
     expect(repository.createdInputs.single.routineId, _routineId);
   });
 
+  testWidgets(
+    'recommendation survey sharing is explicit and sends a snapshot',
+    (tester) async {
+      final repository = _FakeBusinessRepository();
+      final state = await _pumpLiveScreen(
+        tester,
+        repository,
+        const ConsultationCreateScreen(
+          initialTrainerId: _authorTrainerId,
+          initialTargetName: '작성자 정코치',
+        ),
+      );
+      final profile = _recommendationProfile();
+      state.setRecommendationProfile(profile);
+      await tester.pumpAndSettle();
+
+      final shareToggle = find.byKey(
+        const ValueKey('consultation-share-profile'),
+      );
+      await tester.ensureVisible(shareToggle);
+      expect(tester.widget<SwitchListTile>(shareToggle).value, isFalse);
+
+      await tester.tap(shareToggle);
+      await tester.pumpAndSettle();
+      expect(tester.widget<SwitchListTile>(shareToggle).value, isTrue);
+      expect(find.text('사용 장비'), findsOneWidget);
+
+      await _completeConsultationForm(tester);
+
+      expect(repository.createdInputs, hasLength(1));
+      final shared = repository.createdInputs.single.recommendationProfile;
+      expect(shared, same(profile));
+      expect(shared!.painRegions, {TrainingPainRegion.shoulder});
+      expect(shared.restrictedMovements, {
+        TrainingMovementRestriction.overheadPress,
+      });
+    },
+  );
+
   testWidgets('system routine requires an explicit public trainer selection', (
     tester,
   ) async {
@@ -262,6 +301,24 @@ ConsultationData _consultation(ConsultationStatus status) => ConsultationData(
   status: status,
   response: '주 3회 구성을 권장합니다.',
 );
+
+RecommendationProfile _recommendationProfile() {
+  final recordedAt = DateTime.utc(2026, 8, 21, 2);
+  return RecommendationProfile(
+    experienceLevel: TrainingExperienceLevel.intermediate,
+    availableEquipment: const {
+      TrainingEquipment.bodyweight,
+      TrainingEquipment.dumbbells,
+    },
+    painRegions: const {TrainingPainRegion.shoulder},
+    painLevel: 3,
+    restrictedMovements: const {TrainingMovementRestriction.overheadPress},
+    injuryNote: '오른쪽 어깨 불편',
+    recoveryStatus: TrainingRecoveryStatus.normal,
+    recoveryRecordedAt: recordedAt,
+    updatedAt: recordedAt,
+  );
+}
 
 class _FakeBusinessRepository implements BusinessRepository {
   final List<CreateConsultationInput> createdInputs = [];

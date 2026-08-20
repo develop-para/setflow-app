@@ -21,6 +21,8 @@ class AppSnapshot {
     this.weight,
     this.age,
     this.gender,
+    this.precisionRecommendationPrompted = false,
+    this.recommendationProfile,
     this.communityPosts = const [],
     this.consultations = const [],
     this.businessDashboards = const {},
@@ -46,6 +48,8 @@ class AppSnapshot {
   final double? weight;
   final int? age;
   final String? gender;
+  final bool precisionRecommendationPrompted;
+  final RecommendationProfile? recommendationProfile;
   final List<CommunityPost> communityPosts;
   final List<ConsultationData> consultations;
   final Map<UserRole, BusinessDashboardData> businessDashboards;

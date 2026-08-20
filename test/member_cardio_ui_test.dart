@@ -32,6 +32,7 @@ void main() {
     await state.initialize();
     addTearDown(state.dispose);
     state.setMemberProfile(goals: const ['체중 감량']);
+    state.markPrecisionRecommendationPrompted();
     final cardio = state.exercises.firstWhere(
       (exercise) => exercise.id == 'brisk_walk',
     );

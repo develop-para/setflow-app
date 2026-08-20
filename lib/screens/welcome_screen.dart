@@ -653,7 +653,7 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             icon: Icons.mail_outline_rounded,
             onPressed: isSubmitting
                 ? null
-                : () => _openEmailAuth(EmailAuthMode.signUp, saveProfile: true),
+                : () => _openEmailAuth(EmailAuthMode.signUp),
             isLoading: isSubmitting,
           ),
           const SizedBox(height: SetflowSpacing.sm),
@@ -761,20 +761,23 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
     return null;
   }
 
-  Future<void> _openEmailAuth(
-    EmailAuthMode mode, {
-    bool saveProfile = false,
-  }) async {
-    if (saveProfile) _saveMemberProfile();
+  Future<void> _openEmailAuth(EmailAuthMode mode) async {
+    final state = AppScope.of(context);
+    state.stageMemberProfileForAuthentication(_memberProfileDraft());
     final authenticated = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EmailAuthScreen(initialMode: mode)),
     );
-    if (authenticated == true && mounted) await _completeAuthentication();
+    if (authenticated == true && mounted) {
+      await _completeAuthentication();
+    } else {
+      state.clearStagedMemberProfileForAuthentication();
+    }
   }
 
   Future<void> _startSocialLogin(SocialLoginProvider provider) async {
     if (isSubmitting) return;
-    _saveMemberProfile();
+    final state = AppScope.of(context);
+    state.stageMemberProfileForAuthentication(_memberProfileDraft());
     setState(() {
       isSubmitting = true;
       awaitingOAuth = true;
@@ -786,6 +789,7 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
         throw const SupabaseAuthUiException('로그인 화면을 열지 못했어요. 다시 시도해주세요.');
       }
     } catch (error) {
+      state.clearStagedMemberProfileForAuthentication();
       if (mounted) {
         setState(() {
           isSubmitting = false;
@@ -818,8 +822,8 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
     }
   }
 
-  void _saveMemberProfile() {
-    AppScope.of(context).setMemberProfile(
+  MemberProfileDraft _memberProfileDraft() {
+    return MemberProfileDraft(
       goals: goals,
       heightCm: double.tryParse(heightController.text.trim()),
       weight: double.tryParse(weightController.text.trim()),

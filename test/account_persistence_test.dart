@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/app_repository.dart';
+import 'package:setflow/data/app_snapshot_codec.dart';
 import 'package:setflow/data/hive_app_repository.dart';
+import 'package:setflow/data/routine_catalog_repository.dart';
 import 'package:setflow/data/supabase_app_repository.dart';
 
 void main() {
@@ -72,6 +74,191 @@ void main() {
         expect(state.role, UserRole.guest);
       },
     );
+
+    test(
+      'authentication merges a staged signup profile once and uploads it',
+      () async {
+        final gateway = _FakeSupabaseGateway();
+        final outbox = _MemoryOutbox();
+        final state = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: outbox,
+            cache: outbox,
+          ),
+        );
+        addTearDown(state.dispose);
+        await state.initialize();
+        state.stageMemberProfileForAuthentication(
+          MemberProfileDraft(
+            goals: const ['근력 향상'],
+            heightCm: 178,
+            weight: 76,
+            age: 31,
+            gender: 'M',
+          ),
+        );
+        gateway.currentUserId = 'account-a';
+
+        final firstSync = state.syncAfterAuthentication();
+        final duplicateSync = state.syncAfterAuthentication();
+        expect(identical(firstSync, duplicateSync), isTrue);
+        await Future.wait([firstSync, duplicateSync]);
+
+        expect(state.goals, ['근력 향상']);
+        expect(state.heightCm, 178);
+        expect(state.weight, 76);
+        expect(state.age, 31);
+        expect(state.gender, 'M');
+        expect(gateway.expectedSaveUserIds, ['account-a']);
+        expect(gateway.rows['account-a']?.payload['profile']['goals'], [
+          '근력 향상',
+        ]);
+        expect(outbox.pendingByUser, isNot(contains('account-a')));
+      },
+    );
+
+    test(
+      'authentication draft fills missing fields without replacing cloud goals',
+      () async {
+        final gateway = _FakeSupabaseGateway();
+        final existing = _snapshot(goals: const ['체중 감량'], heightCm: 181);
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(existing),
+          updatedAt: DateTime.utc(2026, 8, 20),
+        );
+        final state = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(state.dispose);
+        await state.initialize();
+        state.stageMemberProfileForAuthentication(
+          MemberProfileDraft(goals: const ['근력 향상'], heightCm: 170, weight: 70),
+        );
+        gateway.currentUserId = 'account-a';
+
+        await state.syncAfterAuthentication();
+
+        expect(state.goals, ['체중 감량']);
+        expect(state.heightCm, 181);
+        expect(state.weight, 70);
+        expect(gateway.rows['account-a']?.payload['profile']['goals'], [
+          '체중 감량',
+        ]);
+      },
+    );
+
+    test(
+      'precision survey decision and answers survive a fresh cloud login',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final firstState = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(firstState.dispose);
+        await firstState.initialize();
+        final recordedAt = DateTime.utc(2026, 8, 21, 4, 30);
+        firstState.setRecommendationProfile(
+          RecommendationProfile(
+            experienceLevel: TrainingExperienceLevel.intermediate,
+            availableEquipment: const {
+              TrainingEquipment.bodyweight,
+              TrainingEquipment.dumbbells,
+            },
+            painRegions: const {TrainingPainRegion.shoulder},
+            painLevel: 3,
+            restrictedMovements: const {
+              TrainingMovementRestriction.overheadPress,
+            },
+            injuryNote: '오른쪽 어깨를 올릴 때 불편함',
+            recoveryStatus: TrainingRecoveryStatus.normal,
+            recoveryRecordedAt: recordedAt,
+            updatedAt: recordedAt,
+          ),
+        );
+        await firstState.syncPersistenceToServer();
+
+        final restoredState = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(restoredState.dispose);
+        await restoredState.initialize();
+
+        expect(restoredState.precisionRecommendationPrompted, isTrue);
+        expect(
+          restoredState.recommendationProfile?.experienceLevel,
+          TrainingExperienceLevel.intermediate,
+        );
+        expect(restoredState.recommendationProfile?.availableEquipment, {
+          TrainingEquipment.bodyweight,
+          TrainingEquipment.dumbbells,
+        });
+        expect(restoredState.recommendationProfile?.painLevel, 3);
+        expect(
+          restoredState.recommendationProfile?.recoveryRecordedAt,
+          recordedAt,
+        );
+      },
+    );
+
+    test('failed signup cloud upload remains durable and retries', () async {
+      final gateway = _FakeSupabaseGateway()..saveFailuresRemaining = 1;
+      final outbox = _MemoryOutbox();
+      final state = AppState(
+        repository: SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: outbox,
+          cache: outbox,
+        ),
+      );
+      addTearDown(state.dispose);
+      await state.initialize();
+      state.stageMemberProfileForAuthentication(
+        MemberProfileDraft(goals: const ['체력 향상']),
+      );
+      gateway.currentUserId = 'account-a';
+
+      await state.syncAfterAuthentication();
+
+      expect(state.goals, ['체력 향상']);
+      expect(outbox.pendingByUser['account-a']?.snapshot.goals, ['체력 향상']);
+      expect(state.persistenceSyncError, isA<StateError>());
+
+      await state.syncPersistenceToServer();
+      expect(outbox.pendingByUser, isNot(contains('account-a')));
+      expect(gateway.rows['account-a']?.payload['profile']['goals'], ['체력 향상']);
+    });
+
+    test(
+      'auxiliary cloud failure does not send a signed-in member back',
+      () async {
+        final repository = MemoryAppRepository(
+          initialSnapshot: _snapshot(goals: const ['근력 향상']),
+        );
+        final state = AppState(
+          repository: repository,
+          routineCatalogRepository: const _FailingRoutineCatalogRepository(),
+        );
+        addTearDown(state.dispose);
+        await state.initialize();
+
+        await expectLater(state.syncAfterAuthentication(), completes);
+
+        expect(state.role, UserRole.member);
+        expect(state.goals, ['근력 향상']);
+        expect(state.cloudSyncError, isA<StateError>());
+        expect(state.persistenceError, isNull);
+      },
+    );
   });
 
   group('SupabaseAppRepository durable account outbox', () {
@@ -104,8 +291,7 @@ void main() {
           firstState.addExercise(date, bench);
           final set = firstState.sessions[date]!.exercises.single.sets.first;
           firstState.updateSet(set, weight: 87.5, reps: 8);
-          firstState.toggleSet(set, startRest: false);
-          await firstState.flushPersistence();
+          await firstState.toggleSet(set, startRest: false);
 
           expect(gateway.rows, isEmpty);
           await localStore.close();
@@ -364,6 +550,9 @@ AppSnapshot _snapshot({
   bool isDarkMode = false,
   String weightUnit = 'kg',
   double? heightCm,
+  double? weight,
+  int? age,
+  String? gender,
   List<RoutineData> routines = const [],
   List<CommunityPost> posts = const [],
   List<ConsultationData> consultations = const [],
@@ -376,6 +565,9 @@ AppSnapshot _snapshot({
   routines: routines,
   goals: goals,
   heightCm: heightCm,
+  weight: weight,
+  age: age,
+  gender: gender,
   communityPosts: posts,
   consultations: consultations,
 );
@@ -444,6 +636,23 @@ class _RecordingRepository implements AppRepository {
 
   @override
   Future<void> clear() async => savedSnapshots.clear();
+}
+
+class _FailingRoutineCatalogRepository implements RoutineCatalogRepository {
+  const _FailingRoutineCatalogRepository();
+
+  @override
+  Future<bool> hasActivePaidPlan() async => false;
+
+  @override
+  Future<List<RoutineCatalogItem>> listPublished() async =>
+      throw StateError('catalog unavailable');
+
+  @override
+  Future<void> updateAccessTier(
+    String routineId,
+    RoutineCatalogAccessTier accessTier,
+  ) async {}
 }
 
 class _MemoryOutbox implements AccountSnapshotOutbox, AccountSnapshotCache {

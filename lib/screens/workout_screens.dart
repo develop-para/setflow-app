@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'evidence_library_screen.dart';
 import 'member_goal_screen.dart';
+import 'recommendation_profile_screen.dart';
 
 class DailyWorkoutScreen extends StatefulWidget {
   const DailyWorkoutScreen({required this.date, super.key});
@@ -208,6 +211,23 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
       _openLibrary();
       return;
     }
+    final hasGoals = await ensureMemberTrainingGoals(context);
+    if (!mounted) return;
+    if (!hasGoals) {
+      _openLibrary();
+      return;
+    }
+    await ensurePrecisionRecommendationSurvey(context);
+    if (!mounted) return;
+    if (state.recommendationProfile?.shouldPauseAutomaticRecommendation ??
+        false) {
+      AppSnackbar.info(
+        context,
+        '통증이 7/10 이상이라 자동 추천을 중단했어요. 의료 전문가의 평가를 먼저 받아주세요.',
+      );
+      _openLibrary();
+      return;
+    }
 
     final unavailableEquipment = <String>{};
     while (mounted) {
@@ -216,7 +236,12 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
         excludedTemplateIds: unavailableEquipment,
       );
       if (recommendation == null) {
-        AppSnackbar.info(context, '사용 가능한 기구에 맞는 다른 추천이 없어요. 직접 선택해주세요.');
+        AppSnackbar.info(
+          context,
+          state.recommendationProfile == null
+              ? '사용 가능한 기구에 맞는 다른 추천이 없어요. 직접 선택해주세요.'
+              : '입력한 장비·숙련도·제외 동작에 맞는 추천이 없어요. 직접 선택하거나 설문을 수정해주세요.',
+        );
         setState(() => emptyDayRecommendationDismissed = true);
         _openLibrary();
         return;
@@ -905,7 +930,16 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     final prs = set.completed
         ? <PerformancePrType>{}
         : state.prTypesForCandidate(widget.exercise.template, set);
-    state.toggleSet(set, startRest: !widget.exercise.template.isCardio);
+    try {
+      await state.toggleSet(set, startRest: !widget.exercise.template.isCardio);
+    } catch (_) {
+      if (mounted) {
+        AppSnackbar.info(context, '기기 저장에 실패했어요. 상단의 다시 시도를 눌러주세요.');
+      }
+      return;
+    }
+    unawaited(state.syncPersistenceToServer().catchError((_) {}));
+    if (!mounted) return;
     if (!set.completed) {
       recommendationShown = false;
       return;
@@ -939,6 +973,16 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     }
     final hasGoals = await ensureMemberTrainingGoals(context);
     if (!hasGoals || !mounted) return;
+    await ensurePrecisionRecommendationSurvey(context);
+    if (!mounted) return;
+    if (state.recommendationProfile?.shouldPauseAutomaticRecommendation ??
+        false) {
+      AppSnackbar.info(
+        context,
+        '통증이 7/10 이상이라 자동 추천을 중단했어요. 의료 전문가의 평가를 먼저 받아주세요.',
+      );
+      return;
+    }
     final unavailableEquipment = <String>{};
     while (mounted) {
       final recommendation = ExerciseRecommendationEngine.recommendNext(
@@ -948,9 +992,15 @@ class _ExerciseCardState extends State<_ExerciseCard> {
         goals: state.goals,
         weeklyHistory: state.sessions.values,
         excludedTemplateIds: unavailableEquipment,
+        recommendationProfile: state.recommendationProfile,
       );
       if (recommendation == null) {
-        AppSnackbar.info(context, '사용 가능한 기구에 맞는 다른 추천이 없어요.');
+        AppSnackbar.info(
+          context,
+          state.recommendationProfile == null
+              ? '사용 가능한 기구에 맞는 다른 추천이 없어요.'
+              : '입력한 장비·숙련도·제외 동작에 맞는 다른 추천이 없어요.',
+        );
         return;
       }
       final action = await showModalBottomSheet<_RecommendationAction>(
@@ -1160,6 +1210,13 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
     widget.onRpeChanged(rpe);
   }
 
+  void _commitAndToggle() {
+    _commitDuration();
+    if (supportsDistance) _commitDistance();
+    _commitRpe();
+    widget.onToggle();
+  }
+
   String get _summary {
     if (widget.set.durationSeconds <= 0) return '시간을 입력해주세요';
     final duration = Duration(seconds: widget.set.durationSeconds);
@@ -1253,7 +1310,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                   setNumber: widget.set.number,
                   unitLabel: '구간',
                   completed: widget.set.completed,
-                  onPressed: widget.onToggle,
+                  onPressed: _commitAndToggle,
                 ),
               ],
             ),
@@ -1549,6 +1606,13 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     widget.onRestChanged(value);
   }
 
+  void _commitAndToggle() {
+    _commitWeight();
+    _commitReps();
+    _commitRest();
+    widget.onToggle();
+  }
+
   @override
   Widget build(BuildContext context) {
     final estimate = PerformanceEngine.estimate(
@@ -1657,7 +1721,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                   key: ValueKey('inline-set-complete-${widget.set.number}'),
                   setNumber: widget.set.number,
                   completed: widget.set.completed,
-                  onPressed: widget.onToggle,
+                  onPressed: _commitAndToggle,
                 ),
               ],
             ),
@@ -2867,14 +2931,30 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(7),
                                 ),
-                                onChanged: (_) {
+                                onChanged: (_) async {
                                   final prs = set.completed
                                       ? <PerformancePrType>{}
                                       : state.prTypesForCandidate(
                                           exercise.template,
                                           set,
                                         );
-                                  state.toggleSet(set);
+                                  try {
+                                    await state.toggleSet(set);
+                                  } catch (_) {
+                                    if (context.mounted) {
+                                      AppSnackbar.info(
+                                        context,
+                                        '기기 저장에 실패했어요. 다시 시도해주세요.',
+                                      );
+                                    }
+                                    return;
+                                  }
+                                  unawaited(
+                                    state.syncPersistenceToServer().catchError(
+                                      (_) {},
+                                    ),
+                                  );
+                                  if (!context.mounted) return;
                                   if (set.completed) {
                                     final labels = prs
                                         .map((type) => type.label)
@@ -3022,7 +3102,17 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
               key: ValueKey('cardio-detail-segment-${set.number}'),
               template: exercise.template,
               set: set,
-              onToggle: () => state.toggleSet(set, startRest: false),
+              onToggle: () async {
+                try {
+                  await state.toggleSet(set, startRest: false);
+                } catch (_) {
+                  if (context.mounted) {
+                    AppSnackbar.info(context, '기기 저장에 실패했어요. 다시 시도해주세요.');
+                  }
+                  return;
+                }
+                unawaited(state.syncPersistenceToServer().catchError((_) {}));
+              },
               onDurationChanged: (value) =>
                   state.updateSet(set, durationSeconds: value),
               onDistanceChanged: (value) =>

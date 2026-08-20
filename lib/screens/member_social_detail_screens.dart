@@ -10,6 +10,8 @@ import '../data/community_repository.dart';
 import '../services/post_media_picker.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/recommendation_profile_summary.dart';
+import 'recommendation_profile_screen.dart';
 
 typedef RoutineDraft = ({String name, String description});
 
@@ -1351,6 +1353,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
   bool isTrainerSearchLoading = false;
   bool isTrainerSearchLoadingMore = false;
   bool isTopCoachingTrainersLoading = false;
+  bool shareRecommendationProfile = false;
   String? topCoachingTrainersError;
   int trainerSearchRevision = 0;
   int topCoachingTrainersRevision = 0;
@@ -1571,6 +1574,9 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
         goal: goalController.text.trim(),
         level: levelController.text.trim(),
         question: questionController.text.trim(),
+        sharedRecommendationProfile: shareRecommendationProfile
+            ? state.recommendationProfile
+            : null,
       );
       if (!mounted) return;
       HapticFeedback.lightImpact();
@@ -1587,6 +1593,87 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
     if (text.isEmpty) return '$label 내용을 입력해주세요.';
     if (text.length < minimum) return '$label을 $minimum자 이상 입력해주세요.';
     return null;
+  }
+
+  Widget _buildRecommendationProfileSharing(
+    BuildContext context,
+    AppState state,
+  ) {
+    final profile = state.recommendationProfile;
+    return SetflowCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.health_and_safety_outlined, color: SetflowColors.teal),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '정밀 추천 정보 공유',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            profile == null
+                ? '저장된 설문이 없습니다. 먼저 부상·통증, 장비, 숙련도와 회복 상태를 입력할 수 있어요.'
+                : '이 상담을 위해 아래 설문 사본을 선택되거나 배정된 트레이너에게만 제공할 수 있어요.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.45,
+            ),
+          ),
+          if (profile == null) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              key: const ValueKey('consultation-create-profile'),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (_) => const RecommendationProfileScreen(),
+                        ),
+                      );
+                      if (mounted) setState(() {});
+                    },
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('정밀 추천 정보 입력'),
+            ),
+          ] else ...[
+            SwitchListTile.adaptive(
+              key: const ValueKey('consultation-share-profile'),
+              contentPadding: EdgeInsets.zero,
+              value: shareRecommendationProfile,
+              title: const Text(
+                '이 상담에 설문 사본 함께 제공',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: const Text('기본은 꺼짐이며, 상담을 보낼 때 저장된 내용의 사본만 공유합니다.'),
+              onChanged: isSubmitting
+                  ? null
+                  : (value) =>
+                        setState(() => shareRecommendationProfile = value),
+            ),
+            if (shareRecommendationProfile) ...[
+              const Divider(height: 22),
+              RecommendationProfileSummary(profile: profile, compact: true),
+              Text(
+                '센터 상담은 배정된 트레이너만 볼 수 있고 센터 대표에게는 이 설문이 공개되지 않습니다. '
+                '회복 상태에는 기록 날짜가 함께 전달됩니다.',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _buildTrainerSearch(BuildContext context) {
@@ -2086,6 +2173,8 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
               maxLines: 6,
               validator: (value) => _validate(value, '질문', 10),
             ),
+            const SizedBox(height: SetflowSpacing.lg),
+            _buildRecommendationProfileSharing(context, state),
           ],
         ),
       ),
@@ -2209,6 +2298,46 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     AppSnackbar.success(context, '만족도 $result점을 전달했어요.');
   }
 
+  Future<void> _revokeRecommendationProfileShare() async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('설문 공유를 철회할까요?'),
+            content: const Text(
+              '철회하면 트레이너 화면에서 이 설문 사본을 더 이상 볼 수 없습니다. 이미 확인하거나 별도로 기록한 정보까지 되돌릴 수는 없습니다.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                key: const ValueKey('consultation-profile-revoke-confirm'),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('공유 철회'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+    try {
+      await AppScope.of(
+        context,
+      ).revokeConsultationRecommendationProfileShare(widget.consultation.id);
+      if (!mounted) return;
+      setState(() {
+        widget.consultation.recommendationProfileShareRevokedAt ??=
+            DateTime.now();
+      });
+      AppSnackbar.success(context, '정밀 추천 정보 공유를 철회했어요.');
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackbar.error(context, '공유 철회에 실패했어요. 잠시 후 다시 시도해주세요.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final consultation = widget.consultation;
@@ -2257,6 +2386,60 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
               ],
             ),
           ),
+          if (consultation.sharedRecommendationProfile case final profile?) ...[
+            const SizedBox(height: SetflowSpacing.lg),
+            SetflowCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '이 상담에 함께 제공한 정밀 추천 정보',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '상담을 신청할 때 저장된 설문의 사본입니다.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const Divider(height: SetflowSpacing.xl),
+                  RecommendationProfileSummary(profile: profile, compact: true),
+                  const SizedBox(height: 8),
+                  if (consultation.recommendationProfileShareRevokedAt != null)
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.visibility_off_outlined,
+                          size: 18,
+                          color: SetflowColors.secondaryText,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '공유 철회됨 · 트레이너 화면에서는 더 이상 보이지 않습니다.',
+                            style: TextStyle(
+                              color: SetflowColors.secondaryText,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        key: const ValueKey('consultation-profile-revoke'),
+                        onPressed: _revokeRecommendationProfileShare,
+                        icon: const Icon(Icons.visibility_off_outlined),
+                        label: const Text('공유 철회'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: SetflowSpacing.lg),
           if (consultation.status == ConsultationStatus.waiting)
             const LoadingState(

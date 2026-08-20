@@ -24,6 +24,12 @@ const _consultationSelect = '''
   is_read,
   assigned_trainer_id,
   created_at,
+  recommendation_profile_share:consultation_recommendation_profile_shares(
+    schema_version,
+    profile_snapshot,
+    consented_at,
+    revoked_at
+  ),
   member:users!consultations_user_id_fkey(
     id,
     nickname,
@@ -196,7 +202,8 @@ class SupabaseBusinessRepository
         TopCoachingTrainerRepository,
         MemberSessionFeedbackRepository,
         BusinessMembershipRepository,
-        RoutineShareRevocationRepository {
+        RoutineShareRevocationRepository,
+        ConsultationRecommendationProfileShareRepository {
   const SupabaseBusinessRepository(this._client);
 
   final SupabaseClient _client;
@@ -906,6 +913,7 @@ class SupabaseBusinessRepository
         'goal': _nullableString(input.goal),
         'level': _nullableString(input.level),
         'question': question,
+        'recommendation_profile': input.recommendationProfile?.toJson(),
       },
     );
     final consultation = await _loadConsultation(
@@ -921,6 +929,16 @@ class SupabaseBusinessRepository
       throw StateError('Server returned a different consultation create.');
     }
     return consultation;
+  }
+
+  @override
+  Future<void> revokeRecommendationProfileShare(String consultationId) async {
+    await _client.rpc(
+      'revoke_consultation_recommendation_profile_share',
+      params: {
+        'consultation_id': _validatedUuid(consultationId, 'consultationId'),
+      },
+    );
   }
 
   @override
@@ -2277,7 +2295,8 @@ BusinessMemberDetail _memberDetailFromRow(Map<String, dynamic> row) {
   return BusinessMemberDetail(
     memberId: _requiredUuid(row, 'member_id'),
     memberUserId: _nullableUuid(row['member_user_id']),
-    shareBodyData: _boolValue(row['share_workout_records']),
+    shareBodyData: _boolValue(row['share_body_data']),
+    shareWorkoutRecords: _boolValue(row['share_workout_records']),
     canReadWorkouts: _boolValue(row['can_read_workouts']),
     sessions: List.unmodifiable(sessions),
   );
@@ -2516,6 +2535,9 @@ BusinessConsultation _consultationFromRow(Map<String, dynamic> row) {
   final trainer = _mapValue(row['trainer']);
   final assignedTrainer = _mapValue(row['assigned_trainer']);
   final gym = _mapValue(row['gym']);
+  final recommendationProfileShare = _mapValue(
+    row['recommendation_profile_share'],
+  );
   final messages =
       _mapListValue(
         row['messages'],
@@ -2551,6 +2573,15 @@ BusinessConsultation _consultationFromRow(Map<String, dynamic> row) {
     level: _nullableString(row['level']),
     question: _nullableString(row['question']),
     createdAt: _nullableDateTime(row['created_at']),
+    sharedRecommendationProfile: RecommendationProfile.tryFromJson(
+      recommendationProfileShare?['profile_snapshot'],
+    ),
+    recommendationProfileSharedAt: _nullableDateTime(
+      recommendationProfileShare?['consented_at'],
+    ),
+    recommendationProfileShareRevokedAt: _nullableDateTime(
+      recommendationProfileShare?['revoked_at'],
+    ),
     messages: List.unmodifiable(messages),
   );
 }

@@ -1974,56 +1974,61 @@ Future<void> _acceptRoutineShareToken(
 
 Future<void> _showRoutineShareCodeSheet(BuildContext context) async {
   final controller = TextEditingController();
+  Future<void>? sheetCompleted;
   final token = await showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => Padding(
-      padding: EdgeInsets.fromLTRB(
-        SetflowSpacing.lg,
-        SetflowSpacing.sm,
-        SetflowSpacing.lg,
-        MediaQuery.viewInsetsOf(sheetContext).bottom + SetflowSpacing.lg,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '공유 루틴 받기',
-            style: Theme.of(sheetContext).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: SetflowSpacing.sm),
-          const Text(
-            '트레이너에게 받은 링크 또는 공유 코드를 붙여넣어 주세요.',
-            style: TextStyle(color: SetflowColors.secondaryText),
-          ),
-          const SizedBox(height: SetflowSpacing.lg),
-          TextField(
-            controller: controller,
-            autofocus: true,
-            autocorrect: false,
-            decoration: const InputDecoration(
-              labelText: '공유 링크 또는 코드',
-              prefixIcon: Icon(Icons.link_rounded),
+    builder: (sheetContext) {
+      sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          SetflowSpacing.lg,
+          SetflowSpacing.sm,
+          SetflowSpacing.lg,
+          MediaQuery.viewInsetsOf(sheetContext).bottom + SetflowSpacing.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '공유 루틴 받기',
+              style: Theme.of(sheetContext).textTheme.headlineSmall,
             ),
-            onSubmitted: (value) {
-              if (value.trim().isNotEmpty) Navigator.pop(sheetContext, value);
-            },
-          ),
-          const SizedBox(height: SetflowSpacing.lg),
-          AppButton(
-            label: '확인',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(sheetContext, value);
-            },
-          ),
-        ],
-      ),
-    ),
+            const SizedBox(height: SetflowSpacing.sm),
+            const Text(
+              '트레이너에게 받은 링크 또는 공유 코드를 붙여넣어 주세요.',
+              style: TextStyle(color: SetflowColors.secondaryText),
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                labelText: '공유 링크 또는 코드',
+                prefixIcon: Icon(Icons.link_rounded),
+              ),
+              onSubmitted: (value) {
+                if (value.trim().isNotEmpty) Navigator.pop(sheetContext, value);
+              },
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+            AppButton(
+              label: '확인',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isNotEmpty) Navigator.pop(sheetContext, value);
+              },
+            ),
+          ],
+        ),
+      );
+    },
   );
+  await sheetCompleted;
   controller.dispose();
   if (token == null || token.trim().isEmpty || !context.mounted) return;
   await _acceptRoutineShareToken(context, token);
@@ -3106,6 +3111,9 @@ ConsultationData _consultationDataFromCloud(BusinessConsultation record) {
         ? ConsultationStatus.answered
         : ConsultationStatus.waiting,
     response: responseMessages.lastOrNull?.text,
+    sharedRecommendationProfile: record.sharedRecommendationProfile,
+    recommendationProfileShareRevokedAt:
+        record.recommendationProfileShareRevokedAt,
   );
 }
 
@@ -3411,6 +3419,13 @@ class _PerformancePrRow extends StatelessWidget {
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  Future<void> _logout(BuildContext context, AppState state) async {
+    final route = ModalRoute.of(context);
+    Navigator.of(context).pop();
+    await route?.completed;
+    await state.logout();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -3616,10 +3631,7 @@ class SettingsScreen extends StatelessWidget {
               '로그아웃',
               style: TextStyle(color: SetflowColors.red),
             ),
-            onTap: () {
-              Navigator.pop(context);
-              state.logout();
-            },
+            onTap: () => _logout(context, state),
           ),
         ],
       ),

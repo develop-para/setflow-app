@@ -162,6 +162,45 @@ void main() {
     state.dispose();
   });
 
+  testWidgets(
+    'completion commits focused weight and waits for device persistence',
+    (tester) async {
+      final date = DateTime(2026, 11, 1);
+      final repository = MemoryAppRepository();
+      final state = AppState(repository: repository);
+      addTearDown(state.dispose);
+      await state.initialize();
+      state.addExercise(date, state.exercises.first);
+
+      await tester.binding.setSurfaceSize(const Size(432, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: DailyWorkoutScreen(date: date),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).first, '82.5');
+      await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
+      await tester.pump();
+      await state.flushPersistence();
+
+      final set = state.sessions[date]!.exercises.single.sets.first;
+      final persistedSet =
+          repository.snapshot!.sessions[date]!.exercises.single.sets.first;
+      expect(set.weight, 82.5);
+      expect(set.completed, isTrue);
+      expect(persistedSet.weight, 82.5);
+      expect(persistedSet.completed, isTrue);
+      state.cancelRestTimer();
+    },
+  );
+
   testWidgets('labeled completion button stays clear of rest on 320px', (
     tester,
   ) async {
@@ -358,6 +397,7 @@ void main() {
     final state = AppState();
     await state.initialize();
     state.setMemberProfile(goals: const ['근육 증가']);
+    state.markPrecisionRecommendationPrompted();
     state.addExercise(date, state.exercises.first);
 
     await tester.binding.setSurfaceSize(const Size(432, 900));
@@ -480,6 +520,86 @@ void main() {
     state.dispose();
   });
 
+  testWidgets(
+    'first automatic recommendation offers the precision survey once',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(432, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final state = AppState();
+      await state.initialize();
+      state.sessions.clear();
+      state.setMemberProfile(goals: const ['건강 유지']);
+      final targetDate = state.dateOnly(DateTime.now());
+
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: DailyWorkoutScreen(date: targetDate),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('운동 추가'));
+      await tester.pumpAndSettle();
+      expect(find.text('더 정교한 추천을 받고 싶다면?'), findsOneWidget);
+      expect(state.precisionRecommendationPrompted, isFalse);
+
+      await tester.tap(find.byKey(const ValueKey('precision-survey-skip')));
+      await tester.pumpAndSettle();
+      expect(state.precisionRecommendationPrompted, isTrue);
+      expect(state.recommendationProfile, isNull);
+      expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+
+      state.dispose();
+    },
+  );
+
+  testWidgets('precision survey saves an account profile then continues', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(432, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+    state.sessions.clear();
+    state.setMemberProfile(goals: const ['건강 유지']);
+    final targetDate = state.dateOnly(DateTime.now());
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: DailyWorkoutScreen(date: targetDate),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('운동 추가'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('precision-survey-start')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('정밀 운동 추천 설문'), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('recommendation-profile-save')),
+    );
+    await tester.tap(find.byKey(const ValueKey('recommendation-profile-save')));
+    await tester.pumpAndSettle();
+
+    expect(state.precisionRecommendationPrompted, isTrue);
+    expect(state.recommendationProfile, isNotNull);
+    expect(state.recommendationProfile!.availableEquipment, {
+      TrainingEquipment.bodyweight,
+    });
+    expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+
+    state.dispose();
+  });
+
   testWidgets('empty day workout add offers and applies the first exercise', (
     tester,
   ) async {
@@ -489,6 +609,7 @@ void main() {
     await state.initialize();
     state.sessions.clear();
     state.setMemberProfile(goals: const ['근육 증가']);
+    state.markPrecisionRecommendationPrompted();
     final historyDate = DateTime(2026, 11, 2);
     final targetDate = DateTime(2026, 11, 3);
     state.addExercise(historyDate, state.exercises.first);
@@ -540,6 +661,7 @@ void main() {
     await state.initialize();
     state.sessions.clear();
     state.setMemberProfile(goals: const ['근력 향상']);
+    state.markPrecisionRecommendationPrompted();
     final targetDate = DateTime(2026, 11, 4);
     final first = state.firstExerciseRecommendationForDate(targetDate)!;
     final second = state.firstExerciseRecommendationForDate(
@@ -584,6 +706,7 @@ void main() {
     await state.initialize();
     state.sessions.clear();
     state.setMemberProfile(goals: const ['근력 향상']);
+    state.markPrecisionRecommendationPrompted();
     final targetDate = DateTime(2026, 11, 3);
 
     await tester.pumpWidget(

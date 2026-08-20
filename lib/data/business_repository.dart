@@ -349,6 +349,7 @@ class BusinessMemberDetail {
   const BusinessMemberDetail({
     required this.memberId,
     required this.shareBodyData,
+    required this.shareWorkoutRecords,
     required this.canReadWorkouts,
     required this.sessions,
     this.memberUserId,
@@ -357,7 +358,7 @@ class BusinessMemberDetail {
   final String memberId;
   final String? memberUserId;
   final bool shareBodyData;
-  bool get shareWorkoutRecords => shareBodyData;
+  final bool shareWorkoutRecords;
   final bool canReadWorkouts;
   final List<BusinessWorkoutSession> sessions;
 }
@@ -802,6 +803,11 @@ abstract interface class TopCoachingTrainerRepository {
   Future<List<TopCoachingTrainer>> listTopCoachingTrainers({int limit = 3});
 }
 
+/// Optional capability for withdrawing a consultation-scoped survey share.
+abstract interface class ConsultationRecommendationProfileShareRepository {
+  Future<void> revokeRecommendationProfileShare(String consultationId);
+}
+
 class BusinessConsultation {
   const BusinessConsultation({
     required this.id,
@@ -822,6 +828,9 @@ class BusinessConsultation {
     this.level,
     this.question,
     this.createdAt,
+    this.sharedRecommendationProfile,
+    this.recommendationProfileSharedAt,
+    this.recommendationProfileShareRevokedAt,
   });
 
   final String id;
@@ -841,6 +850,9 @@ class BusinessConsultation {
   final String? level;
   final String? question;
   final DateTime? createdAt;
+  final RecommendationProfile? sharedRecommendationProfile;
+  final DateTime? recommendationProfileSharedAt;
+  final DateTime? recommendationProfileShareRevokedAt;
   final List<BusinessConsultationMessage> messages;
 }
 
@@ -1067,6 +1079,7 @@ class CreateConsultationInput {
     this.specialty,
     this.goal,
     this.level,
+    this.recommendationProfile,
   });
 
   final String requestId;
@@ -1076,6 +1089,7 @@ class CreateConsultationInput {
   final String? specialty;
   final String? goal;
   final String? level;
+  final RecommendationProfile? recommendationProfile;
   final String question;
 }
 

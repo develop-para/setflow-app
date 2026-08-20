@@ -23,6 +23,27 @@ export 'services/cardio_prescription_engine.dart';
 export 'services/exercise_recommendation_engine.dart';
 export 'services/performance_engine.dart';
 
+class MemberProfileDraft {
+  MemberProfileDraft({
+    required Iterable<String> goals,
+    this.heightCm,
+    this.weight,
+    this.age,
+    this.gender,
+  }) : goals = List<String>.unmodifiable(
+         goals
+             .map((goal) => goal.trim())
+             .where((goal) => goal.isNotEmpty)
+             .toSet(),
+       );
+
+  final List<String> goals;
+  final double? heightCm;
+  final double? weight;
+  final int? age;
+  final String? gender;
+}
+
 class AppState extends ChangeNotifier {
   AppState({
     AppRepository? repository,
@@ -83,9 +104,11 @@ class AppState extends ChangeNotifier {
   final Set<String> _uncertainRoutineShareLinkRoutineIds = {};
   final Map<String, Map<String, String?>> _personalRoutineBaseExerciseIds = {};
   Future<void>? _signOutInFlight;
+  Future<void>? _authenticationSyncInFlight;
   Future<void>? _persistInFlight;
   Future<void>? _accountFlushInFlight;
   AppSnapshot? _queuedSnapshot;
+  MemberProfileDraft? _stagedMemberProfileDraft;
 
   bool get isInitialized => _initialized;
   Object? persistenceError;
@@ -117,6 +140,8 @@ class AppState extends ChangeNotifier {
   double? weight;
   int? age;
   String? gender;
+  bool precisionRecommendationPrompted = false;
+  RecommendationProfile? recommendationProfile;
   int restRemaining = 0;
   Timer? _restTimer;
   DateTime? _restTimerEndsAt;
@@ -481,7 +506,30 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> syncAfterAuthentication() async {
+  void stageMemberProfileForAuthentication(MemberProfileDraft draft) {
+    _stagedMemberProfileDraft = draft;
+  }
+
+  void clearStagedMemberProfileForAuthentication() {
+    _stagedMemberProfileDraft = null;
+  }
+
+  Future<void> syncAfterAuthentication() {
+    final active = _authenticationSyncInFlight;
+    if (active != null) return active;
+
+    late final Future<void> operation;
+    operation = _syncAfterAuthenticationOnce().whenComplete(() {
+      if (identical(_authenticationSyncInFlight, operation)) {
+        _authenticationSyncInFlight = null;
+      }
+    });
+    _authenticationSyncInFlight = operation;
+    return operation;
+  }
+
+  Future<void> _syncAfterAuthenticationOnce() async {
+    final profileDraft = _stagedMemberProfileDraft;
     _persistTimer?.cancel();
     final pendingSignOut = _signOutInFlight;
     if (pendingSignOut != null) {
@@ -503,7 +551,7 @@ class AppState extends ChangeNotifier {
       } catch (_) {
         // The account-scoped outbox keeps the previous account mutation.
       }
-    } else {
+    } else if (profileDraft == null) {
       try {
         await flushPersistence();
       } catch (_) {
@@ -522,11 +570,28 @@ class AppState extends ChangeNotifier {
       final snapshot = await _repository.load(exercises);
       if (!_isCurrentAccount(accountEpoch)) return;
       if (snapshot != null) _applySnapshot(snapshot);
+      final profileChanged =
+          profileDraft != null && _mergeMissingMemberProfile(profileDraft);
       if (memberNickname.trim().isEmpty) {
         memberNickname = SupabaseAuthService.instance.currentDisplayName;
       }
       persistenceError = null;
       persistenceSyncError = _repositorySyncError;
+      if (profileChanged) {
+        _queuedSnapshot = _snapshotForPersistence();
+        await flushPersistence();
+        if (identical(_stagedMemberProfileDraft, profileDraft)) {
+          _stagedMemberProfileDraft = null;
+        }
+        try {
+          await syncPersistenceToServer();
+        } catch (_) {
+          // The account-scoped outbox is already durable. The lifecycle and
+          // periodic retry paths will finish the cloud upload when available.
+        }
+      } else if (identical(_stagedMemberProfileDraft, profileDraft)) {
+        _stagedMemberProfileDraft = null;
+      }
       cloudPhase = true;
       await _refreshCloudData(expectedAccountEpoch: accountEpoch);
       if (!_isCurrentAccount(accountEpoch)) return;
@@ -540,11 +605,39 @@ class AppState extends ChangeNotifier {
         cloudSyncError = error;
       } else {
         persistenceError = error;
+        rethrow;
       }
-      rethrow;
     } finally {
       if (_isCurrentAccount(accountEpoch)) notifyListeners();
     }
+  }
+
+  bool _mergeMissingMemberProfile(MemberProfileDraft draft) {
+    var changed = false;
+    if (goals.isEmpty && draft.goals.isNotEmpty) {
+      goals = List<String>.of(draft.goals);
+      changed = true;
+    }
+    if (heightCm == null && draft.heightCm != null) {
+      heightCm = draft.heightCm;
+      changed = true;
+    }
+    if (weight == null && draft.weight != null) {
+      weight = draft.weight;
+      changed = true;
+    }
+    if (age == null && draft.age != null) {
+      age = draft.age;
+      changed = true;
+    }
+    final draftGender = draft.gender?.trim();
+    if ((gender == null || gender!.trim().isEmpty) &&
+        draftGender != null &&
+        draftGender.isNotEmpty) {
+      gender = draftGender;
+      changed = true;
+    }
+    return changed;
   }
 
   void setMemberProfile({
@@ -559,6 +652,29 @@ class AppState extends ChangeNotifier {
     this.weight = weight;
     this.age = age;
     this.gender = gender;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void markPrecisionRecommendationPrompted() {
+    if (precisionRecommendationPrompted) return;
+    precisionRecommendationPrompted = true;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setRecommendationProfile(RecommendationProfile profile) {
+    precisionRecommendationPrompted = true;
+    recommendationProfile = profile;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void clearRecommendationProfile() {
+    if (recommendationProfile == null) return;
+    recommendationProfile = null;
+    // Deleting sensitive answers must not turn the one-time offer back on.
+    precisionRecommendationPrompted = true;
     _schedulePersist();
     notifyListeners();
   }
@@ -765,6 +881,7 @@ class AppState extends ChangeNotifier {
           completedExercise: lastCompleted,
           goals: goals,
           weeklyHistory: sessions.values,
+          recommendationProfile: recommendationProfile,
         );
         if (next != null) return _nextExerciseWorkoutRecommendation(next);
       }
@@ -801,6 +918,7 @@ class AppState extends ChangeNotifier {
       goals: goals,
       weeklyHistory: eligibleHistory,
       excludedTemplateIds: excludedTemplateIds,
+      recommendationProfile: recommendationProfile,
     );
   }
 
@@ -888,29 +1006,30 @@ class AppState extends ChangeNotifier {
   WorkoutRecommendation _nextExerciseWorkoutRecommendation(
     NextExerciseRecommendation next,
   ) {
-    final historical = recommendationFor(next.template);
-    if (next.template.isCardio && historical != null) {
+    final cardio = next.cardioPrescription;
+    if (cardio != null) {
+      final materialized = _cardioWorkoutRecommendation(next.template, cardio);
       return WorkoutRecommendation(
-        template: historical.template,
-        goal: historical.goal,
+        template: materialized.template,
+        goal: materialized.goal,
         weight: 0,
         minReps: 0,
         maxReps: 0,
-        sets: historical.sets,
+        sets: materialized.sets,
         nextWeight: 0,
         reason: next.reason,
         restSeconds: 0,
-        evidenceIds: historical.evidenceIds,
-        evidenceNote: historical.evidenceNote,
-        cardioDurationSeconds: historical.cardioDurationSeconds,
-        cardioDistanceKm: historical.cardioDistanceKm,
-        cardioMinimumRpe: historical.cardioMinimumRpe,
-        cardioMaximumRpe: historical.cardioMaximumRpe,
-        cardioSupportsDistance: historical.cardioSupportsDistance,
-        cardioStructure: historical.cardioStructure,
+        evidenceIds: next.evidenceIds,
+        evidenceNote: next.evidenceNote,
+        cardioDurationSeconds: materialized.cardioDurationSeconds,
+        cardioDistanceKm: materialized.cardioDistanceKm,
+        cardioMinimumRpe: materialized.cardioMinimumRpe,
+        cardioMaximumRpe: materialized.cardioMaximumRpe,
+        cardioSupportsDistance: materialized.cardioSupportsDistance,
+        cardioStructure: materialized.cardioStructure,
       );
     }
-    final weight = historical?.weight ?? next.startingWeight;
+    final weight = next.startingWeight;
     final increment = weight <= 0
         ? 0.0
         : weight < 20
@@ -920,18 +1039,14 @@ class AppState extends ChangeNotifier {
       template: next.template,
       goal: PerformanceEngine.goalFromProfile(goals)!,
       weight: weight,
-      minReps: historical?.minReps ?? next.minReps,
-      maxReps: historical?.maxReps ?? next.maxReps,
-      sets: historical?.sets ?? next.sets,
-      nextWeight: historical?.nextWeight ?? weight + increment,
+      minReps: next.minReps,
+      maxReps: next.maxReps,
+      sets: next.sets,
+      nextWeight: weight + increment,
       reason: next.reason,
       restSeconds: next.restSeconds,
-      evidenceIds: PerformanceEngine.prescriptionFor(
-        PerformanceEngine.goalFromProfile(goals)!,
-      ).evidenceIds,
-      evidenceNote: PerformanceEngine.prescriptionFor(
-        PerformanceEngine.goalFromProfile(goals)!,
-      ).evidenceNote,
+      evidenceIds: next.evidenceIds,
+      evidenceNote: next.evidenceNote,
     );
   }
 
@@ -1183,7 +1298,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleSet(WorkoutSetEntry set, {bool startRest = true}) {
+  /// Toggles a set and completes the device-local write before this future
+  /// settles. Completion is a commit boundary: unlike ordinary field edits it
+  /// must not rely on the debounce timer because the user may leave the page
+  /// immediately afterwards.
+  Future<void> toggleSet(WorkoutSetEntry set, {bool startRest = true}) async {
     set.completed = !set.completed;
     if (set.completed &&
         startRest &&
@@ -1193,6 +1312,7 @@ class AppState extends ChangeNotifier {
     }
     _schedulePersist();
     notifyListeners();
+    await flushPersistence();
   }
 
   int copySession(DateTime from, DateTime to) {
@@ -1368,12 +1488,8 @@ class AppState extends ChangeNotifier {
     )) {
       return false;
     }
-    final historyRecommendation = recommendationFor(
-      recommendation.template,
-      before: dateOnly(date),
-    );
     if (recommendation.template.isCardio) {
-      final cardio = historyRecommendation;
+      final cardio = recommendation.cardioPrescription;
       session.exercises.add(
         WorkoutExercise(
           id: _newWorkoutExerciseId(
@@ -1387,9 +1503,9 @@ class AppState extends ChangeNotifier {
               weight: 0,
               reps: 0,
               restSeconds: 0,
-              durationSeconds: cardio?.cardioDurationSeconds ?? 1800,
-              distanceKm: cardio?.cardioDistanceKm ?? 0,
-              intensityRpe: (cardio?.cardioMinimumRpe ?? 3).toDouble(),
+              durationSeconds: cardio?.durationSeconds ?? 1800,
+              distanceKm: cardio?.targetDistanceKm ?? 0,
+              intensityRpe: (cardio?.minimumRpe ?? 3).toDouble(),
             ),
           ],
         ),
@@ -1398,9 +1514,8 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return true;
     }
-    final weight =
-        historyRecommendation?.weight ?? recommendation.startingWeight;
-    final reps = historyRecommendation?.minReps ?? recommendation.minReps;
+    final weight = recommendation.startingWeight;
+    final reps = recommendation.minReps;
     session.exercises.add(
       WorkoutExercise(
         id: _newWorkoutExerciseId(
@@ -1916,6 +2031,9 @@ class AppState extends ChangeNotifier {
               BusinessConsultationStatus.unknown => ConsultationStatus.waiting,
             },
             response: response,
+            sharedRecommendationProfile: record.sharedRecommendationProfile,
+            recommendationProfileShareRevokedAt:
+                record.recommendationProfileShareRevokedAt,
           );
         }),
       );
@@ -2866,6 +2984,7 @@ class AppState extends ChangeNotifier {
     required String goal,
     required String level,
     required String question,
+    RecommendationProfile? sharedRecommendationProfile,
   }) async {
     final repository = businessRepository;
     if (repository == null) {
@@ -2879,6 +2998,7 @@ class AppState extends ChangeNotifier {
           level: level,
           question: question,
           createdAt: DateTime.now(),
+          sharedRecommendationProfile: sharedRecommendationProfile,
         ),
       );
       _schedulePersist();
@@ -2912,6 +3032,7 @@ class AppState extends ChangeNotifier {
       'goal': goal.trim(),
       'level': level.trim(),
       'question': question.trim(),
+      'recommendationProfile': sharedRecommendationProfile?.toJson(),
     });
     final requestId = _consultationCreateRequestIds.putIfAbsent(
       requestKey,
@@ -2930,6 +3051,7 @@ class AppState extends ChangeNotifier {
           goal: goal,
           level: level,
           question: question,
+          recommendationProfile: sharedRecommendationProfile,
         ),
       );
       if (!_isCurrentAccount(accountEpoch)) return;
@@ -2938,6 +3060,30 @@ class AppState extends ChangeNotifier {
       _consultationCreateRequestIds.remove(requestKey);
       notifyListeners();
     });
+  }
+
+  Future<void> revokeConsultationRecommendationProfileShare(
+    String consultationId,
+  ) async {
+    final repository = businessRepository;
+    if (repository != null &&
+        repository is ConsultationRecommendationProfileShareRepository) {
+      final shareRepository =
+          repository as ConsultationRecommendationProfileShareRepository;
+      await shareRepository.revokeRecommendationProfileShare(consultationId);
+      await refreshMemberConsultations();
+      return;
+    }
+    final consultation = consultations
+        .where((item) => item.id == consultationId)
+        .firstOrNull;
+    if (consultation == null ||
+        consultation.sharedRecommendationProfile == null) {
+      throw StateError('공유된 정밀 추천 정보를 찾을 수 없습니다.');
+    }
+    consultation.recommendationProfileShareRevokedAt ??= DateTime.now();
+    _schedulePersist();
+    notifyListeners();
   }
 
   void startCoaching(ConsultationData consultation) {
@@ -4706,6 +4852,8 @@ class AppState extends ChangeNotifier {
     weight: weight,
     age: age,
     gender: gender,
+    precisionRecommendationPrompted: precisionRecommendationPrompted,
+    recommendationProfile: recommendationProfile,
     communityPosts: communityRepository == null
         ? List<CommunityPost>.unmodifiable(communityPosts)
         : const [],
@@ -4801,6 +4949,10 @@ class AppState extends ChangeNotifier {
     weight = snapshot.weight;
     age = snapshot.age;
     gender = snapshot.gender;
+    precisionRecommendationPrompted =
+        snapshot.precisionRecommendationPrompted ||
+        snapshot.recommendationProfile != null;
+    recommendationProfile = snapshot.recommendationProfile;
     customExercises
       ..clear()
       ..addAll(snapshot.customExercises);
@@ -4859,6 +5011,8 @@ class AppState extends ChangeNotifier {
     weight = null;
     age = null;
     gender = null;
+    precisionRecommendationPrompted = false;
+    recommendationProfile = null;
     customExercises.clear();
     exercises
       ..clear()

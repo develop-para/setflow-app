@@ -16,6 +16,20 @@ void main() {
         ),
       ];
       final date = DateTime(2026, 7, 23);
+      final recommendationProfile = RecommendationProfile(
+        experienceLevel: TrainingExperienceLevel.intermediate,
+        availableEquipment: const {
+          TrainingEquipment.bodyweight,
+          TrainingEquipment.dumbbells,
+        },
+        painRegions: const {TrainingPainRegion.shoulder},
+        painLevel: 3,
+        restrictedMovements: const {TrainingMovementRestriction.overheadPress},
+        injuryNote: '오른쪽 어깨를 머리 위로 들 때 불편함',
+        recoveryStatus: TrainingRecoveryStatus.normal,
+        recoveryRecordedAt: date,
+        updatedAt: date,
+      );
       final snapshot = AppSnapshot(
         role: UserRole.member,
         isDarkMode: true,
@@ -35,6 +49,8 @@ void main() {
         weight: 72.4,
         age: 29,
         gender: 'M',
+        precisionRecommendationPrompted: true,
+        recommendationProfile: recommendationProfile,
         sessions: {
           date: WorkoutSession(
             date: date,
@@ -111,6 +127,8 @@ void main() {
             createdAt: date,
             status: ConsultationStatus.answered,
             response: '큰 근육 운동부터 시작하세요.',
+            sharedRecommendationProfile: recommendationProfile,
+            recommendationProfileShareRevokedAt: date,
           ),
         ],
         businessDashboards: {
@@ -156,6 +174,16 @@ void main() {
       expect(decoded.weight, 72.4);
       expect(decoded.age, 29);
       expect(decoded.gender, 'M');
+      expect(decoded.precisionRecommendationPrompted, isTrue);
+      expect(
+        decoded.recommendationProfile!.experienceLevel,
+        TrainingExperienceLevel.intermediate,
+      );
+      expect(
+        decoded.recommendationProfile!.availableEquipment,
+        contains(TrainingEquipment.dumbbells),
+      );
+      expect(decoded.recommendationProfile!.painLevel, 3);
       expect(
         decoded.sessions[date]!.exercises.first.sets.first.completed,
         isTrue,
@@ -186,6 +214,15 @@ void main() {
       expect(decoded.communityPosts.single.comments.single.content, '좋아요');
       expect(decoded.consultations.single.status, ConsultationStatus.answered);
       expect(decoded.consultations.single.response, contains('큰 근육'));
+      expect(
+        decoded.consultations.single.sharedRecommendationProfile!.injuryNote,
+        contains('오른쪽 어깨'),
+      );
+      expect(
+        decoded.consultations.single.recommendationProfileShareRevokedAt!
+            .isAtSameMomentAs(date),
+        isTrue,
+      );
       final dashboard = decoded.businessDashboards[UserRole.trainer]!;
       expect(dashboard.facts['revenue'], '2,480,000원');
       expect(dashboard.tasks.single.id, 'task_1');
@@ -212,6 +249,8 @@ void main() {
       expect(decoded.communityPosts, isEmpty);
       expect(decoded.consultations, isEmpty);
       expect(decoded.businessDashboards, isEmpty);
+      expect(decoded.precisionRecommendationPrompted, isFalse);
+      expect(decoded.recommendationProfile, isNull);
     });
 
     test('reads schema version 2 snapshots without business data', () {

@@ -512,50 +512,59 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
     final nameController = TextEditingController(text: plan?.name);
     final priceController = TextEditingController(text: plan?.price);
     final descController = TextEditingController(text: plan?.desc);
+    Future<void>? dialogCompleted;
     final saved = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        scrollable: true,
-        title: Text(plan == null ? '새 플랜 추가' : '플랜 편집'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: '플랜 이름'),
+      builder: (dialogContext) {
+        dialogCompleted ??= ModalRoute.of(dialogContext)?.completed;
+        return AlertDialog(
+          scrollable: true,
+          title: Text(plan == null ? '새 플랜 추가' : '플랜 편집'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: '플랜 이름'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: priceController,
+                decoration: const InputDecoration(labelText: '가격'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descController,
+                decoration: const InputDecoration(labelText: '설명'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('취소'),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: priceController,
-              decoration: const InputDecoration(labelText: '가격'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: descController,
-              decoration: const InputDecoration(labelText: '설명'),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('저장'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('저장'),
-          ),
-        ],
-      ),
+        );
+      },
     );
-    if (saved == true && nameController.text.trim().isNotEmpty && mounted) {
+    final name = nameController.text.trim();
+    final price = priceController.text.trim();
+    final description = descController.text.trim();
+    await dialogCompleted;
+    nameController.dispose();
+    priceController.dispose();
+    descController.dispose();
+    if (saved == true && name.isNotEmpty && mounted) {
       final entry = (
         id: plan?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        name: nameController.text.trim(),
-        price: priceController.text.trim().isEmpty
-            ? '0원'
-            : priceController.text.trim(),
-        desc: descController.text.trim(),
+        name: name,
+        price: price.isEmpty ? '0원' : price,
+        desc: description,
       );
       setState(() {
         if (plan == null) {
@@ -570,9 +579,6 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
         plan == null ? '플랜을 추가했습니다. (데모)' : '플랜을 수정했습니다. (데모)',
       );
     }
-    nameController.dispose();
-    priceController.dispose();
-    descController.dispose();
   }
 }
 
