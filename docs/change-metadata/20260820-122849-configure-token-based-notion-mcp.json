@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0",
+  "change_id": "20260820-122849-configure-token-based-notion-mcp",
+  "created_at": "2026-08-20T12:28:49+09:00",
+  "repository": "setflow",
+  "branch": "main",
+  "baseline_commit": "7fac23fd4de03c597f3b635eea9d2747d9104b48",
+  "request": "Configure the current project to use the supplied Notion integration token in both Claude Code and Codex.",
+  "title": "Configure token-based Notion MCP",
+  "purpose": "Enable project-scoped Notion MCP access in Claude Code and Codex without OAuth while keeping the integration token out of Git.",
+  "files": [
+    {
+      "path": ".codex/config.toml",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": 2,
+          "old_end": 2,
+          "new_start": 2,
+          "new_end": 7
+        }
+      ],
+      "working_tree_sha256": "d22a5ca189278fd6a45852024861bd6ce624455e58d9ec5cdf77fd275028d223",
+      "symbols": [
+        "mcp_servers.notion"
+      ],
+      "purpose": "Enable project-scoped Notion MCP access in Claude Code and Codex without OAuth while keeping the integration token out of Git.",
+      "previous_behavior": "Codex targeted the hosted Notion MCP URL, which only worked through OAuth and could not use the supplied integration token.",
+      "new_behavior": "Trusted Codex sessions start the pinned local Notion MCP server through the project wrapper, require successful startup, allow 60 seconds for package startup, and prompt before write-classified Notion tools.",
+      "data_impact": "The configuration itself changes no application or Notion data. It enables later Notion reads and writes within the connected integration's permissions.",
+      "access_control_impact": "Notion access now uses the project-local integration token. Codex prompts for write-classified tools, while the Notion integration's own page grants remain the authoritative access boundary.",
+      "risks": [
+        "The local open-source Notion MCP package is no longer actively maintained.",
+        "A valid token can expose every page explicitly shared with the Notion integration, and the server includes mutation tools."
+      ],
+      "rollback": "Revert this configuration to the previous hosted URL or remove the mcp_servers.notion table, restart Codex, and remove the project-local token file. No data migration or compatibility work is needed."
+    },
+    {
+      "path": "scripts/notion-mcp.ps1",
+      "change_type": "added",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1,
+          "new_end": 45
+        }
+      ],
+      "working_tree_sha256": "7a45f9c39a0595015c29bdc547311e43dc3a9765e1389840b1854f66ec28bf0f",
+      "symbols": [
+        "projectRoot",
+        "environmentFile",
+        "NOTION_TOKEN bootstrap",
+        "@notionhq/notion-mcp-server@2.5.1 launcher"
+      ],
+      "purpose": "Enable project-scoped Notion MCP access in Claude Code and Codex without OAuth while keeping the integration token out of Git.",
+      "previous_behavior": "File did not exist in the baseline commit.",
+      "new_behavior": "The launcher reads and validates NOTION_TOKEN from the ignored project-local environment file, starts the pinned Notion MCP package over stdio, and removes the token from its process environment when the server exits.",
+      "data_impact": "Reads one local secret file. The launcher itself does not modify application or Notion data; invoked MCP tools may read or mutate data within the integration's grants.",
+      "access_control_impact": "Makes the token available only to the child MCP process. It does not expand Notion permissions beyond pages and capabilities already granted to the integration.",
+      "risks": [
+        "The ignored token file is plaintext on the local machine and depends on host filesystem security.",
+        "The launcher requires Windows PowerShell, Node.js, npm/npx, and registry availability when the pinned package is not cached."
+      ],
+      "rollback": "Remove this script, remove the Claude local MCP registration, restore or delete the Codex Notion configuration, and delete .env.notion-mcp. No application data rollback is needed."
+    }
+  ],
+  "production_safety": {
+    "operational_data": "Verification read only the Notion integration bot identity through API-get-self. No Notion pages, databases, or application records were created, updated, or deleted.",
+    "schema_migration": "None; this change has no database schema, migration, or backfill.",
+    "external_side_effects": [
+      "Registered a Claude Code Local-scope MCP entry for this project in the user's local Claude configuration.",
+      "Added this repository path to the user's Codex trusted-project configuration so the project .codex layer can load.",
+      "Downloaded or reused @notionhq/notion-mcp-server@2.5.1 through npx and called the Notion API-get-self endpoint for authentication verification.",
+      "No deployment, message, or remote repository write occurred."
+    ]
+  },
+  "verification": [
+    {
+      "command": "git diff --check; git check-ignore -v .env.notion-mcp; git ls-files --error-unmatch .env.notion-mcp",
+      "result": "passed",
+      "evidence": "The diff has no whitespace errors, .env.notion-mcp matches the repository ignore rule, and the secret file is not tracked."
+    },
+    {
+      "command": "Parse .mcp.json with ConvertFrom-Json and tokenize scripts/notion-mcp.ps1 with System.Management.Automation.PSParser",
+      "result": "passed",
+      "evidence": "The JSON configuration and PowerShell launcher both parsed without errors."
+    },
+    {
+      "command": "Launch scripts/notion-mcp.ps1 over stdio, send MCP initialize and tools/list requests, then call API-get-self",
+      "result": "passed",
+      "evidence": "Initialization succeeded, 24 MCP tools were listed, and the supplied integration token authenticated successfully without exposing returned identity data."
+    },
+    {
+      "command": "claude mcp get notion",
+      "result": "passed",
+      "evidence": "Claude reported Local project scope, stdio transport, and Connected status."
+    },
+    {
+      "command": "codex exec --ephemeral --strict-config --sandbox read-only -c mcp_servers.supabase.enabled=false --json <Notion API-get-self verification prompt>",
+      "result": "passed",
+      "evidence": "A fresh Codex session loaded the project configuration, invoked the Notion API-get-self MCP tool, and returned NOTION_CODEX_OK."
+    }
+  ],
+  "residual_risks": [
+    "The supplied token was posted in chat and should be rotated; replace the value in .env.notion-mcp after rotation.",
+    "The local Notion MCP package is officially no longer actively maintained, so future Notion API changes may require replacing or forking it.",
+    "Notion pages and databases remain inaccessible until they are explicitly connected to the integration."
+  ],
+  "commit": "same-as-metadata-file"
+}
