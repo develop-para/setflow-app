@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to dart-defines.json in the repo root (gitignored) to override build-time configuration. Omit a key to keep the default in lib/services/supabase_config.dart.",
+  "SUPABASE_URL": "https://fblrtxnpgftrtplqmsqe.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_C9fh17Vm_9AV1xnCcyFX6A_frY8lgdM",
+  "SUPABASE_GOOGLE_OAUTH_ENABLED": false,
+  "SUPABASE_KAKAO_OAUTH_ENABLED": false,
+  "SUPABASE_APPLE_OAUTH_ENABLED": false,
+  "SUPABASE_NAVER_PROVIDER": ""
+}

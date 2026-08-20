@@ -1,0 +1,219 @@
+name: Distribute Android
+
+# Every push to main builds a signed release APK and sends it to the Firebase
+# App Distribution "testers" group. Nothing about Firebase is compiled into the
+# app -- the CLI just uploads the finished APK.
+on:
+  push:
+    branches: [main]
+    # Doc-only pushes should not spend a runner or notify testers.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.fry/**'
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: 'Release notes override (blank = generate from commits)'
+        required: false
+        type: string
+
+# A second push while a build is running would race on the dist/* tag, and the
+# older build is never the one testers want anyway.
+concurrency:
+  group: android-distribute
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push the dist/<buildNumber> tag
+  id-token: write # mint the OIDC token that Google exchanges for credentials
+
+env:
+  FLUTTER_VERSION: '3.44.7'
+  JAVA_VERSION: '17'
+  # Workload Identity Federation: GitHub's OIDC token is exchanged for a
+  # short-lived Google credential, so no service account key exists to leak.
+  # The teampara.co.kr org also forbids creating service account keys
+  # (constraints/iam.disableServiceAccountKeyCreation), which this sidesteps
+  # rather than fights. Neither value below is a secret.
+  WIF_PROVIDER: 'projects/587270655673/locations/global/workloadIdentityPools/github/providers/github-actions'
+  WIF_SERVICE_ACCOUNT: 'github-actions-distributor@setflow-18eeb.iam.gserviceaccount.com'
+
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history: the build number is the commit count and the release
+          # notes are the commits since the last distributed tag.
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+
+          VERSION_NAME=$(grep -oP '(?m)^version:[ \t]*\K[0-9]+\.[0-9]+\.[0-9]+' pubspec.yaml)
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+
+          # Guard against a rewritten history producing a versionCode that
+          # Android would refuse to install over the previous release.
+          LAST_TAG=$(git tag -l 'dist/*' --sort=-version:refname | head -n 1)
+          if [ -n "$LAST_TAG" ]; then
+            LAST_NUMBER=${LAST_TAG#dist/}
+            if [ "$BUILD_NUMBER" -le "$LAST_NUMBER" ]; then
+              echo "::error::Build number $BUILD_NUMBER is not greater than the last distributed build $LAST_NUMBER. History was probably rewritten; testers could not install this build."
+              exit 1
+            fi
+          fi
+
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+          echo "Version $VERSION_NAME+$BUILD_NUMBER (previous: ${LAST_TAG:-none})"
+
+      - name: Build release notes
+        id: notes
+        env:
+          OVERRIDE: ${{ inputs.notes }}
+          LAST_TAG: ${{ steps.version.outputs.last_tag }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${OVERRIDE:-}" ]; then
+            NOTES="$OVERRIDE"
+          else
+            if [ -n "$LAST_TAG" ]; then
+              RANGE="$LAST_TAG..HEAD"
+            else
+              RANGE="HEAD~20..HEAD"
+            fi
+            # Merge commits duplicate what their branch commits already say.
+            NOTES=$(git log --no-merges --pretty=format:'- %s' "$RANGE" 2>/dev/null || git log --no-merges --pretty=format:'- %s' -n 20)
+          fi
+
+          if [ -z "$NOTES" ]; then
+            NOTES="- No code changes recorded for this build."
+          fi
+
+          # App Distribution caps release notes; keep well under the limit.
+          NOTES=$(printf '%s' "$NOTES" | head -c 3000)
+
+          {
+            echo 'notes<<RELEASE_NOTES_EOF'
+            printf '%s\n' "$NOTES"
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set. Without it the APK would be signed with a debug key and testers could not install updates."
+            exit 1
+          fi
+
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release \
+            --build-name=${{ steps.version.outputs.version_name }} \
+            --build-number=${{ steps.version.outputs.build_number }}
+
+      - name: Verify signing
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          CERT=$("$BUILD_TOOLS/apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk)
+          echo "$CERT"
+          if echo "$CERT" | grep -q "CN=Android Debug"; then
+            echo "::error::APK is signed with the debug key. Check the keystore secrets."
+            exit 1
+          fi
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@15
+
+      - name: Authenticate to Google Cloud
+        # Writes a credential file and exports GOOGLE_APPLICATION_CREDENTIALS,
+        # which the Firebase CLI picks up automatically.
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+
+      - name: Distribute to testers
+        run: |
+          set -euo pipefail
+          APP_ID=$(node -e "console.log(require('./tool/firebase-distribution.json').appId)")
+          GROUPS=$(node -e "console.log(require('./tool/firebase-distribution.json').groups)")
+
+          firebase appdistribution:distribute \
+            build/app/outputs/flutter-apk/app-release.apk \
+            --app "$APP_ID" \
+            --groups "$GROUPS" \
+            --release-notes "${{ steps.notes.outputs.notes }}"
+
+      - name: Tag distributed build
+        env:
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a "dist/$BUILD_NUMBER" -m "Setflow $VERSION_NAME+$BUILD_NUMBER distributed to testers"
+          git push origin "dist/$BUILD_NUMBER"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Setflow ${{ steps.version.outputs.version_name }}+${{ steps.version.outputs.build_number }}"
+            echo ""
+            echo "Previous distributed build: ${{ steps.version.outputs.last_tag || 'none' }}"
+            echo ""
+            echo "### Release notes"
+            echo '```'
+            echo "${{ steps.notes.outputs.notes }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

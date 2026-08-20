@@ -52,3 +52,11 @@ app.*.map.json
 .fry/
 .omc/
 /.env.notion-mcp
+
+# Build-time configuration overrides (see tool/dart-defines.example.json)
+/dart-defines.json
+
+# Firebase console downloads this for the native Android SDK path, which this
+# app does not use (see docs/android-distribution.md). Keeping it out of the
+# repo avoids implying the app talks to Firebase.
+android/app/google-services.json
