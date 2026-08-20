@@ -193,14 +193,33 @@ jobs:
           RELEASE_NOTES: ${{ steps.notes.outputs.notes }}
         run: |
           set -euo pipefail
-          APP_ID=$(node -e "console.log(require('./tool/firebase-distribution.json').appId)")
-          GROUPS=$(node -e "console.log(require('./tool/firebase-distribution.json').groups)")
+          # The previous run died here in 58ms with no output at all, so send
+          # stderr to stdout and trace every command: whatever fails next will
+          # say so in the log instead of vanishing.
+          exec 2>&1
+          set -x
+
+          command -v firebase
+          command -v jq
+          ls -l build/app/outputs/flutter-apk/app-release.apk
+
+          APP_ID=$(jq -r '.appId' tool/firebase-distribution.json)
+          GROUPS=$(jq -r '.groups' tool/firebase-distribution.json)
+          if [ -z "$APP_ID" ] || [ "$APP_ID" = 'null' ]; then
+            echo "::error::appId missing from tool/firebase-distribution.json"
+            exit 1
+          fi
+
+          # Release notes go through a file: they are multi-line and can contain
+          # any character a commit subject can.
+          printf '%s' "$RELEASE_NOTES" > "$RUNNER_TEMP/release-notes.txt"
+          wc -c < "$RUNNER_TEMP/release-notes.txt"
 
           firebase appdistribution:distribute \
             build/app/outputs/flutter-apk/app-release.apk \
             --app "$APP_ID" \
             --groups "$GROUPS" \
-            --release-notes "$RELEASE_NOTES"
+            --release-notes-file "$RUNNER_TEMP/release-notes.txt"
 
       - name: Tag distributed build
         env:
