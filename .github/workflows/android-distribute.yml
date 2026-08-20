@@ -46,14 +46,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Full history: the build number is the commit count and the release
           # notes are the commits since the last distributed tag.
           fetch-depth: 0
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -154,10 +154,13 @@ jobs:
           EOF
 
       - name: Build release APK
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
         run: |
           flutter build apk --release \
-            --build-name=${{ steps.version.outputs.version_name }} \
-            --build-number=${{ steps.version.outputs.build_number }}
+            --build-name="$VERSION_NAME" \
+            --build-number="$BUILD_NUMBER"
 
       - name: Verify signing
         run: |
@@ -182,6 +185,12 @@ jobs:
           service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
 
       - name: Distribute to testers
+        env:
+          # Passed as an environment variable rather than interpolated into the
+          # script: a commit subject containing a quote would otherwise close
+          # the shell string early and break the command (and would let a commit
+          # message inject shell code).
+          RELEASE_NOTES: ${{ steps.notes.outputs.notes }}
         run: |
           set -euo pipefail
           APP_ID=$(node -e "console.log(require('./tool/firebase-distribution.json').appId)")
@@ -191,7 +200,7 @@ jobs:
             build/app/outputs/flutter-apk/app-release.apk \
             --app "$APP_ID" \
             --groups "$GROUPS" \
-            --release-notes "${{ steps.notes.outputs.notes }}"
+            --release-notes "$RELEASE_NOTES"
 
       - name: Tag distributed build
         env:
@@ -206,14 +215,21 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          # Same reasoning as the distribute step - never interpolate commit
+          # text straight into a shell script.
+          RELEASE_NOTES: ${{ steps.notes.outputs.notes }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          LAST_TAG: ${{ steps.version.outputs.last_tag }}
         run: |
           {
-            echo "## Setflow ${{ steps.version.outputs.version_name }}+${{ steps.version.outputs.build_number }}"
+            echo "## Setflow ${VERSION_NAME:-?}+${BUILD_NUMBER:-?}"
             echo ""
-            echo "Previous distributed build: ${{ steps.version.outputs.last_tag || 'none' }}"
+            echo "Previous distributed build: ${LAST_TAG:-none}"
             echo ""
             echo "### Release notes"
             echo '```'
-            echo "${{ steps.notes.outputs.notes }}"
+            printf '%s\n' "${RELEASE_NOTES:-}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
