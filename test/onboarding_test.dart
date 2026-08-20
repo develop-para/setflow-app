@@ -25,6 +25,13 @@ void main() {
   ) async {
     final state = await pumpScreen(tester, const MemberSetupScreen());
 
+    await tester.tap(find.byKey(const Key('member-existing-account-sign-in')));
+    await tester.pumpAndSettle();
+    expect(find.text('이메일 로그인'), findsOneWidget);
+    expect(find.text('처음이신가요? 이메일 회원가입'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
     expect(find.text('2 / 4'), findsOneWidget);
@@ -48,7 +55,9 @@ void main() {
     expect(find.text('Google 로그인 · 연동 준비'), findsOneWidget);
     expect(find.text('네이버 로그인 · 연동 준비'), findsOneWidget);
 
-    await tester.tap(find.text('이메일로 회원가입 · 로그인'));
+    expect(find.byKey(const Key('member-email-sign-up')), findsOneWidget);
+    expect(find.byKey(const Key('member-email-sign-in')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('member-email-sign-up')));
     await tester.pumpAndSettle();
     expect(find.text('이메일 회원가입'), findsOneWidget);
     expect(find.text('회원가입'), findsOneWidget);

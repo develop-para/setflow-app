@@ -10,12 +10,14 @@ class HiveAppRepository
     implements
         AppRepository,
         AccountSnapshotOutbox,
+        AccountSnapshotCache,
         ClaimedLegacySnapshotSource {
   HiveAppRepository._(this._box);
 
   static const _snapshotKey = 'snapshot';
   static const _snapshotOwnerKey = 'snapshot_owner_user_id';
   static const _pendingPrefix = 'pending_snapshot:';
+  static const _accountSnapshotPrefix = 'account_snapshot:';
   static const _boxName = 'setflow_app_state_v1';
 
   final Box<String> _box;
@@ -120,21 +122,49 @@ class HiveAppRepository
   }
 
   @override
-  Future<void> stagePending(String userId, PendingAppSnapshot pending) async {
+  Future<AppSnapshot?> loadCached(
+    String userId,
+    List<ExerciseTemplate> exerciseCatalog,
+  ) async {
+    final source = _box.get('$_accountSnapshotPrefix${userId.trim()}');
+    if (source == null || source.isEmpty) return null;
+    return AppSnapshotCodec.decode(source, exerciseCatalog);
+  }
+
+  @override
+  Future<void> storeCached(String userId, AppSnapshot snapshot) async {
     final normalizedUserId = userId.trim();
     if (normalizedUserId.isEmpty) {
       throw ArgumentError.value(userId, 'userId', 'Must not be empty.');
     }
     await _box.put(
-      '$_pendingPrefix$normalizedUserId',
-      jsonEncode({
-        'queuedAt': pending.queuedAt.toUtc().toIso8601String(),
-        'expectedServerUpdatedAt': pending.expectedServerUpdatedAt
-            ?.toUtc()
-            .toIso8601String(),
-        'payload': AppSnapshotCodec.toJson(pending.snapshot),
-      }),
+      '$_accountSnapshotPrefix$normalizedUserId',
+      AppSnapshotCodec.encode(snapshot),
     );
+  }
+
+  @override
+  Future<void> clearCached(String userId) =>
+      _box.delete('$_accountSnapshotPrefix${userId.trim()}');
+
+  @override
+  Future<void> stagePending(String userId, PendingAppSnapshot pending) async {
+    final normalizedUserId = userId.trim();
+    if (normalizedUserId.isEmpty) {
+      throw ArgumentError.value(userId, 'userId', 'Must not be empty.');
+    }
+    final encodedSnapshot = AppSnapshotCodec.encode(pending.snapshot);
+    final encodedPending = jsonEncode({
+      'queuedAt': pending.queuedAt.toUtc().toIso8601String(),
+      'expectedServerUpdatedAt': pending.expectedServerUpdatedAt
+          ?.toUtc()
+          .toIso8601String(),
+      'payload': AppSnapshotCodec.toJson(pending.snapshot),
+    });
+    await _box.putAll({
+      '$_accountSnapshotPrefix$normalizedUserId': encodedSnapshot,
+      '$_pendingPrefix$normalizedUserId': encodedPending,
+    });
   }
 
   @override

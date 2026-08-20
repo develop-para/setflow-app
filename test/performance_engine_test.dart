@@ -554,5 +554,81 @@ void main() {
       expect(sets.map((set) => set.restSeconds), everyElement(120));
       state.dispose();
     });
+
+    test('first exercise rotates recent history and never invents weight', () {
+      final state = AppState();
+      state.sessions.clear();
+      state.setMemberProfile(goals: const ['근력 향상']);
+      final targetDate = DateTime(2026, 8, 20);
+
+      final withoutHistory = state.firstExerciseRecommendationForDate(
+        targetDate,
+      )!;
+      expect(withoutHistory.startingWeight, 0);
+      expect(withoutHistory.evidenceIds, contains('nunes_2021_exercise_order'));
+
+      final historyDate = targetDate.subtract(const Duration(days: 1));
+      state.addExercise(historyDate, withoutHistory.template);
+      for (final set in state.sessions[historyDate]!.exercises.single.sets) {
+        state.updateSet(set, weight: 100, reps: 5);
+        state.toggleSet(set, startRest: false);
+      }
+
+      final familiarExercise = state.firstExerciseRecommendationForDate(
+        targetDate,
+        excludedTemplateIds: state.exercises
+            .where((item) => item.id != withoutHistory.template.id)
+            .map((item) => item.id)
+            .toSet(),
+      )!;
+      expect(familiarExercise.template.id, withoutHistory.template.id);
+      expect(familiarExercise.startingWeight, greaterThan(0));
+
+      final withHistory = state.firstExerciseRecommendationForDate(targetDate)!;
+      expect(withHistory.template.id, isNot(withoutHistory.template.id));
+      expect(withHistory.startingWeight, 0);
+      expect(withHistory.reason, contains('종목을 고르게 순환'));
+
+      final futureDate = targetDate.add(const Duration(days: 1));
+      state.addExercise(futureDate, state.exercises[1]);
+      for (final set in state.sessions[futureDate]!.exercises.single.sets) {
+        state.updateSet(set, weight: 250, reps: 5);
+        state.toggleSet(set, startRest: false);
+      }
+      final futureIgnored = state.firstExerciseRecommendationForDate(
+        targetDate,
+      )!;
+      expect(futureIgnored.template.id, withHistory.template.id);
+      expect(futureIgnored.startingWeight, withHistory.startingWeight);
+      state.dispose();
+    });
+
+    test('first exercise rotates through goal-relevant options by date', () {
+      final state = AppState();
+      state.sessions.clear();
+      state.setMemberProfile(goals: const ['근력 향상']);
+      const coreStrengthIds = {
+        'squat',
+        'bench',
+        'deadlift',
+        'ohp',
+        'row',
+        'latpull',
+      };
+
+      final recommendations = {
+        for (var offset = 0; offset < 6; offset++)
+          state
+              .firstExerciseRecommendationForDate(
+                DateTime(2026, 8, 20).add(Duration(days: offset)),
+              )!
+              .template
+              .id,
+      };
+
+      expect(recommendations.length, greaterThanOrEqualTo(4));
+      expect(recommendations.difference(coreStrengthIds), isEmpty);
+      state.dispose();
+    });
   });
 }

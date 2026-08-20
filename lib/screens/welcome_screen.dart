@@ -373,7 +373,8 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
           ),
           const SizedBox(height: 16),
           TextButton(
-            onPressed: () => setState(() => step = 3),
+            key: const Key('member-existing-account-sign-in'),
+            onPressed: () => _openEmailAuth(EmailAuthMode.signIn),
             child: const Text('이미 계정이 있으신가요? 로그인'),
           ),
         ],
@@ -647,10 +648,21 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
             const SizedBox(height: SetflowSpacing.lg),
           ],
           AppButton(
-            label: '이메일로 회원가입 · 로그인',
+            key: const Key('member-email-sign-up'),
+            label: '이메일로 회원가입',
             icon: Icons.mail_outline_rounded,
-            onPressed: isSubmitting ? null : _openEmailAuth,
+            onPressed: isSubmitting
+                ? null
+                : () => _openEmailAuth(EmailAuthMode.signUp, saveProfile: true),
             isLoading: isSubmitting,
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          TextButton(
+            key: const Key('member-email-sign-in'),
+            onPressed: isSubmitting
+                ? null
+                : () => _openEmailAuth(EmailAuthMode.signIn),
+            child: const Text('이미 계정이 있나요? 로그인'),
           ),
           const SizedBox(height: SetflowSpacing.xl),
           Row(
@@ -749,11 +761,14 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
     return null;
   }
 
-  Future<void> _openEmailAuth() async {
-    _saveMemberProfile();
-    final authenticated = await Navigator.of(
-      context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const EmailAuthScreen()));
+  Future<void> _openEmailAuth(
+    EmailAuthMode mode, {
+    bool saveProfile = false,
+  }) async {
+    if (saveProfile) _saveMemberProfile();
+    final authenticated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => EmailAuthScreen(initialMode: mode)),
+    );
     if (authenticated == true && mounted) await _completeAuthentication();
   }
 

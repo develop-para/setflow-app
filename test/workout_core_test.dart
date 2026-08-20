@@ -281,7 +281,7 @@ void main() {
   );
 
   testWidgets(
-    'strength recommendation appears only after every workout set is done',
+    'completed workout never renders a persistent next-session card',
     (tester) async {
       final state = AppState();
       await state.initialize();
@@ -323,10 +323,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('NEXT SESSION'), findsOneWidget);
-      expect(find.text('근력 향상'), findsOneWidget);
-      expect(find.textContaining('4–6회'), findsOneWidget);
-      expect(find.textContaining('3세트'), findsWidgets);
+      expect(find.text('NEXT SESSION'), findsNothing);
+      expect(find.text('다음 운동 추천'), findsNothing);
+      expect(find.text('추천 운동 추가'), findsNothing);
       expect(find.text('추천 세트 적용'), findsNothing);
       state.dispose();
     },
@@ -381,7 +380,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('다음 운동 추천'), findsOneWidget);
-    expect(find.text('인클라인 덤벨 프레스'), findsNWidgets(2));
+    expect(find.text('인클라인 덤벨 프레스'), findsOneWidget);
+    expect(find.textContaining('중량 직접 선택'), findsOneWidget);
     await tester.tap(find.text('추천 운동 추가'));
     await tester.pumpAndSettle();
 
@@ -395,6 +395,7 @@ void main() {
       exercises.last.sets.map((set) => set.restSeconds),
       everyElement(120),
     );
+    expect(exercises.last.sets.map((set) => set.weight), everyElement(0));
     state.cancelRestTimer();
     state.dispose();
   });
@@ -429,7 +430,7 @@ void main() {
     state.dispose();
   });
 
-  testWidgets('calendar insight applies a real next-session recommendation', (
+  testWidgets('calendar keeps recommendations hidden until workout add', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(432, 900));
@@ -464,61 +465,182 @@ void main() {
     expect(find.byKey(const Key('calendar-kpi-e1rm')), findsOneWidget);
     expect(find.byKey(const Key('calendar-kpi-change')), findsOneWidget);
     expect(find.byKey(const Key('calendar-kpi-pr')), findsOneWidget);
-    expect(find.byKey(const Key('calendar-kpi-next')), findsOneWidget);
-    expect(find.text('바벨 벤치 프레스'), findsOneWidget);
-    expect(find.textContaining('바벨 벤치 프레스 · 100kg'), findsOneWidget);
-    await tester.ensureVisible(find.text('오늘 운동에 적용'));
-    await tester.tap(find.text('오늘 운동에 적용'));
+    expect(find.byKey(const Key('calendar-kpi-sessions')), findsOneWidget);
+    expect(find.byKey(const Key('calendar-kpi-next')), findsNothing);
+    expect(find.text('NEXT SESSION'), findsNothing);
+    expect(find.text('오늘 운동에 적용'), findsNothing);
+    await tester.ensureVisible(find.text('오늘 운동 기록하기'));
+    await tester.tap(find.text('오늘 운동 기록하기'));
     await tester.pumpAndSettle();
 
     final today = state.dateOnly(DateTime.now());
-    final applied = state.sessions[today]!.exercises.single;
-    expect(applied.template.id, 'bench');
-    expect(applied.sets, hasLength(3));
-    expect(applied.sets.map((set) => set.weight), everyElement(100));
     expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+    expect(state.sessions[today]!.exercises, isEmpty);
 
     state.dispose();
   });
 
-  testWidgets('calendar KPI switches to a new exercise after today is done', (
+  testWidgets('empty day workout add offers and applies the first exercise', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(432, 1100));
+    await tester.binding.setSurfaceSize(const Size(432, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final state = AppState();
     await state.initialize();
+    state.sessions.clear();
     state.setMemberProfile(goals: const ['근육 증가']);
-    final today = state.dateOnly(DateTime.now());
-    state.addExercise(today, state.exercises.first);
-    final bench = state.sessions[today]!.exercises.single;
+    final historyDate = DateTime(2026, 11, 2);
+    final targetDate = DateTime(2026, 11, 3);
+    state.addExercise(historyDate, state.exercises.first);
+    final bench = state.sessions[historyDate]!.exercises.single;
     for (final set in bench.sets) {
       state.updateSet(set, weight: 100, reps: 10);
       state.toggleSet(set);
     }
     state.cancelRestTimer();
+    final recommendation = state.firstExerciseRecommendationForDate(
+      targetDate,
+    )!;
 
     await tester.pumpWidget(
       AppScope(
         notifier: state,
         child: MaterialApp(
           theme: SetflowTheme.light,
-          home: const Scaffold(body: CalendarScreen()),
+          home: DailyWorkoutScreen(date: targetDate),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('인클라인 덤벨 프레스 · 20kg'), findsOneWidget);
-    await tester.ensureVisible(find.text('오늘 운동에 적용'));
-    await tester.tap(find.text('오늘 운동에 적용'));
+    expect(find.text('NEXT SESSION'), findsNothing);
+    await tester.tap(find.text('운동 추가'));
     await tester.pumpAndSettle();
 
-    expect(
-      state.sessions[today]!.exercises.map((exercise) => exercise.template.id),
-      ['bench', 'incline'],
+    expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+    expect(find.text(recommendation.template.name), findsOneWidget);
+    expect(find.textContaining('중량 직접 선택'), findsOneWidget);
+    expect(find.textContaining('근거 논문'), findsOneWidget);
+    await tester.tap(find.text('추천 운동 추가'));
+    await tester.pumpAndSettle();
+
+    final exercise = state.sessions[targetDate]!.exercises.single;
+    expect(exercise.template.id, recommendation.template.id);
+    expect(exercise.sets, hasLength(recommendation.sets));
+    expect(exercise.sets.map((set) => set.weight), everyElement(0));
+    state.dispose();
+  });
+
+  testWidgets('no equipment replaces the recommendation before adding', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(432, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+    state.sessions.clear();
+    state.setMemberProfile(goals: const ['근력 향상']);
+    final targetDate = DateTime(2026, 11, 4);
+    final first = state.firstExerciseRecommendationForDate(targetDate)!;
+    final second = state.firstExerciseRecommendationForDate(
+      targetDate,
+      excludedTemplateIds: {first.template.id},
+    )!;
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: DailyWorkoutScreen(date: targetDate),
+        ),
+      ),
     );
-    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('운동 추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(first.template.name), findsOneWidget);
+    await tester.tap(find.byKey(const Key('recommendation-no-equipment')));
+    await tester.pumpAndSettle();
+
+    expect(second.template.id, isNot(first.template.id));
+    expect(find.text(second.template.name), findsOneWidget);
+    await tester.tap(find.text('추천 운동 추가'));
+    await tester.pumpAndSettle();
+    expect(
+      state.sessions[targetDate]!.exercises.single.template.id,
+      second.template.id,
+    );
+    state.dispose();
+  });
+
+  testWidgets('dismissing an empty-day recommendation opens manual picker', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(432, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+    state.sessions.clear();
+    state.setMemberProfile(goals: const ['근력 향상']);
+    final targetDate = DateTime(2026, 11, 3);
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: DailyWorkoutScreen(date: targetDate),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('운동 추가'));
+    await tester.pumpAndSettle();
+    expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+    expect(find.text('직접 선택'), findsOneWidget);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ExerciseLibraryScreen), findsOneWidget);
+    expect(find.byKey(const Key('exercise-muscle-grid')), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('운동 추가'));
+    await tester.pumpAndSettle();
+    expect(find.text('오늘의 첫 운동 추천'), findsNothing);
+    expect(find.byType(ExerciseLibraryScreen), findsOneWidget);
+    state.dispose();
+  });
+
+  testWidgets('recommendation off opens the manual picker immediately', (
+    tester,
+  ) async {
+    final targetDate = DateTime(2026, 11, 3);
+    final state = AppState();
+    await state.initialize();
+    state.sessions.clear();
+    state.setMemberProfile(goals: const ['근력 향상']);
+    state.setAutoRecommendNextExercise(false);
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: DailyWorkoutScreen(date: targetDate),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('운동 추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('오늘의 첫 운동 추천'), findsNothing);
+    expect(find.byType(ExerciseLibraryScreen), findsOneWidget);
     state.dispose();
   });
 

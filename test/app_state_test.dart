@@ -20,6 +20,34 @@ void main() {
       state.dispose();
     });
 
+    test('adds the same exercise repeatedly with prior-record defaults', () {
+      final state = AppState();
+      final template = state.exercises.first;
+      final historyDate = DateTime(2030, 1, 1);
+      final targetDate = DateTime(2030, 1, 2);
+      state.addExercise(historyDate, template);
+      for (final set in state.sessionFor(historyDate).exercises.single.sets) {
+        state.updateSet(set, weight: 42.5, reps: 8);
+        state.toggleSet(set, startRest: false);
+      }
+
+      state.addExercise(targetDate, template);
+      state.addExercise(targetDate, template);
+
+      final repeated = state.sessionFor(targetDate).exercises;
+      expect(repeated, hasLength(2));
+      expect(repeated.map((exercise) => exercise.id).toSet(), hasLength(2));
+      expect(
+        repeated.expand((exercise) => exercise.sets).map((set) => set.weight),
+        everyElement(42.5),
+      );
+      expect(
+        repeated.expand((exercise) => exercise.sets).map((set) => set.reps),
+        everyElement(8),
+      );
+      state.dispose();
+    });
+
     test('copies a workout with completion reset', () {
       final state = AppState();
       final sourceDate = DateTime(2030, 1, 2);

@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/routine_catalog_repository.dart';
 import 'package:setflow/screens/member_screens.dart';
+import 'package:setflow/screens/workout_screens.dart';
 import 'package:setflow/theme.dart';
+import 'package:setflow/widgets/common.dart';
 
 void main() {
   Future<void> pumpScreen(
@@ -23,7 +25,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('cardio KPI shows time distance and RPE without set metrics', (
+  testWidgets('empty-day cardio suggestion uses time distance and RPE', (
     tester,
   ) async {
     final state = AppState();
@@ -36,6 +38,8 @@ void main() {
     final historyDate = state.dateOnly(
       DateTime.now().subtract(const Duration(days: 2)),
     );
+    final today = state.dateOnly(DateTime.now());
+    state.sessions.remove(today);
     state.addExercise(historyDate, cardio);
     final historicalSet =
         state.sessions[historyDate]!.exercises.single.sets.single;
@@ -46,24 +50,26 @@ void main() {
       intensityRpe: 4,
     );
     state.toggleSet(historicalSet, startRest: false);
-    state.addExercise(DateTime.now(), cardio);
 
-    await pumpScreen(tester, state, const Scaffold(body: CalendarScreen()));
+    await pumpScreen(tester, state, DailyWorkoutScreen(date: today));
+    await tester.tap(find.text('운동 추가'));
+    await tester.pumpAndSettle();
 
-    final action = find.byKey(const Key('calendar-kpi-action'));
-    final actionText = tester
+    final recommendationCard = find.byType(SetflowCard).last;
+    final recommendationText = tester
         .widgetList<Text>(
-          find.descendant(of: action, matching: find.byType(Text)),
+          find.descendant(of: recommendationCard, matching: find.byType(Text)),
         )
         .map((widget) => widget.data ?? widget.textSpan?.toPlainText() ?? '')
         .join(' ');
-    expect(actionText, contains('빠르게 걷기'));
-    expect(actionText, contains('40분'));
-    expect(actionText, contains('4.0km'));
-    expect(actionText, contains('RPE 3–3'));
-    expect(actionText, isNot(contains('kg')));
-    expect(actionText, isNot(contains('회')));
-    expect(actionText, isNot(contains('세트')));
+    expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+    expect(recommendationText, contains('빠르게 걷기'));
+    expect(recommendationText, contains('40분'));
+    expect(recommendationText, contains('4.0km'));
+    expect(recommendationText, contains('RPE 3–4'));
+    expect(recommendationText, isNot(contains('kg')));
+    expect(recommendationText, isNot(contains('회')));
+    expect(recommendationText, isNot(contains('세트')));
     await state.flushPersistence();
   });
 

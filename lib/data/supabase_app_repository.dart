@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -125,7 +126,10 @@ class _SupabaseClientAppRemoteGateway implements SupabaseAppRemoteGateway {
 /// A legacy Hive snapshot is imported only after it has been explicitly
 /// claimed for the exact authenticated user id.
 class SupabaseAppRepository
-    implements AppRepository, PendingSaveAwareRepository {
+    implements
+        AppRepository,
+        PendingSaveAwareRepository,
+        DeferredSyncAppRepository {
   factory SupabaseAppRepository(
     SupabaseClient client, {
     AppRepository? migrationSource,
@@ -135,6 +139,7 @@ class SupabaseAppRepository
       _SupabaseClientAppRemoteGateway(client),
       migrationSource: migrationSource,
       outbox: outbox ?? _accountOutboxFrom(migrationSource),
+      cache: _accountCacheFrom(migrationSource),
     );
   }
 
@@ -142,19 +147,28 @@ class SupabaseAppRepository
     this._gateway, {
     this.migrationSource,
     AccountSnapshotOutbox? outbox,
-  }) : _outbox = outbox ?? _accountOutboxFrom(migrationSource);
+    AccountSnapshotCache? cache,
+  }) : _outbox = outbox ?? _accountOutboxFrom(migrationSource),
+       _cache = cache ?? _accountCacheFrom(outbox ?? migrationSource);
 
   final SupabaseAppRemoteGateway _gateway;
   final AppRepository? migrationSource;
   final AccountSnapshotOutbox? _outbox;
+  final AccountSnapshotCache? _cache;
 
   DateTime? _lastServerUpdatedAt;
   DateTime? _pendingExpectedServerUpdatedAt;
+  AppSnapshot? _pendingSnapshot;
   String? _loadedUserId;
   bool _hasPendingSave = false;
+  Object? _lastSyncError;
+  Future<void> _operationTail = Future<void>.value();
 
   @override
   bool get hasPendingSave => _hasPendingSave;
+
+  @override
+  Object? get lastSyncError => _lastSyncError;
 
   @override
   Future<AppSnapshot?> load(List<ExerciseTemplate> exerciseCatalog) async {
@@ -163,32 +177,52 @@ class SupabaseAppRepository
       _loadedUserId = null;
       _lastServerUpdatedAt = null;
       _pendingExpectedServerUpdatedAt = null;
+      _pendingSnapshot = null;
       _hasPendingSave = false;
+      _lastSyncError = null;
       return null;
     }
     if (_loadedUserId != userId) {
       _loadedUserId = userId;
       _lastServerUpdatedAt = null;
       _pendingExpectedServerUpdatedAt = null;
+      _pendingSnapshot = null;
       _hasPendingSave = false;
+      _lastSyncError = null;
     }
 
-    final row = await _gateway.loadSnapshot(userId);
+    final pending = await _outbox?.loadPending(userId, exerciseCatalog);
+    final cached = await _cache?.loadCached(userId, exerciseCatalog);
+    if (pending != null) {
+      _hasPendingSave = true;
+      _pendingSnapshot = pending.snapshot;
+      _pendingExpectedServerUpdatedAt = pending.expectedServerUpdatedAt;
+    }
+
+    SupabaseAppSnapshotRow? row;
+    try {
+      row = await _gateway.loadSnapshot(userId);
+      _lastSyncError = null;
+    } catch (error) {
+      // A network outage must not prevent startup. The pending payload is the
+      // newest local mutation; otherwise use the last server-acknowledged cache.
+      _lastSyncError = error;
+      return pending?.snapshot ?? cached;
+    }
     _lastServerUpdatedAt = row?.updatedAt?.toUtc();
     final serverSnapshot = row == null
         ? null
         : AppSnapshotCodec.fromJson(row.payload, exerciseCatalog);
 
-    final pending = await _outbox?.loadPending(userId, exerciseCatalog);
     if (pending != null) {
-      _hasPendingSave = true;
-      _pendingExpectedServerUpdatedAt = pending.expectedServerUpdatedAt;
       if (serverSnapshot != null &&
           _sameSnapshot(serverSnapshot, pending.snapshot)) {
+        await _cache?.storeCached(userId, serverSnapshot);
         await _outbox?.clearPending(userId);
         _hasPendingSave = false;
+        _pendingSnapshot = null;
         _pendingExpectedServerUpdatedAt = null;
-        await _reconcileNormalizedWorkouts(serverSnapshot, userId);
+        await _tryReconcileNormalizedWorkouts(serverSnapshot, userId);
         return serverSnapshot;
       }
 
@@ -200,18 +234,25 @@ class SupabaseAppRepository
             expectedUpdatedAt: pending.expectedServerUpdatedAt,
             stageFirst: false,
           );
-        } catch (_) {
+          _lastSyncError = null;
+        } catch (error) {
           // Keep showing the newest local mutation and retry via AppState. The
           // durable outbox remains intact until Supabase acknowledges it.
+          _lastSyncError = error;
         }
       }
       return pending.snapshot;
     }
 
     if (serverSnapshot != null) {
-      await _reconcileNormalizedWorkouts(serverSnapshot, userId);
+      await _cache?.storeCached(userId, serverSnapshot);
+      await _tryReconcileNormalizedWorkouts(serverSnapshot, userId);
       return serverSnapshot;
     }
+
+    // A successful empty server response is authoritative. Do not resurrect a
+    // stale cache that may have been deleted from another device.
+    if (cached != null) await _cache?.clearCached(userId);
 
     final source = migrationSource;
     final ClaimedLegacySnapshotSource? claimedSource =
@@ -223,8 +264,20 @@ class SupabaseAppRepository
     if (claimed == null) return null;
     final sanitized = _sanitizeClaimedLegacySnapshot(claimed);
     await save(sanitized);
+    await syncPending();
     await claimedSource.clearClaimed(userId);
     return sanitized;
+  }
+
+  Future<void> _tryReconcileNormalizedWorkouts(
+    AppSnapshot snapshot,
+    String userId,
+  ) async {
+    try {
+      await _reconcileNormalizedWorkouts(snapshot, userId);
+    } catch (error) {
+      _lastSyncError = error;
+    }
   }
 
   Future<void> _reconcileNormalizedWorkouts(
@@ -239,11 +292,14 @@ class SupabaseAppRepository
         : !hasSnapshotWorkouts ||
               (snapshotUpdatedAt != null &&
                   latestWorkoutAt.isBefore(snapshotUpdatedAt));
-    if (needsProjection) await save(snapshot);
+    if (needsProjection) {
+      await save(snapshot);
+      await syncPending();
+    }
   }
 
   @override
-  Future<void> save(AppSnapshot snapshot) async {
+  Future<void> save(AppSnapshot snapshot) => _serialize(() async {
     final currentUserId = _gateway.currentUserId;
     final loadedUserId = _loadedUserId;
 
@@ -262,14 +318,51 @@ class SupabaseAppRepository
       throw StateError('Load the authenticated account before saving it.');
     }
 
-    await _saveForUser(
-      snapshot,
-      currentUserId,
-      expectedUpdatedAt:
-          _pendingExpectedServerUpdatedAt ?? _lastServerUpdatedAt,
-      stageFirst: true,
-    );
-  }
+    if (_outbox == null) {
+      // Tests and non-persistent embedders without a local store retain the
+      // original direct-save behavior because there is no durable defer path.
+      await _saveForUser(
+        snapshot,
+        currentUserId,
+        expectedUpdatedAt:
+            _pendingExpectedServerUpdatedAt ?? _lastServerUpdatedAt,
+        stageFirst: false,
+      );
+      return;
+    }
+
+    await _stageForUser(currentUserId, snapshot);
+    if (_gateway.currentUserId != currentUserId) {
+      throw StateError('Authenticated account changed during local save.');
+    }
+  });
+
+  @override
+  Future<void> syncPending() => _serialize(() async {
+    final snapshot = _pendingSnapshot;
+    final userId = _loadedUserId;
+    if (!_hasPendingSave || snapshot == null || userId == null) return;
+    if (_gateway.currentUserId != userId) {
+      final error = StateError(
+        'Authenticated account changed before snapshot synchronization.',
+      );
+      _lastSyncError = error;
+      throw error;
+    }
+    try {
+      await _saveForUser(
+        snapshot,
+        userId,
+        expectedUpdatedAt:
+            _pendingExpectedServerUpdatedAt ?? _lastServerUpdatedAt,
+        stageFirst: false,
+      );
+      _lastSyncError = null;
+    } catch (error) {
+      _lastSyncError = error;
+      rethrow;
+    }
+  });
 
   Future<void> _stageForUser(String userId, AppSnapshot snapshot) async {
     final outbox = _outbox;
@@ -284,6 +377,7 @@ class SupabaseAppRepository
       ),
     );
     _hasPendingSave = true;
+    _pendingSnapshot = snapshot;
     _pendingExpectedServerUpdatedAt = expected;
   }
 
@@ -305,9 +399,27 @@ class SupabaseAppRepository
       expectedUpdatedAt: expectedUpdatedAt,
     );
     _lastServerUpdatedAt = updatedAt.toUtc();
+    // Advance the optimistic-lock version immediately after server
+    // acknowledgement. If a following Hive operation fails, a retry remains
+    // idempotent instead of reusing the stale pre-write version.
+    _pendingExpectedServerUpdatedAt = _lastServerUpdatedAt;
+    await _cache?.storeCached(userId, snapshot);
     await _outbox?.clearPending(userId);
     _hasPendingSave = false;
+    _pendingSnapshot = null;
     _pendingExpectedServerUpdatedAt = null;
+  }
+
+  Future<T> _serialize<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+    _operationTail = _operationTail.then((_) async {
+      try {
+        completer.complete(await operation());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
   }
 
   List<Map<String, Object?>> _normalizedWorkoutPayload(AppSnapshot snapshot) {
@@ -366,7 +478,7 @@ class SupabaseAppRepository
   }
 
   @override
-  Future<void> clear() async {
+  Future<void> clear() => _serialize(() async {
     final userId = _gateway.currentUserId;
     if (userId == null) return;
     if (_loadedUserId != userId) {
@@ -377,10 +489,13 @@ class SupabaseAppRepository
       expectedUpdatedAt: _lastServerUpdatedAt,
     );
     await _outbox?.clearPending(userId);
+    await _cache?.clearCached(userId);
     _lastServerUpdatedAt = null;
     _pendingExpectedServerUpdatedAt = null;
+    _pendingSnapshot = null;
     _hasPendingSave = false;
-  }
+    _lastSyncError = null;
+  });
 
   bool _sameVersion(DateTime? left, DateTime? right) {
     if (left == null || right == null) return left == null && right == null;
@@ -444,3 +559,6 @@ class SupabaseAppRepository
 
 AccountSnapshotOutbox? _accountOutboxFrom(Object? source) =>
     source is AccountSnapshotOutbox ? source : null;
+
+AccountSnapshotCache? _accountCacheFrom(Object? source) =>
+    source is AccountSnapshotCache ? source : null;

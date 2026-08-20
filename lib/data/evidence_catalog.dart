@@ -54,10 +54,10 @@ final evidenceCatalog = List<EvidenceReference>.unmodifiable([
     officialUrl: Uri.parse('https://doi.org/10.1080/07303084.1993.10606684'),
     appRules: const [
       '완료한 중량과 반복 수에서 Brzycki 방식의 예상 1RM을 계산합니다.',
-      'Epley 추정치와 평균해 한 공식에만 과도하게 의존하지 않습니다.',
+      'Epley·Brzycki 추정치와 그 산술평균을 참고값으로 표시합니다.',
     ],
     limitations:
-        '반복 실패 지점까지 정확히 수행했다는 가정이 필요합니다. 단일 계산식은 개인의 훈련 수준, 운동 종목과 피로 상태에 따른 오차를 제거하지 못합니다.',
+        '반복 실패 지점까지 정확히 수행했다는 가정이 필요합니다. Epley·Brzycki 산술평균이 더 정확하다는 직접 검증 근거는 없으며, 훈련 수준·운동 종목·피로에 따라 오차가 생깁니다.',
   ),
   EvidenceReference(
     id: 'lesuer_1997_e1rm',
@@ -169,7 +169,7 @@ final evidenceCatalog = List<EvidenceReference>.unmodifiable([
       'e1RM은 직접 측정한 1RM과 구분해 예상값으로 표시합니다.',
     ],
     limitations:
-        '남성 30명의 체스트 프레스와 레그 프레스 결과를 중심으로 한 연구입니다. 다른 운동, 성별, 연령과 높은 반복 구간에 동일한 정확도를 보장하지 않습니다.',
+        '18–69세 성인 70명(남성 34명·여성 36명)의 체스트 프레스와 레그 프레스 결과입니다. 다른 운동과 높은 반복 구간에 동일한 정확도를 보장하지 않습니다.',
   ),
   EvidenceReference(
     id: 'schoenfeld_2017_weekly_volume',

@@ -64,6 +64,7 @@ class AppState extends ChangeNotifier {
   int _scheduleRequestSequence = 0;
   int _memberFeedbackRequestSequence = 0;
   int _memberDetailGeneration = 0;
+  int _workoutExerciseSequence = 0;
   final Map<String, Future<dynamic>> _businessMutations = {};
   final Map<String, Future<BusinessMemberDetail>> _memberDetailLoads = {};
   final Map<String, BusinessMemberDetail> _businessMemberDetails = {};
@@ -88,6 +89,7 @@ class AppState extends ChangeNotifier {
 
   bool get isInitialized => _initialized;
   Object? persistenceError;
+  Object? persistenceSyncError;
   Object? cloudSyncError;
 
   UserRole role = UserRole.guest;
@@ -297,6 +299,7 @@ class AppState extends ChangeNotifier {
       }
       _initialized = true;
       persistenceError = null;
+      persistenceSyncError = _repositorySyncError;
       if (snapshot == null || _repositoryHasPendingSave) {
         _schedulePersist();
       }
@@ -397,6 +400,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> logout() async {
     final persistenceFlush = flushPersistence();
+    final syncRepository = _repository is DeferredSyncAppRepository
+        ? _repository as DeferredSyncAppRepository
+        : null;
     _accountFlushInFlight = persistenceFlush;
     final accountEpoch = ++_accountEpoch;
     _businessRequestSequence++;
@@ -418,6 +424,13 @@ class AppState extends ChangeNotifier {
         await persistenceFlush;
       } catch (error) {
         if (_isCurrentAccount(accountEpoch)) persistenceError = error;
+      }
+      if (syncRepository != null) {
+        try {
+          await syncRepository.syncPending();
+        } catch (_) {
+          // The account-scoped local outbox remains available after sign-out.
+        }
       }
       await _authSignOut();
     })();
@@ -513,6 +526,7 @@ class AppState extends ChangeNotifier {
         memberNickname = SupabaseAuthService.instance.currentDisplayName;
       }
       persistenceError = null;
+      persistenceSyncError = _repositorySyncError;
       cloudPhase = true;
       await _refreshCloudData(expectedAccountEpoch: accountEpoch);
       if (!_isCurrentAccount(accountEpoch)) return;
@@ -624,6 +638,12 @@ class AppState extends ChangeNotifier {
 
   DateTime dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
+  String _newWorkoutExerciseId(String templateId, {String label = 'entry'}) {
+    _workoutExerciseSequence++;
+    return '${templateId}_${label}_${DateTime.now().microsecondsSinceEpoch}_'
+        '$_workoutExerciseSequence';
+  }
+
   WorkoutSession sessionFor(DateTime date) {
     final key = dateOnly(date);
     return sessions.putIfAbsent(
@@ -688,21 +708,27 @@ class AppState extends ChangeNotifier {
     return featured;
   }
 
-  WorkoutRecommendation? recommendationFor(ExerciseTemplate template) {
+  WorkoutRecommendation? recommendationFor(
+    ExerciseTemplate template, {
+    DateTime? before,
+  }) {
     final goal = PerformanceEngine.goalFromProfile(goals);
     if (goal == null) return null;
+    final history = before == null
+        ? sessions.values
+        : sessions.values.where((session) => session.date.isBefore(before));
     if (template.isCardio) {
       final prescription = CardioPrescriptionEngine.recommend(
         exerciseId: template.id,
         goal: goal,
-        history: _cardioHistory(),
+        history: _cardioHistory(before: before),
       );
       return prescription == null
           ? null
           : _cardioWorkoutRecommendation(template, prescription);
     }
     return PerformanceEngine.recommend(
-      sessions: sessions.values,
+      sessions: history,
       template: template,
       goal: goal,
     );
@@ -758,6 +784,26 @@ class AppState extends ChangeNotifier {
     return recommendationFor(featured.template);
   }
 
+  NextExerciseRecommendation? firstExerciseRecommendationForDate(
+    DateTime date, {
+    Set<String> excludedTemplateIds = const {},
+  }) {
+    if (!hasTrainingGoal) return null;
+    final day = dateOnly(date);
+    final session = sessions[day] ?? WorkoutSession(date: day, exercises: []);
+    if (session.exercises.isNotEmpty) return null;
+    final eligibleHistory = sessions.values
+        .where((item) => !item.date.isAfter(day))
+        .toList(growable: false);
+    return ExerciseRecommendationEngine.recommendFirst(
+      catalog: exercises,
+      session: session,
+      goals: goals,
+      weeklyHistory: eligibleHistory,
+      excludedTemplateIds: excludedTemplateIds,
+    );
+  }
+
   WorkoutRecommendation? get featuredRecommendation {
     return recommendationForDate(DateTime.now());
   }
@@ -803,10 +849,7 @@ class AppState extends ChangeNotifier {
     final historical = recommendationFor(exercise.template);
     final pending = exercise.sets.where((set) => !set.completed).toList();
     final first = pending.firstOrNull;
-    final weight =
-        first?.weight ??
-        historical?.weight ??
-        ExerciseRecommendationEngine.startingWeightFor(exercise.template);
+    final weight = first?.weight ?? historical?.weight ?? 0;
     final validReps = pending
         .map((set) => set.reps)
         .where((reps) => reps > 0)
@@ -892,8 +935,9 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  Iterable<CardioSessionRecord> _cardioHistory() sync* {
+  Iterable<CardioSessionRecord> _cardioHistory({DateTime? before}) sync* {
     for (final session in sessions.values) {
+      if (before != null && !session.date.isBefore(before)) continue;
       for (final exercise in session.exercises) {
         if (!exercise.template.isCardio ||
             cardioDefinitionForExercise(exercise.template.id) == null) {
@@ -1005,19 +1049,31 @@ class AppState extends ChangeNotifier {
 
   void addExercise(DateTime date, ExerciseTemplate template) {
     final session = sessionFor(date);
-    if (session.exercises.any((item) => item.template.id == template.id)) {
-      return;
-    }
     final cardioRecommendation = template.isCardio
-        ? recommendationFor(template)
+        ? recommendationFor(template, before: dateOnly(date))
         : null;
     final goal = PerformanceEngine.goalFromProfile(goals);
     final resistancePrescription = !template.isCardio && goal != null
         ? PerformanceEngine.prescriptionFor(goal)
         : null;
+    final resistanceRecommendation = !template.isCardio
+        ? recommendationFor(template, before: dateOnly(date))
+        : null;
+    final previousPerformance = !template.isCardio
+        ? performanceFor(template, before: dateOnly(date))
+        : null;
+    final suggestedWeight =
+        resistanceRecommendation?.weight ??
+        previousPerformance?.latestSessionBest.set.weight ??
+        0;
+    final suggestedReps =
+        resistanceRecommendation?.minReps ??
+        previousPerformance?.latestSessionBest.set.reps ??
+        resistancePrescription?.minReps ??
+        10;
     session.exercises.add(
       WorkoutExercise(
-        id: '${template.id}_${DateTime.now().microsecondsSinceEpoch}',
+        id: _newWorkoutExerciseId(template.id),
         template: template,
         sets: template.isCardio
             ? [
@@ -1034,15 +1090,17 @@ class AppState extends ChangeNotifier {
                 ),
               ]
             : List.generate(
-                resistancePrescription?.sets ?? 3,
+                resistanceRecommendation?.sets ??
+                    resistancePrescription?.sets ??
+                    3,
                 (index) => WorkoutSetEntry(
                   number: index + 1,
-                  // Without a completed record there is no defensible load
-                  // estimate. Let the user enter a comfortable first load.
-                  weight: 0,
-                  reps: resistancePrescription?.minReps ?? 10,
+                  weight: suggestedWeight,
+                  reps: suggestedReps,
                   restSeconds:
-                      resistancePrescription?.restSeconds ?? restDefaultSeconds,
+                      resistanceRecommendation?.restSeconds ??
+                      resistancePrescription?.restSeconds ??
+                      restDefaultSeconds,
                 ),
               ),
       ),
@@ -1197,7 +1255,7 @@ class AppState extends ChangeNotifier {
           : null;
       session.exercises.add(
         WorkoutExercise(
-          id: '${template.id}_${DateTime.now().microsecondsSinceEpoch}',
+          id: _newWorkoutExerciseId(template.id, label: 'routine'),
           template: template,
           sets: plannedSets.isNotEmpty
               ? plannedSets.map((set) => set.toWorkoutSetEntry()).toList()
@@ -1244,9 +1302,10 @@ class AppState extends ChangeNotifier {
         .firstOrNull;
     if (exercise == null) {
       exercise = WorkoutExercise(
-        id:
-            '${recommendation.template.id}_'
-            '${DateTime.now().microsecondsSinceEpoch}',
+        id: _newWorkoutExerciseId(
+          recommendation.template.id,
+          label: 'recommendation',
+        ),
         template: recommendation.template,
         sets: [],
       );
@@ -1309,14 +1368,18 @@ class AppState extends ChangeNotifier {
     )) {
       return false;
     }
-    final historyRecommendation = recommendationFor(recommendation.template);
+    final historyRecommendation = recommendationFor(
+      recommendation.template,
+      before: dateOnly(date),
+    );
     if (recommendation.template.isCardio) {
       final cardio = historyRecommendation;
       session.exercises.add(
         WorkoutExercise(
-          id:
-              '${recommendation.template.id}_recommended_'
-              '${DateTime.now().microsecondsSinceEpoch}',
+          id: _newWorkoutExerciseId(
+            recommendation.template.id,
+            label: 'recommended',
+          ),
           template: recommendation.template,
           sets: [
             WorkoutSetEntry(
@@ -1340,9 +1403,10 @@ class AppState extends ChangeNotifier {
     final reps = historyRecommendation?.minReps ?? recommendation.minReps;
     session.exercises.add(
       WorkoutExercise(
-        id:
-            '${recommendation.template.id}_recommended_'
-            '${DateTime.now().microsecondsSinceEpoch}',
+        id: _newWorkoutExerciseId(
+          recommendation.template.id,
+          label: 'recommended',
+        ),
         template: recommendation.template,
         sets: List.generate(
           recommendation.sets,
@@ -4539,6 +4603,32 @@ class AppState extends ChangeNotifier {
     _schedulePersistTimer();
   }
 
+  bool get hasPendingPersistenceSync =>
+      _repository is DeferredSyncAppRepository &&
+      (_repository as DeferredSyncAppRepository).hasPendingSave;
+
+  Object? get _repositorySyncError => _repository is DeferredSyncAppRepository
+      ? (_repository as DeferredSyncAppRepository).lastSyncError
+      : null;
+
+  /// Flushes the newest snapshot to device storage, then asks the deferred
+  /// repository to synchronize its durable outbox with Supabase.
+  Future<void> syncPersistenceToServer() async {
+    await flushPersistence();
+    final repository = _repository;
+    if (repository is! DeferredSyncAppRepository) return;
+    final syncRepository = repository as DeferredSyncAppRepository;
+    try {
+      await syncRepository.syncPending();
+      persistenceSyncError = null;
+    } catch (error) {
+      persistenceSyncError = error;
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
   bool get _repositoryHasPendingSave =>
       _repository is PendingSaveAwareRepository &&
       (_repository as PendingSaveAwareRepository).hasPendingSave;
@@ -4557,9 +4647,8 @@ class AppState extends ChangeNotifier {
   }
 
   /// Persists every snapshot already queued at the time this future settles.
-  /// Saves are serialized so an older network response cannot overwrite a
-  /// newer local mutation. SupabaseAppRepository stages each item to its
-  /// account-scoped Hive outbox before making the network request.
+  /// Saves are serialized and, for Supabase accounts, complete after the
+  /// account-scoped Hive cache/outbox is durable. Network sync is independent.
   Future<void> flushPersistence() {
     _persistTimer?.cancel();
     _persistTimer = null;
@@ -4752,6 +4841,7 @@ class AppState extends ChangeNotifier {
     _verifiedAdmin = false;
     hasPaidPlan = false;
     cloudSyncError = null;
+    persistenceSyncError = null;
     role = UserRole.guest;
     isDarkMode = false;
     weightUnit = 'kg';
