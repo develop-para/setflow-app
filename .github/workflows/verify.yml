@@ -52,3 +52,9 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      # The app also ships as a web bundle on Vercel. Dart that compiles for
+      # mobile can still fail here (dart:io, platform channels), and Vercel
+      # would be the first to find out — which is too late.
+      - name: Build web
+        run: flutter build web --release
