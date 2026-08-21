@@ -129,7 +129,8 @@ class SupabaseAppRepository
     implements
         AppRepository,
         PendingSaveAwareRepository,
-        DeferredSyncAppRepository {
+        DeferredSyncAppRepository,
+        GuestDataAdoption {
   factory SupabaseAppRepository(
     SupabaseClient client, {
     AppRepository? migrationSource,
@@ -170,6 +171,22 @@ class SupabaseAppRepository
   @override
   Object? get lastSyncError => _lastSyncError;
 
+  ClaimedLegacySnapshotSource? get _claimedSource {
+    final source = migrationSource;
+    return source is ClaimedLegacySnapshotSource
+        ? source as ClaimedLegacySnapshotSource
+        : null;
+  }
+
+  @override
+  Future<AppSnapshot?> peekGuestSnapshot(
+    List<ExerciseTemplate> exerciseCatalog,
+  ) async => _claimedSource?.loadUnclaimed(exerciseCatalog);
+
+  @override
+  Future<bool> adoptGuestSnapshot(String userId) async =>
+      await _claimedSource?.claimFor(userId) ?? false;
+
   @override
   Future<AppSnapshot?> load(List<ExerciseTemplate> exerciseCatalog) async {
     final userId = _gateway.currentUserId;
@@ -180,7 +197,9 @@ class SupabaseAppRepository
       _pendingSnapshot = null;
       _hasPendingSave = false;
       _lastSyncError = null;
-      return null;
+      // The guest gets their own device-local records back. Returning null
+      // here made every workout logged before signing up vanish on restart.
+      return _claimedSource?.loadUnclaimed(exerciseCatalog);
     }
     if (_loadedUserId != userId) {
       _loadedUserId = userId;
@@ -254,11 +273,7 @@ class SupabaseAppRepository
     // stale cache that may have been deleted from another device.
     if (cached != null) await _cache?.clearCached(userId);
 
-    final source = migrationSource;
-    final ClaimedLegacySnapshotSource? claimedSource =
-        source is ClaimedLegacySnapshotSource
-        ? source as ClaimedLegacySnapshotSource
-        : null;
+    final claimedSource = _claimedSource;
     if (claimedSource == null) return null;
     final claimed = await claimedSource.loadClaimed(userId, exerciseCatalog);
     if (claimed == null) return null;
@@ -306,9 +321,16 @@ class SupabaseAppRepository
     if (currentUserId == null) {
       if (loadedUserId != null) {
         await _stageForUser(loadedUserId, snapshot);
+        // Signing out leaves the previous account's data staged under its own
+        // uid. Writing it to the unclaimed slot as well would hand it to the
+        // next guest, so stop here.
+        return;
       }
-      // Guest/demo state has no ownership provenance, so it is intentionally
-      // not retained for the next account that signs in.
+      // A guest's records live on the device with no owner. They are still not
+      // attributed to whoever signs in next -- that needs an explicit claim --
+      // but "no provenance" was never a reason to throw the work away, which
+      // is what returning here without writing used to do.
+      await _claimedSource?.saveUnclaimed(snapshot);
       return;
     }
     if (loadedUserId != currentUserId) {

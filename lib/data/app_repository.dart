@@ -111,6 +111,39 @@ abstract interface class ClaimedLegacySnapshotSource {
   );
 
   Future<void> clearClaimed(String userId);
+
+  /// The device-local snapshot that belongs to nobody yet — what a guest has
+  /// been recording.
+  ///
+  /// Owner-checked rather than a plain [AppRepository.load]: a snapshot already
+  /// claimed by an account must not reappear to the next guest on the device.
+  Future<AppSnapshot?> loadUnclaimed(List<ExerciseTemplate> exerciseCatalog);
+
+  /// Writes the guest's snapshot without attributing it to anyone.
+  Future<void> saveUnclaimed(AppSnapshot snapshot);
+
+  /// Attributes the unclaimed snapshot to [userId]. False when there is
+  /// nothing to claim or it already belongs to someone else.
+  Future<bool> claimFor(String userId);
+}
+
+/// Repository capability for moving a guest's device-local records into the
+/// account that just signed in.
+///
+/// The app is usable without an account, so by the time someone signs up they
+/// may already have weeks of workouts on the device. Those records have no
+/// provenance — being the first account to sign in on a shared phone is not
+/// evidence of ownership — so adopting them is an explicit, asked-for step
+/// rather than something that quietly happens.
+abstract interface class GuestDataAdoption {
+  /// The guest snapshot, for deciding whether it is worth asking about.
+  Future<AppSnapshot?> peekGuestSnapshot(
+    List<ExerciseTemplate> exerciseCatalog,
+  );
+
+  /// Hands the guest snapshot to [userId]; the next [AppRepository.load] for
+  /// that account imports it.
+  Future<bool> adoptGuestSnapshot(String userId);
 }
 
 /// Optional signal that lets AppState retry a durable outbox after loading.

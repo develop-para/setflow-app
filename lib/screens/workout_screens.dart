@@ -11,6 +11,22 @@ import 'evidence_library_screen.dart';
 import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
 
+/// Commits a number field the moment it stops being edited.
+///
+/// The set rows used to save only on `onSubmitted` and `onTapOutside`, which
+/// covers a deliberate finish but not the ways editing actually ends mid-lift:
+/// the screen locks, the keyboard is dismissed with the system back gesture,
+/// the route is popped. In those cases the number stayed in the controller,
+/// looked entered, and was never written — you find out a week later that the
+/// set says 40kg.
+///
+/// Attach from `initState`, never from `build`, or the listeners stack up.
+void commitOnBlur(FocusNode node, VoidCallback commit) {
+  node.addListener(() {
+    if (!node.hasFocus) commit();
+  });
+}
+
 class DailyWorkoutScreen extends StatefulWidget {
   const DailyWorkoutScreen({required this.date, super.key});
   final DateTime date;
@@ -1149,6 +1165,9 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
     durationController = TextEditingController(text: _durationText());
     distanceController = TextEditingController(text: _distanceText());
     rpeController = TextEditingController(text: _rpeText());
+    commitOnBlur(durationFocus, _commitDuration);
+    commitOnBlur(distanceFocus, _commitDistance);
+    commitOnBlur(rpeFocus, _commitRpe);
   }
 
   @override
@@ -1551,6 +1570,9 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     weightController = TextEditingController(text: _weightText());
     repsController = TextEditingController(text: '${widget.set.reps}');
     restController = TextEditingController(text: '${widget.set.restSeconds}');
+    commitOnBlur(weightFocus, _commitWeight);
+    commitOnBlur(repsFocus, _commitReps);
+    commitOnBlur(restFocus, _commitRest);
   }
 
   @override

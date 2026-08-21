@@ -543,6 +543,133 @@ void main() {
       if (await directory.exists()) await directory.delete(recursive: true);
     }
   });
+
+  group('a guest owns their records until they say otherwise', () {
+    Future<T> withHive<T>(
+      Future<T> Function(HiveAppRepository hive) body,
+    ) async {
+      final directory = await Directory.systemTemp.createTemp('setflow_guest_');
+      HiveAppRepository? hive;
+      try {
+        hive = await HiveAppRepository.openAtPath(
+          directory.path,
+          boxName: 'guest_data_test',
+        );
+        return await body(hive);
+      } finally {
+        await hive?.close();
+        if (await directory.exists()) await directory.delete(recursive: true);
+      }
+    }
+
+    test('a workout logged while signed out survives a restart', () async {
+      // The app is usable without an account, so this is the common case for a
+      // new user -- and it used to be discarded on every relaunch.
+      await withHive((hive) async {
+        final gateway = _FakeSupabaseGateway();
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          migrationSource: hive,
+        );
+        await repository.load(const []);
+        await repository.save(_snapshot(goals: const ['게스트가 기록한 것']));
+
+        final restarted = SupabaseAppRepository.withGateway(
+          gateway,
+          migrationSource: hive,
+        );
+        expect((await restarted.load(const []))?.goals, ['게스트가 기록한 것']);
+      });
+    });
+
+    test('signing in does not silently absorb them', () async {
+      // Being the first account to sign in on a shared phone is not evidence
+      // of ownership, so the import waits for an explicit claim.
+      await withHive((hive) async {
+        final gateway = _FakeSupabaseGateway();
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          migrationSource: hive,
+        );
+        await repository.load(const []);
+        await repository.save(_snapshot(goals: const ['게스트가 기록한 것']));
+
+        gateway.currentUserId = 'account-a';
+        expect(await repository.load(const []), isNull);
+        expect(gateway.rows, isEmpty);
+      });
+    });
+
+    test('adopting them imports and uploads exactly once', () async {
+      await withHive((hive) async {
+        final gateway = _FakeSupabaseGateway();
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          migrationSource: hive,
+        );
+        await repository.load(const []);
+        await repository.save(_snapshot(goals: const ['게스트가 기록한 것']));
+
+        gateway.currentUserId = 'account-a';
+        expect(await repository.adoptGuestSnapshot('account-a'), isTrue);
+        expect((await repository.load(const []))?.goals, ['게스트가 기록한 것']);
+        expect(gateway.rows, contains('account-a'));
+
+        // Claimed data belongs to that account now; the next guest on this
+        // device must not inherit someone else's training log.
+        gateway.currentUserId = null;
+        expect(await repository.load(const []), isNull);
+      });
+    });
+
+    test(
+      'peeking is what the prompt decides on, and it does not claim',
+      () async {
+        await withHive((hive) async {
+          final gateway = _FakeSupabaseGateway();
+          final repository = SupabaseAppRepository.withGateway(
+            gateway,
+            migrationSource: hive,
+          );
+          await repository.load(const []);
+          await repository.save(_snapshot(goals: const ['게스트가 기록한 것']));
+
+          expect((await repository.peekGuestSnapshot(const []))?.goals, [
+            '게스트가 기록한 것',
+          ]);
+          // Declining must leave the records exactly where they were.
+          gateway.currentUserId = 'account-a';
+          expect(await repository.load(const []), isNull);
+          gateway.currentUserId = null;
+          expect((await repository.load(const []))?.goals, ['게스트가 기록한 것']);
+        });
+      },
+    );
+
+    test(
+      'signing out does not hand that account data to the next guest',
+      () async {
+        await withHive((hive) async {
+          final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+          final repository = SupabaseAppRepository.withGateway(
+            gateway,
+            migrationSource: hive,
+          );
+          await repository.load(const []);
+          await repository.save(_snapshot(goals: const ['계정 A의 기록']));
+
+          gateway.currentUserId = null;
+          await repository.save(_snapshot(goals: const ['계정 A의 기록']));
+
+          final restarted = SupabaseAppRepository.withGateway(
+            _FakeSupabaseGateway(),
+            migrationSource: hive,
+          );
+          expect(await restarted.load(const []), isNull);
+        });
+      },
+    );
+  });
 }
 
 AppSnapshot _snapshot({
@@ -800,6 +927,21 @@ class _ClaimedLegacySource
     String userId,
     List<ExerciseTemplate> exerciseCatalog,
   ) async => claimedUserId == userId ? snapshot : null;
+
+  @override
+  Future<AppSnapshot?> loadUnclaimed(
+    List<ExerciseTemplate> exerciseCatalog,
+  ) async => claimedUserId == null ? snapshot : null;
+
+  @override
+  Future<void> saveUnclaimed(AppSnapshot snapshot) async {}
+
+  @override
+  Future<bool> claimFor(String userId) async {
+    if (claimedUserId != null && claimedUserId != userId) return false;
+    claimedUserId = userId;
+    return true;
+  }
 
   @override
   Future<void> save(AppSnapshot snapshot) async {}

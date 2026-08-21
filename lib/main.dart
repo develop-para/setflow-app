@@ -23,6 +23,7 @@ import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
 import 'widgets/common.dart';
+import 'widgets/guest_data_prompt.dart';
 import 'widgets/portal.dart';
 
 Future<void> main() async {
@@ -97,6 +98,10 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   /// repeat (initial link plus the session restore that follows it).
   bool _passwordRecoveryOpen = false;
 
+  /// Asked at most once per run. Declining leaves the records on the device,
+  /// so re-asking on every session restore would only be nagging.
+  bool _guestDataOffered = false;
+
   @override
   void initState() {
     super.initState();
@@ -145,8 +150,50 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         userId != null &&
         userId != _observedAuthUserId) {
       _observedAuthUserId = userId;
-      unawaited(state.syncAfterAuthentication().catchError((_) {}));
+      unawaited(_adoptGuestDataThenSync(userId));
     }
+  }
+
+  /// The claim has to settle *before* the account loads, because the import
+  /// happens inside that load. Syncing first would show an empty account and
+  /// then change under the user.
+  Future<void> _adoptGuestDataThenSync(String userId) async {
+    try {
+      await _maybeAdoptGuestData(userId);
+    } catch (_) {
+      // Never block sign-in on the offer; the records stay on the device.
+    }
+    try {
+      await state.syncAfterAuthentication();
+    } catch (_) {
+      // AppState surfaces the failure through persistenceError.
+    }
+  }
+
+  Future<void> _maybeAdoptGuestData(String userId) async {
+    if (_guestDataOffered) return;
+    final source = widget.repository;
+    if (source is! GuestDataAdoption) return;
+    final repository = source as GuestDataAdoption;
+
+    final guest = await repository.peekGuestSnapshot(state.exercises);
+    if (guest == null) return;
+    // Settings-only leftovers are not worth a question. Only actual work is.
+    final workoutDays = guest.sessions.length;
+    final routineCount = guest.routines.length;
+    if (workoutDays == 0 && routineCount == 0) return;
+
+    _guestDataOffered = true;
+    final navigator = _navigatorKey.currentState;
+    final context = navigator?.context;
+    if (navigator == null || context == null || !context.mounted) return;
+
+    final adopt = await askToAdoptGuestData(
+      context,
+      workoutDays: workoutDays,
+      routineCount: routineCount,
+    );
+    if (adopt) await repository.adoptGuestSnapshot(userId);
   }
 
   /// A reset link puts the user in a session that can do exactly one useful

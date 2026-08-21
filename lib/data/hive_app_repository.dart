@@ -59,6 +59,27 @@ class HiveAppRepository
   }
 
   @override
+  Future<bool> claimFor(String userId) => claimLegacySnapshotForUser(userId);
+
+  bool get _isUnclaimed => (_box.get(_snapshotOwnerKey)?.trim() ?? '').isEmpty;
+
+  @override
+  Future<AppSnapshot?> loadUnclaimed(
+    List<ExerciseTemplate> exerciseCatalog,
+  ) async {
+    // Owner-checked: once an account has claimed this snapshot it is that
+    // account's data, and the next guest on the device must not see it.
+    if (!_isUnclaimed) return null;
+    return load(exerciseCatalog);
+  }
+
+  @override
+  Future<void> saveUnclaimed(AppSnapshot snapshot) async {
+    if (!_isUnclaimed) return;
+    await save(snapshot);
+  }
+
+  @override
   Future<AppSnapshot?> load(List<ExerciseTemplate> exerciseCatalog) async {
     final source = _box.get(_snapshotKey);
     if (source == null || source.isEmpty) return null;

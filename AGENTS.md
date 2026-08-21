@@ -88,7 +88,16 @@ if (!context.mounted) return;
 비밀번호는 `AuthPasswordPolicy` 한 곳에서만 검증한다(화면마다 `length < 8`을 새로 쓰지 말 것).
 재설정·재전송·변경 플로우와 대시보드 설정: `docs/auth.md`
 
-## 5. 디자인 — 모노크롬, 로고 없음
+**게스트가 기록한 것은 기기에 남는다.** 로그인 안 한 상태의 저장을 건너뛰지 말 것 —
+`saveUnclaimed`/`loadUnclaimed`로 소유자 없이 보관하고, 계정에 넣는 건 사용자가 "가져오기"를
+누를 때만(`adoptGuestSnapshot`). 먼저 로그인했다는 사실은 소유의 증거가 아니다.
+
+## 5. 입력은 포커스를 잃을 때 저장한다
+
+숫자 입력 필드를 만들면 `onSubmitted`만으로 끝내지 말 것. 운동 중에는 화면 잠김·시스템 백·
+라우트 pop으로 편집이 끝난다. `commitOnBlur(focusNode, commit)`을 **`initState`에서** 붙인다.
+
+## 6. 디자인 — 모노크롬, 로고 없음
 
 - 색은 **화이트 / 블랙 / 그레이만**. 새 색상 상수를 만들지 말고 `SetflowColors` · `SetflowNeutral`
   에서 고른다. 의미는 색이 아니라 **농도**로 표현한다(어두울수록 강한 신호).
@@ -99,7 +108,7 @@ if (!context.mounted) return;
 - 아이콘은 `SetflowIcons`에서 고른다. `Icons.*`를 직접 쓰지 말고, 없으면 `theme/icons.dart`에
   개념을 추가한다(한 패밀리: Material rounded, 아웃라인=평소 / 채움=선택).
 
-## 6. 테스트
+## 7. 테스트
 
 - 화면·흐름을 바꾸면 해당 위젯 테스트도 같이 고친다. 테스트를 지우거나 `skip` 하지 말 것.
 - 무한 반복 애니메이션이 떠 있으면 `pumpAndSettle()`이 영원히 안 끝난다. 명시적 `pump(duration)`을 쓸 것.
