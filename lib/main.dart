@@ -194,45 +194,53 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
           darkTheme: SetflowTheme.dark,
           themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           scrollBehavior: const SetflowScrollBehavior(),
-          builder: (context, child) => Stack(
-            children: [
-              child ?? const SizedBox.shrink(),
-              if (state.pendingBusinessInviteToken != null)
-                Positioned(
-                  left: SetflowSpacing.md,
-                  right: SetflowSpacing.md,
-                  top: SetflowSpacing.sm,
-                  child: SafeArea(
-                    bottom: false,
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 400),
-                        child: _BusinessInviteBanner(state: state),
+          // The frame lives HERE, not inside the home screen. `builder` wraps
+          // the Navigator, so every pushed route (routine editor, settings,
+          // detail screens) gets the same column. Framing `home:` instead only
+          // narrows the shell -- pushed routes render above it and would
+          // stretch to the full browser width, which is the width jump this
+          // fixes.
+          builder: (context, child) => _AppFrame(
+            child: Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                if (state.pendingBusinessInviteToken != null)
+                  Positioned(
+                    left: SetflowSpacing.md,
+                    right: SetflowSpacing.md,
+                    top: SetflowSpacing.sm,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 400),
+                          child: _BusinessInviteBanner(state: state),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              if (state.restRemaining > 0)
-                Positioned(
-                  left: SetflowSpacing.lg,
-                  right: SetflowSpacing.lg,
-                  bottom: 84,
-                  child: SafeArea(
-                    top: false,
-                    child: GlobalRestTimerOverlay(
-                      seconds: state.restRemaining,
-                      totalSeconds: state.restDefaultSeconds,
-                      onAddTime: () =>
-                          state.startRestTimer(state.restRemaining + 30),
-                      onCancel: state.cancelRestTimer,
+                if (state.restRemaining > 0)
+                  Positioned(
+                    left: SetflowSpacing.lg,
+                    right: SetflowSpacing.lg,
+                    bottom: 84,
+                    child: SafeArea(
+                      top: false,
+                      child: GlobalRestTimerOverlay(
+                        seconds: state.restRemaining,
+                        totalSeconds: state.restDefaultSeconds,
+                        onAddTime: () =>
+                            state.startRestTimer(state.restRemaining + 30),
+                        onCancel: state.cancelRestTimer,
+                      ),
                     ),
                   ),
-                ),
-              // Last child: the portal hold must cover the shell, the nav bar
-              // and any pushed route while the swap happens underneath.
-              if (state.isPortalSwitching)
-                const Positioned.fill(child: PortalTransitionOverlay()),
-            ],
+                // Last child: the portal hold must cover the shell, the nav bar
+                // and any pushed route while the swap happens underneath.
+                if (state.isPortalSwitching)
+                  const Positioned.fill(child: PortalTransitionOverlay()),
+              ],
+            ),
           ),
           home: const RootScreen(),
         ),
@@ -367,29 +375,52 @@ class _RootScreenState extends State<RootScreen> {
       UserRole.admin => const BusinessShell(role: UserRole.admin),
     };
 
+    // No width constraint here on purpose -- _AppFrame in the MaterialApp
+    // builder already framed this route and every route pushed on top of it.
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: _showSplash || !state.isInitialized
+          ? SplashScreen(
+              key: const ValueKey('splash'),
+              onFinished: () => setState(() => _showSplash = false),
+            )
+          : KeyedSubtree(key: ValueKey(shellRole), child: page),
+    );
+  }
+}
+
+/// Holds the app to a phone-shaped column on wide screens.
+///
+/// Setflow is a phone app that also ships as a web bundle. Left to fill a
+/// desktop browser, a 1440px-wide list of exercise sets is unreadable. The
+/// column is applied once, above the Navigator, so the home shell and a pushed
+/// routine editor are exactly the same width -- they used to differ, because
+/// only the shell was framed.
+class _AppFrame extends StatelessWidget {
+  const _AppFrame({required this.child});
+
+  static const maxWidth = 432.0;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return ColoredBox(
-      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      color: theme.colorScheme.surfaceContainerLowest,
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 432),
+          constraints: const BoxConstraints(maxWidth: maxWidth),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
+              color: theme.scaffoldBackgroundColor,
               boxShadow: const [
                 BoxShadow(color: Color(0x18000000), blurRadius: 32),
               ],
             ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              child: _showSplash || !state.isInitialized
-                  ? SplashScreen(
-                      key: const ValueKey('splash'),
-                      onFinished: () => setState(() => _showSplash = false),
-                    )
-                  : KeyedSubtree(key: ValueKey(shellRole), child: page),
-            ),
+            child: child,
           ),
         ),
       ),
