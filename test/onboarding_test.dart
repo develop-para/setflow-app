@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/screens/welcome_screen.dart';
+import 'package:setflow/services/auth_service.dart';
 import 'package:setflow/theme.dart';
 
 void main() {
@@ -20,12 +21,18 @@ void main() {
     return state;
   }
 
-  testWidgets('welcome screen offers email and social sign-in', (tester) async {
+  testWidgets('welcome screen offers email sign-in and hides dead providers', (
+    tester,
+  ) async {
     final state = await pumpScreen(tester, const WelcomeScreen());
 
-    expect(find.text('카카오 로그인 · 연동 준비'), findsOneWidget);
-    expect(find.text('Google 로그인 · 연동 준비'), findsOneWidget);
-    expect(find.text('네이버 로그인 · 연동 준비'), findsOneWidget);
+    // No provider is configured here, so neither the buttons nor the divider
+    // that introduces them should be on screen. A button that cannot work is
+    // worse than no button.
+    expect(find.text('SNS 계정으로 계속'), findsNothing);
+    expect(find.byKey(const ValueKey('social-kakao')), findsNothing);
+    expect(find.byKey(const ValueKey('social-google')), findsNothing);
+    expect(find.byKey(const ValueKey('social-naver')), findsNothing);
 
     await tester.tap(find.byKey(const Key('welcome-email-sign-in')));
     await tester.pumpAndSettle();
@@ -40,6 +47,23 @@ void main() {
     expect(find.text('회원가입'), findsOneWidget);
     expect(find.text('가입하면 기록이 계정에 백업돼요.'), findsOneWidget);
     expect(find.text('이미 계정이 있나요? 로그인'), findsOneWidget);
+
+    state.dispose();
+  });
+
+  testWidgets('a configured provider brings its button back', (tester) async {
+    // Hiding must be driven by configuration, not hard-coded — otherwise
+    // enabling Kakao later would silently change nothing.
+    addTearDown(Auth.reset);
+    Auth.use(_KakaoOnlyAuthService());
+
+    final state = await pumpScreen(tester, const WelcomeScreen());
+
+    expect(find.byKey(const ValueKey('social-kakao')), findsOneWidget);
+    expect(find.text('SNS 계정으로 계속'), findsOneWidget);
+    // The two that are still off stay off.
+    expect(find.byKey(const ValueKey('social-google')), findsNothing);
+    expect(find.byKey(const ValueKey('social-naver')), findsNothing);
 
     state.dispose();
   });
@@ -81,4 +105,39 @@ void main() {
 
     state.dispose();
   });
+}
+
+/// Signed out, but with Kakao switched on.
+class _KakaoOnlyAuthService implements AuthService {
+  @override
+  bool isConfigured(SocialLoginProvider provider) =>
+      provider == SocialLoginProvider.kakao;
+
+  @override
+  AuthUser? get currentUser => null;
+  @override
+  bool get hasAuthenticatedUser => false;
+  @override
+  String get currentDisplayName => '회원';
+  @override
+  Stream<AuthChange> get authChanges => const Stream<AuthChange>.empty();
+  @override
+  Future<AuthSignUpResult> signUp({
+    required String email,
+    required String password,
+    required String nickname,
+  }) async => const AuthSignUpResult(signedIn: false);
+  @override
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {}
+  @override
+  Future<bool> signInWithSocial(SocialLoginProvider provider) async => false;
+  @override
+  Future<void> signOut() async {}
+  @override
+  Future<bool> isVerifiedAdmin() async => false;
+  @override
+  String messageFor(Object error) => '$error';
 }

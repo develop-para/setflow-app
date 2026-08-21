@@ -99,67 +99,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     : () => _openEmailAuth(EmailAuthMode.signIn),
                 child: const Text('이미 계정이 있나요? 로그인'),
               ),
-              const SizedBox(height: SetflowSpacing.xl),
-              Row(
-                children: [
-                  Expanded(
-                    child: Divider(color: Theme.of(context).dividerColor),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: SetflowSpacing.md,
-                    ),
-                    child: Text(
-                      'SNS 계정으로 계속',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: SetflowColors.secondaryText,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Divider(color: Theme.of(context).dividerColor),
-                  ),
-                ],
-              ),
-              const SizedBox(height: SetflowSpacing.lg),
-              AppButton(
-                label: authService.isConfigured(SocialLoginProvider.kakao)
-                    ? '카카오로 계속'
-                    : '카카오 로그인 · 연동 준비',
-                onPressed:
-                    isSubmitting ||
-                        !authService.isConfigured(SocialLoginProvider.kakao)
-                    ? null
-                    : () => _startSocialLogin(SocialLoginProvider.kakao),
-                variant: AppButtonVariant.tonal,
-                isLoading: isSubmitting && awaitingOAuth,
-              ),
-              const SizedBox(height: 12),
-              AppButton(
-                label: authService.isConfigured(SocialLoginProvider.google)
-                    ? 'Google로 계속'
-                    : 'Google 로그인 · 연동 준비',
-                onPressed:
-                    isSubmitting ||
-                        !authService.isConfigured(SocialLoginProvider.google)
-                    ? null
-                    : () => _startSocialLogin(SocialLoginProvider.google),
-                variant: AppButtonVariant.outlined,
-                isLoading: isSubmitting && awaitingOAuth,
-              ),
-              const SizedBox(height: 12),
-              AppButton(
-                label: authService.isConfigured(SocialLoginProvider.naver)
-                    ? '네이버로 계속'
-                    : '네이버 로그인 · 연동 준비',
-                onPressed:
-                    isSubmitting ||
-                        !authService.isConfigured(SocialLoginProvider.naver)
-                    ? null
-                    : () => _startSocialLogin(SocialLoginProvider.naver),
-                variant: AppButtonVariant.outlined,
-              ),
+              // Only providers that can actually complete a sign-in appear.
+              // A disabled button teaches nothing and invites a tap that fails;
+              // when a provider is enabled these show up on their own.
+              ..._socialSection(context),
               const SizedBox(height: SetflowSpacing.lg),
               const Text(
                 '가입하면 기록이 Supabase에 암호화 전송되며, 본인 계정만 접근할 수 있어요.',
@@ -175,6 +118,54 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         ),
       ),
     );
+  }
+
+  /// The divider plus one button per configured provider — or nothing at all.
+  ///
+  /// `isConfigured` is false unless the provider is switched on for this build
+  /// *and* registered in the backend, so an empty list here means social
+  /// sign-in genuinely cannot work yet.
+  List<Widget> _socialSection(BuildContext context) {
+    const providers = <(SocialLoginProvider, String, AppButtonVariant)>[
+      (SocialLoginProvider.kakao, '카카오로 계속', AppButtonVariant.tonal),
+      (SocialLoginProvider.google, 'Google로 계속', AppButtonVariant.outlined),
+      (SocialLoginProvider.naver, '네이버로 계속', AppButtonVariant.outlined),
+    ];
+    final available = providers
+        .where((provider) => authService.isConfigured(provider.$1))
+        .toList();
+    if (available.isEmpty) return const [];
+
+    return [
+      const SizedBox(height: SetflowSpacing.xl),
+      Row(
+        children: [
+          Expanded(child: Divider(color: Theme.of(context).dividerColor)),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
+            child: Text(
+              'SNS 계정으로 계속',
+              style: TextStyle(
+                fontSize: 12,
+                color: SetflowColors.secondaryText,
+              ),
+            ),
+          ),
+          Expanded(child: Divider(color: Theme.of(context).dividerColor)),
+        ],
+      ),
+      const SizedBox(height: SetflowSpacing.lg),
+      for (final (provider, label, variant) in available) ...[
+        AppButton(
+          key: ValueKey('social-${provider.name}'),
+          label: label,
+          onPressed: isSubmitting ? null : () => _startSocialLogin(provider),
+          variant: variant,
+          isLoading: isSubmitting && awaitingOAuth,
+        ),
+        const SizedBox(height: 12),
+      ],
+    ];
   }
 
   Future<void> _openEmailAuth(EmailAuthMode mode) async {
