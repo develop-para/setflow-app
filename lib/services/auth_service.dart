@@ -28,7 +28,35 @@ class AuthUser {
   final String displayName;
 }
 
-enum AuthEvent { signedIn, signedOut, tokenRefreshed, other }
+enum AuthEvent {
+  signedIn,
+  signedOut,
+  tokenRefreshed,
+
+  /// The user opened a password-reset link. The backend has put them in a
+  /// short-lived session whose only purpose is to set a new password, so the
+  /// app must send them to that screen rather than silently treat it as a
+  /// normal sign-in.
+  passwordRecovery,
+  other,
+}
+
+/// One place that decides what a usable password is.
+///
+/// Signup, reset and change all have to agree — when each screen carries its
+/// own `length < 8` check they drift, and the backend rejecting a password the
+/// form accepted is a dead end for the user.
+abstract final class AuthPasswordPolicy {
+  static const minLength = 8;
+
+  /// Null when acceptable, otherwise the sentence to show under the field.
+  static String? validate(String? value) {
+    final password = value ?? '';
+    if (password.length < minLength) return '비밀번호를 $minLength자 이상 입력해주세요.';
+    if (password.trim().isEmpty) return '공백만으로는 비밀번호를 만들 수 없어요.';
+    return null;
+  }
+}
 
 class AuthChange {
   const AuthChange(this.event, this.user);
@@ -82,6 +110,33 @@ abstract interface class AuthService {
 
   /// True when the provider's screen was actually launched.
   Future<bool> signInWithSocial(SocialLoginProvider provider);
+
+  /// Mails a reset link.
+  ///
+  /// Deliberately returns normally for addresses that have no account —
+  /// reporting "no such user" turns this form into a way to test whether
+  /// someone is a member. The UI says "if an account exists we sent a mail".
+  Future<void> sendPasswordReset({required String email});
+
+  /// Sends the signup confirmation mail again.
+  ///
+  /// Without this, a confirmation mail that lands in spam or never arrives
+  /// leaves the account permanently unreachable: it exists, so signing up
+  /// again fails, and it is unconfirmed, so signing in fails too.
+  Future<void> resendConfirmationEmail({required String email});
+
+  /// Sets a new password for the *current* session.
+  ///
+  /// Valid both after a [AuthEvent.passwordRecovery] link and for a signed-in
+  /// user changing their password.
+  Future<void> updatePassword({required String newPassword});
+
+  /// True when [password] is the signed-in user's current password.
+  ///
+  /// Changing a password from inside a live session must not rely on the
+  /// session alone — an unlocked phone would otherwise be enough to lock the
+  /// owner out of their own account.
+  Future<bool> verifyPassword(String password);
 
   Future<void> signOut();
 
@@ -141,6 +196,21 @@ class _UnboundAuthService implements AuthService {
   @override
   Future<bool> signInWithSocial(SocialLoginProvider provider) async =>
       throw const AuthFailure('로그인 서버에 연결되어 있지 않아요.');
+
+  @override
+  Future<void> sendPasswordReset({required String email}) async =>
+      throw const AuthFailure('로그인 서버에 연결되어 있지 않아요.');
+
+  @override
+  Future<void> resendConfirmationEmail({required String email}) async =>
+      throw const AuthFailure('로그인 서버에 연결되어 있지 않아요.');
+
+  @override
+  Future<void> updatePassword({required String newPassword}) async =>
+      throw const AuthFailure('로그인 서버에 연결되어 있지 않아요.');
+
+  @override
+  Future<bool> verifyPassword(String password) async => false;
 
   @override
   Future<void> signOut() async {}

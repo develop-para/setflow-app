@@ -85,6 +85,9 @@ if (!context.mounted) return;
   (신청서 상태가 아니다). 트레이너 기능 앞에서는 `requireSignIn`이 아니라
   **`requireProAccess(context)`** 를 쓴다 — 미신청·심사중·반려를 각각 안내한다.
 
+비밀번호는 `AuthPasswordPolicy` 한 곳에서만 검증한다(화면마다 `length < 8`을 새로 쓰지 말 것).
+재설정·재전송·변경 플로우와 대시보드 설정: `docs/auth.md`
+
 ## 5. 디자인 — 모노크롬, 로고 없음
 
 - 색은 **화이트 / 블랙 / 그레이만**. 새 색상 상수를 만들지 말고 `SetflowColors` · `SetflowNeutral`

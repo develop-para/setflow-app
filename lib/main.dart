@@ -16,6 +16,7 @@ import 'data/supabase_community_repository.dart';
 import 'data/supabase_routine_catalog_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
+import 'screens/password_screens.dart';
 import 'screens/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/supabase_config.dart';
@@ -88,6 +89,14 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   Timer? _persistenceSyncTimer;
   String? _observedAuthUserId;
 
+  /// The recovery link arrives on a stream, not from a widget, so there is no
+  /// BuildContext to navigate from.
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
+  /// Guards against stacking a second reset screen — the recovery event can
+  /// repeat (initial link plus the session restore that follows it).
+  bool _passwordRecoveryOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -122,6 +131,10 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
 
   void _handleAuthState(AuthChange change) {
     final userId = change.user?.id;
+    if (change.event == AuthEvent.passwordRecovery) {
+      _openPasswordRecovery();
+      return;
+    }
     if (change.event == AuthEvent.signedOut ||
         userId == null && change.event == AuthEvent.tokenRefreshed) {
       _observedAuthUserId = null;
@@ -134,6 +147,31 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       _observedAuthUserId = userId;
       unawaited(state.syncAfterAuthentication().catchError((_) {}));
     }
+  }
+
+  /// A reset link puts the user in a session that can do exactly one useful
+  /// thing. Dropping them on the home screen would look like a successful login
+  /// while their password is still the one they cannot remember, so the reset
+  /// form is pushed for them.
+  void _openPasswordRecovery() {
+    if (_passwordRecoveryOpen) return;
+    _passwordRecoveryOpen = true;
+    // The event can land before the first frame, when there is no navigator to
+    // push onto yet.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) {
+        _passwordRecoveryOpen = false;
+        return;
+      }
+      final changed = await navigator.push<bool>(
+        MaterialPageRoute(builder: (_) => const NewPasswordScreen()),
+      );
+      _passwordRecoveryOpen = false;
+      // Backing out leaves a half-authenticated session behind; ending it is
+      // the honest state, and the user can sign in with the new password.
+      if (changed != true) unawaited(Auth.instance.signOut());
+    });
   }
 
   @override
@@ -189,6 +227,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         animation: state,
         builder: (context, _) => MaterialApp(
           title: 'Setflow',
+          navigatorKey: _navigatorKey,
           debugShowCheckedModeBanner: false,
           theme: SetflowTheme.light,
           darkTheme: SetflowTheme.dark,

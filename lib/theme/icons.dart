@@ -53,6 +53,24 @@ abstract final class SetflowIcons {
   static const settings = Icons.tune_rounded;
   static const signIn = Icons.login_rounded;
   static const signOut = Icons.logout_rounded;
+  static const signUp = Icons.person_add_alt_1_rounded;
+
+  // --- credentials ----------------------------------------------------------
+  /// The account itself — sign-in and sign-up headers.
+  static const account = Icons.lock_person_rounded;
+
+  /// 비밀번호 — setting, changing or resetting one.
+  static const password = Icons.key_rounded;
+
+  /// A mail we sent and are waiting on (confirmation, reset link).
+  static const mailSent = Icons.mark_email_unread_rounded;
+
+  static const passwordVisible = Icons.visibility_rounded;
+  static const passwordHidden = Icons.visibility_off_rounded;
+
+  // --- feedback -------------------------------------------------------------
+  static const error = Icons.error_outline_rounded;
+  static const success = Icons.check_circle_outline_rounded;
 
   // --- pro portal -----------------------------------------------------------
   /// 트레이너 등록 / 승인이 필요한 자격.

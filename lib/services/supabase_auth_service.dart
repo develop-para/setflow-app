@@ -81,6 +81,10 @@ class SupabaseAuthService implements AuthService {
         supabase.AuthChangeEvent.initialSession => AuthEvent.signedIn,
         supabase.AuthChangeEvent.signedOut => AuthEvent.signedOut,
         supabase.AuthChangeEvent.tokenRefreshed => AuthEvent.tokenRefreshed,
+        // Must not fall through to signedIn: the recovery session exists only
+        // so the user can set a new password, and treating it as a normal
+        // sign-in would drop them on the home screen still locked out.
+        supabase.AuthChangeEvent.passwordRecovery => AuthEvent.passwordRecovery,
         _ => AuthEvent.other,
       };
       final user = state.session?.user;
@@ -175,6 +179,68 @@ class SupabaseAuthService implements AuthService {
   }
 
   @override
+  Future<void> sendPasswordReset({required String email}) async {
+    try {
+      await _requiredClient.auth.resetPasswordForEmail(
+        email.trim().toLowerCase(),
+        redirectTo: kIsWeb ? null : SupabaseConfig.mobileAuthRedirect,
+      );
+    } on AuthException catch (error) {
+      // "User not found" is not an error the user should see -- it would make
+      // this form an account-existence oracle. Rate limiting is a real answer
+      // and still surfaces.
+      if (_isUnknownUser(error)) return;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> resendConfirmationEmail({required String email}) async {
+    try {
+      await _requiredClient.auth.resend(
+        type: OtpType.signup,
+        email: email.trim().toLowerCase(),
+        emailRedirectTo: kIsWeb ? null : SupabaseConfig.mobileAuthRedirect,
+      );
+    } on AuthException catch (error) {
+      if (_isUnknownUser(error)) return;
+      rethrow;
+    }
+  }
+
+  bool _isUnknownUser(AuthException error) {
+    final message = error.message.toLowerCase();
+    return message.contains('user not found') ||
+        message.contains('unable to validate email');
+  }
+
+  @override
+  Future<void> updatePassword({required String newPassword}) async {
+    await _requiredClient.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
+  @override
+  Future<bool> verifyPassword(String password) async {
+    final email = _client?.auth.currentUser?.email;
+    // Social-only accounts have no password to verify; the caller must not
+    // offer a password change for them.
+    if (email == null || email.isEmpty) return false;
+    try {
+      // Re-signing in issues a fresh session for the same user. A wrong
+      // password throws and leaves the existing session untouched.
+      await _requiredClient.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      return true;
+    } on AuthException {
+      return false;
+    }
+  }
+
+  @override
   Future<void> signOut() => _client?.auth.signOut() ?? Future<void>.value();
 
   @override
@@ -204,6 +270,30 @@ class SupabaseAuthService implements AuthService {
       if (message.contains('signups not allowed') ||
           message.contains('signup is disabled')) {
         return '지금은 회원가입을 받고 있지 않아요.';
+      }
+      if (message.contains('should be different from the old password')) {
+        return '지금 쓰고 있는 비밀번호와 다른 비밀번호를 입력해주세요.';
+      }
+      // Covers the leaked-password check (HaveIBeenPwned) as well as the plain
+      // strength rules. "이 비밀번호가 유출됐다"고 말해야 사용자가 다른 서비스의 같은
+      // 비밀번호도 바꾼다 — "약한 비밀번호"로 뭉뚱그리면 그 신호가 사라진다.
+      if (message.contains('easy to guess') ||
+          message.contains('pwned') ||
+          message.contains('compromised') ||
+          message.contains('data breach')) {
+        return '다른 사이트 유출 목록에 있는 비밀번호예요. 다른 비밀번호를 써주세요.';
+      }
+      if (message.contains('weak password') ||
+          message.contains('password is too')) {
+        return '더 안전한 비밀번호를 입력해주세요. 길게 쓰는 것이 가장 효과적이에요.';
+      }
+      // A recovery link is single-use and short-lived, and "otp expired" reads
+      // as gibberish to someone who just clicked a mail link.
+      if (message.contains('expired') || message.contains('invalid token')) {
+        return '재설정 링크가 만료됐어요. 다시 요청해주세요.';
+      }
+      if (message.contains('session') && message.contains('missing')) {
+        return '로그인이 만료됐어요. 다시 로그인해주세요.';
       }
       return error.message;
     }

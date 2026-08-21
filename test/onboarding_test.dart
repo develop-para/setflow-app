@@ -135,6 +135,14 @@ class _KakaoOnlyAuthService implements AuthService {
   @override
   Future<bool> signInWithSocial(SocialLoginProvider provider) async => false;
   @override
+  Future<void> sendPasswordReset({required String email}) async {}
+  @override
+  Future<void> resendConfirmationEmail({required String email}) async {}
+  @override
+  Future<void> updatePassword({required String newPassword}) async {}
+  @override
+  Future<bool> verifyPassword(String password) async => false;
+  @override
   Future<void> signOut() async {}
   @override
   Future<bool> isVerifiedAdmin() async => false;

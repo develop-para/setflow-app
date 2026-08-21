@@ -9,6 +9,7 @@ import '../widgets/common.dart';
 import 'member_goal_screen.dart';
 import 'member_membership_screen.dart';
 import 'member_screens.dart';
+import 'password_screens.dart';
 import 'welcome_screen.dart';
 
 /// The "마이" tab: the account hub the bottom bar's last slot points at.
@@ -100,6 +101,23 @@ class MyPageScreen extends StatelessWidget {
             builder: (_) => const MemberMembershipScreen(),
           ),
           const Divider(height: SetflowSpacing.section),
+          // Only an email account has a password to change. Social sign-ins
+          // authenticate elsewhere, so offering it would open a form that can
+          // never succeed.
+          if (Auth.instance.currentUser?.email?.isNotEmpty ?? false)
+            _MyPageEntry(
+              key: const ValueKey('mypage-change-password'),
+              icon: SetflowIcons.password,
+              title: '비밀번호 변경',
+              subtitle: Auth.instance.currentUser?.email ?? '',
+              builder: (_) =>
+                  const NewPasswordScreen(requiresCurrentPassword: true),
+              onResult: (context, changed) {
+                if (changed == true) {
+                  AppSnackbar.success(context, '비밀번호를 변경했어요.');
+                }
+              },
+            ),
           _MyPageEntry(
             icon: SetflowIcons.settings,
             title: '설정',
@@ -119,6 +137,7 @@ class _MyPageEntry extends StatelessWidget {
     required this.subtitle,
     required this.builder,
     this.reason,
+    this.onResult,
     super.key,
   });
 
@@ -129,6 +148,10 @@ class _MyPageEntry extends StatelessWidget {
 
   /// Set when the destination cannot work for a guest.
   final AuthReason? reason;
+
+  /// Runs with whatever the pushed route popped, for destinations that report
+  /// back (a password change confirming it took effect).
+  final void Function(BuildContext context, Object? result)? onResult;
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +169,10 @@ class _MyPageEntry extends StatelessWidget {
     final gate = reason;
     if (gate != null && !await requireSignIn(context, reason: gate)) return;
     if (!context.mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: builder));
+    final result = await Navigator.of(
+      context,
+    ).push<Object?>(MaterialPageRoute(builder: builder));
+    if (!context.mounted) return;
+    onResult?.call(context, result);
   }
 }

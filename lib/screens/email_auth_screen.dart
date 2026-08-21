@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
+import '../widgets/auth_notice.dart';
 import '../widgets/common.dart';
+import 'password_screens.dart';
 
 enum EmailAuthMode { signUp, signIn }
 
@@ -16,6 +21,10 @@ class EmailAuthScreen extends StatefulWidget {
 }
 
 class _EmailAuthScreenState extends State<EmailAuthScreen> {
+  /// A resend that can be spammed just gets the address rate-limited by the
+  /// mail provider, which looks to the user like the app is broken.
+  static const _resendCooldown = Duration(seconds: 60);
+
   final _formKey = GlobalKey<FormState>();
   final _nicknameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -29,10 +38,15 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
   bool _obscurePassword = true;
   String? _error;
 
+  Timer? _resendTimer;
+  int _resendSecondsLeft = 0;
+  String? _resendNotice;
+
   bool get _isSignUp => _mode == EmailAuthMode.signUp;
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _nicknameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -42,6 +56,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(_isSignUp ? '이메일 회원가입' : '이메일 로그인')),
       body: SafeArea(
@@ -57,42 +72,62 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Icon(
-                        Icons.lock_person_rounded,
-                        size: 52,
-                        color: Theme.of(context).colorScheme.primary,
+                        SetflowIcons.account,
+                        size: 44,
+                        color: theme.colorScheme.onSurface,
                       ),
                       const SizedBox(height: SetflowSpacing.lg),
                       Text(
                         _isSignUp ? '내 기록을 안전하게 보관해요' : '다시 만나서 반가워요',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                       if (_isSignUp) ...[
                         const SizedBox(height: SetflowSpacing.sm),
                         Text(
                           '가입하면 기록이 계정에 백업돼요.',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: theme.textTheme.bodyMedium,
                         ),
                       ],
                       const SizedBox(height: SetflowSpacing.xl),
                       if (_awaitingEmailConfirmation) ...[
-                        _AuthMessage(
+                        AuthNotice(
                           key: const ValueKey('auth-confirm-email'),
                           message:
                               '${_emailController.text.trim()} 으로 인증 메일을 보냈어요. '
                               '메일의 링크를 열면 로그인할 수 있어요.',
-                          color: SetflowColors.ink,
-                          icon: Icons.mark_email_unread_rounded,
+                          // The remedy for "the mail never came" belongs next
+                          // to the message that says a mail was sent.
+                          action: TextButton(
+                            key: const ValueKey('auth-resend-confirmation'),
+                            onPressed: _resendSecondsLeft > 0 || _submitting
+                                ? null
+                                : _resendConfirmation,
+                            child: Text(
+                              _resendSecondsLeft > 0
+                                  ? '메일 다시 보내기 ($_resendSecondsLeft초)'
+                                  : '메일이 안 왔어요 · 다시 보내기',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: SetflowSpacing.md),
+                      ],
+                      if (_resendNotice != null) ...[
+                        AuthNotice(
+                          key: const ValueKey('auth-resend-notice'),
+                          message: _resendNotice!,
+                          tone: AuthNoticeTone.success,
                         ),
                         const SizedBox(height: SetflowSpacing.md),
                       ],
                       if (_error != null) ...[
-                        _AuthMessage(
+                        AuthNotice(
+                          key: const ValueKey('auth-error'),
                           message: _error!,
-                          color: SetflowColors.red,
-                          icon: Icons.error_outline_rounded,
+                          tone: AuthNoticeTone.danger,
                         ),
                         const SizedBox(height: SetflowSpacing.md),
                       ],
@@ -118,21 +153,15 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
                         autofillHints: const [AutofillHints.email],
-                        validator: (value) {
-                          final email = value?.trim() ?? '';
-                          if (!RegExp(
-                            r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                          ).hasMatch(email)) {
-                            return '올바른 이메일 주소를 입력해주세요.';
-                          }
-                          return null;
-                        },
+                        validator: validateEmailField,
                       ),
                       const SizedBox(height: SetflowSpacing.md),
                       AppTextField(
                         controller: _passwordController,
                         label: '비밀번호',
-                        helperText: _isSignUp ? '8자 이상 입력해주세요.' : null,
+                        helperText: _isSignUp
+                            ? '${AuthPasswordPolicy.minLength}자 이상 입력해주세요.'
+                            : null,
                         obscureText: _obscurePassword,
                         textInputAction: _isSignUp
                             ? TextInputAction.next
@@ -149,16 +178,17 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                           ),
                           icon: Icon(
                             _obscurePassword
-                                ? Icons.visibility_rounded
-                                : Icons.visibility_off_rounded,
+                                ? SetflowIcons.passwordVisible
+                                : SetflowIcons.passwordHidden,
                           ),
                         ),
-                        validator: (value) {
-                          if ((value ?? '').length < 8) {
-                            return '비밀번호를 8자 이상 입력해주세요.';
-                          }
-                          return null;
-                        },
+                        // Sign-in must not enforce the current policy: someone
+                        // whose password predates it still has to get in.
+                        validator: _isSignUp
+                            ? AuthPasswordPolicy.validate
+                            : (value) => (value ?? '').isEmpty
+                                  ? '비밀번호를 입력해주세요.'
+                                  : null,
                         onSubmitted: _isSignUp ? null : (_) => _submit(),
                       ),
                       if (_isSignUp) ...[
@@ -176,12 +206,21 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                           onSubmitted: (_) => _submit(),
                         ),
                       ],
+                      if (!_isSignUp)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            key: const ValueKey('auth-forgot-password'),
+                            onPressed: _submitting ? null : _openPasswordReset,
+                            child: const Text('비밀번호를 잊으셨나요?'),
+                          ),
+                        ),
                       const SizedBox(height: SetflowSpacing.xl),
                       AppButton(
                         label: _isSignUp ? '회원가입' : '로그인',
                         icon: _isSignUp
-                            ? Icons.person_add_alt_1_rounded
-                            : Icons.login_rounded,
+                            ? SetflowIcons.signUp
+                            : SetflowIcons.signIn,
                         isLoading: _submitting,
                         onPressed: _submitting ? null : _submit,
                       ),
@@ -208,7 +247,48 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
       _mode = _isSignUp ? EmailAuthMode.signIn : EmailAuthMode.signUp;
       _error = null;
       _awaitingEmailConfirmation = false;
+      _resendNotice = null;
     });
+  }
+
+  Future<void> _openPasswordReset() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            PasswordResetRequestScreen(initialEmail: _emailController.text),
+      ),
+    );
+  }
+
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    setState(() => _resendSecondsLeft = _resendCooldown.inSeconds);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _resendSecondsLeft--);
+      if (_resendSecondsLeft <= 0) timer.cancel();
+    });
+  }
+
+  Future<void> _resendConfirmation() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+      _resendNotice = null;
+    });
+    try {
+      await _auth.resendConfirmationEmail(email: _emailController.text);
+      if (!mounted) return;
+      setState(() => _resendNotice = '인증 메일을 다시 보냈어요.');
+      _startResendCooldown();
+    } catch (error) {
+      if (mounted) setState(() => _error = _auth.messageFor(error));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -216,6 +296,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
     setState(() {
       _submitting = true;
       _error = null;
+      _resendNotice = null;
     });
     try {
       if (_isSignUp) {
@@ -234,6 +315,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
             _awaitingEmailConfirmation = true;
             _error = null;
           });
+          _startResendCooldown();
           return;
         }
       } else {
@@ -249,40 +331,5 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
-  }
-}
-
-class _AuthMessage extends StatelessWidget {
-  const _AuthMessage({
-    required this.message,
-    required this.color,
-    required this.icon,
-    super.key,
-  });
-
-  final String message;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      liveRegion: true,
-      child: Container(
-        padding: const EdgeInsets.all(SetflowSpacing.md),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .1),
-          border: Border.all(color: color.withValues(alpha: .24)),
-          borderRadius: BorderRadius.circular(SetflowRadii.md),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(width: SetflowSpacing.sm),
-            Expanded(child: Text(message)),
-          ],
-        ),
-      ),
-    );
   }
 }
