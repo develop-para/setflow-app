@@ -49,9 +49,7 @@ class MemberMembershipScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const CircleAvatar(
-                            child: Icon(Icons.apartment_rounded),
-                          ),
+                          const Icon(Icons.apartment_rounded),
                           const SizedBox(width: SetflowSpacing.md),
                           Expanded(
                             child: Column(

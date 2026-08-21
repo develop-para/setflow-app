@@ -1,14 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../app_state.dart';
 import '../data/business_repository.dart';
+import '../services/supabase_auth_service.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/bottom_bar.dart';
+import '../widgets/portal.dart';
 import 'detail_screens.dart';
 import 'evidence_library_screen.dart';
 import 'member_membership_screen.dart';
+import 'member_mypage_screen.dart';
 import 'member_social_detail_screens.dart';
 import 'routine_editor_screen.dart';
 import 'workout_screens.dart';
@@ -28,16 +35,45 @@ class MemberShell extends StatefulWidget {
 }
 
 class _MemberShellState extends State<MemberShell> {
+  /// Index into the page list, where 2 is the center destination.
   int index = 0;
+  bool _recordSheetOpen = false;
   String? _handledRoutineShareToken;
 
+  /// Page index the center disc owns.
+  static const _recordPage = 2;
+
+  /// Bar slots left of the center action, then right of it.
   static const destinations = [
-    (Icons.calendar_month_outlined, Icons.calendar_month_rounded, '캘린더'),
-    (Icons.playlist_add_outlined, Icons.playlist_add_rounded, '루틴'),
-    (Icons.fitness_center_outlined, Icons.fitness_center_rounded, '전문가 루틴'),
-    (Icons.group_outlined, Icons.group_rounded, '동기부여'),
-    (Icons.chat_bubble_outline, Icons.chat_bubble_rounded, '코칭'),
+    SetflowNavItem(
+      icon: SetflowIcons.home,
+      selectedIcon: SetflowIcons.homeActive,
+      label: '홈',
+    ),
+    SetflowNavItem(
+      icon: SetflowIcons.stats,
+      selectedIcon: SetflowIcons.statsActive,
+      label: '통계',
+    ),
+    SetflowNavItem(
+      icon: SetflowIcons.community,
+      selectedIcon: SetflowIcons.communityActive,
+      label: '커뮤니티',
+    ),
+    SetflowNavItem(
+      icon: SetflowIcons.my,
+      selectedIcon: SetflowIcons.myActive,
+      label: '마이',
+    ),
   ];
+
+  /// Bar slot -> page. Slots 0/1 sit before the center page, 2/3 after it.
+  static const _slotToPage = [0, 1, 3, 4];
+
+  int? get _selectedSlot {
+    final slot = _slotToPage.indexOf(index);
+    return slot == -1 ? null : slot;
+  }
 
   @override
   void didChangeDependencies() {
@@ -50,38 +86,251 @@ class _MemberShellState extends State<MemberShell> {
     if (token == _handledRoutineShareToken) return;
     _handledRoutineShareToken = token;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && index != 1) setState(() => index = 1);
+      // 루틴 no longer owns a tab, so surface the record page instead.
+      if (mounted && index != _recordPage) {
+        setState(() => index = _recordPage);
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final pages = [
       const CalendarScreen(),
-      const RoutinesScreen(),
-      const MarketScreen(),
+      const DashboardScreen(),
+      DailyWorkoutScreen(date: today),
       const CommunityScreen(),
-      const CoachingScreen(),
+      const MyPageScreen(),
     ];
 
-    return Scaffold(
-      body: MediaQuery.removeViewInsets(
-        context: context,
-        removeBottom: true,
-        child: IndexedStack(index: index, children: pages),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (value) => setState(() => index = value),
-        destinations: [
-          for (var i = 0; i < destinations.length; i++)
-            NavigationDestination(
-              icon: Icon(destinations[i].$1),
-              selectedIcon: Icon(destinations[i].$2),
-              label: destinations[i].$3,
+    return PopScope(
+      // Back closes the sheet before it ever reaches "leave the app".
+      canPop: !_recordSheetOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _closeRecordSheet();
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                const PortalHeaderBar(),
+                // The header already ate the status-bar inset, so the per-page
+                // SafeArea below must not add it a second time.
+                Expanded(
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeTop: true,
+                    child: MediaQuery.removeViewInsets(
+                      context: context,
+                      removeBottom: true,
+                      child: IndexedStack(index: index, children: pages),
+                    ),
+                  ),
+                ),
+              ],
             ),
-        ],
+            // The sheet lives inside the shell body rather than in a modal
+            // route, so the bar below it — and its close button — stay live.
+            // A showModalBottomSheet barrier would swallow every disc tap.
+            if (_recordSheetOpen) ...[
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _closeRecordSheet,
+                  child: const ColoredBox(color: Color(0x59000000)),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: _RecordActionSheet(
+                  onSelected: (action) {
+                    _closeRecordSheet();
+                    _runRecordAction(action, today);
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+        bottomNavigationBar: SetflowActionNavBar(
+          items: destinations,
+          selectedIndex: _selectedSlot,
+          onSelected: (slot) {
+            _closeRecordSheet();
+            setState(() => index = _slotToPage[slot]);
+          },
+          centerLabel: '기록',
+          centerIcon: _recordSheetOpen
+              ? SetflowIcons.close
+              : SetflowIcons.record,
+          centerSelected: index == _recordPage,
+          onCenterTap: _handleCenterTap,
+        ),
       ),
+    );
+  }
+
+  /// The OKX Trade contract: the first tap opens the core surface, a second tap
+  /// while already there opens its action sheet, and a third closes it.
+  void _handleCenterTap() {
+    if (_recordSheetOpen) {
+      _closeRecordSheet();
+      return;
+    }
+    setState(() {
+      if (index != _recordPage) {
+        index = _recordPage;
+      } else {
+        _recordSheetOpen = true;
+      }
+    });
+  }
+
+  void _closeRecordSheet() {
+    if (!_recordSheetOpen) return;
+    setState(() => _recordSheetOpen = false);
+  }
+
+  void _runRecordAction(_RecordAction action, DateTime today) {
+    switch (action) {
+      case _RecordAction.routines:
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const RoutinesScreen()));
+      case _RecordAction.market:
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const MarketScreen()));
+      case _RecordAction.library:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ExerciseLibraryScreen(date: today)),
+        );
+      case _RecordAction.pastDays:
+        setState(() => index = 0);
+    }
+  }
+}
+
+enum _RecordAction { routines, market, library, pastDays }
+
+/// The center disc's action sheet — the ways to fill today's log, the way OKX
+/// puts its trade modes behind the Trade button.
+class _RecordActionSheet extends StatelessWidget {
+  const _RecordActionSheet({required this.onSelected});
+
+  final ValueChanged<_RecordAction> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 1, end: 0),
+      duration: SetflowMotion.standard,
+      curve: SetflowMotion.standardCurve,
+      builder: (context, value, child) =>
+          FractionalTranslation(translation: Offset(0, value), child: child),
+      child: Material(
+        color: theme.scaffoldBackgroundColor,
+        // Flat on purpose: a monochrome sheet separates with a hairline, and a
+        // drop shadow here would smear onto the bar's transparent riser.
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: SetflowSpacing.md),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                SetflowSpacing.xxl,
+                0,
+                SetflowSpacing.xxl,
+                SetflowSpacing.sm,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '무엇으로 기록할까요?',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+            _RecordActionTile(
+              actionKey: 'record-action-routines',
+              icon: SetflowIcons.routine,
+              title: '내 루틴',
+              subtitle: '저장한 루틴을 불러와 오늘에 적용',
+              onTap: () => onSelected(_RecordAction.routines),
+            ),
+            _RecordActionTile(
+              actionKey: 'record-action-market',
+              icon: SetflowIcons.market,
+              title: '전문가 루틴',
+              subtitle: '트레이너가 만든 루틴 둘러보기',
+              onTap: () => onSelected(_RecordAction.market),
+            ),
+            _RecordActionTile(
+              actionKey: 'record-action-library',
+              icon: SetflowIcons.exerciseSearch,
+              title: '운동 찾기',
+              subtitle: '운동을 직접 골라 오늘에 추가',
+              onTap: () => onSelected(_RecordAction.library),
+            ),
+            _RecordActionTile(
+              actionKey: 'record-action-past',
+              icon: SetflowIcons.pastDays,
+              title: '지난 날짜 기록',
+              subtitle: '캘린더에서 다른 날짜 열기',
+              onTap: () => onSelected(_RecordAction.pastDays),
+            ),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecordActionTile extends StatelessWidget {
+  const _RecordActionTile({
+    required this.actionKey,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String actionKey;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: ValueKey(actionKey),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: SetflowSpacing.xxl,
+      ),
+      leading: Icon(icon),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(subtitle),
+      onTap: onTap,
     );
   }
 }
@@ -1352,7 +1601,18 @@ class RoutinesScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('내 루틴'),
         actions: [
+          // 전문가 루틴 lost its own tab to the center action; same domain, so
+          // it lives here rather than in a menu nobody opens.
           IconButton(
+            key: const ValueKey('routines-open-market'),
+            tooltip: '전문가 루틴',
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const MarketScreen())),
+            icon: const Icon(SetflowIcons.market),
+          ),
+          IconButton(
+            tooltip: '루틴 만들기',
             onPressed: () => _createRoutine(context),
             icon: const Icon(Icons.add_rounded),
           ),
@@ -2511,14 +2771,7 @@ class CoachingScreen extends StatelessWidget {
             ),
             child: const Row(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: SetflowColors.primary,
-                  child: Icon(
-                    Icons.support_agent_rounded,
-                    color: SetflowColors.ink,
-                  ),
-                ),
+                Icon(Icons.support_agent_rounded, color: SetflowColors.ink),
                 SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -2600,12 +2853,9 @@ class CoachingScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const CircleAvatar(
-                            backgroundColor: Color(0xFFE8F0FF),
-                            child: Icon(
-                              Icons.person_rounded,
-                              color: SetflowColors.blue,
-                            ),
+                          const Icon(
+                            Icons.person_rounded,
+                            color: SetflowColors.blue,
                           ),
                           const SizedBox(width: SetflowSpacing.md),
                           Expanded(
@@ -2912,12 +3162,9 @@ class _ConsultationHistoryCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFEAF7F0),
-                child: Icon(
-                  Icons.support_agent_rounded,
-                  color: SetflowColors.green,
-                ),
+              const Icon(
+                Icons.support_agent_rounded,
+                color: SetflowColors.green,
               ),
               const SizedBox(width: SetflowSpacing.md),
               Expanded(
@@ -3326,12 +3573,9 @@ class DashboardScreen extends StatelessWidget {
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0xFFFFF4CB),
-                      child: Icon(
-                        Icons.trending_up,
-                        color: SetflowColors.orange,
-                      ),
+                    leading: const Icon(
+                      Icons.trending_up,
+                      color: SetflowColors.orange,
                     ),
                     title: Text(
                       summary.template.name,
@@ -3625,14 +3869,38 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const Divider(height: 30),
-          ListTile(
-            leading: const Icon(Icons.logout, color: SetflowColors.red),
-            title: const Text(
-              '로그아웃',
-              style: TextStyle(color: SetflowColors.red),
+          // Sign-in is only offered to a session that has nothing to sign out
+          // of: no Supabase user *and* still a guest. A local member session
+          // restored from a snapshot gets logout, not a login prompt.
+          if (!SupabaseAuthService.instance.hasAuthenticatedUser &&
+              state.role == UserRole.guest)
+            ListTile(
+              key: const ValueKey('settings-sign-in'),
+              leading: const Icon(
+                SetflowIcons.signIn,
+                color: SetflowColors.primary,
+              ),
+              title: const Text('로그인 / 회원가입'),
+              subtitle: const Text('기록을 클라우드에 백업하고 코칭을 사용하세요'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const WelcomeScreen())),
+            )
+          else
+            ListTile(
+              leading: const Icon(
+                SetflowIcons.signOut,
+                color: SetflowColors.red,
+              ),
+              title: const Text(
+                '로그아웃',
+                style: TextStyle(color: SetflowColors.red),
+              ),
+              // Waits for the sheet to finish closing before signing out, so the
+              // teardown never races the route animation.
+              onTap: () => _logout(context, state),
             ),
-            onTap: () => _logout(context, state),
-          ),
         ],
       ),
     );

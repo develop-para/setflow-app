@@ -9,6 +9,7 @@ import '../data/business_repository.dart';
 import '../services/supabase_auth_service.dart';
 import '../services/trainer_document_picker.dart';
 import '../theme.dart';
+import '../widgets/brand.dart';
 import '../widgets/common.dart';
 import 'email_auth_screen.dart';
 
@@ -19,218 +20,12 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 650),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-          child: FadeTransition(
-            opacity: CurvedAnimation(parent: controller, curve: Curves.easeOut),
-            child: SlideTransition(
-              position: Tween(begin: const Offset(0, .05), end: Offset.zero)
-                  .animate(
-                    CurvedAnimation(
-                      parent: controller,
-                      curve: Curves.easeOutCubic,
-                    ),
-                  ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      color: SetflowColors.primary,
-                      borderRadius: BorderRadius.circular(32),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x24000000),
-                          blurRadius: 18,
-                          offset: Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.rocket_launch_rounded,
-                      size: 48,
-                      color: Color(0xFFFF4F75),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Setflow',
-                    style: TextStyle(fontSize: 31, fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '환영합니다!\n어떤 사용자로 시작하시겠어요?',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: SetflowColors.secondaryText,
-                      fontWeight: FontWeight.w600,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-                  _RoleTile(
-                    icon: Icons.person_outline_rounded,
-                    title: '일반 회원',
-                    subtitle: '나만의 운동 기록 관리',
-                    accent: SetflowColors.primary,
-                    onTap: () => _openMemberSetup(context),
-                  ),
-                  const SizedBox(height: 14),
-                  _RoleTile(
-                    icon: Icons.fitness_center_rounded,
-                    title: '트레이너',
-                    subtitle: '회원 관리 및 수익 창출',
-                    accent: SetflowColors.blue,
-                    onTap: () => _openBusinessSetup(context, UserRole.trainer),
-                  ),
-                  const SizedBox(height: 14),
-                  _RoleTile(
-                    icon: Icons.apartment_rounded,
-                    title: '헬스장 / 센터장',
-                    subtitle: '소속 트레이너 및 매출 관리',
-                    accent: SetflowColors.purple,
-                    onTap: () => _openBusinessSetup(context, UserRole.gym),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openMemberSetup(BuildContext context) async {
-    final result = await Navigator.of(
-      context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const MemberSetupScreen()));
-    if (result == true && context.mounted) {
-      AppScope.of(context).chooseRole(UserRole.member);
-    }
-  }
-
-  Future<void> _openBusinessSetup(BuildContext context, UserRole role) async {
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => BusinessSetupScreen(role: role)),
-    );
-    if (result == true && context.mounted) {
-      final state = AppScope.of(context);
-      if (!state.usesLiveBusinessData) state.chooseRole(role);
-    }
-  }
-}
-
-class _RoleTile extends StatelessWidget {
-  const _RoleTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SetflowCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: .09),
-              shape: BoxShape.circle,
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Icon(icon, color: accent, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: SetflowColors.secondaryText,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: SetflowColors.disabled,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class MemberSetupScreen extends StatefulWidget {
-  const MemberSetupScreen({super.key});
-
-  @override
-  State<MemberSetupScreen> createState() => _MemberSetupScreenState();
-}
-
-class _MemberSetupScreenState extends State<MemberSetupScreen> {
-  final bodyFormKey = GlobalKey<FormState>();
+class _WelcomeScreenState extends State<WelcomeScreen> {
   final authService = SupabaseAuthService.instance;
-  String unit = 'kg';
-  int step = 0;
-  final goals = <String>{};
-  final heightController = TextEditingController();
-  final weightController = TextEditingController();
-  final ageController = TextEditingController();
-  String? gender;
+  StreamSubscription<AuthState>? authSubscription;
   bool isSubmitting = false;
   bool awaitingOAuth = false;
   String? submitError;
-  StreamSubscription<AuthState>? authSubscription;
 
   @override
   void initState() {
@@ -245,531 +40,155 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   @override
   void dispose() {
     unawaited(authSubscription?.cancel());
-    heightController.dispose();
-    weightController.dispose();
-    ageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Reached from settings, so it is a pushed route that needs a way back.
+    final canClose = Navigator.of(context).canPop();
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: '이전',
-          onPressed: _goBack,
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        title: Text('${step + 1} / 4'),
-        actions: [
-          if (step == 1)
-            TextButton(
-              onPressed: () => setState(() => step = 2),
-              child: const Text('건너뛰기'),
-            ),
-          if (step == 2)
-            TextButton(
-              onPressed: () => setState(() => step = 3),
-              child: const Text('건너뛰기'),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.xxl),
-            child: _OnboardingProgress(current: step + 1, total: 4),
-          ),
-          const SizedBox(height: SetflowSpacing.sm),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: SetflowMotion.standard,
-              switchInCurve: SetflowMotion.standardCurve,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween(
-                      begin: const Offset(.04, 0),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
+      appBar: canClose
+          ? AppBar(
+              leading: IconButton(
+                tooltip: '닫기',
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            )
+          : null,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(24, canClose ? 8 : 48, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Center(child: SetflowWordmark(fontSize: 30)),
+              const SizedBox(height: 12),
+              const Text(
+                '로그인하고 오늘의 운동을 시작하세요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: SetflowColors.secondaryText,
+                  fontWeight: FontWeight.w600,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 40),
+              if (submitError != null) ...[
+                _OnboardingAlert(
+                  message: submitError!,
+                  color: SetflowColors.red,
+                  icon: Icons.error_outline_rounded,
+                ),
+                const SizedBox(height: SetflowSpacing.lg),
+              ],
+              AppButton(
+                key: const Key('welcome-email-sign-up'),
+                label: '이메일로 회원가입',
+                icon: Icons.mail_outline_rounded,
+                onPressed: isSubmitting
+                    ? null
+                    : () => _openEmailAuth(EmailAuthMode.signUp),
+                isLoading: isSubmitting && !awaitingOAuth,
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              TextButton(
+                key: const Key('welcome-email-sign-in'),
+                onPressed: isSubmitting
+                    ? null
+                    : () => _openEmailAuth(EmailAuthMode.signIn),
+                child: const Text('이미 계정이 있나요? 로그인'),
+              ),
+              const SizedBox(height: SetflowSpacing.xl),
+              Row(
+                children: [
+                  Expanded(
+                    child: Divider(color: Theme.of(context).dividerColor),
                   ),
-                );
-              },
-              child: switch (step) {
-                0 => _preferences(context),
-                1 => _goals(context),
-                2 => _bodyProfile(context),
-                _ => _signup(context),
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _preferences(BuildContext context) {
-    return SingleChildScrollView(
-      key: const ValueKey('preferences'),
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 32),
-      child: Column(
-        children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: SetflowColors.primary,
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: const Icon(
-              Icons.rocket_launch_rounded,
-              size: 43,
-              color: Color(0xFFFF4F75),
-            ),
-          ),
-          const SizedBox(height: 28),
-          const Text(
-            'Setflow',
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            '운동 흐름은 그대로,\n성장은 데이터로.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 38),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text('단위 선택', style: TextStyle(fontWeight: FontWeight.w900)),
-          ),
-          const SizedBox(height: 10),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'kg', label: Text('kg')),
-              ButtonSegment(value: 'lb', label: Text('lb')),
-            ],
-            selected: {unit},
-            onSelectionChanged: (value) => setState(() => unit = value.first),
-            style: ButtonStyle(
-              minimumSize: WidgetStateProperty.all(const Size(150, 50)),
-            ),
-          ),
-          const SizedBox(height: 30),
-          PrimaryButton(
-            label: '저장',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: () {
-              AppScope.of(context).setWeightUnit(unit);
-              setState(() => step = 1);
-            },
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            key: const Key('member-existing-account-sign-in'),
-            onPressed: () => _openEmailAuth(EmailAuthMode.signIn),
-            child: const Text('이미 계정이 있으신가요? 로그인'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _goals(BuildContext context) {
-    const options = [
-      ('🏋️', '근력 향상', '더 무거운 중량과 주요 리프트 향상'),
-      ('🔥', '체중 감량', '체지방을 줄이고 다이어트'),
-      ('💪', '근육 증가', '근골격량을 늘려 탄탄하게'),
-      ('🏃', '체력 향상', '기초 체력과 지구력 증진'),
-      ('🌱', '건강 유지', '현재 상태를 안정적으로 유지'),
-    ];
-    return SingleChildScrollView(
-      key: const ValueKey('goals'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '어떤 목표로\n운동하시나요?',
-            style: TextStyle(
-              fontSize: 29,
-              fontWeight: FontWeight.w900,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            '가장 중요한 주 목표를 먼저, 최대 2개까지 선택해주세요.',
-            style: TextStyle(color: SetflowColors.secondaryText),
-          ),
-          const SizedBox(height: 28),
-          ...options.map((option) {
-            final selected = goals.contains(option.$2);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: SetflowCard(
-                onTap: () => setState(() {
-                  if (selected) {
-                    goals.remove(option.$2);
-                  } else if (goals.length < 2) {
-                    goals.add(option.$2);
-                  }
-                }),
-                color: selected
-                    ? SetflowColors.primary.withValues(alpha: .14)
-                    : null,
-                child: Row(
-                  children: [
-                    Text(option.$1, style: const TextStyle(fontSize: 28)),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            option.$2,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                            ),
-                          ),
-                          if (selected && goals.first == option.$2) ...[
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: SetflowColors.orange.withValues(
-                                  alpha: .14,
-                                ),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: const Text(
-                                '주 목표',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: SetflowColors.orange,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 3),
-                          Text(
-                            option.$3,
-                            style: const TextStyle(
-                              color: SetflowColors.secondaryText,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: SetflowSpacing.md,
+                    ),
+                    child: Text(
+                      'SNS 계정으로 계속',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: SetflowColors.secondaryText,
                       ),
                     ),
-                    Icon(
-                      selected ? Icons.check_circle : Icons.circle_outlined,
-                      color: selected
-                          ? SetflowColors.primary
-                          : SetflowColors.disabled,
-                    ),
-                  ],
+                  ),
+                  Expanded(
+                    child: Divider(color: Theme.of(context).dividerColor),
+                  ),
+                ],
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
+              AppButton(
+                label: authService.isConfigured(SocialLoginProvider.kakao)
+                    ? '카카오로 계속'
+                    : '카카오 로그인 · 연동 준비',
+                onPressed:
+                    isSubmitting ||
+                        !authService.isConfigured(SocialLoginProvider.kakao)
+                    ? null
+                    : () => _startSocialLogin(SocialLoginProvider.kakao),
+                variant: AppButtonVariant.tonal,
+                isLoading: isSubmitting && awaitingOAuth,
+              ),
+              const SizedBox(height: 12),
+              AppButton(
+                label: authService.isConfigured(SocialLoginProvider.google)
+                    ? 'Google로 계속'
+                    : 'Google 로그인 · 연동 준비',
+                onPressed:
+                    isSubmitting ||
+                        !authService.isConfigured(SocialLoginProvider.google)
+                    ? null
+                    : () => _startSocialLogin(SocialLoginProvider.google),
+                variant: AppButtonVariant.outlined,
+                isLoading: isSubmitting && awaitingOAuth,
+              ),
+              const SizedBox(height: 12),
+              AppButton(
+                label: authService.isConfigured(SocialLoginProvider.naver)
+                    ? '네이버로 계속'
+                    : '네이버 로그인 · 연동 준비',
+                onPressed:
+                    isSubmitting ||
+                        !authService.isConfigured(SocialLoginProvider.naver)
+                    ? null
+                    : () => _startSocialLogin(SocialLoginProvider.naver),
+                variant: AppButtonVariant.outlined,
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
+              const Text(
+                '가입하면 기록이 Supabase에 암호화 전송되며, 본인 계정만 접근할 수 있어요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.45,
+                  color: SetflowColors.secondaryText,
                 ),
               ),
-            );
-          }),
-          const SizedBox(height: 18),
-          PrimaryButton(
-            label: '다음',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: goals.isEmpty ? null : () => setState(() => step = 2),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _bodyProfile(BuildContext context) {
-    final filled =
-        heightController.text.isNotEmpty ||
-        weightController.text.isNotEmpty ||
-        ageController.text.isNotEmpty ||
-        gender != null;
-    return Form(
-      key: bodyFormKey,
-      child: SingleChildScrollView(
-        key: const ValueKey('bodyProfile'),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '현재 신체 정보를\n입력해주세요',
-              style: TextStyle(
-                fontSize: 29,
-                fontWeight: FontWeight.w900,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              '정확한 데이터 분석을 위해 필요해요.\n지금 모르는 정보는 나중에 입력할 수 있어요.',
-              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
-            ),
-            const SizedBox(height: 28),
-            const Text('나이', style: TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            AppTextField(
-              controller: ageController,
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-              hint: '예: 29세',
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              validator: (value) => _optionalNumberValidator(
-                value,
-                minimum: 14,
-                maximum: 100,
-                label: '나이',
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text('성별', style: TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'M', label: Text('남성')),
-                ButtonSegment(value: 'F', label: Text('여성')),
-                ButtonSegment(value: 'O', label: Text('기타')),
-              ],
-              selected: gender == null ? const {} : {gender!},
-              emptySelectionAllowed: true,
-              onSelectionChanged: (value) =>
-                  setState(() => gender = value.isEmpty ? null : value.first),
-            ),
-            const SizedBox(height: 20),
-            const Text('키', style: TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            AppTextField(
-              controller: heightController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: (_) => setState(() {}),
-              hint: '예: 175cm',
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'^\d{0,3}\.?\d{0,1}'),
-                ),
-              ],
-              validator: (value) => _optionalNumberValidator(
-                value,
-                minimum: 100,
-                maximum: 250,
-                label: '키',
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              '체중 ($unit)',
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 8),
-            AppTextField(
-              controller: weightController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: (_) => setState(() {}),
-              hint: '예: 70$unit',
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'^\d{0,3}\.?\d{0,1}'),
-                ),
-              ],
-              validator: (value) => _optionalNumberValidator(
-                value,
-                minimum: unit == 'kg' ? 30 : 66,
-                maximum: unit == 'kg' ? 300 : 660,
-                label: '체중',
-              ),
-            ),
-            const SizedBox(height: 30),
-            PrimaryButton(
-              label: '저장',
-              icon: Icons.arrow_forward_rounded,
-              onPressed: filled
-                  ? () {
-                      if (bodyFormKey.currentState?.validate() ?? false) {
-                        setState(() => step = 3);
-                      }
-                    }
-                  : null,
-            ),
-          ],
         ),
       ),
     );
-  }
-
-  Widget _signup(BuildContext context) {
-    return SingleChildScrollView(
-      key: const ValueKey('signup'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '가입하고 내 기록\n안전하게 보관하기',
-            style: TextStyle(
-              fontSize: 29,
-              fontWeight: FontWeight.w900,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            '클라우드 백업과 코칭 등 전체 기능을 사용하려면\n무료 회원가입이 필요해요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
-          ),
-          const SizedBox(height: 28),
-          if (submitError != null) ...[
-            _OnboardingAlert(
-              message: submitError!,
-              color: SetflowColors.red,
-              icon: Icons.error_outline_rounded,
-            ),
-            const SizedBox(height: SetflowSpacing.lg),
-          ],
-          AppButton(
-            key: const Key('member-email-sign-up'),
-            label: '이메일로 회원가입',
-            icon: Icons.mail_outline_rounded,
-            onPressed: isSubmitting
-                ? null
-                : () => _openEmailAuth(EmailAuthMode.signUp),
-            isLoading: isSubmitting,
-          ),
-          const SizedBox(height: SetflowSpacing.sm),
-          TextButton(
-            key: const Key('member-email-sign-in'),
-            onPressed: isSubmitting
-                ? null
-                : () => _openEmailAuth(EmailAuthMode.signIn),
-            child: const Text('이미 계정이 있나요? 로그인'),
-          ),
-          const SizedBox(height: SetflowSpacing.xl),
-          Row(
-            children: [
-              Expanded(child: Divider(color: Theme.of(context).dividerColor)),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
-                child: Text(
-                  'SNS 계정으로 계속',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: SetflowColors.secondaryText,
-                  ),
-                ),
-              ),
-              Expanded(child: Divider(color: Theme.of(context).dividerColor)),
-            ],
-          ),
-          const SizedBox(height: SetflowSpacing.lg),
-          AppButton(
-            label: authService.isConfigured(SocialLoginProvider.kakao)
-                ? '카카오로 계속'
-                : '카카오 로그인 · 연동 준비',
-            onPressed:
-                isSubmitting ||
-                    !authService.isConfigured(SocialLoginProvider.kakao)
-                ? null
-                : () => _startSocialLogin(SocialLoginProvider.kakao),
-            variant: AppButtonVariant.tonal,
-            isLoading: isSubmitting && awaitingOAuth,
-          ),
-          const SizedBox(height: 12),
-          AppButton(
-            label: authService.isConfigured(SocialLoginProvider.google)
-                ? 'Google로 계속'
-                : 'Google 로그인 · 연동 준비',
-            onPressed:
-                isSubmitting ||
-                    !authService.isConfigured(SocialLoginProvider.google)
-                ? null
-                : () => _startSocialLogin(SocialLoginProvider.google),
-            variant: AppButtonVariant.outlined,
-            isLoading: isSubmitting && awaitingOAuth,
-          ),
-          const SizedBox(height: 12),
-          AppButton(
-            label: authService.isConfigured(SocialLoginProvider.naver)
-                ? '네이버로 계속'
-                : '네이버 로그인 · 연동 준비',
-            onPressed:
-                isSubmitting ||
-                    !authService.isConfigured(SocialLoginProvider.naver)
-                ? null
-                : () => _startSocialLogin(SocialLoginProvider.naver),
-            variant: AppButtonVariant.outlined,
-          ),
-          const SizedBox(height: SetflowSpacing.lg),
-          const Text(
-            '가입하면 기록이 Supabase에 암호화 전송되며, 본인 계정만 접근할 수 있어요.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.45,
-              color: SetflowColors.secondaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _goBack() {
-    if (step == 0) {
-      Navigator.of(context).pop();
-      return;
-    }
-    setState(() {
-      submitError = null;
-      step--;
-    });
-  }
-
-  String? _optionalNumberValidator(
-    String? value, {
-    required double minimum,
-    required double maximum,
-    required String label,
-  }) {
-    final text = value?.trim() ?? '';
-    if (text.isEmpty) return null;
-    final number = double.tryParse(text);
-    if (number == null) return '$label 값을 숫자로 입력해주세요.';
-    if (number < minimum || number > maximum) {
-      return '$label 값은 ${minimum.toStringAsFixed(0)}~${maximum.toStringAsFixed(0)} 범위로 입력해주세요.';
-    }
-    return null;
   }
 
   Future<void> _openEmailAuth(EmailAuthMode mode) async {
     final state = AppScope.of(context);
-    state.stageMemberProfileForAuthentication(_memberProfileDraft());
     final authenticated = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EmailAuthScreen(initialMode: mode)),
     );
     if (authenticated == true && mounted) {
       await _completeAuthentication();
     } else {
+      // This screen no longer collects a profile to stage — the onboarding
+      // wizard is gone — but a cancelled sign-in must still drop anything
+      // another surface staged.
       state.clearStagedMemberProfileForAuthentication();
     }
   }
@@ -777,7 +196,6 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
   Future<void> _startSocialLogin(SocialLoginProvider provider) async {
     if (isSubmitting) return;
     final state = AppScope.of(context);
-    state.stageMemberProfileForAuthentication(_memberProfileDraft());
     setState(() {
       isSubmitting = true;
       awaitingOAuth = true;
@@ -807,11 +225,20 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
       awaitingOAuth = false;
       submitError = null;
     });
+    final state = AppScope.of(context);
     try {
-      await AppScope.of(context).syncAfterAuthentication();
+      await state.syncAfterAuthentication();
       if (!mounted) return;
       AppSnackbar.success(context, '로그인됐어요. 기록을 안전하게 동기화합니다.');
-      Navigator.of(context).pop(true);
+      // The server-resolved role drives the shell. Without a live business
+      // repository nothing resolves it, so fall back to the member shell.
+      if (state.role == UserRole.guest) state.chooseRole(UserRole.member);
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.pop(true);
+        return;
+      }
+      if (mounted) setState(() => isSubmitting = false);
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -820,16 +247,6 @@ class _MemberSetupScreenState extends State<MemberSetupScreen> {
         });
       }
     }
-  }
-
-  MemberProfileDraft _memberProfileDraft() {
-    return MemberProfileDraft(
-      goals: goals,
-      heightCm: double.tryParse(heightController.text.trim()),
-      weight: double.tryParse(weightController.text.trim()),
-      age: int.tryParse(ageController.text.trim()),
-      gender: gender,
-    );
   }
 }
 
@@ -911,16 +328,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircleAvatar(
-                radius: 44,
-                backgroundColor: accent.withValues(alpha: .14),
-                child: Icon(
-                  pending
-                      ? Icons.hourglass_top_rounded
-                      : Icons.error_outline_rounded,
-                  size: 42,
-                  color: accent,
-                ),
+              Icon(
+                pending
+                    ? Icons.hourglass_top_rounded
+                    : Icons.error_outline_rounded,
+                size: 42,
+                color: accent,
               ),
               const SizedBox(height: SetflowSpacing.xxl),
               Text(
@@ -1342,19 +755,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
       child: Column(
         children: [
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              color: SetflowColors.primary,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.verified_rounded,
-              size: 48,
-              color: SetflowColors.ink,
-            ),
-          ),
+          Icon(Icons.verified_rounded, size: 48, color: SetflowColors.ink),
           const SizedBox(height: 28),
           Text(
             live ? '센터 신청 준비 완료' : '가입 심사 완료!',
@@ -1660,19 +1061,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
       child: Column(
         children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: SetflowColors.blue.withValues(alpha: .12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.search_rounded,
-              size: 40,
-              color: SetflowColors.blue,
-            ),
-          ),
+          Icon(Icons.search_rounded, size: 40, color: SetflowColors.blue),
           const SizedBox(height: 24),
           const Text(
             '서류 심사가\n진행 중입니다',
@@ -1789,19 +1178,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
       child: Column(
         children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: SetflowColors.red.withValues(alpha: .1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.error_outline_rounded,
-              size: 38,
-              color: SetflowColors.red,
-            ),
-          ),
+          Icon(Icons.error_outline_rounded, size: 38, color: SetflowColors.red),
           const SizedBox(height: 24),
           const Text(
             '서류 심사 반려',
@@ -1853,19 +1230,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
       child: Column(
         children: [
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              color: SetflowColors.primary,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.verified_rounded,
-              size: 48,
-              color: SetflowColors.ink,
-            ),
-          ),
+          Icon(Icons.verified_rounded, size: 48, color: SetflowColors.ink),
           const SizedBox(height: 28),
           const Text(
             '심사 완료!',

@@ -121,14 +121,9 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
                         color: context.setflowColors.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(SetflowRadii.md),
                         child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: widget.routine.color.withValues(
-                              alpha: .14,
-                            ),
-                            child: Icon(
-                              exercise.icon,
-                              color: widget.routine.color,
-                            ),
+                          leading: Icon(
+                            exercise.icon,
+                            color: widget.routine.color,
                           ),
                           title: Text(
                             exercise.name,

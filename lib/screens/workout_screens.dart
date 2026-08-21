@@ -337,7 +337,10 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
     if (!confirmed || !context.mounted) return;
     AppScope.of(context).deleteSession(date);
     AppSnackbar.success(context, '운동 기록을 삭제했어요.');
-    Navigator.of(context).pop();
+    // Hosted as the 기록 tab this screen is the root route, so only a pushed
+    // copy (a past date opened from the calendar) may close itself.
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) navigator.pop();
   }
 }
 
@@ -2314,12 +2317,9 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                                 horizontal: 8,
                                 vertical: 4,
                               ),
-                              leading: CircleAvatar(
-                                backgroundColor: SetflowColors.soft,
-                                child: Icon(
-                                  exercise.icon,
-                                  color: SetflowColors.secondaryText,
-                                ),
+                              leading: Icon(
+                                exercise.icon,
+                                color: SetflowColors.secondaryText,
                               ),
                               title: Text(
                                 exercise.name,
@@ -2361,8 +2361,6 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
           ? null
           : FloatingActionButton.extended(
               onPressed: () => _addSelected(context),
-              backgroundColor: SetflowColors.primary,
-              foregroundColor: SetflowColors.ink,
               icon: const Icon(Icons.check),
               label: Text('${selected.length}개 운동 추가'),
             ),
@@ -2421,8 +2419,8 @@ const _muscleCategories = <_MuscleCategory>[
   _MuscleCategory('어깨', Icons.accessibility_new_rounded, SetflowColors.teal),
   _MuscleCategory('하체', Icons.directions_walk_rounded, SetflowColors.green),
   _MuscleCategory('팔', Icons.sports_gymnastics_rounded, SetflowColors.orange),
-  _MuscleCategory('복근', Icons.self_improvement_rounded, Color(0xFF8B5CF6)),
-  _MuscleCategory('유산소', Icons.directions_run_rounded, Color(0xFF06A6C7)),
+  _MuscleCategory('복근', Icons.self_improvement_rounded, Color(0xFF71717A)),
+  _MuscleCategory('유산소', Icons.directions_run_rounded, Color(0xFF71717A)),
 ];
 
 class _MuscleCategoryCard extends StatelessWidget {
@@ -2463,15 +2461,7 @@ class _MuscleCategoryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: category.color.withValues(alpha: .16),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(category.icon, color: category.color),
-                    ),
+                    Icon(category.icon, color: category.color),
                     const Spacer(),
                     Text(
                       category.name,

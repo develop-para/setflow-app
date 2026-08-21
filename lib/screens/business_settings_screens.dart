@@ -1042,16 +1042,10 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
             padding: SetflowInsets.pageForm,
             children: [
               Center(
-                child: CircleAvatar(
-                  radius: 48,
-                  backgroundColor:
-                      (_isGym ? SetflowColors.purple : SetflowColors.blue)
-                          .withValues(alpha: .15),
-                  child: Icon(
-                    _isGym ? Icons.apartment : Icons.person,
-                    size: 46,
-                    color: _isGym ? SetflowColors.purple : SetflowColors.blue,
-                  ),
+                child: Icon(
+                  _isGym ? Icons.apartment : Icons.person,
+                  size: 46,
+                  color: _isGym ? SetflowColors.purple : SetflowColors.blue,
                 ),
               ),
               const SizedBox(height: 24),

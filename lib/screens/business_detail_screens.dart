@@ -107,32 +107,20 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     Center(
       child: Stack(
         children: [
-          CircleAvatar(
-            radius: 52,
-            backgroundColor:
-                (widget.role == UserRole.gym
-                        ? SetflowColors.purple
-                        : SetflowColors.blue)
-                    .withValues(alpha: .15),
-            child: Icon(
-              widget.role == UserRole.gym ? Icons.apartment : Icons.person,
-              size: 50,
-              color: widget.role == UserRole.gym
-                  ? SetflowColors.purple
-                  : SetflowColors.blue,
-            ),
+          Icon(
+            widget.role == UserRole.gym ? Icons.apartment : Icons.person,
+            size: 50,
+            color: widget.role == UserRole.gym
+                ? SetflowColors.purple
+                : SetflowColors.blue,
           ),
           const Positioned(
             right: 0,
             bottom: 0,
-            child: CircleAvatar(
-              radius: 17,
-              backgroundColor: SetflowColors.primary,
-              child: Icon(
-                Icons.camera_alt_outlined,
-                size: 17,
-                color: SetflowColors.ink,
-              ),
+            child: Icon(
+              Icons.camera_alt_outlined,
+              size: 17,
+              color: SetflowColors.ink,
             ),
           ),
         ],
@@ -298,18 +286,13 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
       child: SetflowCard(
         child: Row(
           children: [
-            CircleAvatar(
-              backgroundColor: schedule.isCompleted
-                  ? SetflowColors.green.withValues(alpha: .14)
-                  : SetflowColors.primary.withValues(alpha: .18),
-              child: Icon(
-                schedule.isCompleted
-                    ? Icons.check_rounded
-                    : Icons.schedule_rounded,
-                color: schedule.isCompleted
-                    ? SetflowColors.green
-                    : SetflowColors.ink,
-              ),
+            Icon(
+              schedule.isCompleted
+                  ? Icons.check_rounded
+                  : Icons.schedule_rounded,
+              color: schedule.isCompleted
+                  ? SetflowColors.green
+                  : SetflowColors.ink,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -608,13 +591,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         child: SetflowCard(
           child: Row(
             children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFFFEFEF),
-                child: Icon(
-                  Icons.receipt_long_outlined,
-                  color: SetflowColors.red,
-                ),
-              ),
+              const Icon(Icons.receipt_long_outlined, color: SetflowColors.red),
               const SizedBox(width: 11),
               Expanded(
                 child: Column(
@@ -864,10 +841,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     ])
       ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: const CircleAvatar(
-          backgroundColor: Color(0xFFFFEFEF),
-          child: Icon(Icons.gavel_outlined, color: SetflowColors.red),
-        ),
+        leading: const Icon(Icons.gavel_outlined, color: SetflowColors.red),
         title: Text(
           item.$1,
           style: const TextStyle(fontWeight: FontWeight.w900),
@@ -1167,6 +1141,8 @@ class _Day extends StatelessWidget {
       CircleAvatar(
         radius: 18,
         backgroundColor: count > 3 ? SetflowColors.primary : SetflowColors.soft,
+        // The loud state is a black fill now, so the digit has to invert.
+        foregroundColor: count > 3 ? Colors.white : SetflowColors.ink,
         child: Text(
           '$count',
           style: const TextStyle(fontWeight: FontWeight.w900),

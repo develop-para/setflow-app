@@ -104,7 +104,7 @@ class KineticStatBlock extends StatelessWidget {
     };
     final deltaColor = style == KineticStatStyle.brand
         ? SetflowColors.ink
-        : (deltaUp ? const Color(0xFF34D399) : const Color(0xFFFB7185));
+        : (deltaUp ? const Color(0xFFD4D4D8) : const Color(0xFF8A8A93));
 
     return Material(
       color: bg,
@@ -360,8 +360,8 @@ class TrainingHeroCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     const yellow = SetflowColors.primary;
     final deltaColor = deltaUp
-        ? const Color(0xFF34D399)
-        : const Color(0xFFFB7185);
+        ? const Color(0xFFD4D4D8)
+        : const Color(0xFF8A8A93);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(SetflowRadii.xl),
@@ -370,7 +370,7 @@ class TrainingHeroCard extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1A1815), Color(0xFF0E0E0F)],
+            colors: [Color(0xFF1C1C1F), Color(0xFF0B0B0C)],
           ),
         ),
         child: Stack(

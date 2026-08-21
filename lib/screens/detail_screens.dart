@@ -131,12 +131,9 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
           for (final entry in entries.reversed)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFE8F0FF),
-                child: Icon(
-                  Icons.analytics_outlined,
-                  color: SetflowColors.blue,
-                ),
+              leading: const Icon(
+                Icons.analytics_outlined,
+                color: SetflowColors.blue,
               ),
               title: Text(
                 entry.date,
@@ -152,8 +149,6 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addEntry(context),
-        backgroundColor: SetflowColors.primary,
-        foregroundColor: SetflowColors.ink,
         icon: const Icon(Icons.add),
         label: const Text('직접 입력'),
       ),
@@ -367,11 +362,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
           const SetflowCard(
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Color(0xFFE8F0FF),
-                  child: Icon(Icons.person, color: SetflowColors.blue),
-                ),
+                Icon(Icons.person, color: SetflowColors.blue),
                 SizedBox(width: 13),
                 Expanded(
                   child: Column(
@@ -652,11 +643,7 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             SetflowCard(
               child: Row(
                 children: [
-                  const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Color(0xFFFFF4CB),
-                    child: Icon(Icons.person, color: SetflowColors.orange),
-                  ),
+                  const Icon(Icons.person, color: SetflowColors.orange),
                   SizedBox(width: 12),
                   Expanded(
                     child: Column(

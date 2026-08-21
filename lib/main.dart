@@ -17,11 +17,11 @@ import 'data/supabase_routine_catalog_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
 import 'screens/splash_screen.dart';
-import 'screens/welcome_screen.dart';
 import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
 import 'widgets/common.dart';
+import 'widgets/portal.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -226,6 +226,10 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
+              // Last child: the portal hold must cover the shell, the nav bar
+              // and any pushed route while the swap happens underneath.
+              if (state.isPortalSwitching)
+                const Positioned.fill(child: PortalTransitionOverlay()),
             ],
           ),
           home: const RootScreen(),
@@ -348,9 +352,14 @@ class _RootScreenState extends State<RootScreen> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final Widget page = switch (state.role) {
-      UserRole.guest => const WelcomeScreen(),
-      UserRole.member => const MemberShell(),
+    // Launch straight into the member home. Signing in is optional and lives in
+    // settings, so a signed-out (guest) session gets the same shell as a member
+    // and only trainer/gym/admin roles swap the shell out.
+    final shellRole = state.role == UserRole.guest
+        ? UserRole.member
+        : state.role;
+    final Widget page = switch (shellRole) {
+      UserRole.member || UserRole.guest => const MemberShell(),
       UserRole.trainer => const BusinessShell(role: UserRole.trainer),
       UserRole.gym => const BusinessShell(role: UserRole.gym),
       UserRole.admin => const BusinessShell(role: UserRole.admin),
@@ -377,7 +386,7 @@ class _RootScreenState extends State<RootScreen> {
                       key: const ValueKey('splash'),
                       onFinished: () => setState(() => _showSplash = false),
                     )
-                  : KeyedSubtree(key: ValueKey(state.role), child: page),
+                  : KeyedSubtree(key: ValueKey(shellRole), child: page),
             ),
           ),
         ),

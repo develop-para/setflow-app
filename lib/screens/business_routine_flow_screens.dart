@@ -302,9 +302,7 @@ class _BusinessRoutineEditorScreenState
                     final alreadyAdded = selectedNames.contains(exercise.name);
                     return ListTile(
                       enabled: !alreadyAdded,
-                      leading: CircleAvatar(
-                        child: Icon(exercise.icon, size: 20),
-                      ),
+                      leading: Icon(exercise.icon, size: 20),
                       title: Text(exercise.name),
                       subtitle: Text(exercise.muscle),
                       trailing: alreadyAdded

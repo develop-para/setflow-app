@@ -624,11 +624,7 @@ class _ShareTarget extends StatelessWidget {
           width: 62,
           child: Column(
             children: [
-              CircleAvatar(
-                radius: 23,
-                backgroundColor: color.withValues(alpha: .16),
-                child: Icon(icon, color: color),
-              ),
+              Icon(icon, color: color),
               const SizedBox(height: 6),
               Text(
                 label,
@@ -774,11 +770,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           SetflowCard(
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: routine.color.withValues(alpha: .14),
-                  child: Icon(Icons.person_rounded, color: routine.color),
-                ),
+                Icon(Icons.person_rounded, color: routine.color),
                 const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
@@ -2452,12 +2444,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      const CircleAvatar(
-                        backgroundColor: Color(0xFFE8F0FF),
-                        child: Icon(
-                          Icons.person_rounded,
-                          color: SetflowColors.blue,
-                        ),
+                      const Icon(
+                        Icons.person_rounded,
+                        color: SetflowColors.blue,
                       ),
                       const SizedBox(width: SetflowSpacing.sm),
                       Expanded(

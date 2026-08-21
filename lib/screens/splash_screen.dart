@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import '../widgets/brand.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({required this.onFinished, super.key});
@@ -62,40 +63,17 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const SetflowWordmark(
+                      key: ValueKey('setflow-loading-logo'),
+                      fontSize: 34,
+                    ),
+                    const SizedBox(height: SetflowSpacing.xl),
+                    // A hairline rule instead of a spinner: monochrome systems
+                    // signal progress with geometry, not a coloured swirl.
                     Container(
-                      width: 112,
-                      height: 112,
-                      padding: const EdgeInsets.all(SetflowSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFBF0),
-                        borderRadius: BorderRadius.circular(32),
-                        border: Border.all(color: const Color(0xFFFFE9A0)),
-                        boxShadow: theme.brightness == Brightness.dark
-                            ? null
-                            : SetflowShadows.level2,
-                      ),
-                      child: Image.asset(
-                        'assets/branding/setflow_mark.png',
-                        key: const ValueKey('setflow-loading-logo'),
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.high,
-                      ),
-                    ),
-                    const SizedBox(height: SetflowSpacing.section),
-                    Text(
-                      'Setflow',
-                      style: theme.textTheme.displayLarge?.copyWith(
-                        letterSpacing: -0.8,
-                      ),
-                    ),
-                    const SizedBox(height: SetflowSpacing.section),
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: SetflowColors.teal,
-                      ),
+                      width: 96,
+                      height: 2,
+                      color: theme.colorScheme.outlineVariant,
                     ),
                   ],
                 ),

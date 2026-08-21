@@ -7,6 +7,7 @@ import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/portal.dart';
 import '../widgets/recommendation_profile_summary.dart';
 import 'admin_content_screens.dart';
 import 'admin_system_screens.dart';
@@ -57,10 +58,23 @@ class _BusinessShellState extends State<BusinessShell> {
     };
 
     return Scaffold(
-      body: MediaQuery.removeViewInsets(
-        context: context,
-        removeBottom: true,
-        child: IndexedStack(index: index, children: pages),
+      body: Column(
+        children: [
+          const PortalHeaderBar(),
+          // The header already ate the status-bar inset, so the per-page
+          // SafeArea below must not add it a second time.
+          Expanded(
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: MediaQuery.removeViewInsets(
+                context: context,
+                removeBottom: true,
+                child: IndexedStack(index: index, children: pages),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         height: 64,
@@ -771,12 +785,9 @@ class _BusinessNotificationSheet extends StatelessWidget {
                       ),
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          backgroundColor: accent.withValues(alpha: .12),
-                          child: Icon(
-                            _businessKindIcon(notification.kind),
-                            color: accent,
-                          ),
+                        leading: Icon(
+                          _businessKindIcon(notification.kind),
+                          color: accent,
                         ),
                         title: Text(
                           notification.title,
@@ -1049,11 +1060,7 @@ class GymHome extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const CircleAvatar(
-                radius: 27,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.apartment_rounded, color: Colors.white),
-              ),
+              const Icon(Icons.apartment_rounded, color: Colors.white),
               const SizedBox(width: SetflowSpacing.lg),
               Expanded(
                 child: Column(
@@ -1324,10 +1331,7 @@ class _OperationShortcut extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: color.withValues(alpha: .14),
-            child: Icon(icon, color: color),
-          ),
+          Icon(icon, color: color),
           const SizedBox(width: SetflowSpacing.md),
           Expanded(
             child: Column(
@@ -2923,14 +2927,11 @@ class _RoutineShareStatusSheet extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
-                          backgroundColor: statusColor.withValues(alpha: .1),
-                          child: Icon(
-                            share.kind == RoutineShareKind.link
-                                ? Icons.link_rounded
-                                : Icons.person_outline_rounded,
-                            color: statusColor,
-                          ),
+                        Icon(
+                          share.kind == RoutineShareKind.link
+                              ? Icons.link_rounded
+                              : Icons.person_outline_rounded,
+                          color: statusColor,
                         ),
                         const SizedBox(width: SetflowSpacing.md),
                         Expanded(
@@ -3934,22 +3935,15 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                           onTap: () => _answer(context, index, item),
                           child: Row(
                             children: [
-                              CircleAvatar(
-                                backgroundColor: done
-                                    ? context.setflowColors.surfaceContainer
-                                    : Theme.of(
+                              Icon(
+                                done
+                                    ? Icons.mark_email_read_outlined
+                                    : Icons.mark_email_unread_outlined,
+                                color: done
+                                    ? Theme.of(
                                         context,
-                                      ).colorScheme.primaryContainer,
-                                child: Icon(
-                                  done
-                                      ? Icons.mark_email_read_outlined
-                                      : Icons.mark_email_unread_outlined,
-                                  color: done
-                                      ? Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant
-                                      : context.setflowColors.orange,
-                                ),
+                                      ).colorScheme.onSurfaceVariant
+                                    : context.setflowColors.orange,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -4169,22 +4163,15 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                 : () => _answerLive(context, item),
                             child: Row(
                               children: [
-                                CircleAvatar(
-                                  backgroundColor: done
-                                      ? context.setflowColors.surfaceContainer
-                                      : Theme.of(
+                                Icon(
+                                  done
+                                      ? Icons.mark_email_read_outlined
+                                      : Icons.mark_email_unread_outlined,
+                                  color: done
+                                      ? Theme.of(
                                           context,
-                                        ).colorScheme.primaryContainer,
-                                  child: Icon(
-                                    done
-                                        ? Icons.mark_email_read_outlined
-                                        : Icons.mark_email_unread_outlined,
-                                    color: done
-                                        ? Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant
-                                        : context.setflowColors.orange,
-                                  ),
+                                        ).colorScheme.onSurfaceVariant
+                                      : context.setflowColors.orange,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -5833,7 +5820,7 @@ class _SettlementPageState extends State<SettlementPage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: admin ? SetflowColors.ink : const Color(0xFF5635A5),
+              color: admin ? SetflowColors.ink : const Color(0xFF52525B),
               borderRadius: BorderRadius.circular(24),
             ),
             child: Column(
@@ -5936,20 +5923,13 @@ class _SettlementPageState extends State<SettlementPage> {
                   onTap: () => _showSettlementDetail(context, item),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        backgroundColor:
-                            (item.$1 == '환불 보류'
-                                    ? SetflowColors.red
-                                    : SetflowColors.green)
-                                .withValues(alpha: .12),
-                        child: Icon(
-                          item.$1 == '환불 보류'
-                              ? Icons.pause_circle_outline
-                              : Icons.payments_outlined,
-                          color: item.$1 == '환불 보류'
-                              ? SetflowColors.red
-                              : SetflowColors.green,
-                        ),
+                      Icon(
+                        item.$1 == '환불 보류'
+                            ? Icons.pause_circle_outline
+                            : Icons.payments_outlined,
+                        color: item.$1 == '환불 보류'
+                            ? SetflowColors.red
+                            : SetflowColors.green,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -6003,13 +5983,7 @@ class _SettlementPageState extends State<SettlementPage> {
             ),
             child: Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: SetflowColors.red.withValues(alpha: .12),
-                  child: const Icon(
-                    Icons.receipt_long_outlined,
-                    color: SetflowColors.red,
-                  ),
-                ),
+                Icon(Icons.receipt_long_outlined, color: SetflowColors.red),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Column(
@@ -6040,13 +6014,7 @@ class _SettlementPageState extends State<SettlementPage> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: SetflowColors.blue.withValues(alpha: .12),
-                    child: const Icon(
-                      Icons.groups_outlined,
-                      color: SetflowColors.blue,
-                    ),
-                  ),
+                  Icon(Icons.groups_outlined, color: SetflowColors.blue),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
@@ -6081,15 +6049,7 @@ class _SettlementPageState extends State<SettlementPage> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: SetflowColors.purple.withValues(
-                      alpha: .12,
-                    ),
-                    child: const Icon(
-                      Icons.percent_outlined,
-                      color: SetflowColors.purple,
-                    ),
-                  ),
+                  Icon(Icons.percent_outlined, color: SetflowColors.purple),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
@@ -6122,13 +6082,7 @@ class _SettlementPageState extends State<SettlementPage> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: SetflowColors.green.withValues(alpha: .12),
-                    child: const Icon(
-                      Icons.task_alt_outlined,
-                      color: SetflowColors.green,
-                    ),
-                  ),
+                  Icon(Icons.task_alt_outlined, color: SetflowColors.green),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
@@ -6189,7 +6143,7 @@ class _SettlementPageState extends State<SettlementPage> {
               decoration: BoxDecoration(
                 color: role == UserRole.admin
                     ? SetflowColors.ink
-                    : const Color(0xFF5635A5),
+                    : const Color(0xFF52525B),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Column(
@@ -6387,10 +6341,7 @@ class _ActionTile extends StatelessWidget {
     onTap: onTap,
     child: Row(
       children: [
-        CircleAvatar(
-          backgroundColor: color.withValues(alpha: .13),
-          child: Icon(icon, color: color),
-        ),
+        Icon(icon, color: color),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

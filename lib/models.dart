@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 
 enum UserRole { guest, member, trainer, gym, admin }
 
+/// The two product surfaces the header switcher toggles between. A portal is
+/// not a page: each one owns its own shell, navigation bar and home, so
+/// switching runs a full-screen brand transition instead of a route push.
+/// [trainer] hosts every pro role (trainer / gym / admin); [client] hosts the
+/// signed-out guest and the member.
+enum AppPortal { client, trainer }
+
 enum RoutineAccessTier {
   free,
   paid;

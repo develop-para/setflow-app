@@ -347,10 +347,54 @@ class AppState extends ChangeNotifier {
     if (_isCurrentAccount(accountEpoch)) notifyListeners();
   }
 
-  void chooseRole(UserRole value) {
+  /// How long the full-screen brand transition covers a portal switch. Long
+  /// enough to read as "another product opening", short enough to not annoy.
+  static const portalSwitchDuration = Duration(milliseconds: 720);
+
+  /// True while the portal transition overlay owns the screen.
+  bool isPortalSwitching = false;
+
+  AppPortal get portal => switch (role) {
+    UserRole.guest || UserRole.member => AppPortal.client,
+    UserRole.trainer || UserRole.gym || UserRole.admin => AppPortal.trainer,
+  };
+
+  /// Which pro role the trainer portal opens into. Staying on the current pro
+  /// role matters: a gym owner who came from settings must not be demoted to
+  /// trainer just by toggling back and forth.
+  UserRole get portalTrainerRole {
+    if (portal == AppPortal.trainer) return role;
+    final access = businessAccess;
+    if (access != null) {
+      if (access.canUse(UserRole.trainer)) return UserRole.trainer;
+      if (access.canUse(UserRole.gym)) return UserRole.gym;
+    }
+    return UserRole.trainer;
+  }
+
+  /// Swaps the whole shell behind a brand transition. The pro portal is a
+  /// preview surface here, so the local access gate is skipped — the server
+  /// still decides what its screens can actually read.
+  Future<void> switchPortal(AppPortal target) async {
+    if (isPortalSwitching) return;
+    final desired = target == AppPortal.client
+        ? UserRole.member
+        : portalTrainerRole;
+    if (portal == target && role == desired) return;
+    isPortalSwitching = true;
+    notifyListeners();
+    final settle = Future<void>.delayed(portalSwitchDuration);
+    chooseRole(desired, enforceAccess: false);
+    await settle;
+    isPortalSwitching = false;
+    notifyListeners();
+  }
+
+  void chooseRole(UserRole value, {bool enforceAccess = true}) {
     if (value == UserRole.admin && !_verifiedAdmin) return;
     final access = businessAccess;
-    if (businessRepository != null &&
+    if (enforceAccess &&
+        businessRepository != null &&
         value != UserRole.member &&
         (access == null || !access.canUse(value))) {
       return;
@@ -5089,7 +5133,7 @@ class AppState extends ChangeNotifier {
         id: 'market_2',
         name: '등 라인 집중 루틴',
         description: '당기는 힘과 선명한 등 라인을 함께 만드는 루틴',
-        color: const Color(0xFF8B5CF6),
+        color: const Color(0xFF71717A),
         exercises: [exercises[4], exercises[5], exercises[8]],
         author: '모션짐 · 사업자 인증',
         level: '중급',
