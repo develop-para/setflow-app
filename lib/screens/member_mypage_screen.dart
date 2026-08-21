@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
-import '../services/supabase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
+import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
 import 'member_goal_screen.dart';
 import 'member_membership_screen.dart';
@@ -21,7 +22,7 @@ class MyPageScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final signedIn = SupabaseAuthService.instance.hasAuthenticatedUser;
+    final signedIn = Auth.instance.hasAuthenticatedUser;
     return Scaffold(
       appBar: AppBar(title: const Text('마이')),
       body: ListView(
@@ -93,6 +94,9 @@ class MyPageScreen extends StatelessWidget {
             icon: SetflowIcons.membership,
             title: '이용권',
             subtitle: '센터 회원권과 잔여 세션',
+            // A membership belongs to a person, so it cannot resolve for a
+            // guest — gate it instead of showing a permanently empty screen.
+            reason: AuthReason.membership,
             builder: (_) => const MemberMembershipScreen(),
           ),
           const Divider(height: SetflowSpacing.section),
@@ -114,6 +118,7 @@ class _MyPageEntry extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.builder,
+    this.reason,
     super.key,
   });
 
@@ -121,6 +126,9 @@ class _MyPageEntry extends StatelessWidget {
   final String title;
   final String subtitle;
   final WidgetBuilder builder;
+
+  /// Set when the destination cannot work for a guest.
+  final AuthReason? reason;
 
   @override
   Widget build(BuildContext context) {
@@ -130,8 +138,14 @@ class _MyPageEntry extends StatelessWidget {
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
       subtitle: Text(subtitle),
       trailing: const Icon(SetflowIcons.forward),
-      onTap: () =>
-          Navigator.of(context).push(MaterialPageRoute(builder: builder)),
+      onTap: () => _open(context),
     );
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final gate = reason;
+    if (gate != null && !await requireSignIn(context, reason: gate)) return;
+    if (!context.mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: builder));
   }
 }

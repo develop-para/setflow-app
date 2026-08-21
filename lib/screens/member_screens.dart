@@ -6,10 +6,11 @@ import 'package:intl/intl.dart';
 
 import '../app_state.dart';
 import '../data/business_repository.dart';
-import '../services/supabase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
 import '../widgets/portal.dart';
 import 'detail_screens.dart';
@@ -2568,6 +2569,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
   String sort = '최신순';
 
   Future<void> _compose() async {
+    // Posts leave this device and carry an author, so this is where the account
+    // is asked for — not at launch.
+    if (!await requireSignIn(context, reason: AuthReason.community)) return;
+    if (!mounted) return;
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const SocialPostComposerScreen()),
     );
@@ -2711,10 +2716,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
               },
             ),
       floatingActionButton: FloatingActionButton(
+        key: const ValueKey('community-compose'),
         onPressed: _compose,
         backgroundColor: SetflowColors.ink,
         foregroundColor: Colors.white,
-        child: const Icon(Icons.add_rounded),
+        child: const Icon(SetflowIcons.addExercise),
       ),
     );
   }
@@ -2724,6 +2730,8 @@ class CoachingScreen extends StatelessWidget {
   const CoachingScreen({super.key});
 
   Future<void> _newConsult(BuildContext context) async {
+    if (!await requireSignIn(context, reason: AuthReason.coaching)) return;
+    if (!context.mounted) return;
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const ConsultationCreateScreen()),
     );
@@ -3872,7 +3880,7 @@ class SettingsScreen extends StatelessWidget {
           // Sign-in is only offered to a session that has nothing to sign out
           // of: no Supabase user *and* still a guest. A local member session
           // restored from a snapshot gets logout, not a login prompt.
-          if (!SupabaseAuthService.instance.hasAuthenticatedUser &&
+          if (!Auth.instance.hasAuthenticatedUser &&
               state.role == UserRole.guest)
             ListTile(
               key: const ValueKey('settings-sign-in'),

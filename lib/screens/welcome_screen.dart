@@ -2,11 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app_state.dart';
 import '../data/business_repository.dart';
-import '../services/supabase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../services/trainer_document_picker.dart';
 import '../theme.dart';
 import '../widgets/brand.dart';
@@ -21,8 +20,8 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  final authService = SupabaseAuthService.instance;
-  StreamSubscription<AuthState>? authSubscription;
+  final authService = Auth.instance;
+  StreamSubscription<AuthChange>? authSubscription;
   bool isSubmitting = false;
   bool awaitingOAuth = false;
   String? submitError;
@@ -30,8 +29,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   void initState() {
     super.initState();
-    authSubscription = authService.authChanges.listen((state) {
-      if (awaitingOAuth && state.event == AuthChangeEvent.signedIn) {
+    authSubscription = authService.authChanges.listen((change) {
+      if (awaitingOAuth && change.event == AuthEvent.signedIn) {
         unawaited(_completeAuthentication());
       }
     });
@@ -204,7 +203,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     try {
       final launched = await authService.signInWithSocial(provider);
       if (!launched) {
-        throw const SupabaseAuthUiException('로그인 화면을 열지 못했어요. 다시 시도해주세요.');
+        throw const AuthFailure('로그인 화면을 열지 못했어요. 다시 시도해주세요.');
       }
     } catch (error) {
       state.clearStagedMemberProfileForAuthentication();
@@ -1511,7 +1510,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Future<bool> _ensureBusinessAuthentication() async {
-    if (SupabaseAuthService.instance.currentUser == null) {
+    if (Auth.instance.currentUser == null) {
       final authenticated = await Navigator.of(
         context,
       ).push<bool>(MaterialPageRoute(builder: (_) => const EmailAuthScreen()));

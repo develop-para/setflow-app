@@ -15,7 +15,7 @@ import 'services/cardio_prescription_engine.dart';
 import 'services/exercise_recommendation_engine.dart';
 import 'services/performance_engine.dart';
 import 'services/rest_timer_platform.dart';
-import 'services/supabase_auth_service.dart';
+import 'services/auth_service.dart';
 
 export 'models.dart';
 export 'domain/cardio.dart';
@@ -53,7 +53,7 @@ class AppState extends ChangeNotifier {
     this.routineCatalogRepository,
     this.communityRepository,
   }) : _repository = repository ?? MemoryAppRepository(),
-       _authSignOut = authSignOut ?? SupabaseAuthService.instance.signOut {
+       _authSignOut = authSignOut ?? Auth.instance.signOut {
     if (routineCatalogRepository == null) {
       _seedMarketRoutines();
     }
@@ -129,9 +129,7 @@ class AppState extends ChangeNotifier {
   bool communityReactionNotifications = false;
   String get memberDisplayName {
     final nickname = memberNickname.trim();
-    return nickname.isEmpty
-        ? SupabaseAuthService.instance.currentDisplayName
-        : nickname;
+    return nickname.isEmpty ? Auth.instance.currentDisplayName : nickname;
   }
 
   List<String> goals = [];
@@ -584,7 +582,7 @@ class AppState extends ChangeNotifier {
       }
       if (businessRepository != null &&
           !loadBusinessWithoutAuth &&
-          !SupabaseAuthService.instance.hasAuthenticatedUser) {
+          !Auth.instance.hasAuthenticatedUser) {
         return;
       }
     }
@@ -617,7 +615,7 @@ class AppState extends ChangeNotifier {
       final profileChanged =
           profileDraft != null && _mergeMissingMemberProfile(profileDraft);
       if (memberNickname.trim().isEmpty) {
-        memberNickname = SupabaseAuthService.instance.currentDisplayName;
+        memberNickname = Auth.instance.currentDisplayName;
       }
       persistenceError = null;
       persistenceSyncError = _repositorySyncError;
@@ -1588,7 +1586,7 @@ class AppState extends ChangeNotifier {
     if (!_isCurrentAccount(accountEpoch)) return;
     Object? firstError;
     void rememberError(Object error) => firstError ??= error;
-    final auth = SupabaseAuthService.instance;
+    final auth = Auth.instance;
     final canLoadPrivateData =
         auth.hasAuthenticatedUser || loadBusinessWithoutAuth;
 
@@ -3176,6 +3174,27 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reloads just the account's business access (roles, application status).
+  ///
+  /// The pro gate needs this right after a sign-in: the shell may not have
+  /// pulled business data yet, and reporting "not applied" to an approved
+  /// trainer would be a lie the user cannot argue with.
+  Future<void> refreshBusinessAccess() async {
+    final repository = businessRepository;
+    if (repository == null) return;
+    final accountEpoch = _accountEpoch;
+    try {
+      final access = await repository.loadAccess();
+      if (!_isCurrentAccount(accountEpoch)) return;
+      businessAccess = access;
+      notifyListeners();
+    } catch (error) {
+      if (!_isCurrentAccount(accountEpoch)) return;
+      businessError = error;
+      notifyListeners();
+    }
+  }
+
   Future<void> refreshBusinessDashboard(UserRole role) async {
     final repository = businessRepository;
     if (repository != null) {
@@ -4230,7 +4249,7 @@ class AppState extends ChangeNotifier {
         final application = await repository.submitGymApplication(
           GymApplicationInput(
             gymName: gymName,
-            ownerName: SupabaseAuthService.instance.currentDisplayName,
+            ownerName: Auth.instance.currentDisplayName,
             businessNumber: businessNumber,
           ),
         );

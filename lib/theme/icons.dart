@@ -54,6 +54,13 @@ abstract final class SetflowIcons {
   static const signIn = Icons.login_rounded;
   static const signOut = Icons.logout_rounded;
 
+  // --- pro portal -----------------------------------------------------------
+  /// 트레이너 등록 / 승인이 필요한 자격.
+  static const pro = Icons.badge_outlined;
+
+  /// 관리자 심사를 기다리는 상태.
+  static const pending = Icons.hourglass_top_rounded;
+
   // --- affordances ----------------------------------------------------------
   static const forward = Icons.chevron_right_rounded;
   static const back = Icons.arrow_back_rounded;

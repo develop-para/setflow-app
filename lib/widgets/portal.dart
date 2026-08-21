@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import 'brand.dart';
+import 'pro_access_gate.dart';
 
 /// Header control that swaps the whole product surface, OKX "Exchange | Wallet"
 /// style. It is deliberately not a TabBar: the two segments own different
@@ -62,7 +63,7 @@ class PortalSwitcher extends StatelessWidget {
                       key: const ValueKey('portal-segment-client'),
                       label: '일반인',
                       active: selected == AppPortal.client,
-                      onTap: () => _switch(state, AppPortal.client),
+                      onTap: () => _switch(context, state, AppPortal.client),
                     ),
                   ),
                   Expanded(
@@ -70,7 +71,7 @@ class PortalSwitcher extends StatelessWidget {
                       key: const ValueKey('portal-segment-trainer'),
                       label: trainerLabel,
                       active: selected == AppPortal.trainer,
-                      onTap: () => _switch(state, AppPortal.trainer),
+                      onTap: () => _switch(context, state, AppPortal.trainer),
                     ),
                   ),
                 ],
@@ -82,10 +83,20 @@ class PortalSwitcher extends StatelessWidget {
     );
   }
 
-  void _switch(AppState state, AppPortal target) {
+  Future<void> _switch(
+    BuildContext context,
+    AppState state,
+    AppPortal target,
+  ) async {
     if (state.portal == target) return;
     HapticFeedback.selectionClick();
-    state.switchPortal(target);
+    // The client side works fine as a guest. The pro side needs a signed-in
+    // account *that an admin has approved* — signing in is not enough, so this
+    // asks the approval gate rather than the auth gate.
+    if (target == AppPortal.trainer && !await requireProAccess(context)) {
+      return;
+    }
+    await state.switchPortal(target);
   }
 }
 

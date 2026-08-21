@@ -38,7 +38,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('이메일 회원가입'), findsOneWidget);
     expect(find.text('회원가입'), findsOneWidget);
-    expect(find.text('이메일 인증 없이 가입 후 바로 시작할 수 있어요.'), findsOneWidget);
+    expect(find.text('가입하면 기록이 계정에 백업돼요.'), findsOneWidget);
     expect(find.text('이미 계정이 있나요? 로그인'), findsOneWidget);
 
     state.dispose();

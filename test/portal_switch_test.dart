@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
@@ -14,7 +16,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('header switcher swaps portals behind the brand hold', (
+  AppState stateOf(WidgetTester tester) =>
+      AppScope.of(tester.element(find.byType(MemberShell)));
+
+  testWidgets('a guest tapping the pro portal gets the sign-in gate', (
     tester,
   ) async {
     await launch(tester);
@@ -24,9 +29,29 @@ void main() {
     expect(find.text('트레이너'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('portal-segment-trainer')));
+    await tester.pumpAndSettle();
+
+    // The pro side is per-account, so the guest is asked rather than switched.
+    expect(find.byKey(const ValueKey('auth-gate-sign-in')), findsOneWidget);
+    expect(find.byType(BusinessShell), findsNothing);
+    expect(find.byType(MemberShell), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('auth-gate-dismiss')));
+    await tester.pumpAndSettle();
+    expect(find.byType(MemberShell), findsOneWidget);
+  });
+
+  testWidgets('switching portals swaps the shell behind the brand hold', (
+    tester,
+  ) async {
+    await launch(tester);
+
+    // Driven through the state rather than the header, because the header now
+    // gates the pro side behind a sign-in that a widget test has no way to do.
+    final state = stateOf(tester);
+    unawaited(state.switchPortal(AppPortal.trainer));
     await tester.pump();
 
-    // The hold covers the swap instead of a route transition.
     expect(
       find.byKey(const ValueKey('portal-transition-logo')),
       findsOneWidget,
@@ -39,6 +64,7 @@ void main() {
     expect(find.byType(BusinessShell), findsOneWidget);
     expect(find.byType(MemberShell), findsNothing);
 
+    // Coming back is never gated.
     await tester.tap(find.byKey(const ValueKey('portal-segment-client')));
     await tester.pump();
     expect(
@@ -48,7 +74,6 @@ void main() {
 
     await tester.pump(AppState.portalSwitchDuration);
     await tester.pumpAndSettle();
-
     expect(find.byType(MemberShell), findsOneWidget);
     expect(find.byType(BusinessShell), findsNothing);
   });
@@ -63,7 +88,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byKey(const ValueKey('portal-segment-trainer')));
+    unawaited(stateOf(tester).switchPortal(AppPortal.trainer));
     await tester.pump(AppState.portalSwitchDuration);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);

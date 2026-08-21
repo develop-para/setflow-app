@@ -89,7 +89,7 @@ class SupabaseCommunityRepository implements CommunityRepository {
           final id = row['id']?.toString() ?? '';
           final authorUserId = row['user_id']?.toString() ?? '';
           final isMine = authorUserId == user.id;
-          final imageUrl = _nullableText(row['image_url']);
+          final imageUrl = _resolveImageUrl(row['image_url']);
           final colorValue = _parseColorValue(row['image_color']);
           final overlays = _stringList(row['active_overlays']);
 
@@ -152,7 +152,8 @@ class SupabaseCommunityRepository implements CommunityRepository {
             'visual_key': input.visualKey.trim().isEmpty
                 ? 'strength'
                 : input.visualKey.trim(),
-            'image_url': uploadedImage?.publicUrl,
+            // The *path*, never the rendered URL — see _resolveImageUrl.
+            'image_url': uploadedImage?.storagePath,
             'image_color': _colorHex(input.colorValue),
             'location': _nullableTrimmed(input.location),
             'routine_name': _nullableTrimmed(input.routineName),
@@ -304,12 +305,28 @@ class SupabaseCommunityRepository implements CommunityRepository {
     );
   }
 
+  /// Turns a stored value into a URL the client can load.
+  ///
+  /// `posts.image_url` holds a **storage path** so that moving buckets (to S3,
+  /// to another project) is a config change rather than a data migration — a
+  /// row that has baked in `https://<project>.supabase.co/...` would have to be
+  /// rewritten. Rows written before that rule was in place still hold a full
+  /// URL, so those are passed through untouched.
+  String? _resolveImageUrl(Object? stored) {
+    final value = _nullableText(stored);
+    if (value == null) return null;
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    return _client.storage.from(_imageBucket).getPublicUrl(value);
+  }
+
   CommunityPostRecord _recordFromCreatedRow(
     Map<String, dynamic> row, {
     required User currentUser,
     String? imageStoragePath,
   }) {
-    final imageUrl = _nullableText(row['image_url']);
+    final imageUrl = _resolveImageUrl(row['image_url']);
     return CommunityPostRecord(
       post: CommunityPost(
         id: row['id']?.toString() ?? '',

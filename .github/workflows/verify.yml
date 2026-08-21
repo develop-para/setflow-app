@@ -1,0 +1,54 @@
+name: Verify
+
+# The release workflow also analyzes and tests, but it only runs on push to
+# main -- by then a broken change is already merged. This gate runs on the pull
+# request, which is the only moment where "no" is cheap.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer commit on the same branch makes the previous run pointless.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in step with android-distribute.yml, or the gate stops predicting the
+  # release build.
+  FLUTTER_VERSION: '3.44.7'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      # Called out separately from the suite so a boundary violation reads as
+      # "architecture rule broken" in the checks list rather than hiding among
+      # a few hundred passing widget tests. See docs/backend-portability.md.
+      - name: Architecture rules
+        run: flutter test test/architecture_test.dart
+
+      - name: Test
+        run: flutter test

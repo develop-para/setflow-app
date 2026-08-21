@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/supabase_auth_service.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
@@ -21,10 +21,11 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-  final _auth = SupabaseAuthService.instance;
+  final _auth = Auth.instance;
 
   late EmailAuthMode _mode = widget.initialMode;
   bool _submitting = false;
+  bool _awaitingEmailConfirmation = false;
   bool _obscurePassword = true;
   String? _error;
 
@@ -70,12 +71,23 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                       if (_isSignUp) ...[
                         const SizedBox(height: SetflowSpacing.sm),
                         Text(
-                          '이메일 인증 없이 가입 후 바로 시작할 수 있어요.',
+                          '가입하면 기록이 계정에 백업돼요.',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
                       const SizedBox(height: SetflowSpacing.xl),
+                      if (_awaitingEmailConfirmation) ...[
+                        _AuthMessage(
+                          key: const ValueKey('auth-confirm-email'),
+                          message:
+                              '${_emailController.text.trim()} 으로 인증 메일을 보냈어요. '
+                              '메일의 링크를 열면 로그인할 수 있어요.',
+                          color: SetflowColors.ink,
+                          icon: Icons.mark_email_unread_rounded,
+                        ),
+                        const SizedBox(height: SetflowSpacing.md),
+                      ],
                       if (_error != null) ...[
                         _AuthMessage(
                           message: _error!,
@@ -195,6 +207,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
     setState(() {
       _mode = _isSignUp ? EmailAuthMode.signIn : EmailAuthMode.signUp;
       _error = null;
+      _awaitingEmailConfirmation = false;
     });
   }
 
@@ -206,16 +219,22 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
     });
     try {
       if (_isSignUp) {
-        final response = await _auth.signUp(
+        final result = await _auth.signUp(
           email: _emailController.text,
           password: _passwordController.text,
           nickname: _nicknameController.text,
         );
         if (!mounted) return;
-        if (response.session == null) {
-          throw const SupabaseAuthUiException(
-            '가입은 완료됐지만 자동 로그인하지 못했어요. 로그인해주세요.',
-          );
+        if (result.needsEmailConfirmation) {
+          // The project requires email confirmation, so there is nothing to
+          // sign in to yet. Say so instead of reporting a failure — the account
+          // really was created.
+          setState(() {
+            _submitting = false;
+            _awaitingEmailConfirmation = true;
+            _error = null;
+          });
+          return;
         }
       } else {
         await _auth.signIn(
@@ -238,6 +257,7 @@ class _AuthMessage extends StatelessWidget {
     required this.message,
     required this.color,
     required this.icon,
+    super.key,
   });
 
   final String message;

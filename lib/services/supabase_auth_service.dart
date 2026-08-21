@@ -1,11 +1,17 @@
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    hide AuthChangeEvent, AuthUser;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    as supabase
+    show AuthChangeEvent;
 
+import 'auth_service.dart';
 import 'supabase_config.dart';
 
-enum SocialLoginProvider { google, kakao, naver, apple }
-
-class SupabaseAuthService {
+/// The Supabase adapter for [AuthService]. Everything Supabase-shaped stops
+/// here: the rest of the app only sees the app's own auth types, so replacing
+/// this class is the whole cost of moving auth to another backend.
+class SupabaseAuthService implements AuthService {
   SupabaseAuthService._();
 
   static final instance = SupabaseAuthService._();
@@ -17,17 +23,33 @@ class SupabaseAuthService {
   SupabaseClient get _requiredClient {
     final client = _client;
     if (client == null) {
-      throw const SupabaseAuthUiException('Supabase 인증이 아직 초기화되지 않았어요.');
+      throw const AuthFailure('로그인 서버에 연결되어 있지 않아요.');
     }
     return client;
   }
 
-  User? get currentUser => _client?.auth.currentUser;
-  bool get hasAuthenticatedUser => currentUser != null;
+  @override
+  AuthUser? get currentUser {
+    final user = _client?.auth.currentUser;
+    if (user == null) return null;
+    return AuthUser(
+      id: user.id,
+      email: user.email,
+      displayName: _displayNameOf(user),
+    );
+  }
 
+  @override
+  bool get hasAuthenticatedUser => _client?.auth.currentUser != null;
+
+  @override
   String get currentDisplayName {
-    final user = currentUser;
+    final user = _client?.auth.currentUser;
     if (user == null) return '회원';
+    return _displayNameOf(user);
+  }
+
+  String _displayNameOf(User user) {
     final metadata = user.userMetadata;
     for (final value in [
       metadata?['nickname'],
@@ -41,6 +63,7 @@ class SupabaseAuthService {
     return emailName == null || emailName.isEmpty ? '회원' : emailName;
   }
 
+  @override
   Future<bool> isVerifiedAdmin() async {
     final client = _client;
     if (client == null || client.auth.currentUser == null) return false;
@@ -48,9 +71,33 @@ class SupabaseAuthService {
     return result == true;
   }
 
-  Stream<AuthState> get authChanges =>
-      _client?.auth.onAuthStateChange ?? const Stream<AuthState>.empty();
+  @override
+  Stream<AuthChange> get authChanges {
+    final stream = _client?.auth.onAuthStateChange;
+    if (stream == null) return const Stream<AuthChange>.empty();
+    return stream.map((state) {
+      final event = switch (state.event) {
+        supabase.AuthChangeEvent.signedIn => AuthEvent.signedIn,
+        supabase.AuthChangeEvent.initialSession => AuthEvent.signedIn,
+        supabase.AuthChangeEvent.signedOut => AuthEvent.signedOut,
+        supabase.AuthChangeEvent.tokenRefreshed => AuthEvent.tokenRefreshed,
+        _ => AuthEvent.other,
+      };
+      final user = state.session?.user;
+      return AuthChange(
+        event,
+        user == null
+            ? null
+            : AuthUser(
+                id: user.id,
+                email: user.email,
+                displayName: _displayNameOf(user),
+              ),
+      );
+    });
+  }
 
+  @override
   bool isConfigured(SocialLoginProvider provider) {
     return switch (provider) {
       SocialLoginProvider.google => SupabaseConfig.googleOauthEnabled,
@@ -60,36 +107,44 @@ class SupabaseAuthService {
     };
   }
 
-  Future<AuthResponse> signUp({
+  /// Signs up straight against GoTrue, the way a Supabase client app normally
+  /// does.
+  ///
+  /// This used to POST to an `email-signup` Edge Function that created the user
+  /// with the service-role key and `email_confirm: true`. That put a
+  /// privileged server hop on the critical path of the most common action in
+  /// the app, and when its key stopped resolving every signup began failing
+  /// with an opaque 500 — which is exactly the instability this replaces.
+  ///
+  /// The trade is that email confirmation is now the project's setting to make,
+  /// not ours: when confirmations are on, [AuthResponse.session] comes back
+  /// null and the caller must send the user to their inbox rather than pretend
+  /// they are signed in.
+  @override
+  Future<AuthSignUpResult> signUp({
     required String email,
     required String password,
     required String nickname,
   }) async {
-    final normalizedEmail = email.trim().toLowerCase();
-    await _requiredClient.functions.invoke(
-      'email-signup',
-      body: {
-        'email': normalizedEmail,
-        'password': password,
-        'nickname': nickname.trim(),
-      },
-    );
-    return _requiredClient.auth.signInWithPassword(
-      email: normalizedEmail,
+    final response = await _requiredClient.auth.signUp(
+      email: email.trim().toLowerCase(),
       password: password,
+      data: {'nickname': nickname.trim()},
+      emailRedirectTo: kIsWeb ? null : SupabaseConfig.mobileAuthRedirect,
     );
+    // No session means the project requires email confirmation.
+    return AuthSignUpResult(signedIn: response.session != null);
   }
 
-  Future<AuthResponse> signIn({
-    required String email,
-    required String password,
-  }) {
+  @override
+  Future<void> signIn({required String email, required String password}) {
     return _requiredClient.auth.signInWithPassword(
       email: email.trim(),
       password: password,
     );
   }
 
+  @override
   Future<bool> signInWithSocial(SocialLoginProvider provider) {
     if (!isConfigured(provider)) {
       final label = switch (provider) {
@@ -119,21 +174,13 @@ class SupabaseAuthService {
     );
   }
 
+  @override
   Future<void> signOut() => _client?.auth.signOut() ?? Future<void>.value();
 
+  @override
   String messageFor(Object error) {
+    if (error is AuthFailure) return error.message;
     if (error is SupabaseAuthUiException) return error.message;
-    if (error is FunctionException) {
-      final details = error.details;
-      if (details is Map) {
-        final message = details['message'];
-        if (message is String && message.trim().isNotEmpty) return message;
-      }
-      if (error.status == 429) {
-        return '가입 요청이 많아요. 1시간 뒤 다시 시도해주세요.';
-      }
-      return '회원가입을 처리하지 못했어요. 잠시 후 다시 시도해주세요.';
-    }
     if (error is AuthException) {
       final message = error.message.toLowerCase();
       if (message.contains('invalid login credentials')) {
@@ -149,8 +196,14 @@ class SupabaseAuthService {
       if (message.contains('email not confirmed')) {
         return '이메일 인증을 완료한 뒤 로그인해주세요.';
       }
-      if (message.contains('rate limit')) {
+      if (message.contains('rate limit') ||
+          message.contains('too many requests') ||
+          message.contains('for security purposes')) {
         return '요청이 많아요. 잠시 후 다시 시도해주세요.';
+      }
+      if (message.contains('signups not allowed') ||
+          message.contains('signup is disabled')) {
+        return '지금은 회원가입을 받고 있지 않아요.';
       }
       return error.message;
     }

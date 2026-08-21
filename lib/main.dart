@@ -17,6 +17,7 @@ import 'data/supabase_routine_catalog_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
 import 'screens/splash_screen.dart';
+import 'services/auth_service.dart';
 import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
@@ -32,7 +33,10 @@ Future<void> main() async {
       authFlowType: AuthFlowType.pkce,
     ),
   );
+  // The one place that knows which backend serves auth. Swapping providers
+  // later is a change here plus one more AuthService implementation.
   SupabaseAuthService.instance.configure(Supabase.instance.client);
+  Auth.use(SupabaseAuthService.instance);
 
   AppRepository? migrationSource;
   try {
@@ -80,7 +84,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   late final AppState state;
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _appLinkSubscription;
-  StreamSubscription<AuthState>? _authSubscription;
+  StreamSubscription<AuthChange>? _authSubscription;
   Timer? _persistenceSyncTimer;
   String? _observedAuthUserId;
 
@@ -98,8 +102,8 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       unawaited(state.syncPersistenceToServer().catchError((_) {}));
     });
     _appLinks = AppLinks();
-    _observedAuthUserId = SupabaseAuthService.instance.currentUser?.id;
-    _authSubscription = SupabaseAuthService.instance.authChanges.listen(
+    _observedAuthUserId = Auth.instance.currentUser?.id;
+    _authSubscription = Auth.instance.authChanges.listen(
       _handleAuthState,
       onError: (_) {},
     );
@@ -116,17 +120,15 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     await state.syncRestTimerFromPlatform();
   }
 
-  void _handleAuthState(AuthState authState) {
-    final event = authState.event;
-    final userId = authState.session?.user.id;
-    if (event == AuthChangeEvent.signedOut ||
-        userId == null && event == AuthChangeEvent.tokenRefreshed) {
+  void _handleAuthState(AuthChange change) {
+    final userId = change.user?.id;
+    if (change.event == AuthEvent.signedOut ||
+        userId == null && change.event == AuthEvent.tokenRefreshed) {
       _observedAuthUserId = null;
       state.handleExternalAuthSignedOut();
       return;
     }
-    if ((event == AuthChangeEvent.signedIn ||
-            event == AuthChangeEvent.initialSession) &&
+    if (change.event == AuthEvent.signedIn &&
         userId != null &&
         userId != _observedAuthUserId) {
       _observedAuthUserId = userId;
