@@ -313,21 +313,9 @@ void main() {
 
       await pumpDailyWorkout(tester, state: state, date: date);
 
-      await tester.enterText(
-        find.byKey(const ValueKey('cardio-duration-1')),
-        '42.5',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pump();
-      await tester.enterText(
-        find.byKey(const ValueKey('cardio-distance-1')),
-        '7.25',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pump();
-      await tester.enterText(find.byKey(const ValueKey('cardio-rpe-1')), '6.5');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pump();
+      await _pickCardioValue(tester, 'cardio-duration-1', '42.5');
+      await _pickCardioValue(tester, 'cardio-distance-1', '7.25');
+      await _pickCardioValue(tester, 'cardio-rpe-1', '6.5');
 
       final edited = exercise.sets.first;
       expect(edited.durationSeconds, 2550);
@@ -634,4 +622,22 @@ void main() {
 
     expect(unresolved, isEmpty);
   });
+}
+
+/// Cardio boxes are pickers, not text fields: tapping one opens the dial and
+/// 적용 is what writes the number.
+Future<void> _pickCardioValue(
+  WidgetTester tester,
+  String fieldKey,
+  String value,
+) async {
+  await tester.tap(find.byKey(ValueKey(fieldKey)));
+  await tester.pumpAndSettle();
+  await tester.enterText(
+    find.byKey(const Key('number-dial-direct-input')),
+    value,
+  );
+  await tester.pump();
+  await tester.tap(find.text('적용'));
+  await tester.pumpAndSettle();
 }

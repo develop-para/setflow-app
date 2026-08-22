@@ -6,26 +6,11 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import '../widgets/common.dart';
 import 'evidence_library_screen.dart';
 import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
-
-/// Commits a number field the moment it stops being edited.
-///
-/// The set rows used to save only on `onSubmitted` and `onTapOutside`, which
-/// covers a deliberate finish but not the ways editing actually ends mid-lift:
-/// the screen locks, the keyboard is dismissed with the system back gesture,
-/// the route is popped. In those cases the number stayed in the controller,
-/// looked entered, and was never written — you find out a week later that the
-/// set says 40kg.
-///
-/// Attach from `initState`, never from `build`, or the listeners stack up.
-void commitOnBlur(FocusNode node, VoidCallback commit) {
-  node.addListener(() {
-    if (!node.hasFocus) commit();
-  });
-}
 
 class DailyWorkoutScreen extends StatefulWidget {
   const DailyWorkoutScreen({required this.date, super.key});
@@ -45,26 +30,135 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
     final state = AppScope.of(context);
     final session = state.sessionFor(date);
     final coachFeedbacks = state.memberSessionFeedbackForDate(date);
+    // Everything that sits above the exercises. Horizontal padding belongs to
+    // whoever places this, so the same blocks fit the empty column and the
+    // list's header without doubling up.
+    final statusBlocks = <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _WorkoutSummaryBar(
+          session: session,
+          unit: state.weightUnit,
+          recommendationEnabled: state.autoRecommendNextExercise,
+          onRecommendationChanged: state.setAutoRecommendNextExercise,
+        ),
+      ),
+      if (state.persistenceError != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _PersistenceNotice(
+            onRetry: () {
+              state.retryPersistence();
+              AppSnackbar.info(context, '운동 기록 저장을 다시 시도했어요.');
+            },
+          ),
+        ),
+      if (state.persistenceError == null && state.persistenceSyncError != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _PersistenceSyncNotice(
+            onRetry: () async {
+              try {
+                await state.syncPersistenceToServer();
+                if (context.mounted) {
+                  AppSnackbar.success(context, '서버 동기화를 완료했어요.');
+                }
+              } catch (_) {
+                if (context.mounted) {
+                  AppSnackbar.info(context, '기기에는 저장되어 있어요. 연결되면 다시 동기화합니다.');
+                }
+              }
+            },
+          ),
+        ),
+      if (state.role == UserRole.member &&
+          state.memberSessionFeedbackError != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: _CoachFeedbackErrorCard(
+            loading: state.memberSessionFeedbackLoading,
+            onRetry: () async {
+              try {
+                await state.refreshMemberSessionFeedback(
+                  from: DateTime(date.year, date.month, date.day - 30),
+                  to: DateTime(date.year, date.month, date.day + 30),
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  AppSnackbar.error(context, '코치 피드백을 불러오지 못했어요.');
+                }
+              }
+            },
+          ),
+        ),
+      if (coachFeedbacks.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: _CoachFeedbackCard(feedbacks: coachFeedbacks),
+        ),
+    ];
     return Scaffold(
       appBar: AppBar(
+        // Adding an exercise and loading a routine live here and nowhere else.
+        // They used to be two full-width buttons pinned above the list, which
+        // cost a third of the screen on every day that already had exercises.
+        leadingWidth: 96,
+        leading: Row(
+          children: [
+            IconButton(
+              key: const Key('daily-add-exercise'),
+              tooltip: '운동 추가',
+              onPressed: _openExerciseFlow,
+              icon: const Icon(SetflowIcons.addExercise),
+            ),
+            IconButton(
+              key: const Key('daily-load-routine'),
+              tooltip: '루틴 불러오기',
+              onPressed: () => _openRoutinePicker(context),
+              icon: const Icon(SetflowIcons.routine),
+            ),
+          ],
+        ),
         title: Text(
           '${date.month}월 ${date.day}일 (${['월', '화', '수', '목', '금', '토', '일'][date.weekday - 1]})',
         ),
+        // 메모와 공유는 아직 자리만 잡아둔 기능이라, 아이콘 두 개를 새로 들인
+        // 헤더에서 자리를 다투게 두지 않고 메뉴로 접었다.
         actions: [
-          IconButton(
-            onPressed: () => showMessage(context, '운동 메모를 저장할 수 있습니다.'),
-            icon: const Icon(Icons.note_alt_outlined),
-          ),
-          IconButton(
-            onPressed: () => showMessage(context, '오늘 기록 공유 링크를 준비했습니다.'),
-            icon: const Icon(Icons.ios_share_outlined),
-          ),
           PopupMenuButton<String>(
             tooltip: '기록 메뉴',
             onSelected: (value) {
-              if (value == 'delete') _deleteWorkout(context);
+              switch (value) {
+                case 'memo':
+                  showMessage(context, '운동 메모를 저장할 수 있습니다.');
+                case 'share':
+                  showMessage(context, '오늘 기록 공유 링크를 준비했습니다.');
+                case 'delete':
+                  _deleteWorkout(context);
+              }
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'memo',
+                child: Row(
+                  children: [
+                    Icon(Icons.note_alt_outlined),
+                    SizedBox(width: 10),
+                    Text('운동 메모'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'share',
+                child: Row(
+                  children: [
+                    Icon(Icons.ios_share_outlined),
+                    SizedBox(width: 10),
+                    Text('기록 공유'),
+                  ],
+                ),
+              ),
+              PopupMenuDivider(),
               PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -85,136 +179,82 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 2, 18, 12),
-            child: _WorkoutSummaryBar(
-              session: session,
-              unit: state.weightUnit,
-              recommendationEnabled: state.autoRecommendNextExercise,
-              onRecommendationChanged: state.setAutoRecommendNextExercise,
-            ),
-          ),
-          if (state.persistenceError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-              child: _PersistenceNotice(
-                onRetry: () {
-                  state.retryPersistence();
-                  AppSnackbar.info(context, '운동 기록 저장을 다시 시도했어요.');
-                },
-              ),
-            ),
-          if (state.persistenceError == null &&
-              state.persistenceSyncError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-              child: _PersistenceSyncNotice(
-                onRetry: () async {
-                  try {
-                    await state.syncPersistenceToServer();
-                    if (context.mounted) {
-                      AppSnackbar.success(context, '서버 동기화를 완료했어요.');
-                    }
-                  } catch (_) {
-                    if (context.mounted) {
-                      AppSnackbar.info(
-                        context,
-                        '기기에는 저장되어 있어요. 연결되면 다시 동기화합니다.',
-                      );
-                    }
-                  }
-                },
-              ),
-            ),
-          if (state.role == UserRole.member &&
-              state.memberSessionFeedbackError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-              child: _CoachFeedbackErrorCard(
-                loading: state.memberSessionFeedbackLoading,
-                onRetry: () async {
-                  try {
-                    await state.refreshMemberSessionFeedback(
-                      from: DateTime(date.year, date.month, date.day - 30),
-                      to: DateTime(date.year, date.month, date.day + 30),
-                    );
-                  } catch (_) {
-                    if (context.mounted) {
-                      AppSnackbar.error(context, '코치 피드백을 불러오지 못했어요.');
-                    }
-                  }
-                },
-              ),
-            ),
-          if (coachFeedbacks.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-              child: _CoachFeedbackCard(feedbacks: coachFeedbacks),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-            child: Column(
+      body: session.exercises.isEmpty
+          ? Column(
               children: [
-                AppButton(
-                  label: '운동 추가',
-                  icon: Icons.add_rounded,
-                  onPressed: _openExerciseFlow,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 2, 18, 0),
+                  child: Column(children: statusBlocks),
                 ),
-                const SizedBox(height: SetflowSpacing.sm),
-                AppButton(
-                  label: '루틴 불러오기',
-                  icon: Icons.playlist_add_check_rounded,
-                  variant: AppButtonVariant.outlined,
-                  onPressed: () => _openRoutinePicker(context),
+                // The two big buttons are a first-run affordance, nothing more.
+                // Once the day has an exercise the header icons carry them.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+                  child: Column(
+                    children: [
+                      AppButton(
+                        label: '운동 추가',
+                        icon: Icons.add_rounded,
+                        onPressed: _openExerciseFlow,
+                      ),
+                      const SizedBox(height: SetflowSpacing.sm),
+                      AppButton(
+                        label: '루틴 불러오기',
+                        icon: Icons.playlist_add_check_rounded,
+                        variant: AppButtonVariant.outlined,
+                        onPressed: () => _openRoutinePicker(context),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: session.exercises.isEmpty
-                ? EmptyState(
+                const Expanded(
+                  child: EmptyState(
                     icon: Icons.fitness_center_rounded,
                     title: '오늘은 어떤 운동을 할까요?',
                     message: '운동을 직접 추가하거나 저장한 루틴을 불러와보세요.',
-                  )
-                : ReorderableListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 100),
-                    itemCount: session.exercises.length,
-                    buildDefaultDragHandles: false,
-                    proxyDecorator: (child, index, animation) {
-                      return AnimatedBuilder(
-                        animation: animation,
-                        builder: (context, _) => Transform.scale(
-                          scale: 1 + animation.value * .025,
-                          child: Material(
-                            color: Colors.transparent,
-                            elevation: 14 * animation.value,
-                            borderRadius: BorderRadius.circular(22),
-                            child: child,
-                          ),
-                        ),
-                      );
-                    },
-                    onReorderItem: (oldIndex, newIndex) =>
-                        state.reorderExercise(session, oldIndex, newIndex),
-                    itemBuilder: (_, index) {
-                      final exercise = session.exercises[index];
-                      return Padding(
-                        key: ValueKey(exercise.id),
-                        padding: const EdgeInsets.only(bottom: 13),
-                        child: _ExerciseCard(
-                          date: date,
-                          exercise: exercise,
-                          index: index,
-                        ),
-                      );
-                    },
                   ),
-          ),
-        ],
-      ),
+                ),
+              ],
+            )
+          : ReorderableListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 100),
+              // Volume, warnings and coach notes ride the list instead of
+              // sitting on top of it: pinned, they ate the space the sets need.
+              header: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Column(children: statusBlocks),
+              ),
+              itemCount: session.exercises.length,
+              buildDefaultDragHandles: false,
+              proxyDecorator: (child, index, animation) {
+                return AnimatedBuilder(
+                  animation: animation,
+                  builder: (context, _) => Transform.scale(
+                    scale: 1 + animation.value * .025,
+                    child: Material(
+                      color: Colors.transparent,
+                      elevation: 14 * animation.value,
+                      borderRadius: BorderRadius.circular(22),
+                      child: child,
+                    ),
+                  ),
+                );
+              },
+              onReorderItem: (oldIndex, newIndex) =>
+                  state.reorderExercise(session, oldIndex, newIndex),
+              itemBuilder: (_, index) {
+                final exercise = session.exercises[index];
+                return Padding(
+                  key: ValueKey(exercise.id),
+                  padding: const EdgeInsets.only(bottom: 13),
+                  child: _ExerciseCard(
+                    date: date,
+                    exercise: exercise,
+                    index: index,
+                  ),
+                );
+              },
+            ),
     );
   }
 
@@ -1148,9 +1188,6 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
   late final TextEditingController durationController;
   late final TextEditingController distanceController;
   late final TextEditingController rpeController;
-  final durationFocus = FocusNode();
-  final distanceFocus = FocusNode();
-  final rpeFocus = FocusNode();
   bool deleteRevealed = false;
 
   CardioExerciseDefinition? get definition =>
@@ -1165,24 +1202,18 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
     durationController = TextEditingController(text: _durationText());
     distanceController = TextEditingController(text: _distanceText());
     rpeController = TextEditingController(text: _rpeText());
-    commitOnBlur(durationFocus, _commitDuration);
-    commitOnBlur(distanceFocus, _commitDistance);
-    commitOnBlur(rpeFocus, _commitRpe);
   }
 
   @override
   void didUpdateWidget(covariant _InlineCardioRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!durationFocus.hasFocus &&
-        oldWidget.set.durationSeconds != widget.set.durationSeconds) {
+    if (oldWidget.set.durationSeconds != widget.set.durationSeconds) {
       durationController.text = _durationText();
     }
-    if (!distanceFocus.hasFocus &&
-        oldWidget.set.distanceKm != widget.set.distanceKm) {
+    if (oldWidget.set.distanceKm != widget.set.distanceKm) {
       distanceController.text = _distanceText();
     }
-    if (!rpeFocus.hasFocus &&
-        oldWidget.set.intensityRpe != widget.set.intensityRpe) {
+    if (oldWidget.set.intensityRpe != widget.set.intensityRpe) {
       rpeController.text = _rpeText();
     }
   }
@@ -1192,9 +1223,6 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
     durationController.dispose();
     distanceController.dispose();
     rpeController.dispose();
-    durationFocus.dispose();
-    distanceFocus.dispose();
-    rpeFocus.dispose();
     super.dispose();
   }
 
@@ -1203,41 +1231,6 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
       widget.set.distanceKm <= 0 ? '' : _decimalText(widget.set.distanceKm);
   String _rpeText() =>
       widget.set.intensityRpe <= 0 ? '' : _decimalText(widget.set.intensityRpe);
-
-  void _commitDuration() {
-    final minutes = double.tryParse(durationController.text.trim());
-    if (minutes == null || minutes <= 0 || minutes > 1440) {
-      durationController.text = _durationText();
-      return;
-    }
-    widget.onDurationChanged((minutes * 60).round());
-  }
-
-  void _commitDistance() {
-    final raw = distanceController.text.trim();
-    final distance = raw.isEmpty ? 0.0 : double.tryParse(raw);
-    if (distance == null || distance < 0 || distance > 999.99) {
-      distanceController.text = _distanceText();
-      return;
-    }
-    widget.onDistanceChanged(distance);
-  }
-
-  void _commitRpe() {
-    final rpe = double.tryParse(rpeController.text.trim());
-    if (rpe == null || rpe < 1 || rpe > 10) {
-      rpeController.text = _rpeText();
-      return;
-    }
-    widget.onRpeChanged(rpe);
-  }
-
-  void _commitAndToggle() {
-    _commitDuration();
-    if (supportsDistance) _commitDistance();
-    _commitRpe();
-    widget.onToggle();
-  }
 
   String get _summary {
     if (widget.set.durationSeconds <= 0) return '시간을 입력해주세요';
@@ -1332,7 +1325,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                   setNumber: widget.set.number,
                   unitLabel: '구간',
                   completed: widget.set.completed,
-                  onPressed: _commitAndToggle,
+                  onPressed: widget.onToggle,
                 ),
               ],
             ),
@@ -1345,8 +1338,6 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                     label: '시간',
                     suffix: '분',
                     controller: durationController,
-                    focusNode: durationFocus,
-                    onCommit: _commitDuration,
                     onDial: () => _pickCardioValue(
                       title: '운동 시간',
                       suffix: '분',
@@ -1368,8 +1359,6 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                       label: '거리',
                       suffix: 'km',
                       controller: distanceController,
-                      focusNode: distanceFocus,
-                      onCommit: _commitDistance,
                       onDial: () => _pickCardioValue(
                         title: '운동 거리',
                         suffix: 'km',
@@ -1390,8 +1379,6 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                     label: '강도',
                     suffix: 'RPE',
                     controller: rpeController,
-                    focusNode: rpeFocus,
-                    onCommit: _commitRpe,
                     onDial: () => _pickCardioValue(
                       title: '운동 강도',
                       suffix: 'RPE',
@@ -1489,39 +1476,63 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
     required String label,
     required String suffix,
     required TextEditingController controller,
-    required FocusNode focusNode,
-    required VoidCallback onCommit,
     required VoidCallback onDial,
   }) {
-    return TextField(
+    return _DialValueField(
       key: key,
+      label: label,
+      suffix: suffix,
       controller: controller,
-      focusNode: focusNode,
       enabled: !widget.set.completed,
+      onDial: onDial,
+    );
+  }
+}
+
+/// A number the user picks, never types in place.
+///
+/// The box *is* the button: tapping it opens [_showNumberDial], where the value
+/// is dialled or typed and then applied. It used to be an editable field with a
+/// tune icon hanging off its right edge — two hit targets for one number, and
+/// the icon ate the width the number needed.
+///
+/// Read-only on purpose, and it refuses focus so no keyboard ever races the
+/// sheet. That also means there is no half-typed number sitting in the
+/// controller when the screen locks mid-lift: the dial's 적용 is the only
+/// commit, and it writes straight through to the session.
+class _DialValueField extends StatelessWidget {
+  const _DialValueField({
+    required this.label,
+    required this.suffix,
+    required this.controller,
+    required this.enabled,
+    required this.onDial,
+    super.key,
+  });
+
+  final String label;
+  final String suffix;
+  final TextEditingController controller;
+  final bool enabled;
+  final VoidCallback onDial;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      readOnly: true,
+      canRequestFocus: false,
+      mouseCursor: SystemMouseCursors.click,
       textAlign: TextAlign.center,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
       decoration: InputDecoration(
         labelText: label,
         suffixText: suffix,
-        suffixIcon: IconButton(
-          tooltip: '$label 다이얼',
-          onPressed: widget.set.completed ? null : onDial,
-          icon: const Icon(Icons.tune_rounded, size: 16),
-        ),
-        suffixIconConstraints: const BoxConstraints(
-          minWidth: 32,
-          minHeight: 32,
-        ),
         isDense: true,
-        contentPadding: const EdgeInsets.fromLTRB(8, 10, 0, 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       ),
-      onSubmitted: (_) => onCommit(),
-      onTapOutside: (_) {
-        onCommit();
-        focusNode.unfocus();
-      },
+      onTap: onDial,
     );
   }
 }
@@ -1559,9 +1570,6 @@ class _InlineSetRowState extends State<_InlineSetRow> {
   late final TextEditingController weightController;
   late final TextEditingController repsController;
   late final TextEditingController restController;
-  final weightFocus = FocusNode();
-  final repsFocus = FocusNode();
-  final restFocus = FocusNode();
   bool deleteRevealed = false;
 
   @override
@@ -1570,22 +1578,18 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     weightController = TextEditingController(text: _weightText());
     repsController = TextEditingController(text: '${widget.set.reps}');
     restController = TextEditingController(text: '${widget.set.restSeconds}');
-    commitOnBlur(weightFocus, _commitWeight);
-    commitOnBlur(repsFocus, _commitReps);
-    commitOnBlur(restFocus, _commitRest);
   }
 
   @override
   void didUpdateWidget(covariant _InlineSetRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!weightFocus.hasFocus && oldWidget.set.weight != widget.set.weight) {
+    if (oldWidget.set.weight != widget.set.weight) {
       weightController.text = _weightText();
     }
-    if (!repsFocus.hasFocus && oldWidget.set.reps != widget.set.reps) {
+    if (oldWidget.set.reps != widget.set.reps) {
       repsController.text = '${widget.set.reps}';
     }
-    if (!restFocus.hasFocus &&
-        oldWidget.set.restSeconds != widget.set.restSeconds) {
+    if (oldWidget.set.restSeconds != widget.set.restSeconds) {
       restController.text = '${widget.set.restSeconds}';
     }
   }
@@ -1595,48 +1599,11 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     weightController.dispose();
     repsController.dispose();
     restController.dispose();
-    weightFocus.dispose();
-    repsFocus.dispose();
-    restFocus.dispose();
     super.dispose();
   }
 
   String _weightText() =>
       widget.set.weight.toStringAsFixed(widget.set.weight % 1 == 0 ? 0 : 1);
-
-  void _commitWeight() {
-    final value = double.tryParse(weightController.text.trim());
-    if (value == null || value < 0 || value > 999) {
-      weightController.text = _weightText();
-      return;
-    }
-    widget.onWeightChanged(value);
-  }
-
-  void _commitReps() {
-    final value = int.tryParse(repsController.text.trim());
-    if (value == null || value < 0 || value > 999) {
-      repsController.text = '${widget.set.reps}';
-      return;
-    }
-    widget.onRepsChanged(value);
-  }
-
-  void _commitRest() {
-    final value = int.tryParse(restController.text.trim());
-    if (value == null || value < 15 || value > 600) {
-      restController.text = '${widget.set.restSeconds}';
-      return;
-    }
-    widget.onRestChanged(value);
-  }
-
-  void _commitAndToggle() {
-    _commitWeight();
-    _commitReps();
-    _commitRest();
-    widget.onToggle();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1746,7 +1713,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                   key: ValueKey('inline-set-complete-${widget.set.number}'),
                   setNumber: widget.set.number,
                   completed: widget.set.completed,
-                  onPressed: _commitAndToggle,
+                  onPressed: widget.onToggle,
                 ),
               ],
             ),
@@ -1755,12 +1722,10 @@ class _InlineSetRowState extends State<_InlineSetRow> {
               children: [
                 Expanded(
                   child: _numberField(
+                    key: ValueKey('inline-set-weight-${widget.set.number}'),
                     label: '무게',
                     suffix: widget.unit,
                     controller: weightController,
-                    focusNode: weightFocus,
-                    decimal: true,
-                    onCommit: _commitWeight,
                     onDial: () => _pickSetValue(
                       title: '무게',
                       suffix: widget.unit,
@@ -1776,11 +1741,10 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: _numberField(
+                    key: ValueKey('inline-set-reps-${widget.set.number}'),
                     label: '횟수',
                     suffix: '회',
                     controller: repsController,
-                    focusNode: repsFocus,
-                    onCommit: _commitReps,
                     onDial: () => _pickSetValue(
                       title: '횟수',
                       suffix: '회',
@@ -1796,11 +1760,10 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: _numberField(
+                    key: ValueKey('inline-set-rest-${widget.set.number}'),
                     label: '휴식',
                     suffix: '초',
                     controller: restController,
-                    focusNode: restFocus,
-                    onCommit: _commitRest,
                     onDial: () => _pickSetValue(
                       title: '휴식 시간',
                       suffix: '초',
@@ -1880,46 +1843,19 @@ class _InlineSetRowState extends State<_InlineSetRow> {
   }
 
   Widget _numberField({
+    required Key key,
     required String label,
     required String suffix,
     required TextEditingController controller,
-    required FocusNode focusNode,
-    required VoidCallback onCommit,
     required VoidCallback onDial,
-    bool decimal = false,
   }) {
-    return TextField(
+    return _DialValueField(
+      key: key,
+      label: label,
+      suffix: suffix,
       controller: controller,
-      focusNode: focusNode,
       enabled: !widget.set.completed,
-      textAlign: TextAlign.center,
-      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(
-          decimal ? RegExp(r'[0-9.]') : RegExp(r'[0-9]'),
-        ),
-      ],
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
-      decoration: InputDecoration(
-        labelText: label,
-        suffixText: suffix,
-        suffixIcon: IconButton(
-          tooltip: '$label 다이얼',
-          onPressed: widget.set.completed ? null : onDial,
-          icon: const Icon(Icons.tune_rounded, size: 16),
-        ),
-        suffixIconConstraints: const BoxConstraints(
-          minWidth: 32,
-          minHeight: 32,
-        ),
-        isDense: true,
-        contentPadding: const EdgeInsets.fromLTRB(8, 10, 0, 10),
-      ),
-      onSubmitted: (_) => onCommit(),
-      onTapOutside: (_) {
-        onCommit();
-        focusNode.unfocus();
-      },
+      onDial: onDial,
     );
   }
 
@@ -1931,6 +1867,14 @@ class _InlineSetRowState extends State<_InlineSetRow> {
   };
 }
 
+/// The one control the whole product turns on: completing a set saves the
+/// record, updates volume and starts the rest timer.
+///
+/// It used to be a grey box reading "완료". The word was doing no work — the
+/// row is a set, there is nothing else to finish — and a filled grey pill next
+/// to three grey number boxes read as one more field. So it is a circle with a
+/// check, and the state is carried the way this app carries every state:
+/// **by density**. Empty outline = not done, black fill = done.
 class _SetCompletionButton extends StatelessWidget {
   const _SetCompletionButton({
     required this.setNumber,
@@ -1940,6 +1884,8 @@ class _SetCompletionButton extends StatelessWidget {
     super.key,
   });
 
+  static const _diameter = 48.0;
+
   final int setNumber;
   final String unitLabel;
   final bool completed;
@@ -1948,54 +1894,42 @@ class _SetCompletionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final foreground = completed
-        ? Colors.white
-        : theme.colorScheme.onSurfaceVariant;
     return Semantics(
       label: '$setNumber$unitLabel 완료',
       button: true,
       selected: completed,
-      child: SizedBox(
-        width: 72,
-        height: 44,
+      child: SizedBox.square(
+        dimension: _diameter,
         child: AnimatedContainer(
           duration: SetflowMotion.micro,
+          curve: SetflowMotion.standardCurve,
           decoration: BoxDecoration(
-            color: completed ? SetflowColors.teal : theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            // primary flips with the theme (light = black, dark = white), so
+            // the foreground below has to be onPrimary, never a fixed ink.
+            color: completed ? theme.colorScheme.primary : Colors.transparent,
+            shape: BoxShape.circle,
             border: Border.all(
               color: completed
-                  ? SetflowColors.teal
+                  ? theme.colorScheme.primary
                   : theme.colorScheme.outlineVariant,
+              width: 1.5,
             ),
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            shape: const CircleBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: onPressed,
               child: ExcludeSemantics(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      completed
-                          ? Icons.check_circle_rounded
-                          : Icons.check_circle_outline_rounded,
-                      size: 16,
-                      color: foreground,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '완료',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: foreground,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
+                child: Center(
+                  child: Icon(
+                    SetflowIcons.setComplete,
+                    size: 22,
+                    color: completed
+                        ? theme.colorScheme.onPrimary
+                        : theme.colorScheme.outline,
+                  ),
                 ),
               ),
             ),

@@ -87,6 +87,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(exercise.sets.first.weight, 42.5);
 
+      // 적용 confirms with a toast, and toasts now sit at 30% of the height —
+      // which on this surface is directly over the first set row. Let it
+      // expire the way a user would rather than dragging through it.
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      // A gesture that lands on the toast instead of the row would otherwise
+      // only warn, and the delete would look like it silently did nothing.
+      WidgetController.hitTestWarningShouldBeFatal = true;
       await tester.drag(find.byType(Dismissible).first, const Offset(-360, 0));
       await tester.pumpAndSettle();
       expect(find.text('1세트를 삭제할까요?'), findsOneWidget);
@@ -124,15 +133,9 @@ void main() {
 
     expect(find.byType(ExerciseSetScreen), findsNothing);
     expect(find.byType(TextField), findsNWidgets(9));
-    await tester.enterText(find.byType(TextField).at(0), '55.5');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
-    await tester.enterText(find.byType(TextField).at(1), '12');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
-    await tester.enterText(find.byType(TextField).at(2), '120');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
+    await _pickInlineValue(tester, 'inline-set-weight-1', '55.5');
+    await _pickInlineValue(tester, 'inline-set-reps-1', '12');
+    await _pickInlineValue(tester, 'inline-set-rest-1', '120');
 
     await tester.tap(find.text('일반').first);
     await tester.pumpAndSettle();
@@ -141,12 +144,15 @@ void main() {
     final completionButton = find.byKey(
       const ValueKey('inline-set-complete-1'),
     );
-    expect(tester.getSize(completionButton).width, greaterThanOrEqualTo(72));
-    expect(tester.getSize(completionButton).height, greaterThanOrEqualTo(44));
+    // 원형 체크 하나. 48은 머티리얼 최소 터치 타깃이고, 글자를 뺀 만큼 숫자 박스가 넓어졌다.
+    expect(tester.getSize(completionButton).width, greaterThanOrEqualTo(48));
+    expect(tester.getSize(completionButton).height, greaterThanOrEqualTo(48));
     expect(
       tester
           .getRect(completionButton)
-          .overlaps(tester.getRect(find.byType(TextField).at(2))),
+          .overlaps(
+            tester.getRect(find.byKey(const ValueKey('inline-set-rest-1'))),
+          ),
       isFalse,
     );
     await tester.tap(completionButton);
@@ -162,8 +168,95 @@ void main() {
     state.dispose();
   });
 
+  group('기록 화면 헤더', () {
+    Future<AppState> pumpDayWith(WidgetTester tester, int exercises) async {
+      await tester.binding.setSurfaceSize(const Size(432, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final state = AppState();
+      await state.initialize();
+      addTearDown(state.dispose);
+      for (var i = 0; i < exercises; i++) {
+        state.addExercise(_headerDate, state.exercises[i]);
+      }
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: DailyWorkoutScreen(date: _headerDate),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // addExercise arms the persist debounce; drain it or the test ends with a
+      // pending timer.
+      await state.flushPersistence();
+      return state;
+    }
+
+    testWidgets('an empty day still offers both buttons in the body', (
+      tester,
+    ) async {
+      await pumpDayWith(tester, 0);
+
+      expect(find.text('운동 추가'), findsOneWidget);
+      expect(find.text('루틴 불러오기'), findsOneWidget);
+    });
+
+    testWidgets('the first exercise hands both actions to the header', (
+      tester,
+    ) async {
+      await pumpDayWith(tester, 1);
+
+      // The full-width pair is gone once there is something to look at.
+      expect(find.text('운동 추가'), findsNothing);
+      expect(find.text('루틴 불러오기'), findsNothing);
+      expect(find.byKey(const Key('daily-add-exercise')), findsOneWidget);
+      expect(find.byKey(const Key('daily-load-routine')), findsOneWidget);
+    });
+
+    testWidgets('the header add icon opens the exercise library', (
+      tester,
+    ) async {
+      await pumpDayWith(tester, 1);
+
+      await tester.tap(find.byKey(const Key('daily-add-exercise')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ExerciseLibraryScreen), findsOneWidget);
+    });
+
+    testWidgets('the header routine icon opens the routine picker', (
+      tester,
+    ) async {
+      await pumpDayWith(tester, 1);
+
+      await tester.tap(find.byKey(const Key('daily-load-routine')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('선택한 루틴의 운동이 이 날짜에 바로 추가됩니다.'), findsOneWidget);
+    });
+
+    testWidgets('the summary scrolls with the list instead of being pinned', (
+      tester,
+    ) async {
+      await pumpDayWith(tester, 3);
+
+      expect(find.text('완료 세트'), findsOneWidget);
+      await tester.drag(
+        find.byType(ReorderableListView),
+        const Offset(0, -400),
+      );
+      await tester.pumpAndSettle();
+
+      // Pinned above the list it would still be sitting there. As the list's
+      // own header it leaves with the scroll and gives the sets the screen.
+      expect(find.text('완료 세트'), findsNothing);
+    });
+  });
+
   testWidgets(
-    'completion commits focused weight and waits for device persistence',
+    'completion keeps the picked weight and waits for device persistence',
     (tester) async {
       final date = DateTime(2026, 11, 1);
       final repository = MemoryAppRepository();
@@ -185,7 +278,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField).first, '82.5');
+      await _pickInlineValue(tester, 'inline-set-weight-1', '82.5');
       await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
       await tester.pump();
       await state.flushPersistence();
@@ -226,8 +319,11 @@ void main() {
       const ValueKey('inline-set-complete-1'),
     );
     final restField = find.byType(TextField).at(2);
-    expect(find.text('완료'), findsNWidgets(3));
-    expect(tester.getSize(completionButton), const Size(72, 44));
+    // 세트마다 원형 체크 하나. '완료' 글자는 없앴다 — 행이 곧 세트라 끝낼 게 그것뿐이다.
+    expect(find.byKey(const ValueKey('inline-set-complete-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('inline-set-complete-3')), findsOneWidget);
+    expect(find.text('완료'), findsNothing);
+    expect(tester.getSize(completionButton), const Size(48, 48));
     expect(
       tester.getRect(completionButton).overlaps(tester.getRect(restField)),
       isFalse,
@@ -465,6 +561,122 @@ void main() {
 
     await tester.tap(find.byTooltip('이전 달'));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    state.dispose();
+  });
+
+  testWidgets('calendar week runs 월 to 일 with Sundays visible', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(432, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.dark,
+          home: const Scaffold(body: CalendarScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    const labels = ['월', '화', '수', '목', '금', '토', '일'];
+    final headerX = [
+      for (final label in labels) tester.getCenter(find.text(label)).dx,
+    ];
+    expect(
+      headerX,
+      orderedEquals(List<double>.from(headerX)..sort()),
+      reason: '요일 헤더는 월요일부터 일요일까지 왼쪽에서 오른쪽으로 놓인다',
+    );
+
+    // 일요일 칸이 일요일 열 아래에 있어야 한다. 예전에는 한 칸 밀려서 첫 열이 비어 보였다.
+    final now = DateTime.now();
+    final firstSunday = DateTime(now.year, now.month, 1).add(
+      Duration(
+        days: (DateTime.sunday - DateTime(now.year, now.month, 1).weekday) % 7,
+      ),
+    );
+    final sundayCell = find.bySemanticsLabel(
+      RegExp('^${firstSunday.year}년 ${firstSunday.month}월 ${firstSunday.day}일'),
+    );
+    expect(sundayCell, findsOneWidget);
+    expect(
+      tester.getCenter(sundayCell).dx,
+      moreOrLessEquals(tester.getCenter(find.text('일')).dx, epsilon: 1),
+    );
+
+    // 일요일 글자가 다크 테마에서 배경과 같은 검정으로 사라지면 안 된다.
+    final sundayHeader = tester.widget<Text>(find.text('일'));
+    expect(sundayHeader.style?.color, isNot(SetflowColors.red));
+
+    state.dispose();
+  });
+
+  testWidgets('calendar folds to this week and expands back to the month', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(432, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: const Scaffold(body: CalendarScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 펼친 월간이 기본이다.
+    expect(find.byType(DragTarget<DateTime>), findsNWidgets(42));
+    expect(find.byTooltip('이전 달'), findsOneWidget);
+
+    // 헤더 토글은 스크롤 없이 늘 보이는 자리라 여기서 접는다.
+    expect(find.byKey(const Key('calendar-fold-toggle')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('calendar-fold-toggle')));
+    await tester.pump();
+    await tester.pump(SetflowMotion.standard);
+    await tester.pump(SetflowMotion.standard);
+
+    // 접으면 오늘이 든 한 주만 남고, 화살표도 주 단위로 바뀐다.
+    expect(find.byType(DragTarget<DateTime>), findsNWidgets(7));
+    expect(find.byTooltip('이전 주'), findsOneWidget);
+    final today = DateTime.now();
+    expect(
+      find.bySemanticsLabel(
+        RegExp('^${today.year}년 ${today.month}월 ${today.day}일'),
+      ),
+      findsOneWidget,
+    );
+
+    // 주 이동은 달을 통째로 건너뛰지 않는다.
+    await tester.tap(find.byTooltip('이전 주'));
+    await tester.pump();
+    await tester.pump(SetflowMotion.standard);
+    await tester.pump(SetflowMotion.standard);
+    expect(find.byType(DragTarget<DateTime>), findsNWidgets(7));
+    final lastWeek = today.subtract(const Duration(days: 7));
+    expect(
+      find.bySemanticsLabel(
+        RegExp('^${lastWeek.year}년 ${lastWeek.month}월 ${lastWeek.day}일'),
+      ),
+      findsOneWidget,
+    );
+
+    // 접힌 상태에선 격자 아래 손잡이도 화면 안에 들어온다.
+    await tester.tap(find.byKey(const Key('calendar-fold-handle')));
+    await tester.pump();
+    await tester.pump(SetflowMotion.standard);
+    await tester.pump(SetflowMotion.standard);
+    expect(find.byType(DragTarget<DateTime>), findsNWidgets(42));
     expect(tester.takeException(), isNull);
 
     state.dispose();
@@ -1050,3 +1262,23 @@ void main() {
     state.cancelRestTimer();
   });
 }
+
+/// The set row has no keyboard of its own: tapping the box opens the dial and
+/// 적용 is what writes the number.
+Future<void> _pickInlineValue(
+  WidgetTester tester,
+  String fieldKey,
+  String value,
+) async {
+  await tester.tap(find.byKey(ValueKey(fieldKey)));
+  await tester.pumpAndSettle();
+  await tester.enterText(
+    find.byKey(const Key('number-dial-direct-input')),
+    value,
+  );
+  await tester.pump();
+  await tester.tap(find.text('적용'));
+  await tester.pumpAndSettle();
+}
+
+final _headerDate = DateTime(2026, 11, 2);
