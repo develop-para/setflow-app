@@ -86,6 +86,18 @@ final architectureRules = <ArchitectureRule>[
     instead: 'DB에는 버킷 경로만 저장하고, 레포지토리가 읽을 때 URL로 변환할 것.',
   ),
   ArchitectureRule(
+    name: '토스트는 AppSnackbar 한 곳에서만 띄운다',
+    pattern: RegExp(r'(showSnackBar|ScaffoldMessenger)'),
+    searchIn: const ['lib'],
+    allow: const ['lib/widgets/common.dart'],
+    why:
+        '토스트는 화면 상단 30%에 떠야 한다(하단은 엄지·기록 디스크·휴식 타이머가 쓴다). '
+        'SnackBar는 Scaffold 하단에 고정이라 직접 부르면 그 규칙을 조용히 우회한다.',
+    instead:
+        'AppSnackbar.success / error / info (또는 showMessage)를 쓸 것. '
+        '위치는 AppSnackbar.topFraction 한 곳에서 정한다.',
+  ),
+  ArchitectureRule(
     name: '엣지 펑션 호출은 의도적으로만 늘린다',
     pattern: RegExp(r'functions\s*\.\s*invoke'),
     searchIn: const ['lib'],

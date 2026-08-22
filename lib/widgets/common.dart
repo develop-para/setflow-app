@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme.dart';
+import '../theme/icons.dart';
 
 class SetflowCard extends StatelessWidget {
   const SetflowCard({
@@ -606,7 +609,17 @@ class ErrorState extends StatelessWidget {
   }
 }
 
-class GlobalRestTimerOverlay extends StatelessWidget {
+/// The rest countdown, as a slim bar that lives under the header.
+///
+/// It used to be a tall card floating above the bottom bar, which is exactly
+/// where the set rows are — so the thing telling you to wait covered the thing
+/// you were waiting to edit. Up top it is out of the thumb's way, out of the
+/// list's way, and still visible from every screen.
+///
+/// Collapsed it is 44px: how far along the rest is, the label, the clock, and
+/// the way out. Tapping opens the one action that is not urgent enough to sit
+/// there permanently (+30초).
+class GlobalRestTimerOverlay extends StatefulWidget {
   const GlobalRestTimerOverlay({
     required this.seconds,
     required this.totalSeconds,
@@ -621,82 +634,122 @@ class GlobalRestTimerOverlay extends StatelessWidget {
   final VoidCallback onCancel;
 
   @override
+  State<GlobalRestTimerOverlay> createState() => _GlobalRestTimerOverlayState();
+}
+
+class _GlobalRestTimerOverlayState extends State<GlobalRestTimerOverlay> {
+  static const _barHeight = 44.0;
+
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
-    final remainder = (seconds % 60).toString().padLeft(2, '0');
-    final progress = totalSeconds <= 0
+    final minutes = (widget.seconds ~/ 60).toString().padLeft(2, '0');
+    final remainder = (widget.seconds % 60).toString().padLeft(2, '0');
+    final progress = widget.totalSeconds <= 0
         ? 0.0
-        : (seconds / totalSeconds).clamp(0.0, 1.0);
+        : (widget.seconds / widget.totalSeconds).clamp(0.0, 1.0);
+
     return Semantics(
       label: '휴식 타이머 $minutes분 $remainder초 남음',
       liveRegion: true,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: .96, end: 1),
-        duration: SetflowMotion.micro,
-        curve: SetflowMotion.emphasisCurve,
-        builder: (context, scale, child) =>
-            Transform.scale(scale: scale, child: child),
-        child: Material(
-          color: SetflowColors.ink,
-          elevation: 12,
-          borderRadius: BorderRadius.circular(SetflowRadii.lg),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: progress,
-                minHeight: 3,
-                color: SetflowColors.primary,
-                backgroundColor: Colors.white12,
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.timer_outlined,
-                      color: SetflowColors.primary,
-                    ),
-                    const SizedBox(width: SetflowSpacing.sm),
-                    const Expanded(
-                      child: Text(
-                        '휴식 중',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
+      child: Material(
+        color: SetflowColors.ink,
+        elevation: 8,
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: AnimatedSize(
+            duration: SetflowMotion.standard,
+            curve: SetflowMotion.standardCurve,
+            alignment: Alignment.topCenter,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: _barHeight,
+                  child: Stack(
+                    children: [
+                      // The bar drains as the rest runs out. On an ink bar the
+                      // only readable "colour" is light, so progress is a
+                      // lighter wash — never SetflowColors.primary, which is
+                      // black on black here.
+                      Positioned.fill(
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: progress,
+                          child: const ColoredBox(color: Colors.white12),
                         ),
                       ),
-                    ),
-                    Text(
-                      '$minutes:$remainder',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        fontFeatures: [FontFeature.tabularFigures()],
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          SetflowSpacing.lg,
+                          0,
+                          4,
+                          0,
+                        ),
+                        child: Row(
+                          children: [
+                            const Text(
+                              '휴식 중',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '$minutes:$remainder',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                            Semantics(
+                              button: true,
+                              label: '휴식 종료',
+                              child: IconButton(
+                                onPressed: widget.onCancel,
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(
+                                  SetflowIcons.close,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: onAddTime,
-                      style: TextButton.styleFrom(
-                        foregroundColor: SetflowColors.primary,
-                        minimumSize: const Size(48, 44),
-                      ),
-                      child: const Text('+30초'),
-                    ),
-                    Semantics(
-                      button: true,
-                      label: '휴식 종료',
-                      child: IconButton(
-                        onPressed: onCancel,
-                        icon: const Icon(Icons.close, color: Colors.white),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                if (_expanded)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      SetflowSpacing.sm,
+                      0,
+                      SetflowSpacing.sm,
+                      SetflowSpacing.xs,
+                    ),
+                    child: Row(
+                      children: [
+                        TextButton(
+                          onPressed: widget.onAddTime,
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(48, 40),
+                          ),
+                          child: const Text('+30초'),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -705,6 +758,9 @@ class GlobalRestTimerOverlay extends StatelessWidget {
 }
 
 abstract final class AppSnackbar {
+  /// Where the toast's top edge sits, as a fraction of the screen height.
+  static const topFraction = .3;
+
   static void success(BuildContext context, String message) {
     _show(context, message, Icons.check_circle_rounded, SetflowColors.green);
   }
@@ -717,26 +773,167 @@ abstract final class AppSnackbar {
     _show(context, message, Icons.info_rounded, context.setflowColors.info);
   }
 
+  static OverlayEntry? _current;
+
   static void _show(
     BuildContext context,
     String message,
     IconData icon,
     Color color,
   ) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(icon, color: color, size: 21),
-              const SizedBox(width: SetflowSpacing.md),
-              Expanded(child: Text(message)),
-            ],
+    // The root overlay is inside the web app frame (the frame wraps the
+    // Navigator in MaterialApp.builder), so the toast keeps the phone width
+    // instead of stretching across the browser.
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+
+    dismiss();
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (context) => _Toast(
+        message: message,
+        icon: icon,
+        iconColor: color,
+        onDismiss: () {
+          if (identical(_current, entry)) _current = null;
+          entry.remove();
+        },
+      ),
+    );
+    _current = entry;
+    overlay.insert(entry);
+  }
+
+  /// Takes the visible toast down early — a new one replacing it, or a screen
+  /// that no longer wants it around.
+  static void dismiss() {
+    _current?.remove();
+    _current = null;
+  }
+}
+
+class _Toast extends StatefulWidget {
+  const _Toast({
+    required this.message,
+    required this.icon,
+    required this.iconColor,
+    required this.onDismiss,
+  });
+
+  final String message;
+  final IconData icon;
+  final Color iconColor;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_Toast> createState() => _ToastState();
+}
+
+class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
+  static const _visible = Duration(seconds: 3);
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: SetflowMotion.standard,
+    reverseDuration: SetflowMotion.micro,
+  );
+
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.forward();
+    // The timer lives with the widget, not with the entry: when the tree is
+    // torn down (a test ending, the app closing) dispose cancels it, which is
+    // what keeps a pending timer from outliving the binding.
+    _timer = Timer(_visible, _close);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    _timer?.cancel();
+    if (!mounted) return;
+    await _controller.reverse();
+    if (!mounted) return;
+    widget.onDismiss();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Measured off the overlay itself rather than MediaQuery: the overlay is
+    // what the toast is actually laid out in, and on web that box is the app
+    // frame, not the window.
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) => Padding(
+          padding: EdgeInsets.only(
+            top: constraints.maxHeight * AppSnackbar.topFraction,
+            left: SetflowSpacing.lg,
+            right: SetflowSpacing.lg,
+          ),
+          child: Align(alignment: Alignment.topCenter, child: _body(context)),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context) {
+    final snack = Theme.of(context).snackBarTheme;
+
+    return FadeTransition(
+      opacity: _controller,
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0, -.25), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: SetflowMotion.standardCurve,
           ),
         ),
-      );
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Semantics(
+            liveRegion: true,
+            child: Material(
+              color: snack.backgroundColor ?? SetflowColors.ink,
+              elevation: 8,
+              borderRadius: BorderRadius.circular(SetflowRadii.sm),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                // Tapping gets rid of it — a message sitting in the middle of
+                // the screen has to be dismissible on the spot.
+                onTap: _close,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: SetflowSpacing.lg,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(widget.icon, color: widget.iconColor, size: 21),
+                      const SizedBox(width: SetflowSpacing.md),
+                      Flexible(
+                        child: Text(
+                          widget.message,
+                          style: snack.contentTextStyle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
