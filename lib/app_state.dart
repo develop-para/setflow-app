@@ -1650,8 +1650,10 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    // The feed is public reading, so it loads outside the private-data gate —
+    // a guest who never signs in must still see what everyone else posted.
     final sharedCommunityRepository = communityRepository;
-    if (canLoadPrivateData && sharedCommunityRepository != null) {
+    if (sharedCommunityRepository != null) {
       try {
         final records = await sharedCommunityRepository.fetchPosts();
         if (!_isCurrentAccount(accountEpoch)) return;

@@ -32,7 +32,10 @@ class SupabaseCommunityRepository implements CommunityRepository {
   }) async {
     final safeLimit = limit.clamp(1, 100);
     final safeOffset = offset < 0 ? 0 : offset;
-    final user = _requireUser();
+    // Reading the feed never asks for an account. Only the "did *I* like this"
+    // overlay needs a session, so a guest gets the same posts with that overlay
+    // left off instead of a sign-in wall in front of the whole tab.
+    final user = _client.auth.currentUser;
     final postRows = await _client
         .from(_postsTable)
         .select(_postColumns)
@@ -52,15 +55,17 @@ class SupabaseCommunityRepository implements CommunityRepository {
         .inFilter('post_id', postIds)
         .order('created_at', ascending: true);
 
-    final likeRows = await _client
-        .from(_likesTable)
-        .select('post_id')
-        .eq('user_id', user.id)
-        .inFilter('post_id', postIds);
-    final likedPostIds = likeRows
-        .map((row) => row['post_id']?.toString())
-        .whereType<String>()
-        .toSet();
+    final likedPostIds = <String>{};
+    if (user != null) {
+      final likeRows = await _client
+          .from(_likesTable)
+          .select('post_id')
+          .eq('user_id', user.id)
+          .inFilter('post_id', postIds);
+      likedPostIds.addAll(
+        likeRows.map((row) => row['post_id']?.toString()).whereType<String>(),
+      );
+    }
 
     final commentsByPost = <String, List<PostComment>>{};
     for (final row in commentRows) {
@@ -69,7 +74,7 @@ class SupabaseCommunityRepository implements CommunityRepository {
       final commentUserId = row['user_id']?.toString();
       final authorName = _displayName(
         row['author_name'],
-        isMine: commentUserId == user.id,
+        isMine: user != null && commentUserId == user.id,
         currentUser: user,
       );
       commentsByPost
@@ -88,7 +93,7 @@ class SupabaseCommunityRepository implements CommunityRepository {
         .map((row) {
           final id = row['id']?.toString() ?? '';
           final authorUserId = row['user_id']?.toString() ?? '';
-          final isMine = authorUserId == user.id;
+          final isMine = user != null && authorUserId == user.id;
           final imageUrl = _resolveImageUrl(row['image_url']);
           final colorValue = _parseColorValue(row['image_color']);
           final overlays = _stringList(row['active_overlays']);

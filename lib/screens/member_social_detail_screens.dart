@@ -9,6 +9,7 @@ import '../data/business_repository.dart';
 import '../data/community_repository.dart';
 import '../services/post_media_picker.dart';
 import '../theme.dart';
+import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
 import '../widgets/recommendation_profile_summary.dart';
 import 'recommendation_profile_screen.dart';
@@ -1062,12 +1063,26 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
       AppSnackbar.error(context, '댓글 내용을 입력해주세요.');
       return;
     }
+    // Reading the post needed no account; leaving something on it does.
+    if (!await requireSignIn(context, reason: AuthReason.community)) return;
+    if (!mounted) return;
     try {
       await AppScope.of(context).addPostComment(widget.post, value);
       if (!mounted) return;
       commentController.clear();
       HapticFeedback.selectionClick();
       AppSnackbar.success(context, '댓글을 등록했어요.');
+    } catch (error) {
+      if (mounted) AppSnackbar.error(context, _communityErrorMessage(error));
+    }
+  }
+
+  Future<void> _toggleLike(AppState state, CommunityPost post) async {
+    if (!await requireSignIn(context, reason: AuthReason.community)) return;
+    if (!mounted) return;
+    try {
+      await state.togglePostLike(post);
+      HapticFeedback.selectionClick();
     } catch (error) {
       if (mounted) AppSnackbar.error(context, _communityErrorMessage(error));
     }
@@ -1203,19 +1218,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                         children: [
                           IconButton(
                             tooltip: post.isLiked ? '좋아요 취소' : '좋아요',
-                            onPressed: () async {
-                              try {
-                                await state.togglePostLike(post);
-                                HapticFeedback.selectionClick();
-                              } catch (error) {
-                                if (context.mounted) {
-                                  AppSnackbar.error(
-                                    context,
-                                    _communityErrorMessage(error),
-                                  );
-                                }
-                              }
-                            },
+                            onPressed: () => _toggleLike(state, post),
                             icon: Icon(
                               post.isLiked
                                   ? Icons.favorite_rounded

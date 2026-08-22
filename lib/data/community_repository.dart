@@ -91,7 +91,10 @@ class CommunityValidationException implements Exception {
 }
 
 abstract interface class CommunityRepository {
-  /// Loads shared posts/comments and the current user's own like rows.
+  /// Loads shared posts/comments, plus the caller's own like rows when there
+  /// is a session. Readable without an account — the feed is a browse surface,
+  /// not an account feature, so a guest gets the posts with the "liked by me"
+  /// overlay left off.
   Future<List<CommunityPostRecord>> fetchPosts({
     int limit = 50,
     int offset = 0,
