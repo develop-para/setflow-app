@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:setflow/app_state.dart';
+import 'package:setflow/data/business_repository.dart';
 import 'package:setflow/main.dart';
 import 'package:setflow/screens/member_mypage_screen.dart';
 import 'package:setflow/screens/member_screens.dart';
@@ -141,6 +143,42 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mypage-routines')));
     await tester.pumpAndSettle();
     expect(find.byType(RoutinesScreen), findsOneWidget);
+  });
+
+  testWidgets('the portal switch belongs to 홈 and follows nobody to 기록', (
+    tester,
+  ) async {
+    await launch(tester);
+
+    // Only an approved account has a second portal to switch to at all.
+    final state = AppScope.of(tester.element(find.byType(MemberShell)));
+    state.businessAccess = const BusinessAccess(
+      userId: '00000000-0000-0000-0000-000000000001',
+      accountRole: UserRole.member,
+      resolvedRole: UserRole.trainer,
+      availableRoles: {UserRole.member, UserRole.trainer},
+      applicationStatus: BusinessApplicationStatus.approved,
+    );
+    state.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('portal-segment-trainer')),
+      findsOneWidget,
+    );
+
+    // 기록 needs its whole height, and a 일반인/트레이너 toggle floating over the
+    // set you are logging is noise rather than navigation.
+    await tester.tap(disc);
+    await tester.pumpAndSettle();
+    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('portal-segment-trainer')), findsNothing);
+
+    await tester.tap(find.text('홈'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('portal-segment-trainer')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('bar fits a small phone without overflow', (tester) async {

@@ -227,7 +227,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         lifecycleState == AppLifecycleState.paused ||
         lifecycleState == AppLifecycleState.hidden ||
         lifecycleState == AppLifecycleState.detached) {
-      unawaited(state.syncPersistenceToServer().catchError((_) {}));
+      unawaited(_commitEditsThenPersist());
       return;
     }
     if (lifecycleState == AppLifecycleState.resumed) {
@@ -245,6 +245,30 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         // AppState keeps the previous data and exposes the refresh error to UI.
       }),
     );
+  }
+
+  /// Saves what is on screen, not what was last committed.
+  ///
+  /// A set is often abandoned mid-edit — the phone locks, a call arrives, the
+  /// app is swiped away — and Android may kill the process without ever
+  /// returning. Dismissing the keyboard with the system back gesture does not
+  /// drop focus, so the field still holds an uncommitted number at this point;
+  /// persisting straight away writes the value from *before* the user typed.
+  ///
+  /// Verified on an emulator: typing 82.5, pressing back, then force-stopping
+  /// the app used to come back as 0.
+  Future<void> _commitEditsThenPersist() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    // FocusManager applies the change in a microtask, and the field's blur
+    // listener runs with it. Yielding to the event loop lets that finish, so
+    // the snapshot taken below already contains the typed value.
+    await Future<void>.delayed(Duration.zero);
+    try {
+      await state.syncPersistenceToServer();
+    } catch (_) {
+      // The account-scoped outbox is durable; the retry paths finish the
+      // upload when the network returns.
+    }
   }
 
   Future<void> _captureInitialAppLink() async {
@@ -309,9 +333,13 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
                   Positioned(
                     left: SetflowSpacing.lg,
                     right: SetflowSpacing.lg,
-                    bottom: 84,
+                    // Under the header, not above the bottom bar: down there it
+                    // covered the set rows the timer is counting for. The 52 is
+                    // the header's own height, added only when the header has
+                    // something in it (a pushed route has none).
+                    top: portalSwitcherVisible(state) ? 52 : 0,
                     child: SafeArea(
-                      top: false,
+                      bottom: false,
                       child: GlobalRestTimerOverlay(
                         seconds: state.restRemaining,
                         totalSeconds: state.restDefaultSeconds,

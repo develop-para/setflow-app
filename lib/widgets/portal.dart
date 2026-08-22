@@ -3,23 +3,43 @@ import 'package:flutter/services.dart';
 
 import '../app_state.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import 'brand.dart';
 import 'pro_access_gate.dart';
+
+/// Whether this account has a second surface to switch to at all.
+///
+/// The pro side belongs to accounts an admin has approved, so a guest or a
+/// plain member has nothing behind that segment — offering the door and then
+/// refusing at the gate is worse than never showing the door.
+///
+/// The escape hatch matters as much as the gate: whoever is already standing in
+/// the pro shell keeps the control that takes them back, even while access is
+/// still loading (or in the demo build, which has no access to load).
+bool portalSwitcherVisible(AppState state) =>
+    state.portal == AppPortal.trainer ||
+    proAccessStateOf(state) == ProAccessState.approved;
 
 /// Header control that swaps the whole product surface, OKX "Exchange | Wallet"
 /// style. It is deliberately not a TabBar: the two segments own different
 /// shells, so selecting one runs [PortalTransitionOverlay] over the swap.
+///
+/// The segments are glyphs, not words: "일반인" was never a name anyone calls
+/// themselves, and the two sides read faster as 사람 vs 자격증 than as text.
 class PortalSwitcher extends StatelessWidget {
-  const PortalSwitcher({this.width = 208, super.key});
+  const PortalSwitcher({this.width = 132, super.key});
 
   final double width;
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    if (!portalSwitcherVisible(state)) return const SizedBox.shrink();
+
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final selected = state.portal;
+    // Only screen readers still hear the role names; the glyph is one door.
     final trainerLabel = switch (state.portalTrainerRole) {
       UserRole.gym => '헬스장',
       UserRole.admin => '운영',
@@ -61,7 +81,9 @@ class PortalSwitcher extends StatelessWidget {
                   Expanded(
                     child: _PortalSegment(
                       key: const ValueKey('portal-segment-client'),
-                      label: '일반인',
+                      icon: SetflowIcons.my,
+                      activeIcon: SetflowIcons.myActive,
+                      semanticLabel: '회원',
                       active: selected == AppPortal.client,
                       onTap: () => _switch(context, state, AppPortal.client),
                     ),
@@ -69,7 +91,9 @@ class PortalSwitcher extends StatelessWidget {
                   Expanded(
                     child: _PortalSegment(
                       key: const ValueKey('portal-segment-trainer'),
-                      label: trainerLabel,
+                      icon: SetflowIcons.pro,
+                      activeIcon: SetflowIcons.proActive,
+                      semanticLabel: trainerLabel,
                       active: selected == AppPortal.trainer,
                       onTap: () => _switch(context, state, AppPortal.trainer),
                     ),
@@ -102,13 +126,20 @@ class PortalSwitcher extends StatelessWidget {
 
 class _PortalSegment extends StatelessWidget {
   const _PortalSegment({
-    required this.label,
+    required this.icon,
+    required this.activeIcon,
+    required this.semanticLabel,
     required this.active,
     required this.onTap,
     super.key,
   });
 
-  final String label;
+  final IconData icon;
+  final IconData activeIcon;
+
+  /// What the glyph means, spoken. Nothing draws this.
+  final String semanticLabel;
+
   final bool active;
   final VoidCallback onTap;
 
@@ -118,25 +149,24 @@ class _PortalSegment extends StatelessWidget {
     return Semantics(
       button: true,
       selected: active,
-      label: '$label 포탈',
+      label: '$semanticLabel 포탈',
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
+        // Selection has to read without colour, so it rides the outline ->
+        // filled swap on top of the sliding pill.
         child: Center(
-          child: AnimatedDefaultTextStyle(
+          child: AnimatedSwitcher(
             duration: SetflowMotion.standard,
-            curve: SetflowMotion.standardCurve,
-            // Must start from the text theme: AnimatedDefaultTextStyle
-            // *replaces* the ambient style, so a bare TextStyle here would drop
-            // the app font and render these two labels in the system face.
-            style: (theme.textTheme.labelLarge ?? const TextStyle()).copyWith(
-              fontSize: 14,
-              fontWeight: active ? FontWeight.w900 : FontWeight.w600,
+            switchInCurve: SetflowMotion.standardCurve,
+            child: Icon(
+              active ? activeIcon : icon,
+              key: ValueKey(active),
+              size: 20,
               color: active
                   ? theme.colorScheme.onSurface
                   : theme.colorScheme.onSurfaceVariant,
             ),
-            child: Text(label, maxLines: 1),
           ),
         ),
       ),
@@ -146,13 +176,28 @@ class _PortalSegment extends StatelessWidget {
 
 /// The switcher row every shell puts above its content.
 class PortalHeaderBar extends StatelessWidget {
-  const PortalHeaderBar({this.trailing, super.key});
+  const PortalHeaderBar({this.trailing, this.switcher = true, super.key});
 
   /// Optional shell-specific actions on the right edge.
   final Widget? trailing;
 
+  /// Whether this page is one that offers the portal switch at all.
+  ///
+  /// The switch belongs to the shell's home page. Every other destination —
+  /// 기록 above all — needs its own full height, and a member/trainer toggle
+  /// hovering over a set you are logging is noise, not navigation.
+  final bool switcher;
+
   @override
   Widget build(BuildContext context) {
+    final showSwitcher =
+        switcher && portalSwitcherVisible(AppScope.of(context));
+    // The SafeArea stays even with nothing to show: the pages below strip their
+    // own top inset because this bar already ate it, so collapsing the whole
+    // widget would slide the first page under the status bar.
+    if (!showSwitcher && trailing == null) {
+      return const SafeArea(bottom: false, child: SizedBox.shrink());
+    }
     return SafeArea(
       bottom: false,
       child: SizedBox(
@@ -160,7 +205,7 @@ class PortalHeaderBar extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            const Center(child: PortalSwitcher()),
+            if (showSwitcher) const Center(child: PortalSwitcher()),
             if (trailing != null)
               Positioned(right: SetflowSpacing.sm, child: trailing!),
           ],

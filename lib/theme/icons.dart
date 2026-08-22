@@ -39,6 +39,10 @@ abstract final class SetflowIcons {
   /// The record disc while its action sheet is open.
   static const close = Icons.close_rounded;
 
+  /// 세트 완료 토글. 글리프는 하나고 상태는 **채움 여부**로 낸다 — 체크가 두 종류면
+  /// 완료와 미완료가 둘 다 "체크된 것"처럼 보인다.
+  static const setComplete = Icons.check_rounded;
+
   // --- record surfaces ------------------------------------------------------
   static const routine = Icons.checklist_rounded;
   static const market = Icons.workspace_premium_outlined;
@@ -73,8 +77,10 @@ abstract final class SetflowIcons {
   static const success = Icons.check_circle_outline_rounded;
 
   // --- pro portal -----------------------------------------------------------
-  /// 트레이너 등록 / 승인이 필요한 자격.
+  /// 트레이너 등록 / 승인이 필요한 자격. 포탈 스위처의 프로 쪽도 이 글리프다 —
+  /// 트레이너·헬스장·운영은 문 하나를 나눠 쓰는 같은 자격이라 글리프도 하나다.
   static const pro = Icons.badge_outlined;
+  static const proActive = Icons.badge_rounded;
 
   /// 관리자 심사를 기다리는 상태.
   static const pending = Icons.hourglass_top_rounded;
@@ -82,4 +88,9 @@ abstract final class SetflowIcons {
   // --- affordances ----------------------------------------------------------
   static const forward = Icons.chevron_right_rounded;
   static const back = Icons.arrow_back_rounded;
+
+  /// 펼쳐진 것을 접는다 / 접힌 것을 펼친다. 화살표가 가리키는 쪽이 결과다 —
+  /// 위로 = 접힌다, 아래로 = 내려온다.
+  static const collapse = Icons.keyboard_arrow_up_rounded;
+  static const expand = Icons.keyboard_arrow_down_rounded;
 }

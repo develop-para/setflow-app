@@ -44,6 +44,9 @@ class _MemberShellState extends State<MemberShell> {
   /// Page index the center disc owns.
   static const _recordPage = 2;
 
+  /// 홈. The only page that carries the 일반인/트레이너 switch.
+  static const _homePage = 0;
+
   /// Bar slots left of the center action, then right of it.
   static const destinations = [
     SetflowNavItem(
@@ -117,7 +120,7 @@ class _MemberShellState extends State<MemberShell> {
           children: [
             Column(
               children: [
-                const PortalHeaderBar(),
+                PortalHeaderBar(switcher: index == _homePage),
                 // The header already ate the status-bar inset, so the per-page
                 // SafeArea below must not add it a second time.
                 Expanded(
@@ -347,8 +350,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime? dragSource;
 
-  void _changeMonth(int offset) {
-    setState(() => month = DateTime(month.year, month.month + offset));
+  /// 월간이 기본이다. 접으면 [anchor]가 든 한 주만 남는다.
+  bool expanded = true;
+
+  /// 접었을 때 남는 주를 정하는 날짜. 달을 바꿀 때마다 같이 옮겨서
+  /// **항상 현재 격자 안에 있다** — 그래야 접는 순간 보여줄 주가 확실하다.
+  DateTime anchor = DateUtils.dateOnly(DateTime.now());
+
+  /// 펼쳤을 땐 한 달, 접었을 땐 한 주씩 넘어간다. 보이는 만큼 움직여야
+  /// 화살표와 스와이프가 같은 뜻으로 읽힌다.
+  void _step(int offset) {
+    setState(() {
+      if (expanded) {
+        _goToMonth(DateTime(month.year, month.month + offset));
+      } else {
+        anchor = DateTime(anchor.year, anchor.month, anchor.day + 7 * offset);
+        month = DateTime(anchor.year, anchor.month);
+      }
+    });
+  }
+
+  void _goToMonth(DateTime target) {
+    month = DateTime(target.year, target.month);
+    final today = DateUtils.dateOnly(DateTime.now());
+    anchor = today.year == month.year && today.month == month.month
+        ? today
+        : DateTime(month.year, month.month, 1);
+  }
+
+  void _toggleExpanded() {
+    setState(() => expanded = !expanded);
   }
 
   void _openDashboard(BuildContext context) {
@@ -371,6 +402,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
       6,
       (index) => days.sublist(index * 7, index * 7 + 7),
     );
+    // 접었을 때 남는 한 주. anchor는 항상 이 격자 안에 있지만,
+    // 못 찾으면 첫 주로 떨어뜨려서 화면이 통째로 비는 일은 없게 한다.
+    final foldedWeek = weeks.firstWhere(
+      (week) => week.any((day) => DateUtils.isSameDay(day, anchor)),
+      orElse: () => weeks.first,
+    );
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final performance = state.featuredPerformance;
@@ -388,51 +425,59 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     final compactHeader = headerConstraints.maxWidth < 360;
                     return Row(
                       children: [
-                        SizedBox(
-                          width: compactHeader ? 104 : null,
-                          child: PopupMenuButton<int>(
-                            tooltip: '월 선택',
-                            onSelected: (value) => setState(
-                              () => month = DateTime(month.year, value),
-                            ),
-                            itemBuilder: (_) => List.generate(
-                              12,
-                              (i) => PopupMenuItem(
-                                value: i + 1,
-                                child: Text('${i + 1}월'),
-                              ),
-                            ),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                  vertical: 8,
+                        // 제목이 남는 폭을 다 먹고 필요하면 스스로 줄어든다 —
+                        // 고정 폭 + Spacer 조합은 버튼이 하나만 늘어도 넘친다.
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: SizedBox(
+                              width: compactHeader ? 104 : null,
+                              child: PopupMenuButton<int>(
+                                tooltip: '월 선택',
+                                onSelected: (value) => setState(
+                                  () => _goToMonth(DateTime(month.year, value)),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      DateFormat('yyyy.MM').format(month),
-                                      style: theme.textTheme.headlineMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w900,
-                                          ),
+                                itemBuilder: (_) => List.generate(
+                                  12,
+                                  (i) => PopupMenuItem(
+                                    value: i + 1,
+                                    child: Text('${i + 1}월'),
+                                  ),
+                                ),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 2,
+                                      vertical: 8,
                                     ),
-                                    const SizedBox(width: 2),
-                                    Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      size: 20,
-                                      color: theme.colorScheme.onSurfaceVariant,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          DateFormat('yyyy.MM').format(month),
+                                          style: theme.textTheme.headlineMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Icon(
+                                          Icons.keyboard_arrow_down_rounded,
+                                          size: 20,
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                        const Spacer(),
                         Container(
                           decoration: BoxDecoration(
                             color: context.setflowColors.surfaceContainerLow,
@@ -447,9 +492,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _MonthArrowButton(
-                                tooltip: '이전 달',
+                                tooltip: expanded ? '이전 달' : '이전 주',
                                 icon: Icons.chevron_left_rounded,
-                                onPressed: () => _changeMonth(-1),
+                                onPressed: () => _step(-1),
                               ),
                               Container(
                                 width: 1,
@@ -457,9 +502,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 color: theme.colorScheme.outlineVariant,
                               ),
                               _MonthArrowButton(
-                                tooltip: '다음 달',
+                                tooltip: expanded ? '다음 달' : '다음 주',
                                 icon: Icons.chevron_right_rounded,
-                                onPressed: () => _changeMonth(1),
+                                onPressed: () => _step(1),
+                              ),
+                              Container(
+                                width: 1,
+                                height: 18,
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                              // 접기는 헤더에도 둔다 — 격자 아래 손잡이는 펼친
+                              // 상태에서 화면 밖으로 밀려 보이지 않는다.
+                              _MonthArrowButton(
+                                key: const Key('calendar-fold-toggle'),
+                                tooltip: expanded ? '이번 주만 보기' : '한 달 전체 보기',
+                                icon: expanded
+                                    ? SetflowIcons.collapse
+                                    : SetflowIcons.expand,
+                                onPressed: _toggleExpanded,
                               ),
                             ],
                           ),
@@ -522,7 +582,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   onHorizontalDragEnd: (details) {
                     final velocity = details.primaryVelocity ?? 0;
                     if (velocity.abs() < 120) return;
-                    _changeMonth(velocity < 0 ? 1 : -1);
+                    _step(velocity < 0 ? 1 : -1);
                   },
                   child: SingleChildScrollView(
                     physics: const ClampingScrollPhysics(),
@@ -546,7 +606,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 for (final week in weeks)
-                                  SizedBox(
+                                  _CollapsibleWeek(
+                                    visible:
+                                        expanded || identical(week, foldedWeek),
                                     height: rowHeight,
                                     child: Row(
                                       crossAxisAlignment:
@@ -604,6 +666,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                       ],
                                     ),
                                   ),
+                                _CalendarFoldHandle(
+                                  key: const Key('calendar-fold-handle'),
+                                  expanded: expanded,
+                                  onPressed: _toggleExpanded,
+                                ),
                                 const SizedBox(height: 12),
                                 _CalendarKpiSection(
                                   summary: performance,
@@ -704,7 +771,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   List<DateTime> _calendarDays(DateTime target) {
     final first = DateTime(target.year, target.month, 1);
-    final start = first.subtract(Duration(days: first.weekday % 7));
+    final start = first.subtract(Duration(days: first.weekday - 1));
     return List.generate(42, (index) => start.add(Duration(days: index)));
   }
 }
@@ -1167,6 +1234,7 @@ class _KpiActionCard extends StatelessWidget {
 
 class _MonthArrowButton extends StatelessWidget {
   const _MonthArrowButton({
+    super.key,
     required this.tooltip,
     required this.icon,
     required this.onPressed,
@@ -1185,6 +1253,95 @@ class _MonthArrowButton extends StatelessWidget {
       padding: EdgeInsets.zero,
       iconSize: 20,
       icon: Icon(icon),
+    );
+  }
+}
+
+/// 한 주 행. 접히면 높이가 0으로 줄면서 사라진다.
+///
+/// 높이를 직접 0으로 주면 안의 셀들이 찌그러지며 오버플로가 난다 —
+/// 그래서 자식은 늘 제 높이를 갖고, 잘라내는 건 [Align.heightFactor] 쪽이다.
+class _CollapsibleWeek extends StatelessWidget {
+  const _CollapsibleWeek({
+    required this.visible,
+    required this.height,
+    required this.child,
+  });
+
+  final bool visible;
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: visible ? 1 : 0, end: visible ? 1 : 0),
+      duration: SetflowMotion.standard,
+      curve: SetflowMotion.standardCurve,
+      builder: (context, factor, child) {
+        if (factor <= 0) return const SizedBox.shrink();
+        return ClipRect(
+          child: Align(
+            alignment: Alignment.topCenter,
+            heightFactor: factor,
+            // 접히는 중인 주는 눈에만 남는다 — 탭이나 드롭을 받으면 안 된다.
+            child: IgnorePointer(
+              ignoring: !visible,
+              child: Opacity(opacity: factor, child: child),
+            ),
+          ),
+        );
+      },
+      child: SizedBox(height: height, child: child),
+    );
+  }
+}
+
+/// 월간 ↔ 주간을 바꾸는 손잡이. 화살표가 가리키는 쪽이 결과다.
+class _CalendarFoldHandle extends StatelessWidget {
+  const _CalendarFoldHandle({
+    super.key,
+    required this.expanded,
+    required this.onPressed,
+  });
+
+  final bool expanded;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = expanded ? '이번 주만 보기' : '한 달 전체 보기';
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Center(
+        child: Tooltip(
+          message: label,
+          child: Semantics(
+            button: true,
+            label: label,
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: BorderRadius.circular(SetflowRadii.full),
+              child: Container(
+                width: 76,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: context.setflowColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(SetflowRadii.full),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Icon(
+                  expanded ? SetflowIcons.collapse : SetflowIcons.expand,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1209,14 +1366,13 @@ class _CalendarWeekdayHeader extends StatelessWidget {
             Expanded(
               child: Center(
                 child: Text(
-                  ['일', '월', '화', '수', '목', '금', '토'][index],
+                  ['월', '화', '수', '목', '금', '토', '일'][index],
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: index == 0
-                        ? SetflowColors.red
-                        : index == 6
-                        ? context.setflowColors.blue
-                        : theme.colorScheme.onSurfaceVariant,
+                    // 주말은 hue가 아니라 농도로 구분한다 — 흐린 쪽이 쉬는 날.
+                    color: index >= 5
+                        ? theme.colorScheme.onSurfaceVariant
+                        : theme.colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -1395,10 +1551,9 @@ class _CalendarCell extends StatelessWidget {
                                   fontWeight: FontWeight.w900,
                                   color: isToday
                                       ? theme.colorScheme.onPrimary
-                                      : date.weekday == DateTime.sunday
-                                      ? SetflowColors.red
-                                      : date.weekday == DateTime.saturday
-                                      ? context.setflowColors.blue
+                                      : date.weekday == DateTime.sunday ||
+                                            date.weekday == DateTime.saturday
+                                      ? theme.colorScheme.onSurfaceVariant
                                       : theme.colorScheme.onSurface,
                                 ),
                               ),
