@@ -5154,7 +5154,7 @@ class AppState extends ChangeNotifier {
         id: 'market_2',
         name: '등 라인 집중 루틴',
         description: '당기는 힘과 선명한 등 라인을 함께 만드는 루틴',
-        color: const Color(0xFF71717A),
+        color: const Color(0xFF8B5CF6),
         exercises: [exercises[4], exercises[5], exercises[8]],
         author: '모션짐 · 사업자 인증',
         level: '중급',

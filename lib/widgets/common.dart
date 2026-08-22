@@ -671,15 +671,14 @@ class _GlobalRestTimerOverlayState extends State<GlobalRestTimerOverlay> {
                   height: _barHeight,
                   child: Stack(
                     children: [
-                      // The bar drains as the rest runs out. On an ink bar the
-                      // only readable "colour" is light, so progress is a
-                      // lighter wash — never SetflowColors.primary, which is
-                      // black on black here.
+                      // The brand-yellow wash drains as the rest runs out.
                       Positioned.fill(
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
                           widthFactor: progress,
-                          child: const ColoredBox(color: Colors.white12),
+                          child: ColoredBox(
+                            color: SetflowColors.primary.withValues(alpha: .28),
+                          ),
                         ),
                       ),
                       Padding(

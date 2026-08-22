@@ -2,18 +2,86 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// The brand is the word, nothing else.
-///
-/// There is deliberately no glyph, no drawn mark and no tinted tile behind it:
-/// a monochrome system says the name in type and lets whitespace do the rest.
-/// If a logo ever comes back it belongs in one place — here — not re-drawn per
-/// screen.
+/// Setflow brand mark — the "Rep Stack": three ascending rounded bars that
+/// read as accumulating sets and rising progress.
+class SetflowMark extends StatelessWidget {
+  const SetflowMark({
+    this.size = 96,
+    this.color,
+    this.background,
+    this.radius,
+    super.key,
+  });
+
+  final double size;
+  final Color? color;
+  final Color? background;
+  final double? radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final barColor = color ?? SetflowColors.ink;
+    final tileRadius = radius ?? size * 0.28;
+    final mark = CustomPaint(
+      size: Size.square(size),
+      painter: _RepStackPainter(barColor),
+    );
+    if (background == null) return mark;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(tileRadius),
+      ),
+      child: mark,
+    );
+  }
+}
+
+class _RepStackPainter extends CustomPainter {
+  const _RepStackPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide;
+    final inset = s * 0.24;
+    final left = inset;
+    final right = s - inset;
+    final bottom = s - inset;
+    final contentW = right - left;
+    final contentH = s - 2 * inset;
+    final barW = contentW * 0.24;
+    final gap = (contentW - 3 * barW) / 2;
+    const heights = [0.46, 0.72, 1.0];
+    final corner = Radius.circular(barW * 0.46);
+    final paint = Paint()
+      ..color = color
+      ..isAntiAlias = true;
+
+    for (var i = 0; i < 3; i++) {
+      final x = left + i * (barW + gap);
+      final top = bottom - contentH * heights[i];
+      final rrect = RRect.fromRectAndRadius(
+        Rect.fromLTRB(x, top, x + barW, bottom),
+        corner,
+      );
+      canvas.drawRRect(rrect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RepStackPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+/// Compact wordmark used by the current screen layout.
 class SetflowWordmark extends StatelessWidget {
   const SetflowWordmark({this.fontSize = 22, this.color, super.key});
 
   final double fontSize;
-
-  /// Defaults to the current onSurface ink.
   final Color? color;
 
   @override
@@ -28,57 +96,6 @@ class SetflowWordmark extends StatelessWidget {
         letterSpacing: fontSize * .12,
         height: 1.0,
       ),
-    );
-  }
-}
-
-/// Square lockup for places that cannot take a horizontal wordmark — the
-/// launcher icon and the OS splash. Still typography: one letter of the same
-/// face on a flat black field, no drawn shape.
-class SetflowMonogram extends StatelessWidget {
-  const SetflowMonogram({
-    required this.size,
-    this.background,
-    this.color,
-    this.radius,
-    super.key,
-  });
-
-  final double size;
-
-  /// Null renders the letter alone on a transparent field (adaptive-icon
-  /// foreground), otherwise it fills a tile.
-  final Color? background;
-  final Color? color;
-  final double? radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final letter = Center(
-      child: Text(
-        'S',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: 'Pretendard',
-          color:
-              color ?? (background == null ? SetflowColors.ink : Colors.white),
-          fontSize: size * .62,
-          fontWeight: FontWeight.w900,
-          height: 1.0,
-        ),
-      ),
-    );
-    if (background == null) {
-      return SizedBox(width: size, height: size, child: letter);
-    }
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(radius ?? 0),
-      ),
-      child: letter,
     );
   }
 }

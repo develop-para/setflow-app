@@ -14,31 +14,25 @@ abstract final class SetflowTheme {
     final semantic = isDark
         ? SetflowSemanticColors.dark
         : SetflowSemanticColors.light;
-    final surface = isDark ? const Color(0xFF0B0B0C) : SetflowColors.surface;
-    final onSurface = isDark ? const Color(0xFFF4F4F5) : SetflowColors.ink;
-    final outline = isDark ? const Color(0xFF2A2A2E) : SetflowColors.divider;
-
-    // Monochrome: the accent inverts with the theme instead of being a hue, so
-    // "primary" is black on light and white on dark, and onPrimary flips with
-    // it. Anything that used to lean on yellow now reads as inverted ink.
-    final accent = isDark ? const Color(0xFFF4F4F5) : SetflowColors.primary;
-    final onAccent = isDark ? const Color(0xFF111113) : Colors.white;
+    final surface = isDark ? const Color(0xFF100F0D) : SetflowColors.surface;
+    final onSurface = isDark ? const Color(0xFFF6F5F2) : SetflowColors.ink;
+    final outline = isDark ? const Color(0xFF302C26) : SetflowColors.divider;
 
     final scheme =
         ColorScheme.fromSeed(
           seedColor: SetflowColors.primary,
           brightness: brightness,
         ).copyWith(
-          primary: accent,
-          onPrimary: onAccent,
+          primary: SetflowColors.primary,
+          onPrimary: const Color(0xFF111214),
           primaryContainer: isDark
-              ? const Color(0xFF27272A)
-              : const Color(0xFFE4E4E7),
+              ? const Color(0xFF3D3400)
+              : const Color(0xFFFFF1BE),
           onPrimaryContainer: isDark
-              ? const Color(0xFFF4F4F5)
-              : const Color(0xFF18181B),
+              ? const Color(0xFFFFE566)
+              : const Color(0xFF4A3B00),
           secondary: semantic.teal,
-          onSecondary: Colors.white,
+          onSecondary: SetflowColors.ink,
           surface: surface,
           surfaceContainerLow: semantic.surfaceContainerLow,
           surfaceContainer: semantic.surfaceContainer,
@@ -49,8 +43,8 @@ abstract final class SetflowTheme {
               : SetflowColors.secondaryText,
           outline: outline,
           outlineVariant: isDark
-              ? const Color(0xFF1F1F22)
-              : const Color(0xFFEDEDF0),
+              ? const Color(0xFF242019)
+              : const Color(0xFFEDE9E1),
           error: SetflowColors.red,
           onError: Colors.white,
         );
@@ -146,7 +140,7 @@ abstract final class SetflowTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: scheme.onSurface,
+          foregroundColor: isDark ? scheme.primary : const Color(0xFF7A5C00),
           minimumSize: const Size(48, 44),
           padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
           shape: RoundedRectangleBorder(borderRadius: radius16),
@@ -213,7 +207,7 @@ abstract final class SetflowTheme {
         height: 66,
         backgroundColor: SetflowColors.inkBlock,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: scheme.primary,
+        indicatorColor: SetflowColors.primary,
         indicatorShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SetflowRadii.sm),
         ),
@@ -288,7 +282,7 @@ abstract final class SetflowTheme {
               ? semantic.teal
               : Colors.transparent,
         ),
-        checkColor: const WidgetStatePropertyAll(Colors.white),
+        checkColor: WidgetStatePropertyAll(scheme.onSecondary),
         splashRadius: 18,
       ),
       radioTheme: RadioThemeData(

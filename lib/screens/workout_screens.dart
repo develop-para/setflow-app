@@ -1870,11 +1870,8 @@ class _InlineSetRowState extends State<_InlineSetRow> {
 /// The one control the whole product turns on: completing a set saves the
 /// record, updates volume and starts the rest timer.
 ///
-/// It used to be a grey box reading "완료". The word was doing no work — the
-/// row is a set, there is nothing else to finish — and a filled grey pill next
-/// to three grey number boxes read as one more field. So it is a circle with a
-/// check, and the state is carried the way this app carries every state:
-/// **by density**. Empty outline = not done, black fill = done.
+/// A compact check circle keeps the completion action distinct from the value
+/// fields. Empty outline = not done, brand-yellow fill = done.
 class _SetCompletionButton extends StatelessWidget {
   const _SetCompletionButton({
     required this.setNumber,
@@ -1904,8 +1901,7 @@ class _SetCompletionButton extends StatelessWidget {
           duration: SetflowMotion.micro,
           curve: SetflowMotion.standardCurve,
           decoration: BoxDecoration(
-            // primary flips with the theme (light = black, dark = white), so
-            // the foreground below has to be onPrimary, never a fixed ink.
+            // Always pair the brand-yellow primary with onPrimary for contrast.
             color: completed ? theme.colorScheme.primary : Colors.transparent,
             shape: BoxShape.circle,
             border: Border.all(
@@ -2375,8 +2371,8 @@ const _muscleCategories = <_MuscleCategory>[
   _MuscleCategory('어깨', Icons.accessibility_new_rounded, SetflowColors.teal),
   _MuscleCategory('하체', Icons.directions_walk_rounded, SetflowColors.green),
   _MuscleCategory('팔', Icons.sports_gymnastics_rounded, SetflowColors.orange),
-  _MuscleCategory('복근', Icons.self_improvement_rounded, Color(0xFF71717A)),
-  _MuscleCategory('유산소', Icons.directions_run_rounded, Color(0xFF71717A)),
+  _MuscleCategory('복근', Icons.self_improvement_rounded, Color(0xFF8B5CF6)),
+  _MuscleCategory('유산소', Icons.directions_run_rounded, Color(0xFF06A6C7)),
 ];
 
 class _MuscleCategoryCard extends StatelessWidget {

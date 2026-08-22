@@ -1141,8 +1141,9 @@ class _Day extends StatelessWidget {
       CircleAvatar(
         radius: 18,
         backgroundColor: count > 3 ? SetflowColors.primary : SetflowColors.soft,
-        // The loud state is a black fill now, so the digit has to invert.
-        foregroundColor: count > 3 ? Colors.white : SetflowColors.ink,
+        foregroundColor: count > 3
+            ? Theme.of(context).colorScheme.onPrimary
+            : SetflowColors.ink,
         child: Text(
           '$count',
           style: const TextStyle(fontWeight: FontWeight.w900),
