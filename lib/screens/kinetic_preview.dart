@@ -27,7 +27,12 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
       body: SafeArea(
         bottom: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.gutter,
+            20,
+            SetflowSpacing.gutter,
+            40,
+          ),
           children: Reveal.list(stagger: const Duration(milliseconds: 45), [
             Row(
               children: [

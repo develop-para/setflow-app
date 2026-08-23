@@ -283,12 +283,20 @@ abstract final class SetflowSpacing {
   static const page = 48.0;
 }
 
+/// 페이지의 테두리 여백. **좌우는 전부 `gutter`(18)로 같다** — 화면마다 다르면
+/// 탭을 옮길 때 본문이 좌우로 흔들린다.
+///
+/// 세어 봤을 때 회원 쪽은 18, 트레이너·온보딩 쪽은 24, 일부는 16이었다. 작성자별로 갈린
+/// 것이지 화면의 성격 때문이 아니었다. 세트 행에 숫자 상자가 셋 들어가는 이 앱에서는
+/// 좁은 쪽이 맞아서 18로 모았다.
 abstract final class SetflowInsets {
-  static const pageList = EdgeInsets.fromLTRB(24, 6, 24, 28);
-  static const pageListTight = EdgeInsets.fromLTRB(24, 4, 24, 28);
-  static const pageHeader = EdgeInsets.fromLTRB(24, 4, 24, 12);
-  static const pageForm = EdgeInsets.fromLTRB(24, 12, 24, 28);
-  static const bottomAction = EdgeInsets.fromLTRB(24, 10, 24, 16);
+  static const _side = SetflowSpacing.gutter;
+
+  static const pageList = EdgeInsets.fromLTRB(_side, 6, _side, 28);
+  static const pageListTight = EdgeInsets.fromLTRB(_side, 4, _side, 28);
+  static const pageHeader = EdgeInsets.fromLTRB(_side, 4, _side, 12);
+  static const pageForm = EdgeInsets.fromLTRB(_side, 12, _side, 28);
+  static const bottomAction = EdgeInsets.fromLTRB(_side, 10, _side, 16);
 }
 
 abstract final class SetflowRadii {

@@ -25,7 +25,12 @@ class WorkspaceScreen extends StatelessWidget {
                 ? 3
                 : (contentWidth >= 760 ? 2 : 1);
             return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.gutter,
+                20,
+                SetflowSpacing.gutter,
+                40,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

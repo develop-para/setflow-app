@@ -355,8 +355,18 @@ void main() {
       expect(tester.getSize(find.byType(Scaffold).first).width, 320);
       final list = tester.widget<ListView>(find.byType(ListView).first);
       final padding = list.padding!.resolve(TextDirection.ltr);
-      expect(padding.left, 24, reason: '$screen has inconsistent left inset');
-      expect(padding.right, 24, reason: '$screen has inconsistent right inset');
+      // 값이 아니라 토큰과 비교한다 — 페이지 여백이 바뀌면 화면이 따라가야지
+      // 테스트가 옛 숫자를 붙들고 있으면 안 된다.
+      expect(
+        padding.left,
+        SetflowSpacing.gutter,
+        reason: '\$screen has inconsistent left inset',
+      );
+      expect(
+        padding.right,
+        SetflowSpacing.gutter,
+        reason: '\$screen has inconsistent right inset',
+      );
     });
   }
 }

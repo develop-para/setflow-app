@@ -20,9 +20,9 @@ class BusinessSettingsListScreen extends StatelessWidget {
       body: _SettingsWidth(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
-            SetflowSpacing.xxl,
+            SetflowSpacing.gutter,
             SetflowSpacing.xs,
-            SetflowSpacing.xxl,
+            SetflowSpacing.gutter,
             SetflowSpacing.xxl,
           ),
           children: [

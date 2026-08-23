@@ -91,7 +91,12 @@ class _ConsultationRetargetScreenState
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 6, 24, 120),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          6,
+          SetflowSpacing.gutter,
+          120,
+        ),
         children: [
           SetflowCard(
             child: Column(

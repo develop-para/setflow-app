@@ -134,7 +134,12 @@ class _AdminContentRoutinesScreenState
             _AdminHeader(title: '키워드 탐지 컨텐츠 검토'),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.gutter,
+                  4,
+                  SetflowSpacing.gutter,
+                  32,
+                ),
                 children: [
                   _HeroCount(
                     label: '대기 중인 검토',
@@ -395,7 +400,12 @@ class _AdminContentReportsScreenState extends State<AdminContentReportsScreen> {
             const _AdminHeader(title: '유저 신고 검토 대기'),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.gutter,
+                  4,
+                  SetflowSpacing.gutter,
+                  32,
+                ),
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -788,7 +798,12 @@ class _AdminUserSanctionHistoryScreenState
             const _AdminHeader(title: '제재 이력 관리'),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.gutter,
+                  4,
+                  SetflowSpacing.gutter,
+                  32,
+                ),
                 children: [
                   Row(
                     children: [
@@ -1130,7 +1145,12 @@ class _AdminContentMinorAlertsScreenState
             const _AdminHeader(title: '위험 행동 감지 현황'),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.gutter,
+                  4,
+                  SetflowSpacing.gutter,
+                  32,
+                ),
                 children: [
                   _HeroCount(
                     label: '신규 감지 알림',

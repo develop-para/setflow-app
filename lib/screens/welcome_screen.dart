@@ -58,7 +58,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           : null,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(24, canClose ? 8 : 48, 24, 32),
+          padding: EdgeInsets.fromLTRB(
+            SetflowSpacing.gutter,
+            8,
+            SetflowSpacing.gutter,
+            24,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -414,7 +419,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       key: businessFormKey,
       child: SingleChildScrollView(
         key: const ValueKey('gymRegister'),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          12,
+          SetflowSpacing.gutter,
+          32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -490,7 +500,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     final live = AppScope.of(context).usesLiveBusinessData;
     return SingleChildScrollView(
       key: const ValueKey('gymDocs'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        12,
+        SetflowSpacing.gutter,
+        32,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -604,7 +619,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     final bizNumber = numberController.text.trim();
     return SingleChildScrollView(
       key: const ValueKey('gymHometax'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        12,
+        SetflowSpacing.gutter,
+        32,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -750,7 +770,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     final live = AppScope.of(context).usesLiveBusinessData;
     return SingleChildScrollView(
       key: const ValueKey('gymComplete'),
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        32,
+        SetflowSpacing.gutter,
+        32,
+      ),
       child: Column(
         children: [
           Icon(Icons.verified_rounded, size: 48, color: SetflowColors.ink),
@@ -832,7 +857,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       key: businessFormKey,
       child: SingleChildScrollView(
         key: const ValueKey('trainerRegister'),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          12,
+          SetflowSpacing.gutter,
+          32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -902,7 +932,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     const docLabels = ['자격증 서류 (국가/민간)', '신분증 사본 (필수)'];
     return SingleChildScrollView(
       key: const ValueKey('trainerDocs'),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        12,
+        SetflowSpacing.gutter,
+        32,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1062,7 +1097,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     final live = AppScope.of(context).usesLiveBusinessData;
     return SingleChildScrollView(
       key: const ValueKey('trainerPending'),
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        24,
+        SetflowSpacing.gutter,
+        32,
+      ),
       child: Column(
         children: [
           Icon(Icons.search_rounded, size: 40, color: SetflowColors.blue),
@@ -1179,7 +1219,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   Widget _trainerRejected(BuildContext context) {
     return SingleChildScrollView(
       key: const ValueKey('trainerRejected'),
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        24,
+        SetflowSpacing.gutter,
+        32,
+      ),
       child: Column(
         children: [
           Icon(Icons.error_outline_rounded, size: 38, color: SetflowColors.red),
@@ -1234,7 +1279,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   Widget _trainerComplete(BuildContext context) {
     return SingleChildScrollView(
       key: const ValueKey('trainerComplete'),
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        32,
+        SetflowSpacing.gutter,
+        32,
+      ),
       child: Column(
         children: [
           Icon(Icons.verified_rounded, size: 48, color: SetflowColors.ink),

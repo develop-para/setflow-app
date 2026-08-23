@@ -3493,7 +3493,12 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          4,
+          SetflowSpacing.gutter,
+          28,
+        ),
         children: [
           const ListTile(
             title: Text(

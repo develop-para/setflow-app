@@ -191,7 +191,12 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
               ],
             )
           : ReorderableListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 100),
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.gutter,
+                2,
+                SetflowSpacing.gutter,
+                100,
+              ),
               // Volume, warnings and coach notes ride the list instead of
               // sitting on top of it: pinned, they ate the space the sets need.
               header: Padding(
@@ -2536,7 +2541,12 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                       ),
                       Expanded(
                         child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
+                          padding: const EdgeInsets.fromLTRB(
+                            SetflowSpacing.gutter,
+                            0,
+                            SetflowSpacing.gutter,
+                            100,
+                          ),
                           itemCount: filtered.length + 1,
                           itemBuilder: (_, index) {
                             if (index == filtered.length) {
@@ -2971,7 +2981,12 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          4,
+          SetflowSpacing.gutter,
+          100,
+        ),
         children: [
           Container(
             padding: const EdgeInsets.all(16),
@@ -3346,7 +3361,12 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(exercise.template.name)),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          4,
+          SetflowSpacing.gutter,
+          100,
+        ),
         children: [
           SetflowCard(
             color: SetflowColors.blue.withValues(alpha: .08),

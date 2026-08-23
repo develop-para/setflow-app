@@ -27,7 +27,12 @@ class MyPageScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('마이')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          8,
+          SetflowSpacing.gutter,
+          28,
+        ),
         children: [
           SetflowCard(
             child: Row(

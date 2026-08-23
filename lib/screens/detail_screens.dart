@@ -643,7 +643,12 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          6,
+          SetflowSpacing.gutter,
+          28,
+        ),
         children: switch (widget.section) {
           SettingSection.account => [
             SetflowCard(

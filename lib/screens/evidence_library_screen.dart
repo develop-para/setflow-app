@@ -51,9 +51,9 @@ class EvidenceLibraryScreen extends StatelessWidget {
           child: ListView(
             key: const ValueKey('evidence-library-list'),
             padding: const EdgeInsets.fromLTRB(
-              SetflowSpacing.lg,
+              SetflowSpacing.gutter,
               SetflowSpacing.sm,
-              SetflowSpacing.lg,
+              SetflowSpacing.gutter,
               SetflowSpacing.section,
             ),
             children: [

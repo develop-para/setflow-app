@@ -879,7 +879,12 @@ class _MemberRoutineTab extends StatelessWidget {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        8,
+        SetflowSpacing.gutter,
+        28,
+      ),
       itemCount: routines.length,
       itemBuilder: (_, index) {
         final routine = routines[index];
@@ -950,7 +955,12 @@ class _MemberCommunityTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        8,
+        SetflowSpacing.gutter,
+        28,
+      ),
       itemCount: _posts.length,
       itemBuilder: (_, index) {
         final post = _posts[index];

@@ -5314,7 +5314,12 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
           SizedBox(
             height: 116,
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.gutter,
+                12,
+                SetflowSpacing.gutter,
+                4,
+              ),
               scrollDirection: Axis.horizontal,
               itemCount: _contentReviewEntries.length,
               separatorBuilder: (_, _) => const SizedBox(width: 10),
