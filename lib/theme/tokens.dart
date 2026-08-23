@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 
-/// Monochrome tokens. The system is white / black / grey only — no hue
-/// anywhere. Meaning that used to be carried by colour (danger red, success
-/// green, brand yellow) is now carried by **weight**: the darker the grey, the
-/// louder the signal. Token *names* are unchanged on purpose so every screen
-/// re-skins without being rewritten.
+/// Setflow's colour tokens.
+///
+/// Monochrome is the *direction*, not a ban: surfaces, type and controls are
+/// white / black / grey, and hue is reserved for things that mean something —
+/// success, error, warning, info, and the workout categories. A grey that says
+/// "error" and a grey that says "success" are the same grey, which is what the
+/// fully monochrome pass gave up.
+///
+/// These constants are the **light-theme** values. Dark needs different ones —
+/// no single hue clears 4.5:1 against both white and near-black — so the pairs
+/// live in [SetflowSemanticColors] and are reached through
+/// `context.setflowColors`. Prefer that over these constants wherever the
+/// colour lands on a surface that flips with the theme.
 abstract final class SetflowColors {
   /// The accent. Black, not a hue: it fills the primary CTA, the nav
   /// indicator and the bottom bar's center disc.
@@ -28,19 +36,20 @@ abstract final class SetflowColors {
   /// Hairline.
   static const divider = Color(0xFFE4E4E7);
 
-  // Former accent slots. They survive as greys so existing call sites keep
-  // compiling and simply render monochrome. Pick by loudness, not by hue.
-  static const teal = Color(0xFF71717A);
-  static const orange = Color(0xFF71717A);
-  static const blue = Color(0xFF52525B);
-  static const purple = Color(0xFF71717A);
-  static const green = Color(0xFF3F3F46);
+  // --- meaning, not decoration ----------------------------------------------
+  // Every one of these clears 4.5:1 on white; the dark counterparts are in
+  // SetflowSemanticColors.dark. Checked by test/theme_contrast_test.dart, which
+  // is what keeps a hand-picked hex from quietly failing to be readable.
+  static const green = Color(0xFF15803D);
+  static const red = Color(0xFFDC2626);
+  static const warning = Color(0xFFB45309);
+  static const info = Color(0xFF2563EB);
 
-  /// Danger is the loudest grey there is — black — because destructive actions
-  /// can no longer shout in red.
-  static const red = Color(0xFF18181B);
-  static const warning = Color(0xFF52525B);
-  static const info = Color(0xFF52525B);
+  // Workout categories and chart series. Distinct hues, same contrast floor.
+  static const teal = Color(0xFF0F766E);
+  static const blue = Color(0xFF2563EB);
+  static const purple = Color(0xFF7C3AED);
+  static const orange = Color(0xFFC2410C);
 }
 
 /// The single grey ramp. True neutrals (zero chroma) — the old warm/stone tint
@@ -67,6 +76,7 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     required this.surfaceContainerHigh,
     required this.disabled,
     required this.success,
+    required this.error,
     required this.warning,
     required this.info,
     required this.teal,
@@ -81,13 +91,14 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     surfaceContainer: Color(0xFFF1F1F2),
     surfaceContainerHigh: Color(0xFFE9E9EC),
     disabled: Color(0xFFA1A1AA),
-    success: Color(0xFF3F3F46),
-    warning: Color(0xFF52525B),
-    info: Color(0xFF52525B),
-    teal: Color(0xFF71717A),
-    blue: Color(0xFF52525B),
-    purple: Color(0xFF71717A),
-    orange: Color(0xFF71717A),
+    success: Color(0xFF15803D),
+    error: Color(0xFFDC2626),
+    warning: Color(0xFFB45309),
+    info: Color(0xFF2563EB),
+    teal: Color(0xFF0F766E),
+    blue: Color(0xFF2563EB),
+    purple: Color(0xFF7C3AED),
+    orange: Color(0xFFC2410C),
   );
 
   // Neutral near-black ramp (dark).
@@ -96,13 +107,16 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     surfaceContainer: Color(0xFF1C1C1F),
     surfaceContainerHigh: Color(0xFF27272A),
     disabled: Color(0xFF5C5C63),
-    success: Color(0xFFD4D4D8),
-    warning: Color(0xFFA1A1AA),
-    info: Color(0xFFA1A1AA),
-    teal: Color(0xFF8A8A93),
-    blue: Color(0xFFA1A1AA),
-    purple: Color(0xFF8A8A93),
-    orange: Color(0xFF8A8A93),
+    // Lifted, not the light values: a hue dark enough to read on white is too
+    // dark to read on near-black, and the other way round.
+    success: Color(0xFF22C55E),
+    error: Color(0xFFF87171),
+    warning: Color(0xFFF59E0B),
+    info: Color(0xFF60A5FA),
+    teal: Color(0xFF2DD4BF),
+    blue: Color(0xFF60A5FA),
+    purple: Color(0xFFA78BFA),
+    orange: Color(0xFFFB923C),
   );
 
   final Color surfaceContainerLow;
@@ -110,6 +124,7 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
   final Color surfaceContainerHigh;
   final Color disabled;
   final Color success;
+  final Color error;
   final Color warning;
   final Color info;
   final Color teal;
@@ -124,6 +139,7 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     Color? surfaceContainerHigh,
     Color? disabled,
     Color? success,
+    Color? error,
     Color? warning,
     Color? info,
     Color? teal,
@@ -137,6 +153,7 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
       surfaceContainerHigh: surfaceContainerHigh ?? this.surfaceContainerHigh,
       disabled: disabled ?? this.disabled,
       success: success ?? this.success,
+      error: error ?? this.error,
       warning: warning ?? this.warning,
       info: info ?? this.info,
       teal: teal ?? this.teal,
@@ -167,6 +184,7 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
       )!,
       disabled: Color.lerp(disabled, other.disabled, t)!,
       success: Color.lerp(success, other.success, t)!,
+      error: Color.lerp(error, other.error, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
       info: Color.lerp(info, other.info, t)!,
       teal: Color.lerp(teal, other.teal, t)!,
