@@ -110,6 +110,79 @@ void main() {
     await settle(tester, state);
   });
 
+  testWidgets('a set out of turn cannot be swiped', (tester) async {
+    final state = await pumpDay(tester);
+    final sets = exerciseOf(state).sets;
+
+    // Set 1 is untouched, so set 3 is not this set's turn.
+    await tester.drag(
+      find.byKey(const ValueKey('inline-set-weight-3')),
+      const Offset(400, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(sets[2].completed, isFalse, reason: '순서를 건너뛴 세트가 완료됐다');
+    expect(sets.first.completed, isFalse);
+    await settle(tester, state);
+  });
+
+  testWidgets('a set out of turn cannot be tapped either', (tester) async {
+    final state = await pumpDay(tester);
+    final sets = exerciseOf(state).sets;
+
+    await tester.tap(find.byKey(const ValueKey('inline-set-complete-3')));
+    await tester.pumpAndSettle();
+
+    expect(sets[2].completed, isFalse, reason: '순서를 건너뛴 세트가 탭으로 완료됐다');
+    await settle(tester, state);
+  });
+
+  testWidgets('the turn moves to the next set once one is logged', (
+    tester,
+  ) async {
+    final state = await pumpDay(tester);
+    final sets = exerciseOf(state).sets;
+
+    await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+
+    // Set 2 is live now; set 3 still is not.
+    await tester.tap(find.byKey(const ValueKey('inline-set-complete-3')));
+    await tester.pumpAndSettle();
+    expect(sets[2].completed, isFalse);
+
+    await tester.tap(find.byKey(const ValueKey('inline-set-complete-2')));
+    await tester.pumpAndSettle();
+    expect(sets[1].completed, isTrue, reason: '차례가 된 세트가 완료되지 않았다');
+    await settle(tester, state);
+  });
+
+  testWidgets('a set out of turn cannot restart the rest timer', (
+    tester,
+  ) async {
+    final state = await pumpDay(tester);
+
+    await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
+    await tester.pumpAndSettle();
+    expect(state.restRemaining, greaterThan(0), reason: '완료가 휴식을 시작하지 않았다');
+
+    await tester.pump(const Duration(seconds: 5));
+    final afterFive = state.restRemaining;
+
+    // Tapping a set whose turn has not come must not put the clock back.
+    await tester.tap(find.byKey(const ValueKey('inline-set-complete-3')));
+    await tester.pumpAndSettle();
+
+    expect(
+      state.restRemaining,
+      lessThanOrEqualTo(afterFive),
+      reason: '차례가 아닌 세트가 휴식 시간을 되돌렸다',
+    );
+    await settle(tester, state);
+  });
+
   testWidgets('the sets still ahead inherit what was actually lifted', (
     tester,
   ) async {

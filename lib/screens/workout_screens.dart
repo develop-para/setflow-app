@@ -885,11 +885,6 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                           ),
                         ),
                       ),
-                      const Icon(
-                        Icons.drag_indicator_rounded,
-                        color: SetflowColors.disabled,
-                        size: 20,
-                      ),
                       PopupMenuButton<String>(
                         tooltip: '운동 메뉴',
                         onSelected: (value) {
@@ -938,6 +933,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: _SwipeableSet(
                             set: set,
+                            enabled: _isSetLive(exercise, set),
                             onToggle: () => _toggleSet(state, set),
                             onDelete: () =>
                                 _confirmDeleteSet(context, state, set),
@@ -945,7 +941,9 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                 ? _InlineCardioRow(
                                     template: exercise.template,
                                     set: set,
-                                    onToggle: () => _toggleSet(state, set),
+                                    onToggle: _isSetLive(exercise, set)
+                                        ? () => _toggleSet(state, set)
+                                        : null,
                                     onDurationChanged: (seconds) =>
                                         state.updateSet(
                                           set,
@@ -961,7 +959,9 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                 : _InlineSetRow(
                                     set: set,
                                     unit: state.weightUnit,
-                                    onToggle: () => _toggleSet(state, set),
+                                    onToggle: _isSetLive(exercise, set)
+                                        ? () => _toggleSet(state, set)
+                                        : null,
                                     onTypeChanged: (type) =>
                                         state.updateSet(set, type: type),
                                     onWeightChanged: (weight) =>
@@ -990,6 +990,20 @@ class _ExerciseCardState extends State<_ExerciseCard> {
         ],
       ),
     );
+  }
+
+  /// Whether [set] is the one being worked on right now.
+  ///
+  /// Sets are done in order, so that is the first one not logged yet. Anything
+  /// after it stays inert: logging a third set while the first was still open
+  /// also restarted a rest that belonged to a different set. A logged set stays
+  /// live so a mistake can be taken back.
+  bool _isSetLive(WorkoutExercise exercise, WorkoutSetEntry set) {
+    if (set.completed) return true;
+    for (final item in exercise.sets) {
+      if (!item.completed) return identical(item, set);
+    }
+    return false;
   }
 
   Future<void> _toggleSet(AppState state, WorkoutSetEntry set) async {
@@ -1199,7 +1213,7 @@ class _InlineCardioRow extends StatefulWidget {
 
   final ExerciseTemplate template;
   final WorkoutSetEntry set;
-  final VoidCallback onToggle;
+  final VoidCallback? onToggle;
   final ValueChanged<int> onDurationChanged;
   final ValueChanged<double> onDistanceChanged;
   final ValueChanged<double> onRpeChanged;
@@ -1612,7 +1626,7 @@ class _InlineSetRow extends StatefulWidget {
 
   final WorkoutSetEntry set;
   final String unit;
-  final VoidCallback onToggle;
+  final VoidCallback? onToggle;
   final ValueChanged<String> onTypeChanged;
   final ValueChanged<double> onWeightChanged;
   final ValueChanged<int> onRepsChanged;
@@ -1959,101 +1973,143 @@ class _InlineSetRowState extends State<_InlineSetRow> {
 /// stay on screen as history), and deleting goes through the confirm dialog that
 /// owns the removal — so `confirmDismiss` always answers false and the row
 /// springs back while the real work happens behind it.
-class _SwipeableSet extends StatelessWidget {
+/// Right to log the set, left to delete it.
+///
+/// The set loop is the same three moves over and over — lift, log, rest — and a
+/// 48px circle is a small target for a shaking hand. Swiping makes the whole row
+/// the target. The circle stays inside the row: a gesture is the only way to
+/// reach a control that has no other affordance, and that leaves a screen reader
+/// with nothing to press.
+///
+/// Only [enabled] rows answer the log gesture. Sets are done in order, so the
+/// one being worked on is the first that is not logged yet; letting a later one
+/// be swiped meant a third set could be logged while the first was still open,
+/// and it restarted a rest that belonged to a different set.
+///
+/// Neither direction removes the row. Logging folds it (the numbers stay on
+/// screen as history) and deleting goes through the confirm dialog that owns the
+/// removal, so `confirmDismiss` always answers false and the row springs back
+/// while the real work happens behind it.
+class _SwipeableSet extends StatefulWidget {
   const _SwipeableSet({
     required this.set,
+    required this.enabled,
     required this.onToggle,
     required this.onDelete,
     required this.child,
   });
 
   final WorkoutSetEntry set;
+  final bool enabled;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final Widget child;
 
-  Widget _hint(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-    required bool fromStart,
-  }) {
-    final content = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 19, color: color),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            color: color,
-          ),
-        ),
-      ],
-    );
-    return Container(
-      alignment: fromStart ? Alignment.centerLeft : Alignment.centerRight,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(SetflowRadii.md),
-      ),
-      child: content,
-    );
-  }
+  @override
+  State<_SwipeableSet> createState() => _SwipeableSetState();
+}
+
+class _SwipeableSetState extends State<_SwipeableSet> {
+  /// How far the row has travelled, 0..1 of its own width.
+  double progress = 0;
+  bool towardsEnd = false;
 
   @override
   Widget build(BuildContext context) {
-    final ink = Theme.of(context).colorScheme.primary;
-    return Dismissible(
-      key: ObjectKey(set),
-      direction: DismissDirection.horizontal,
-      // Generous on purpose: the row lives inside a vertical scroll, and an
-      // accidental completion also starts the rest timer.
-      dismissThresholds: const {
-        DismissDirection.startToEnd: .4,
-        DismissDirection.endToStart: .4,
-      },
-      onUpdate: (details) {
-        if (details.reached && !details.previousReached) {
-          HapticFeedback.mediumImpact();
-        }
-      },
-      background: _hint(
-        context,
-        icon: set.completed ? SetflowIcons.undo : SetflowIcons.setComplete,
-        label: set.completed ? '되돌리기' : '완료',
-        color: ink,
-        fromStart: true,
+    final theme = Theme.of(context);
+    final logging = !towardsEnd;
+    final accent = logging ? theme.colorScheme.primary : SetflowColors.red;
+    final radius = BorderRadius.circular(SetflowRadii.md);
+
+    return ClipRRect(
+      // The row and the track behind it have to share one rounded box, or the
+      // square corners of the track show through the moment the row starts to
+      // travel.
+      borderRadius: radius,
+      child: Dismissible(
+        key: ObjectKey(widget.set),
+        direction: widget.enabled
+            ? DismissDirection.horizontal
+            : DismissDirection.endToStart,
+        // Generous on purpose: the row lives inside a vertical scroll, and an
+        // accidental log also starts the rest timer.
+        dismissThresholds: const {
+          DismissDirection.startToEnd: .4,
+          DismissDirection.endToStart: .4,
+        },
+        onUpdate: (details) {
+          if (details.reached && !details.previousReached) {
+            HapticFeedback.mediumImpact();
+          }
+          setState(() {
+            progress = details.progress;
+            towardsEnd = details.direction == DismissDirection.endToStart;
+          });
+        },
+        background: _track(accent: accent, logging: true),
+        secondaryBackground: _track(accent: SetflowColors.red, logging: false),
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            widget.onToggle();
+          } else {
+            widget.onDelete();
+          }
+          return false;
+        },
+        child: widget.child,
       ),
-      secondaryBackground: _hint(
-        context,
-        icon: Icons.delete_outline_rounded,
-        label: '삭제',
-        color: SetflowColors.red,
-        fromStart: false,
+    );
+  }
+
+  /// The track the row slides over — a fill that deepens with the drag rather
+  /// than a panel that is uncovered, so the gesture reads as "slide to unlock"
+  /// instead of "reveal a menu".
+  Widget _track({required Color accent, required bool logging}) {
+    // Ramped, not linear: the wash should be unmistakable by the time the
+    // threshold is near, and barely there for a stray sideways scroll.
+    final strength = Curves.easeIn.transform(progress.clamp(0, 1).toDouble());
+    final passed = progress >= .4;
+    final label = logging ? (widget.set.completed ? '되돌리기' : '완료') : '삭제';
+    final icon = logging
+        ? (widget.set.completed ? SetflowIcons.undo : SetflowIcons.setComplete)
+        : Icons.delete_outline_rounded;
+
+    return ColoredBox(
+      color: accent.withValues(alpha: .06 + .22 * strength),
+      child: Align(
+        alignment: logging ? Alignment.centerLeft : Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: AnimatedScale(
+            // A small kick at the threshold: the row has to say "let go now"
+            // without the thumb leaving the glass to look for a label.
+            scale: passed ? 1.12 : 1,
+            duration: SetflowMotion.micro,
+            child: Opacity(
+              opacity: (.35 + .65 * strength).clamp(0.0, 1.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 19, color: accent),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: accent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-      confirmDismiss: (direction) async {
-        if (direction == DismissDirection.startToEnd) {
-          onToggle();
-        } else {
-          onDelete();
-        }
-        return false;
-      },
-      child: child,
     );
   }
 }
 
-/// A logged set, folded down to the one line that answers "what did I just do".
-///
-/// Completed sets used to keep all three dial boxes, so three sets in you had to
-/// scroll to see the set you were about to repeat. Folded, the sets behind you
-/// all stay on screen and the only open card is the one you are working on.
 /// Tapping opens it again — a logged set is still editable.
 class _CompletedSetLine extends StatelessWidget {
   const _CompletedSetLine({
@@ -2136,14 +2192,18 @@ class _SetCompletionButton extends StatelessWidget {
   final int setNumber;
   final String unitLabel;
   final bool completed;
-  final VoidCallback onPressed;
+
+  /// Null when it is not this set's turn — sets are logged in order.
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final live = onPressed != null;
     return Semantics(
       label: '$setNumber$unitLabel 완료',
       button: true,
+      enabled: live,
       selected: completed,
       child: SizedBox.square(
         dimension: _diameter,
@@ -2158,7 +2218,9 @@ class _SetCompletionButton extends StatelessWidget {
             border: Border.all(
               color: completed
                   ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant,
+                  : theme.colorScheme.outlineVariant.withValues(
+                      alpha: live ? 1 : .4,
+                    ),
               width: 1.5,
             ),
           ),
@@ -2175,7 +2237,9 @@ class _SetCompletionButton extends StatelessWidget {
                     size: 22,
                     color: completed
                         ? theme.colorScheme.onPrimary
-                        : theme.colorScheme.outline,
+                        : theme.colorScheme.outline.withValues(
+                            alpha: live ? 1 : .35,
+                          ),
                   ),
                 ),
               ),
