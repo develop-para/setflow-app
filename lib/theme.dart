@@ -371,7 +371,7 @@ abstract final class SetflowTheme {
       tabBarTheme: TabBarThemeData(
         labelColor: scheme.onSurface,
         unselectedLabelColor: scheme.onSurfaceVariant,
-        labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+        labelStyle: textTheme.labelLarge?.copyWith(),
         unselectedLabelStyle: textTheme.labelLarge,
         indicatorColor: scheme.primary,
         indicatorSize: TabBarIndicatorSize.label,

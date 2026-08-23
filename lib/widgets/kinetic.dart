@@ -140,7 +140,6 @@ class KineticStatBlock extends StatelessWidget {
                         unit!,
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: sub,
-                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
@@ -164,7 +163,6 @@ class KineticStatBlock extends StatelessWidget {
                       delta!,
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: deltaColor,
-                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(width: 6),

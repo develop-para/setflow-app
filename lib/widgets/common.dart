@@ -1172,7 +1172,7 @@ class StatusChip extends StatelessWidget {
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: color,
-              fontWeight: FontWeight.w800,
+              fontWeight: SetflowWeight.medium,
             ),
           ),
         ],
@@ -1348,9 +1348,7 @@ Future<T?> showAppActionSheet<T>(
                     children: [
                       Text(
                         title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: theme.textTheme.titleMedium?.copyWith(),
                       ),
                       if (subtitle != null)
                         Padding(
@@ -1581,7 +1579,6 @@ class SegPills extends StatelessWidget {
                     child: Text(
                       items[i],
                       style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
                         color: i == selectedIndex
                             ? theme.colorScheme.onPrimary
                             : theme.colorScheme.onSurfaceVariant,

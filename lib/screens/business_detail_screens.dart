@@ -615,7 +615,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                 item.$3,
                 style: const TextStyle(
                   fontSize: SetflowFontSize.small,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: SetflowWeight.medium,
                   color: SetflowColors.orange,
                 ),
               ),
@@ -803,7 +803,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                       style: TextStyle(
                         color: _reportColor(item.$1),
                         fontSize: SetflowFontSize.tiny,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: SetflowWeight.medium,
                       ),
                     ),
                   ),
@@ -858,7 +858,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           style: const TextStyle(
             fontSize: SetflowFontSize.small,
             color: SetflowColors.red,
-            fontWeight: FontWeight.w900,
+            fontWeight: SetflowWeight.medium,
           ),
         ),
       ),
@@ -1065,7 +1065,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           item.$2,
           style: TextStyle(
             fontSize: SetflowFontSize.tiny,
-            fontWeight: FontWeight.w900,
+            fontWeight: SetflowWeight.medium,
             color: item.$2 == 'WARN'
                 ? SetflowColors.orange
                 : SetflowColors.green,

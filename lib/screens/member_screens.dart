@@ -825,7 +825,7 @@ class _MemberScheduleRow extends StatelessWidget {
                 '${schedule.date.month}/${schedule.date.day}',
                 style: const TextStyle(
                   fontSize: SetflowFontSize.tiny,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: SetflowWeight.medium,
                 ),
               ),
               Text(
@@ -1003,7 +1003,7 @@ class _CalendarWeekdayHeader extends StatelessWidget {
                 child: Text(
                   ['월', '화', '수', '목', '금', '토', '일'][index],
                   style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: SetflowWeight.medium,
                     // 달력은 한국 사람이 평생 봐 온 규칙이 있다 — 일요일과 공휴일은
                     // 빨강, 토요일은 파랑. 농도로 대신하면 그냥 흐린 글자일 뿐이다.
                     color: switch (index) {
@@ -1022,7 +1022,7 @@ class _CalendarWeekdayHeader extends StatelessWidget {
                 '합계',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: SetflowWeight.medium,
                 ),
               ),
             ),
@@ -1187,7 +1187,7 @@ class _CalendarCell extends StatelessWidget {
                               child: Text(
                                 '${date.day}',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: SetflowWeight.medium,
                                   color: isToday
                                       ? theme.colorScheme.onPrimary
                                       : isRestDay(date)
@@ -1226,7 +1226,7 @@ class _CalendarCell extends StatelessWidget {
                               color: theme.colorScheme.onSurface,
                               fontSize: SetflowFontSize.micro,
                               height: 1.1,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: SetflowWeight.medium,
                             ),
                           ),
                           Text(
@@ -1355,7 +1355,7 @@ class _WeeklySummary extends StatelessWidget {
                     style: TextStyle(
                       color: theme.colorScheme.onSurface,
                       fontSize: SetflowFontSize.caption,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: SetflowWeight.medium,
                     ),
                   ),
                   const TextSpan(
@@ -1445,7 +1445,7 @@ class RoutinesScreen extends StatelessWidget {
                 '무료 플랜',
                 style: TextStyle(
                   fontSize: SetflowFontSize.small,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: SetflowWeight.medium,
                   color: SetflowColors.orange,
                 ),
               ),
@@ -1861,7 +1861,7 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                   style: TextStyle(
                     color: SetflowColors.green,
                     fontSize: SetflowFontSize.tiny,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: SetflowWeight.medium,
                   ),
                 ),
               ),
@@ -2256,7 +2256,7 @@ class _MarketScreenState extends State<MarketScreen> {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: SetflowFontSize.small,
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: SetflowWeight.medium,
                                 ),
                               ),
                             ),
@@ -2359,7 +2359,7 @@ class _RoutineAccessBadge extends StatelessWidget {
               style: TextStyle(
                 color: color,
                 fontSize: SetflowFontSize.small,
-                fontWeight: FontWeight.w900,
+                fontWeight: SetflowWeight.medium,
               ),
             ),
           ],
@@ -2502,7 +2502,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                         ? null
                                         : Colors.white,
                                     fontSize: SetflowFontSize.micro,
-                                    fontWeight: FontWeight.w900,
+                                    fontWeight: SetflowWeight.medium,
                                   ),
                                 ),
                               ),
@@ -2909,9 +2909,7 @@ class _ConsultationHistoryScreenState extends State<ConsultationHistoryScreen> {
                 sliver: SliverToBoxAdapter(
                   child: Text(
                     '답변이 완료된 상담 ${history.length}건',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(),
                   ),
                 ),
               ),
@@ -3032,9 +3030,7 @@ class _ConsultationHistoryCard extends StatelessWidget {
               children: [
                 Text(
                   '전문가 답변',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(),
                 ),
                 const SizedBox(height: SetflowSpacing.xs),
                 Text(
@@ -3087,7 +3083,7 @@ class _MemberConsultationBadge extends StatelessWidget {
         style: TextStyle(
           color: color,
           fontSize: SetflowFontSize.tiny,
-          fontWeight: FontWeight.w900,
+          fontWeight: SetflowWeight.medium,
         ),
       ),
     );

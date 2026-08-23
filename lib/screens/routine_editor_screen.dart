@@ -78,9 +78,7 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
                   Expanded(
                     child: Text(
                       '운동 구성 ${_exercises.length}개',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: theme.textTheme.titleMedium?.copyWith(),
                     ),
                   ),
                   Text(

@@ -342,7 +342,7 @@ class _BusinessSettingsPlanScreenState
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: SetflowFontSize.small,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: SetflowWeight.medium,
                               ),
                             ),
                           ),
@@ -836,7 +836,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: SetflowFontSize.caption,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: SetflowWeight.medium,
                         ),
                       ),
                     ),

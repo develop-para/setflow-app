@@ -212,17 +212,12 @@ class _BusinessHeader extends StatelessWidget {
                 Text(
                   eyebrow,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w900,
+                    fontWeight: SetflowWeight.medium,
                     color: eyebrowColor,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  title,
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                Text(title, style: theme.textTheme.headlineLarge?.copyWith()),
               ],
             ),
           ),
@@ -2753,7 +2748,7 @@ class _RoutineShareStatusSummary extends StatelessWidget {
                   '회원 전송 현황',
                   style: TextStyle(
                     fontSize: SetflowFontSize.caption,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: SetflowWeight.medium,
                   ),
                 ),
               ),
@@ -2802,7 +2797,7 @@ class _RoutineShareCountBadge extends StatelessWidget {
         style: TextStyle(
           color: color,
           fontSize: SetflowFontSize.tiny,
-          fontWeight: FontWeight.w900,
+          fontWeight: SetflowWeight.medium,
         ),
       ),
     );
@@ -3375,7 +3370,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                             '통계 보기',
                                             style: TextStyle(
                                               fontSize: SetflowFontSize.caption,
-                                              fontWeight: FontWeight.w900,
+                                              fontWeight: SetflowWeight.medium,
                                               color: SetflowColors.blue,
                                             ),
                                           ),
@@ -3523,7 +3518,7 @@ class _AdminRoutineAccessEditor extends StatelessWidget {
                 '회원 이용 플랜',
                 style: TextStyle(
                   fontSize: SetflowFontSize.caption,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: SetflowWeight.medium,
                 ),
               ),
             ),
@@ -3540,7 +3535,7 @@ class _AdminRoutineAccessEditor extends StatelessWidget {
                       ? SetflowColors.purple
                       : SetflowColors.green,
                   fontSize: SetflowFontSize.caption,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: SetflowWeight.medium,
                 ),
               ),
           ],
@@ -4764,7 +4759,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                                     '${trainer.$4}',
                                     style: const TextStyle(
                                       fontSize: SetflowFontSize.small,
-                                      fontWeight: FontWeight.w900,
+                                      fontWeight: SetflowWeight.medium,
                                     ),
                                   ),
                                 ],
@@ -5248,7 +5243,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
         style: TextStyle(
           color: color,
           fontSize: SetflowFontSize.tiny,
-          fontWeight: FontWeight.w900,
+          fontWeight: SetflowWeight.medium,
         ),
       ),
     );
@@ -5424,7 +5419,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                 item.$1,
                                 style: TextStyle(
                                   fontSize: SetflowFontSize.tiny,
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: SetflowWeight.medium,
                                   color: item.$1 == '트레이너'
                                       ? SetflowColors.blue
                                       : SetflowColors.purple,
@@ -5440,7 +5435,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                   : 'D-2',
                               style: TextStyle(
                                 fontSize: SetflowFontSize.small,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: SetflowWeight.medium,
                                 color: approved
                                     ? context.setflowColors.success
                                     : status == 'rejected'
@@ -6421,7 +6416,7 @@ class _PerformanceRow extends StatelessWidget {
         style: const TextStyle(
           color: SetflowColors.green,
           fontSize: SetflowFontSize.small,
-          fontWeight: FontWeight.w900,
+          fontWeight: SetflowWeight.medium,
         ),
       ),
     ],
@@ -6533,7 +6528,7 @@ class _StatusRow extends StatelessWidget {
         style: TextStyle(
           fontSize: SetflowFontSize.caption,
           color: color,
-          fontWeight: FontWeight.w900,
+          fontWeight: SetflowWeight.medium,
         ),
       ),
     ],

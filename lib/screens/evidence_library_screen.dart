@@ -272,9 +272,7 @@ class _MetadataRow extends StatelessWidget {
             width: 72,
             child: Text(
               label,
-              style: Theme.of(
-                context,
-              ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(),
             ),
           ),
           Expanded(child: Text(value, style: valueStyle)),

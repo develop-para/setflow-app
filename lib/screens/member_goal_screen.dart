@@ -162,7 +162,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                                 style: TextStyle(
                                   fontSize: SetflowFontSize.micro,
                                   color: SetflowColors.orange,
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: SetflowWeight.medium,
                                 ),
                               ),
                             ),

@@ -30,10 +30,14 @@ void main() {
   }
 
   /// The colour the calendar actually painted on a day number.
+  ///
+  /// Matched on having an explicit colour rather than on a weight: the weight
+  /// belongs to the type scale and moves when the scale does, which is exactly
+  /// what this test must not care about.
   Color colourOf(WidgetTester tester, int day) {
     final texts = tester
         .widgetList<Text>(find.text('$day'))
-        .where((text) => text.style?.fontWeight == FontWeight.w900);
+        .where((text) => text.style?.color != null);
     expect(texts, isNotEmpty, reason: '$day일 칸을 찾지 못했다');
     return texts.first.style!.color!;
   }

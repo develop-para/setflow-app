@@ -1719,7 +1719,6 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
             '선택한 트레이너',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: SetflowSpacing.sm),
@@ -2053,7 +2052,6 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                     ),
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w900,
                     ),
                   ),
                   Text(
@@ -2610,7 +2608,7 @@ class _StatusChip extends StatelessWidget {
         style: TextStyle(
           color: color,
           fontSize: SetflowFontSize.small,
-          fontWeight: FontWeight.w900,
+          fontWeight: SetflowWeight.medium,
         ),
       ),
     );

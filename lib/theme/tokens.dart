@@ -243,6 +243,25 @@ abstract final class SetflowFontSize {
 ///
 /// 홀수가 보이면 그리드를 벗어난 것이다. 실제로 5·7·9·11·13·15가 65군데 섞여 있었고,
 /// 그렇게 1px씩 어긋난 여백은 "레이아웃이 안 맞는다"로만 보인다. 아키텍처 규칙이 막는다.
+/// 글자 굵기의 사다리. 위계는 크기만으로 나지 않는다 — 굵기가 같으면 다 같은 소리로 들린다.
+///
+/// 세어 봤더니 473군데 중 **63%가 w900**이었다. 전부가 최대 굵기면 강조는 없는 것과 같다.
+/// `theme.textTheme`의 역할이 이미 굵기를 정해 두므로, 역할을 쓰면 이 사다리는 자동으로 지켜진다.
+/// 굵기를 직접 적어야 할 때만 여기서 고를 것.
+abstract final class SetflowWeight {
+  /// 화면에서 가장 큰 숫자 — 볼륨, 1RM, 타이머. **여기 말고는 쓰지 않는다.**
+  static const display = FontWeight.w900;
+
+  /// 섹션 제목, 카드의 이름.
+  static const strong = FontWeight.w800;
+
+  /// 라벨, 칩, 작은 글자의 강조. 작은 글자는 굵기만 올려도 충분히 커 보인다.
+  static const medium = FontWeight.w700;
+
+  /// 본문.
+  static const regular = FontWeight.w500;
+}
+
 abstract final class SetflowSpacing {
   static const xxs = 2.0;
   static const xs = 4.0;

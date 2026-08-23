@@ -442,7 +442,7 @@ class _WorkoutSummaryBar extends StatelessWidget {
                       '추천 ${recommendationEnabled ? 'ON' : 'OFF'}',
                       style: const TextStyle(
                         fontSize: SetflowFontSize.tiny,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: SetflowWeight.medium,
                       ),
                     ),
                   ],
@@ -480,7 +480,7 @@ class _SummaryValue extends StatelessWidget {
           value,
           style: const TextStyle(
             fontSize: SetflowFontSize.caption,
-            fontWeight: FontWeight.w900,
+            fontWeight: SetflowWeight.medium,
           ),
         ),
       ],
@@ -538,7 +538,6 @@ class _CoachFeedbackCard extends StatelessWidget {
                           '${feedbacks.length}개',
                           style: theme.textTheme.labelMedium?.copyWith(
                             color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w800,
                           ),
                         ),
                     ],
@@ -548,7 +547,6 @@ class _CoachFeedbackCard extends StatelessWidget {
                     latest.authorName,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -595,7 +593,7 @@ class _CoachFeedbackCard extends StatelessWidget {
                   '코치 피드백',
                   style: Theme.of(
                     sheetContext,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                  ).textTheme.titleLarge?.copyWith(),
                 );
               }
               final feedback = feedbacks[index - 1];
@@ -1341,7 +1339,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                     '${widget.set.number}구간',
                     style: const TextStyle(
                       fontSize: SetflowFontSize.small,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: SetflowWeight.medium,
                     ),
                   ),
                 ),
@@ -1714,7 +1712,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                     '${widget.set.number}세트',
                     style: const TextStyle(
                       fontSize: SetflowFontSize.small,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: SetflowWeight.medium,
                     ),
                   ),
                 ),
@@ -1769,7 +1767,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                       style: TextStyle(
                         fontSize: SetflowFontSize.tiny,
                         color: _typeColor(widget.set.type),
-                        fontWeight: FontWeight.w900,
+                        fontWeight: SetflowWeight.medium,
                       ),
                     ),
                   ),
@@ -2166,7 +2164,7 @@ class _SwipeableSetState extends State<_SwipeableSet>
                       label,
                       style: TextStyle(
                         fontSize: SetflowFontSize.caption,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: SetflowWeight.medium,
                         color: accent,
                       ),
                     ),
@@ -2227,7 +2225,7 @@ class _CompletedSetLine extends StatelessWidget {
                 '$number$label',
                 style: const TextStyle(
                   fontSize: SetflowFontSize.caption,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: SetflowWeight.medium,
                 ),
               ),
               const SizedBox(width: 10),

@@ -658,7 +658,7 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
             '등록된 키워드 ${_keywords.length}개',
             style: const TextStyle(
               fontSize: SetflowFontSize.caption,
-              fontWeight: FontWeight.w900,
+              fontWeight: SetflowWeight.medium,
               color: SetflowColors.secondaryText,
             ),
           ),
@@ -808,7 +808,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                               style: TextStyle(
                                 color: _logColor(log.$2),
                                 fontSize: SetflowFontSize.tiny,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: SetflowWeight.medium,
                               ),
                             ),
                           ),
@@ -817,7 +817,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                             log.$3,
                             style: const TextStyle(
                               fontSize: SetflowFontSize.small,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: SetflowWeight.medium,
                               color: SetflowColors.secondaryText,
                             ),
                           ),

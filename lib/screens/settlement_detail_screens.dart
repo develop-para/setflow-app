@@ -134,7 +134,7 @@ class SettlementRefundsPage extends StatelessWidget {
                           child: Text(
                             item.date,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w900,
+                              fontWeight: SetflowWeight.medium,
                               color: SetflowColors.red,
                               fontFeatures: const [
                                 FontFeature.tabularFigures(),
@@ -364,7 +364,6 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
                         Text(
                           '${grade.$2}%',
                           style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),
@@ -438,14 +437,12 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
                               Text(
                                 '발생 매출',
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               Text(
                                 '${_formatAmount(trainer.generated)}원',
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
                                   fontFeatures: const [
                                     FontFeature.tabularFigures(),
                                   ],
@@ -460,14 +457,12 @@ class TrainerSettlementBreakdownPage extends StatelessWidget {
                               Text(
                                 '최종 분배액',
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
                                   color: context.setflowColors.blue,
                                 ),
                               ),
                               Text(
                                 '${_formatAmount(trainer.share)}원',
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
                                   color: context.setflowColors.blue,
                                   fontFeatures: const [
                                     FontFeature.tabularFigures(),
@@ -574,7 +569,6 @@ class _DarkStatBanner extends StatelessWidget {
                     maxLines: 1,
                     style: theme.textTheme.displayMedium?.copyWith(
                       color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
@@ -585,7 +579,6 @@ class _DarkStatBanner extends StatelessWidget {
                   unit!,
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
@@ -669,7 +662,7 @@ class SettlementCommissionPage extends StatelessWidget {
                         Text(
                           '수수료율 ${item.rate}%',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w800,
+                            fontWeight: SetflowWeight.medium,
                             color: theme.colorScheme.onSurfaceVariant,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),
@@ -699,7 +692,6 @@ class SettlementCommissionPage extends StatelessWidget {
                               Text(
                                 '${_formatAmount(item.revenue)}원',
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
                                   fontFeatures: const [
                                     FontFeature.tabularFigures(),
                                   ],
@@ -720,7 +712,6 @@ class SettlementCommissionPage extends StatelessWidget {
                               Text(
                                 '${_formatAmount(item.commission)}원',
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
                                   fontFeatures: const [
                                     FontFeature.tabularFigures(),
                                   ],
@@ -766,14 +757,11 @@ class SettlementCommissionPage extends StatelessWidget {
                   children: [
                     Text(
                       '총 플랫폼 수수료',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: theme.textTheme.titleMedium?.copyWith(),
                     ),
                     Text(
                       '${_formatAmount(totalCommission)}원',
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
@@ -938,7 +926,7 @@ class _SettlementFinalConfirmPageState
                                   '최종 정산이 확정되었습니다.',
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: SetflowColors.green,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: SetflowWeight.medium,
                                   ),
                                 ),
                               ],
@@ -979,7 +967,7 @@ class _SettlementFinalConfirmPageState
                       '전체 정산이 확정되었습니다.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: SetflowColors.green,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: SetflowWeight.medium,
                       ),
                     ),
                   ],

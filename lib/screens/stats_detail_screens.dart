@@ -230,7 +230,7 @@ class TrainerPerformancePage extends StatelessWidget {
                       '$rating',
                       style: const TextStyle(
                         fontSize: SetflowFontSize.caption,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: SetflowWeight.medium,
                       ),
                     ),
                   ],

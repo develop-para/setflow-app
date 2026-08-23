@@ -96,7 +96,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                               '${entries[i].weight}',
                               style: const TextStyle(
                                 fontSize: SetflowFontSize.small,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: SetflowWeight.medium,
                               ),
                             ),
                             const SizedBox(height: 5),

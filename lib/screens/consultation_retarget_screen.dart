@@ -211,7 +211,7 @@ class _ConsultationRetargetScreenState
                                       '수신 거부',
                                       style: TextStyle(
                                         fontSize: SetflowFontSize.tiny,
-                                        fontWeight: FontWeight.w900,
+                                        fontWeight: SetflowWeight.medium,
                                         color: SetflowColors.red,
                                       ),
                                     ),

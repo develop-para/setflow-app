@@ -407,7 +407,6 @@ class SplitBar extends StatelessWidget {
               Text(
                 value,
                 style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
