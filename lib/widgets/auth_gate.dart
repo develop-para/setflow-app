@@ -25,6 +25,7 @@ import 'common.dart';
 /// explains why the account is needed and returns whether sign-in succeeded.
 enum AuthReason {
   community('커뮤니티에 흔적을 남기려면', '남긴 글·댓글·좋아요가 계정에 연결돼요.'),
+  together('친구와 같이 운동하려면', '누구 차례인지 서로 알려면 계정이 필요해요.'),
   coaching('트레이너 상담을 신청하려면', '상담 내용과 답변을 계정으로 주고받아요.'),
   share('루틴을 공유하려면', '공유 링크는 내 계정으로 발급돼요.'),
   membership('이용권을 확인하려면', '센터가 발급한 회원권은 계정에 연결돼요.'),

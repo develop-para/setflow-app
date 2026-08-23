@@ -49,6 +49,7 @@ final architectureRules = <ArchitectureRule>[
       'lib/data/supabase_business_repository.dart',
       'lib/data/supabase_community_repository.dart',
       'lib/data/supabase_routine_catalog_repository.dart',
+      'lib/data/supabase_together_repository.dart',
       'lib/services/supabase_auth_service.dart',
     ],
     why: '앱이 Supabase 타입을 아는 파일이 늘수록 AWS 이전 비용이 그만큼 는다.',

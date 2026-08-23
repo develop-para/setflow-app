@@ -1,0 +1,273 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:setflow/app_state.dart';
+import 'package:setflow/data/together_repository.dart';
+import 'package:setflow/main.dart';
+import 'package:setflow/screens/member_screens.dart';
+import 'package:setflow/screens/together_screens.dart';
+import 'package:setflow/services/auth_service.dart';
+import 'package:setflow/theme.dart';
+import 'package:setflow/widgets/bottom_bar.dart';
+import 'package:setflow/widgets/common.dart';
+
+void main() {
+  late MemoryTogetherBackend backend;
+
+  setUp(() {
+    backend = MemoryTogetherBackend();
+    // 함께 is gated on having an account — a room cannot say whose turn it is
+    // otherwise — so every test here signs in first.
+    Auth.use(_SignedInAuth());
+  });
+
+  tearDown(() {
+    backend.dispose();
+    Auth.reset();
+  });
+
+  MemoryTogetherRepository client(String id, String name) =>
+      MemoryTogetherRepository(backend: backend, userId: id, displayName: name);
+
+  Future<AppState> pumpTogether(
+    WidgetTester tester, {
+    TogetherRepository? repository,
+  }) async {
+    await tester.binding.setSurfaceSize(const Size(432, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState(togetherRepository: repository);
+    await state.initialize();
+    addTearDown(state.dispose);
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: const TogetherScreen(),
+        ),
+      ),
+    );
+    // initialize() arms AppState's 250ms persist debounce. A screen with no
+    // animation settles instantly and would leave that timer pending.
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    return state;
+  }
+
+  group('the bar', () {
+    testWidgets('통계 is gone and 함께 took its slot', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(432, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(const SetflowApp());
+      await tester.pump(const Duration(milliseconds: 1900));
+      await tester.pumpAndSettle();
+
+      final bar = tester.widget<SetflowActionNavBar>(
+        find.byType(SetflowActionNavBar),
+      );
+      expect(bar.items.map((item) => item.label).toList(), [
+        '홈',
+        '함께',
+        '커뮤니티',
+        '마이',
+      ]);
+    });
+
+    testWidgets('the slot opens 함께', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(432, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(const SetflowApp());
+      await tester.pump(const Duration(milliseconds: 1900));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('함께').last);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TogetherScreen), findsOneWidget);
+    });
+
+    testWidgets('the stats screen still exists, it is only unlisted', (
+      tester,
+    ) async {
+      // "나중에 쓸 건데 메뉴에서만 빼 달라" — deleting the screen would make
+      // putting it back a rebuild instead of a one-line nav change.
+      expect(const DashboardScreen(), isA<Widget>());
+    });
+  });
+
+  group('the lobby', () {
+    testWidgets('a build with no partner server says so plainly', (
+      tester,
+    ) async {
+      await pumpTogether(tester);
+
+      expect(
+        find.byKey(const ValueKey('together-unavailable')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('creating a room shows the code to read out', (tester) async {
+      await pumpTogether(tester, repository: client('u-me', '나'));
+
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+
+      final code = tester.widget<Text>(
+        find.byKey(const ValueKey('together-code')),
+      );
+      expect(code.data, hasLength(6));
+      expect(find.text('나 (나)'), findsOneWidget);
+    });
+
+    testWidgets('a bad code reports back instead of opening a room', (
+      tester,
+    ) async {
+      await pumpTogether(tester, repository: client('u-me', '나'));
+
+      await tester.tap(find.byKey(const ValueKey('together-join')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('together-code-input')),
+        'ZZZZZZ',
+      );
+      await tester.tap(find.byKey(const ValueKey('together-code-submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('그런 코드의 방이 없어요'), findsOneWidget);
+      expect(find.byKey(const ValueKey('together-code')), findsNothing);
+    });
+  });
+
+  group('the room', () {
+    Future<TrainingParty> seatTwo(PartyMode mode) async {
+      final host = client('u-me', '나');
+      final party = await host.createParty(mode: mode);
+      await client('u-friend', '친구').joinParty(party.code);
+      return backend.partyById(party.id)!;
+    }
+
+    testWidgets('a partner finishing a set starts my rest', (tester) async {
+      final room = await seatTwo(PartyMode.together);
+      final state = await pumpTogether(tester, repository: client('u-me', '나'));
+      await tester.tap(find.byKey(const ValueKey('together-join')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('together-code-input')),
+        room.code,
+      );
+      await tester.tap(find.byKey(const ValueKey('together-code-submit')));
+      await tester.pumpAndSettle();
+
+      expect(state.restRemaining, 0);
+
+      // The partner's phone reports the set. Nothing on this device was
+      // touched — which is exactly the moment "같이 쉰다" has to become real.
+      await client(
+        'u-friend',
+        '친구',
+      ).reportSetDone(partyId: room.id, restSeconds: 60);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(
+        state.restRemaining,
+        greaterThan(0),
+        reason: 'the shared rest has to drive the same timer a solo rest does',
+      );
+      state.cancelRestTimer();
+    });
+
+    testWidgets('교대 refuses a set that is not my turn', (tester) async {
+      final room = await seatTwo(PartyMode.alternating);
+      // The friend created nothing; the host is 'u-me', so after starting it
+      // is the host's turn and the friend's button must be inert.
+      await client('u-me', '나').startTogether(room.id);
+
+      await pumpTogether(tester, repository: client('u-friend', '친구'));
+      await tester.tap(find.byKey(const ValueKey('together-join')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('together-code-input')),
+        room.code,
+      );
+      await tester.tap(find.byKey(const ValueKey('together-code-submit')));
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<AppButton>(
+        find.byKey(const ValueKey('together-set-done')),
+      );
+      expect(button.onPressed, isNull);
+      expect(find.text('상대 차례예요'), findsOneWidget);
+    });
+
+    testWidgets('leaving puts me back in the lobby', (tester) async {
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('together-code')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('together-leave')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
+    });
+  });
+}
+
+/// Signed in, and nothing else. 함께 only ever asks whether there is an account.
+class _SignedInAuth implements AuthService {
+  @override
+  AuthUser? get currentUser =>
+      const AuthUser(id: 'u-me', email: 'me@example.com', displayName: '나');
+
+  @override
+  bool get hasAuthenticatedUser => true;
+
+  @override
+  String get currentDisplayName => '나';
+
+  @override
+  Stream<AuthChange> get authChanges => const Stream<AuthChange>.empty();
+
+  @override
+  bool isConfigured(SocialLoginProvider provider) => false;
+
+  @override
+  Future<AuthSignUpResult> signUp({
+    required String email,
+    required String password,
+    required String nickname,
+  }) async => const AuthSignUpResult(signedIn: true);
+
+  @override
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<bool> signInWithSocial(SocialLoginProvider provider) async => false;
+
+  @override
+  Future<void> sendPasswordReset({required String email}) async {}
+
+  @override
+  Future<void> resendConfirmationEmail({required String email}) async {}
+
+  @override
+  Future<void> updatePassword({required String newPassword}) async {}
+
+  @override
+  Future<bool> verifyPassword(String password) async => true;
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  Future<bool> isVerifiedAdmin() async => false;
+
+  @override
+  String messageFor(Object error) => '$error';
+}

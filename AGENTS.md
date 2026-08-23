@@ -53,6 +53,11 @@ final signedIn = Auth.instance.hasAuthenticatedUser;
   사용자 핵심 동작(로그인·기록 저장 등)의 경로에 두지 말 것. 과거에 회원가입을 엣지 펑션 뒤에
   뒀다가 통째로 막힌 적이 있다.
 
+**실시간은 포트에 도메인 스트림으로 낸다.** `Stream<TrainingParty> watchParty(id)`처럼 선언하고
+폴링이냐 Realtime이냐는 어댑터가 정한다 — 화면에 `RealtimeChannel`이 나오면 위반이다.
+같이 보내는 값은 **기간이 아니라 시각**으로(`restEndsAt`), 그래야 늦게 받은 기기도 같은 순간에
+끝난다. 선례: `lib/data/together_repository.dart`
+
 ## 3. 스토리지는 경로만 저장
 
 ```dart

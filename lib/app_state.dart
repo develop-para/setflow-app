@@ -9,6 +9,7 @@ import 'data/business_repository.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
 import 'data/routine_catalog_repository.dart';
+import 'data/together_repository.dart';
 import 'domain/cardio.dart';
 import 'models.dart';
 import 'services/cardio_prescription_engine.dart';
@@ -69,6 +70,7 @@ class AppState extends ChangeNotifier {
     Future<void> Function()? authSignOut,
     this.routineCatalogRepository,
     this.communityRepository,
+    this.togetherRepository,
   }) : _repository = repository ?? MemoryAppRepository(),
        _authSignOut = authSignOut ?? Auth.instance.signOut {
     if (routineCatalogRepository == null) {
@@ -92,6 +94,10 @@ class AppState extends ChangeNotifier {
   final bool loadBusinessWithoutAuth;
   final RoutineCatalogRepository? routineCatalogRepository;
   final CommunityRepository? communityRepository;
+
+  /// 함께 운동(파트너 방). Null이면 화면이 "지금은 쓸 수 없어요"로 내려간다 —
+  /// 혼자서는 성립하지 않는 기능이라 로컬 대체본을 두지 않는다.
+  final TogetherRepository? togetherRepository;
   Timer? _persistTimer;
   bool _initialized = false;
   bool _disposed = false;

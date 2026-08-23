@@ -20,6 +20,7 @@ import 'member_membership_screen.dart';
 import 'member_mypage_screen.dart';
 import 'member_social_detail_screens.dart';
 import 'routine_editor_screen.dart';
+import 'together_screens.dart';
 import 'workout_screens.dart';
 import 'welcome_screen.dart';
 
@@ -56,9 +57,9 @@ class _MemberShellState extends State<MemberShell> {
       label: '홈',
     ),
     SetflowNavItem(
-      icon: SetflowIcons.stats,
-      selectedIcon: SetflowIcons.statsActive,
-      label: '통계',
+      icon: SetflowIcons.together,
+      selectedIcon: SetflowIcons.togetherActive,
+      label: '함께',
     ),
     SetflowNavItem(
       icon: SetflowIcons.community,
@@ -104,7 +105,9 @@ class _MemberShellState extends State<MemberShell> {
     final today = DateTime(now.year, now.month, now.day);
     final pages = [
       const CalendarScreen(),
-      const DashboardScreen(),
+      // 통계(DashboardScreen)가 있던 자리. 화면은 지우지 않고 메뉴에서만 내렸다 —
+      // 지표는 나중에 다시 올릴 것이고, 그때 되살릴 코드가 남아 있어야 한다.
+      const TogetherScreen(),
       DailyWorkoutScreen(date: today),
       const CommunityScreen(),
       const MyPageScreen(),

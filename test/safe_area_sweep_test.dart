@@ -124,7 +124,7 @@ void main() {
     // Some tabs put every button inside a scroll view and so have nothing
     // pinned to check; the guard against a vacuous sweep is the total.
     var inspected = 0;
-    for (final tab in ['홈', '통계', '커뮤니티', '마이']) {
+    for (final tab in ['홈', '함께', '커뮤니티', '마이']) {
       await tester.tap(find.text(tab).last);
       await tester.pumpAndSettle();
       final result = sweep(tester);

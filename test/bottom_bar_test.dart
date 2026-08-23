@@ -40,7 +40,7 @@ void main() {
     );
     expect(bar.items.map((item) => item.label).toList(), [
       '홈',
-      '통계',
+      '함께',
       '커뮤니티',
       '마이',
     ]);

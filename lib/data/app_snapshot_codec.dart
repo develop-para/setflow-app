@@ -10,6 +10,22 @@ abstract final class AppSnapshotCodec {
 
   static String encode(AppSnapshot snapshot) => jsonEncode(toJson(snapshot));
 
+  /// A single routine, on the wire.
+  ///
+  /// Handing a routine to a training partner has to produce exactly the shape
+  /// the snapshot already stores — a second serializer would drift from this
+  /// one the first time a field is added, and the routine that arrived would
+  /// quietly lose its set plans.
+  static Map<String, dynamic> routineToJson(RoutineData routine) =>
+      _routineToJson(routine);
+
+  static RoutineData? routineFromJson(
+    Map<String, dynamic> json,
+    List<ExerciseTemplate> exerciseCatalog,
+  ) => _routineFromJson(json, {
+    for (final template in exerciseCatalog) template.id: template,
+  });
+
   static Map<String, dynamic> toJson(AppSnapshot snapshot) {
     return {
       'schemaVersion': schemaVersion,

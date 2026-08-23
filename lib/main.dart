@@ -9,11 +9,14 @@ import 'data/app_repository.dart';
 import 'data/business_repository.dart';
 import 'data/hive_app_repository.dart';
 import 'data/community_repository.dart';
+import 'data/exercise_catalog.dart';
 import 'data/routine_catalog_repository.dart';
+import 'data/together_repository.dart';
 import 'data/supabase_app_repository.dart';
 import 'data/supabase_business_repository.dart';
 import 'data/supabase_community_repository.dart';
 import 'data/supabase_routine_catalog_repository.dart';
+import 'data/supabase_together_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
 import 'screens/password_screens.dart';
@@ -60,6 +63,10 @@ Future<void> main() async {
       communityRepository: SupabaseCommunityRepository(
         Supabase.instance.client,
       ),
+      togetherRepository: SupabaseTogetherRepository(
+        Supabase.instance.client,
+        exerciseCatalog: exerciseCatalog,
+      ),
     ),
   );
 }
@@ -70,6 +77,7 @@ class SetflowApp extends StatefulWidget {
     this.businessRepository,
     this.routineCatalogRepository,
     this.communityRepository,
+    this.togetherRepository,
     super.key,
   });
 
@@ -77,6 +85,7 @@ class SetflowApp extends StatefulWidget {
   final BusinessRepository? businessRepository;
   final RoutineCatalogRepository? routineCatalogRepository;
   final CommunityRepository? communityRepository;
+  final TogetherRepository? togetherRepository;
 
   @override
   State<SetflowApp> createState() => _SetflowAppState();
@@ -111,6 +120,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       businessRepository: widget.businessRepository,
       routineCatalogRepository: widget.routineCatalogRepository,
       communityRepository: widget.communityRepository,
+      togetherRepository: widget.togetherRepository,
     );
     _persistenceSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       unawaited(state.syncPersistenceToServer().catchError((_) {}));

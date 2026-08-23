@@ -27,6 +27,12 @@ abstract final class SetflowIcons {
   static const community = Icons.forum_outlined;
   static const communityActive = Icons.forum_rounded;
 
+  /// 함께 — training with someone who is somewhere else. Two figures, because
+  /// the point is the second person, not the group: 커뮤니티 is the crowd you
+  /// read, 함께 is the one partner you are mid-set with.
+  static const together = Icons.people_alt_outlined;
+  static const togetherActive = Icons.people_alt_rounded;
+
   /// 마이 — the account hub.
   static const my = Icons.person_outline_rounded;
   static const myActive = Icons.person_rounded;
@@ -49,6 +55,23 @@ abstract final class SetflowIcons {
 
   /// 종목 수행 방법. '설명'이 아니라 **따라 하는 순서**라 목록 글리프를 쓴다.
   static const guide = Icons.format_list_numbered_rounded;
+
+  // --- 함께 -----------------------------------------------------------------
+  /// 방 만들기 / 코드로 참여.
+  static const partyCreate = Icons.add_rounded;
+  static const partyJoin = Icons.login_rounded;
+
+  /// 같이 시작 — the shared countdown.
+  static const partyStart = Icons.play_arrow_rounded;
+
+  /// 초대 코드를 복사한다.
+  static const copyCode = Icons.copy_rounded;
+
+  /// 루틴을 상대에게 건넨다.
+  static const handOver = Icons.ios_share_rounded;
+
+  /// 방을 떠난다.
+  static const leaveParty = Icons.exit_to_app_rounded;
 
   // --- record surfaces ------------------------------------------------------
   static const routine = Icons.checklist_rounded;
