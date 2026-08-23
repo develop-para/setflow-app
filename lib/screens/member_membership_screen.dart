@@ -38,7 +38,8 @@ class MemberMembershipScreen extends StatelessWidget {
           : ListView.separated(
               padding: SetflowInsets.pageList,
               itemCount: memberships.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              separatorBuilder: (_, _) =>
+                  const SizedBox(height: SetflowSpacing.md),
               itemBuilder: (_, index) {
                 final membership = memberships[index];
                 final ending = state.isEndingBusinessMembership(membership.id);
@@ -60,7 +61,7 @@ class MemberMembershipScreen extends StatelessWidget {
                                   style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(fontWeight: FontWeight.w900),
                                 ),
-                                const SizedBox(height: 2),
+                                const SizedBox(height: SetflowSpacing.xxs),
                                 Text(
                                   '운동 기록 공유 및 담당 트레이너 연결 중',
                                   style: Theme.of(context).textTheme.bodySmall

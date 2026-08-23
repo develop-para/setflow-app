@@ -141,7 +141,7 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                       Icons.delete_outline_rounded,
                       color: SetflowColors.red,
                     ),
-                    SizedBox(width: 10),
+                    SizedBox(width: SetflowSpacing.sm2),
                     Text(
                       '이 날짜 기록 삭제',
                       style: TextStyle(color: SetflowColors.red),
@@ -443,7 +443,7 @@ class _WorkoutSummaryBar extends StatelessWidget {
                           ? SetflowColors.orange
                           : SetflowColors.disabled,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: SetflowSpacing.xs),
                     Text(
                       '추천 ${recommendationEnabled ? 'ON' : 'OFF'}',
                       style: const TextStyle(
@@ -481,7 +481,7 @@ class _SummaryValue extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: SetflowSpacing.xs),
         Text(
           value,
           style: const TextStyle(
@@ -548,14 +548,14 @@ class _CoachFeedbackCard extends StatelessWidget {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     latest.authorName,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     latest.text,
                     key: ValueKey('member-session-feedback-${latest.id}'),
@@ -695,7 +695,7 @@ class _RoutinePickerSheet extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  SizedBox(height: SetflowSpacing.xs),
                   Text(
                     '선택한 루틴의 운동이 이 날짜에 바로 추가됩니다.',
                     style: TextStyle(color: SetflowColors.secondaryText),
@@ -708,7 +708,8 @@ class _RoutinePickerSheet extends StatelessWidget {
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
                 itemCount: routines.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: SetflowSpacing.sm2),
                 itemBuilder: (context, index) {
                   final routine = routines[index];
                   return SetflowCard(
@@ -725,7 +726,7 @@ class _RoutinePickerSheet extends StatelessWidget {
                             borderRadius: BorderRadius.circular(5),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: SetflowSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -736,7 +737,7 @@ class _RoutinePickerSheet extends StatelessWidget {
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              const SizedBox(height: 3),
+                              const SizedBox(height: SetflowSpacing.xs),
                               Text(
                                 '${routine.exercises.length}개 운동 · ${routine.exercises.map((item) => item.muscle).toSet().join(', ')}',
                                 maxLines: 1,
@@ -821,7 +822,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                           size: 22,
                         ),
                       ),
-                      const SizedBox(width: 11),
+                      const SizedBox(width: SetflowSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -880,7 +881,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                               child: Row(
                                 children: [
                                   Icon(SetflowIcons.guide),
-                                  SizedBox(width: 10),
+                                  SizedBox(width: SetflowSpacing.sm2),
                                   Text('수행 방법'),
                                 ],
                               ),
@@ -893,7 +894,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                   Icons.delete_outline_rounded,
                                   color: SetflowColors.red,
                                 ),
-                                SizedBox(width: 10),
+                                SizedBox(width: SetflowSpacing.sm2),
                                 Text(
                                   '운동 삭제',
                                   style: TextStyle(color: SetflowColors.red),
@@ -1362,7 +1363,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 7),
+                const SizedBox(width: SetflowSpacing.sm),
                 Expanded(
                   child: Text(
                     _summary,
@@ -1377,7 +1378,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                 ),
               ],
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: SetflowSpacing.sm),
             Row(
               children: [
                 Expanded(
@@ -1400,7 +1401,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                   ),
                 ),
                 if (supportsDistance) ...[
-                  const SizedBox(width: 6),
+                  const SizedBox(width: SetflowSpacing.xs2),
                   Expanded(
                     child: _cardioField(
                       key: ValueKey('cardio-distance-${widget.set.number}'),
@@ -1420,7 +1421,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                     ),
                   ),
                 ],
-                const SizedBox(width: 6),
+                const SizedBox(width: SetflowSpacing.xs2),
                 Expanded(
                   child: _cardioField(
                     key: ValueKey('cardio-rpe-${widget.set.number}'),
@@ -1443,7 +1444,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: SetflowSpacing.xs2),
             const Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -1735,7 +1736,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 7),
+                const SizedBox(width: SetflowSpacing.sm),
                 Expanded(
                   child: Text(
                     estimate == null
@@ -1791,10 +1792,10 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: SetflowSpacing.xs),
               ],
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: SetflowSpacing.sm),
             Row(
               children: [
                 Expanded(
@@ -1815,7 +1816,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: SetflowSpacing.xs2),
                 Expanded(
                   child: _numberField(
                     key: ValueKey('inline-set-reps-${widget.set.number}'),
@@ -1834,7 +1835,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: SetflowSpacing.xs2),
                 Expanded(
                   child: _numberField(
                     key: ValueKey('inline-set-rest-${widget.set.number}'),
@@ -2178,7 +2179,7 @@ class _SwipeableSetState extends State<_SwipeableSet>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(icon, size: 17, color: accent),
-                    const SizedBox(width: 5),
+                    const SizedBox(width: SetflowSpacing.xs2),
                     Text(
                       label,
                       style: TextStyle(
@@ -2239,7 +2240,7 @@ class _CompletedSetLine extends StatelessWidget {
                 // it sits at 1.18:1 and simply is not there.
                 color: context.setflowColors.success,
               ),
-              const SizedBox(width: 9),
+              const SizedBox(width: SetflowSpacing.sm2),
               Text(
                 '$number$label',
                 style: const TextStyle(
@@ -2247,7 +2248,7 @@ class _CompletedSetLine extends StatelessWidget {
                   fontWeight: SetflowWeight.medium,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: SetflowSpacing.sm2),
               Expanded(
                 child: Text(
                   summary,
@@ -2304,7 +2305,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                   Icons.auto_awesome_rounded,
                   color: SetflowColors.orange,
                 ),
-                const SizedBox(width: 9),
+                const SizedBox(width: SetflowSpacing.sm2),
                 Text(
                   title,
                   style: const TextStyle(
@@ -2316,7 +2317,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                 Chip(label: Text(recommendation.goalLabel)),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.md2),
             SetflowCard(
               color: SetflowColors.primary.withValues(alpha: .14),
               child: Column(
@@ -2329,12 +2330,12 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: SetflowSpacing.xs2),
                   Text(
                     prescriptionText,
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: SetflowSpacing.sm2),
                   Text(
                     recommendation.reason,
                     style: const TextStyle(
@@ -2345,7 +2346,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: SetflowSpacing.sm2),
             Text(
               recommendation.evidenceNote.isNotEmpty
                   ? recommendation.evidenceNote
@@ -2371,7 +2372,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                   label: Text('근거 논문 ${recommendation.evidenceIds.length}건 보기'),
                 ),
               ),
-            const SizedBox(height: 18),
+            const SizedBox(height: SetflowSpacing.xl),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -2382,7 +2383,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                 label: const Text('기구 없음 · 다른 운동 추천'),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: SetflowSpacing.sm),
             Row(
               children: [
                 Expanded(
@@ -2394,7 +2395,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                     child: const Text('직접 선택'),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: SetflowSpacing.sm),
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: () =>
@@ -2842,7 +2843,7 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
                 fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: SetflowSpacing.xs2),
             const Text(
               '만든 운동은 내 운동 목록에 저장되고 다른 기기에도 동기화됩니다.',
               style: TextStyle(
@@ -2851,7 +2852,7 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: SetflowSpacing.lg),
             AppTextField(
               key: const Key('custom-exercise-name'),
               controller: nameController,
@@ -2866,7 +2867,7 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
                 return null;
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: SetflowSpacing.md),
             DropdownButtonFormField<String>(
               key: const Key('custom-exercise-muscle'),
               initialValue: muscle,
@@ -2887,7 +2888,7 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
                 if (value != null) setState(() => muscle = value);
               },
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: SetflowSpacing.xl),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -3000,7 +3001,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                   Icons.trending_up_rounded,
                   color: SetflowColors.orange,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -3013,7 +3014,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: SetflowSpacing.xs),
                       Text(
                         previous == null
                             ? '첫 기록을 시작해보세요'
@@ -3025,7 +3026,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: SetflowSpacing.xs),
                       Text(
                         previous == null
                             ? '완료한 세트부터 PR과 추천 중량을 계산해요.'
@@ -3057,7 +3058,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const Row(
             children: [
               SizedBox(
@@ -3112,7 +3113,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           for (final set in exercise.sets)
             Dismissible(
               key: ObjectKey(set),
@@ -3192,7 +3193,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 7),
+                            const SizedBox(width: SetflowSpacing.sm),
                             Expanded(
                               child: _NumberStepper(
                                 value: '${set.reps}',
@@ -3257,7 +3258,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: SetflowSpacing.sm),
                         Padding(
                           padding: const EdgeInsets.only(left: 40),
                           child: Column(
@@ -3285,7 +3286,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: SetflowSpacing.xs),
                               if (PerformanceEngine.estimate(
                                     set.weight,
                                     set.reps,
@@ -3329,12 +3330,12 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: SetflowSpacing.xl),
           const SetflowCard(
             child: Row(
               children: [
                 Icon(Icons.info_outline, color: SetflowColors.blue),
-                SizedBox(width: 11),
+                SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Text(
                     '완료 체크 한 번으로 기록 저장, 볼륨 계산, 휴식 타이머가 동시에 시작됩니다.',
@@ -3374,7 +3375,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.directions_run_rounded, color: SetflowColors.blue),
-                SizedBox(width: 11),
+                SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Text(
                     '유산소는 무게나 반복 횟수 대신 시간·거리·자각 강도(RPE)를 기록합니다. 거리 측정이 어울리지 않는 종목은 시간과 RPE만 표시해요.',
@@ -3389,7 +3390,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: SetflowSpacing.md2),
           for (final set in exercise.sets) ...[
             _InlineCardioRow(
               key: ValueKey('cardio-detail-segment-${set.number}'),
@@ -3422,7 +3423,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                 AppSnackbar.success(context, '구간을 삭제했어요.');
               },
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: SetflowSpacing.sm2),
           ],
           OutlinedButton.icon(
             onPressed: () => state.addSet(exercise),
@@ -3697,7 +3698,7 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: SetflowSpacing.xs),
           const Text(
             '다이얼을 돌리거나 아래에 숫자를 직접 입력하세요.',
             style: TextStyle(
@@ -3745,7 +3746,7 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
             onEditingComplete: _syncInputToDial,
             onSubmitted: (_) => _save(),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: SetflowSpacing.md2),
           Row(
             children: [
               Expanded(
@@ -3754,7 +3755,7 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
                   child: const Text('취소'),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: SetflowSpacing.sm2),
               Expanded(
                 child: FilledButton(onPressed: _save, child: const Text('적용')),
               ),

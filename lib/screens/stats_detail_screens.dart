@@ -39,7 +39,7 @@ class RoutineStatsPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(5),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,9 +64,9 @@ class RoutineStatsPage extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const SectionTitle('성과 지표'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           Row(
             children: [
               MetricCard(
@@ -75,7 +75,7 @@ class RoutineStatsPage extends StatelessWidget {
                 icon: Icons.visibility_outlined,
                 tint: SetflowColors.blue,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SetflowSpacing.sm),
               MetricCard(
                 label: '저장수',
                 value: NumberFormat('#,###').format(_saves),
@@ -84,7 +84,7 @@ class RoutineStatsPage extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           Row(
             children: [
               MetricCard(
@@ -93,7 +93,7 @@ class RoutineStatsPage extends StatelessWidget {
                 icon: Icons.play_circle_outline,
                 tint: SetflowColors.teal,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SetflowSpacing.sm),
               MetricCard(
                 label: '상담 전환율',
                 value: _conversion.toStringAsFixed(1),
@@ -103,15 +103,15 @@ class RoutineStatsPage extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const SectionTitle('최근 7일 조회 추이'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
             child: _TrendChart(values: _trend, color: routine.color),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const SectionTitle('마켓 노출 랭킹'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
             child: Row(
               children: [
@@ -119,7 +119,7 @@ class RoutineStatsPage extends StatelessWidget {
                   Icons.emoji_events_outlined,
                   color: SetflowColors.orange,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: SetflowSpacing.sm2),
                 const Expanded(
                   child: Text(
                     '현재 순위',
@@ -197,7 +197,7 @@ class TrainerPerformancePage extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,9 +238,9 @@ class TrainerPerformancePage extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const SectionTitle('성과 지표'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           Row(
             children: [
               MetricCard(
@@ -249,7 +249,7 @@ class TrainerPerformancePage extends StatelessWidget {
                 icon: Icons.groups_outlined,
                 tint: SetflowColors.blue,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SetflowSpacing.sm),
               MetricCard(
                 label: '매출',
                 value: NumberFormat('#,###').format(_revenue),
@@ -260,7 +260,7 @@ class TrainerPerformancePage extends StatelessWidget {
             ],
           ),
           if (!liveData) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: SetflowSpacing.sm),
             Row(
               children: [
                 MetricCard(
@@ -270,7 +270,7 @@ class TrainerPerformancePage extends StatelessWidget {
                   icon: Icons.trending_up,
                   tint: SetflowColors.teal,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: SetflowSpacing.sm),
                 MetricCard(
                   label: '상담 건수',
                   value: '$_consultations',
@@ -280,9 +280,9 @@ class TrainerPerformancePage extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const SectionTitle('피드백 이행률'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,7 +304,7 @@ class TrainerPerformancePage extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: SetflowSpacing.sm),
                 LinearProgressIndicator(
                   value: _feedbackValue.clamp(0, 1),
                   minHeight: 8,
@@ -316,9 +316,9 @@ class TrainerPerformancePage extends StatelessWidget {
             ),
           ),
           if (!liveData) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: SetflowSpacing.xl),
             const SectionTitle('최근 상담 전환 추이'),
-            const SizedBox(height: 10),
+            const SizedBox(height: SetflowSpacing.sm2),
             SetflowCard(
               child: _TrendChart(values: _trend, color: accentColor),
             ),
@@ -357,7 +357,7 @@ class _TrendChart extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: SetflowSpacing.xs2),
                     Text(
                       '${i + 1}',
                       style: const TextStyle(

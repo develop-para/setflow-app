@@ -456,7 +456,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                 fontWeight: FontWeight.w900,
                                               ),
                                         ),
-                                        const SizedBox(width: 2),
+                                        const SizedBox(
+                                          width: SetflowSpacing.xxs,
+                                        ),
                                         Icon(
                                           Icons.keyboard_arrow_down_rounded,
                                           size: 20,
@@ -548,7 +550,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 _CalendarWeekdayHeader(
                                   summaryWidth: summaryWidth,
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: SetflowSpacing.xs2),
                                 for (final week in weeks)
                                   _CollapsibleWeek(
                                     visible:
@@ -615,7 +617,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   expanded: expanded,
                                   onPressed: _toggleExpanded,
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: SetflowSpacing.md),
                                 _MemberCoachingScheduleSection(
                                   schedules: state.coachingSchedules,
                                   memberUserId: state.businessAccess?.userId,
@@ -651,7 +653,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                           color: SetflowColors.primary,
                                           size: 18,
                                         ),
-                                        const SizedBox(width: 8),
+                                        const SizedBox(
+                                          width: SetflowSpacing.sm,
+                                        ),
                                         Expanded(
                                           child: Text(
                                             '${dragSource!.month}월 ${dragSource!.day}일 운동을 다른 날짜 위에 놓아주세요',
@@ -775,7 +779,7 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
                   size: 19,
                   color: SetflowColors.blue,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: SetflowSpacing.sm),
                 Text(
                   '예정된 코칭',
                   style: Theme.of(
@@ -792,7 +796,7 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: SetflowSpacing.sm),
             for (var index = 0; index < upcoming.length; index++) ...[
               if (index > 0) const Divider(height: 16),
               _MemberScheduleRow(schedule: upcoming[index]),
@@ -838,7 +842,7 @@ class _MemberScheduleRow extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: SetflowSpacing.sm2),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1242,7 +1246,7 @@ class _CalendarCell extends StatelessWidget {
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: SetflowSpacing.xs),
                           // 한 칸에서 색을 쓰는 곳은 여기 하나다. 다 끝낸 날은
                           // 성공색으로 꽉 차고, 하다 만 날은 브랜드가 그만큼만 찬다.
                           ClipRRect(
@@ -1259,7 +1263,7 @@ class _CalendarCell extends StatelessWidget {
                             ),
                           ),
                         ] else
-                          const SizedBox(height: 18),
+                          const SizedBox(height: SetflowSpacing.xl),
                       ],
                     ),
                   ),
@@ -1288,7 +1292,7 @@ class _CalendarCell extends StatelessWidget {
                     size: 18,
                     color: theme.colorScheme.onInverseSurface,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: SetflowSpacing.sm),
                   Text(
                     '${date.month}월 ${date.day}일 · 운동 ${session!.exercises.length}개',
                     style: TextStyle(
@@ -1454,7 +1458,7 @@ class RoutinesScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SetflowSpacing.lg),
           for (final routine in state.routines)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -1472,7 +1476,7 @@ class RoutinesScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: SetflowSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1585,7 +1589,7 @@ class RoutinesScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: SetflowSpacing.md2),
                     Text(
                       routine.description,
                       style: const TextStyle(
@@ -1593,7 +1597,7 @@ class RoutinesScreen extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: SetflowSpacing.md2),
                     Wrap(
                       spacing: 7,
                       runSpacing: 7,
@@ -2177,7 +2181,7 @@ class _MarketScreenState extends State<MarketScreen> {
             prefixIcon: const Icon(Icons.search),
             hint: '목표, 운동, 트레이너 검색',
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: SetflowSpacing.md2),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -2195,13 +2199,13 @@ class _MarketScreenState extends State<MarketScreen> {
                   .toList(),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           SectionTitle(
             query.isEmpty && filter == '전체'
                 ? '지금 인기 있는 루틴'
                 : '검색 결과 ${routines.length}개',
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           if (routines.isEmpty)
             EmptyState(
               icon: Icons.search_off_rounded,
@@ -2286,7 +2290,7 @@ class _MarketScreenState extends State<MarketScreen> {
                               fontWeight: FontWeight.w900,
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: SetflowSpacing.xs2),
                           Text(
                             routine.description,
                             style: const TextStyle(
@@ -2294,7 +2298,7 @@ class _MarketScreenState extends State<MarketScreen> {
                               fontSize: SetflowFontSize.label,
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: SetflowSpacing.md),
                           Row(
                             children: [
                               const Icon(
@@ -2302,7 +2306,7 @@ class _MarketScreenState extends State<MarketScreen> {
                                 color: SetflowColors.blue,
                                 size: 17,
                               ),
-                              const SizedBox(width: 5),
+                              const SizedBox(width: SetflowSpacing.xs2),
                               Expanded(
                                 child: Text(
                                   routine.author,
@@ -2356,7 +2360,7 @@ class _RoutineAccessBadge extends StatelessWidget {
               size: 13,
               color: color,
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: SetflowSpacing.xs),
             Text(
               accessTier.label,
               style: TextStyle(
@@ -2593,7 +2597,7 @@ class CoachingScreen extends StatelessWidget {
             child: const Row(
               children: [
                 Icon(Icons.support_agent_rounded, color: SetflowColors.ink),
-                SizedBox(width: 14),
+                SizedBox(width: SetflowSpacing.md2),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2605,7 +2609,7 @@ class CoachingScreen extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      SizedBox(height: 5),
+                      SizedBox(height: SetflowSpacing.xs2),
                       Text(
                         '상담 답변을 확인하고 1:1 코칭까지 이어갈 수 있어요.',
                         style: TextStyle(
@@ -2627,9 +2631,9 @@ class CoachingScreen extends StatelessWidget {
             icon: Icons.edit_note_rounded,
             onPressed: () => _newConsult(context),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           SectionTitle('진행 중 상담 ${activeConsultations.length}건'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           if (state.usesLiveBusinessData &&
               state.memberConsultationsLoading &&
               state.memberConsultations.isEmpty)
@@ -2775,7 +2779,7 @@ class CoachingScreen extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 4),
+          const SizedBox(height: SetflowSpacing.xs),
           OutlinedButton.icon(
             key: const ValueKey('coaching-consultation-history'),
             onPressed: () => Navigator.of(context).push(
@@ -2792,15 +2796,15 @@ class CoachingScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: SetflowSpacing.xxl2),
           const SectionTitle('코칭 보호 정책'),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           const SetflowCard(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.shield_outlined, color: SetflowColors.green),
-                SizedBox(width: 12),
+                SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Text(
                     '운동 일지 작성 후 72시간 안에 피드백을 받지 못하면 중도 해지 요청이 활성화됩니다.',
@@ -2996,7 +3000,7 @@ class _ConsultationHistoryCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: SetflowSpacing.xxs),
                     Text(
                       DateFormat(
                         'yyyy.MM.dd HH:mm',
@@ -3245,7 +3249,7 @@ class DashboardScreen extends StatelessWidget {
                 icon: Icons.calendar_today,
                 tint: SetflowColors.teal,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: SetflowSpacing.sm2),
               MetricCard(
                 label: chartShowsResistance ? '근력 볼륨' : '유산소 시간',
                 value: chartShowsResistance
@@ -3266,7 +3270,7 @@ class DashboardScreen extends StatelessWidget {
             ],
           ),
           if (chartShowsResistance && totalCardioMinutes > 0) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: SetflowSpacing.md),
             SetflowCard(
               child: Row(
                 children: [
@@ -3293,7 +3297,7 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           Row(
             children: [
               MetricCard(
@@ -3303,7 +3307,7 @@ class DashboardScreen extends StatelessWidget {
                 icon: Icons.local_fire_department,
                 tint: SetflowColors.red,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: SetflowSpacing.sm2),
               MetricCard(
                 label: '완료율',
                 value: totalSets == 0
@@ -3315,9 +3319,9 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: SetflowSpacing.xxl2),
           SectionTitle(chartShowsResistance ? '주간 근력 볼륨' : '주간 유산소 시간'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
             child: SizedBox(
               height: 170,
@@ -3354,7 +3358,7 @@ class DashboardScreen extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: SetflowSpacing.xs2),
                             Text(
                               ['월', '화', '수', '목', '금', '토', '일'][i],
                               style: const TextStyle(
@@ -3370,9 +3374,9 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('MY PERFORMANCE'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           if (summary == null)
             const SetflowCard(
               child: Text(

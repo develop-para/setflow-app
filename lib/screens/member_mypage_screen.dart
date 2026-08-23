@@ -52,7 +52,7 @@ class MyPageScreen extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: SetflowSpacing.xxs),
                       Text(
                         signedIn ? '클라우드 동기화 중' : '로그인하면 기록이 백업돼요',
                         style: const TextStyle(

@@ -126,14 +126,14 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         ],
       ),
     ),
-    const SizedBox(height: 24),
+    const SizedBox(height: SetflowSpacing.xxl),
     TextField(
       decoration: InputDecoration(
         labelText: widget.role == UserRole.gym ? '헬스장명' : '이름',
         hintText: widget.role == UserRole.gym ? '모션짐 강남점' : '김코치',
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: SetflowSpacing.md),
     const TextField(
       maxLines: 3,
       decoration: InputDecoration(
@@ -141,14 +141,14 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         hintText: '전문 분야와 코칭 철학을 소개해주세요.',
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: SetflowSpacing.md),
     TextField(
       decoration: InputDecoration(
         labelText: widget.role == UserRole.gym ? '위치' : '경력',
         hintText: widget.role == UserRole.gym ? '서울 강남구' : '퍼스널 트레이닝 8년',
       ),
     ),
-    const SizedBox(height: 20),
+    const SizedBox(height: SetflowSpacing.xl),
     PrimaryButton(
       label: '프로필 저장',
       onPressed: () => showMessage(context, '프로필을 저장했습니다.'),
@@ -178,7 +178,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           }),
         ),
       ),
-      const SizedBox(height: 18),
+      const SizedBox(height: SetflowSpacing.xl),
       Row(
         children: [
           const Expanded(child: SectionTitle('코칭 일정')),
@@ -201,7 +201,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
             ),
         ],
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: SetflowSpacing.sm),
     ];
 
     if (state.coachingSchedulesLoading && schedules.isEmpty) {
@@ -294,7 +294,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                   ? SetflowColors.green
                   : SetflowColors.ink,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: SetflowSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,7 +308,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                           : null,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     '${_scheduleTime(schedule.startMinutes)}–${_scheduleTime(schedule.endMinutes)} · $counterpart',
                     style: const TextStyle(
@@ -442,7 +442,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                       hintText: '예: 하체 PT · 4주차',
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: SetflowSpacing.sm2),
                   DropdownButtonFormField<String?>(
                     key: const Key('coaching-schedule-member'),
                     initialValue: memberId,
@@ -461,7 +461,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     onChanged: (value) =>
                         setDialogState(() => memberId = value),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: SetflowSpacing.sm2),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.event_outlined),
@@ -499,7 +499,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: SetflowSpacing.md),
                       Expanded(
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
@@ -570,7 +570,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           icon: Icons.hourglass_bottom,
           tint: SetflowColors.orange,
         ),
-        SizedBox(width: 10),
+        SizedBox(width: SetflowSpacing.sm2),
         MetricCard(
           label: '환불 처리',
           value: '3',
@@ -580,7 +580,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         ),
       ],
     ),
-    const SizedBox(height: 22),
+    const SizedBox(height: SetflowSpacing.xxl),
     for (final item in const [
       ('박민지', '중도 해지', '검토 중'),
       ('이준호', '결제 오류', '환불 완료'),
@@ -592,7 +592,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           child: Row(
             children: [
               const Icon(Icons.receipt_long_outlined, color: SetflowColors.red),
-              const SizedBox(width: 11),
+              const SizedBox(width: SetflowSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -638,7 +638,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
               fontSize: SetflowFontSize.small,
             ),
           ),
-          SizedBox(height: 5),
+          SizedBox(height: SetflowSpacing.xs2),
           Text(
             'PRO',
             style: TextStyle(
@@ -647,14 +647,14 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          SizedBox(height: 10),
+          SizedBox(height: SetflowSpacing.sm2),
           Text('관리 회원 12 / 50명', style: TextStyle(color: Colors.white70)),
         ],
       ),
     ),
-    const SizedBox(height: 20),
+    const SizedBox(height: SetflowSpacing.xl),
     const SectionTitle('플랜 비교'),
-    const SizedBox(height: 8),
+    const SizedBox(height: SetflowSpacing.sm),
     for (final item in const [
       ('스타터', '무료', '회원 1명'),
       ('프로', r'$39/월', '회원 4~50명'),
@@ -687,7 +687,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                 item.$2,
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SetflowSpacing.sm),
               const Icon(Icons.chevron_right),
             ],
           ),
@@ -724,7 +724,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.warning_amber_rounded, color: SetflowColors.red),
-          SizedBox(width: 11),
+          SizedBox(width: SetflowSpacing.md),
           Expanded(
             child: Text(
               '탈퇴 요청 후 30일 동안 계정이 비활성화됩니다. 관리 회원에게 알림이 발송되고 미정산 수익은 영업일 10일 이내 최종 정산됩니다.',
@@ -734,12 +734,12 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         ],
       ),
     ),
-    const SizedBox(height: 18),
+    const SizedBox(height: SetflowSpacing.xl),
     const TextField(
       maxLines: 3,
       decoration: InputDecoration(labelText: '탈퇴 사유'),
     ),
-    const SizedBox(height: 20),
+    const SizedBox(height: SetflowSpacing.xl),
     FilledButton(
       onPressed: () => showMessage(context, '데모에서는 탈퇴 요청을 실제 처리하지 않습니다.'),
       style: FilledButton.styleFrom(
@@ -757,7 +757,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         hintText: '사용자 검색',
       ),
     ),
-    const SizedBox(height: 18),
+    const SizedBox(height: SetflowSpacing.xl),
     for (final item in const [
       ('김코치', '국가공인 · 사업자', true),
       ('박트레이너', '민간자격', true),
@@ -817,12 +817,12 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: SetflowSpacing.md),
               Text(
                 item.$2,
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: SetflowSpacing.md),
               OutlinedButton(
                 onPressed: () => showMessage(context, '신고 상세 검토를 시작했습니다.'),
                 child: const Text('검토하기'),
@@ -869,7 +869,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
       child: Row(
         children: [
           Icon(Icons.child_care, color: SetflowColors.orange),
-          SizedBox(width: 11),
+          SizedBox(width: SetflowSpacing.md),
           Expanded(
             child: Text(
               '위험 행동 패턴은 최소 수집 원칙으로 탐지하며 운영자 검토 전 자동 제재하지 않습니다.',
@@ -879,7 +879,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         ],
       ),
     ),
-    const SizedBox(height: 16),
+    const SizedBox(height: SetflowSpacing.lg),
     for (final item in const [
       ('user_2481', '과도한 체중 감량 목표 반복'),
       ('user_5130', '심야 운동 7일 연속'),
@@ -905,7 +905,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         style: TextStyle(fontWeight: FontWeight.w900),
       ),
     ),
-    const SizedBox(height: 18),
+    const SizedBox(height: SetflowSpacing.xl),
     Text('조회 가중치 ${slider.toInt()}'),
     Slider(
       value: slider,
@@ -916,7 +916,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     const ListTile(title: Text('상담 가중치'), trailing: Text('40')),
     const ListTile(title: Text('구매 가중치'), trailing: Text('80')),
     const ListTile(title: Text('72시간 미응답 패널티'), trailing: Text('-100')),
-    const SizedBox(height: 18),
+    const SizedBox(height: SetflowSpacing.xl),
     PrimaryButton(
       label: '파라미터 저장',
       onPressed: () => showMessage(context, '변경 이력을 남기고 랭킹 재계산을 예약했습니다.'),
@@ -945,7 +945,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
       value: first,
       onChanged: (value) => setState(() => first = value),
     ),
-    const SizedBox(height: 18),
+    const SizedBox(height: SetflowSpacing.xl),
     PrimaryButton(
       label: 'OCR 설정 저장',
       onPressed: () => showMessage(context, 'OCR 설정을 저장했습니다.'),
@@ -1007,7 +1007,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         hintText: '키워드 입력 후 Enter',
       ),
     ),
-    const SizedBox(height: 18),
+    const SizedBox(height: SetflowSpacing.xl),
     Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -1032,7 +1032,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           icon: Icons.cloud_done_outlined,
           tint: SetflowColors.green,
         ),
-        SizedBox(width: 10),
+        SizedBox(width: SetflowSpacing.sm2),
         MetricCard(
           label: '오류율',
           value: '0.02',
@@ -1042,7 +1042,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         ),
       ],
     ),
-    const SizedBox(height: 22),
+    const SizedBox(height: SetflowSpacing.xxl),
     for (final item in const [
       ('08:21:32', 'INFO', '정산 배치 완료 · 284건'),
       ('08:18:05', 'WARN', 'OCR 응답 지연 · 1.8초'),
@@ -1097,9 +1097,9 @@ class _ScheduleMessageCard extends StatelessWidget {
       child: Column(
         children: [
           Icon(icon, size: 34, color: SetflowColors.secondaryText),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
+          const SizedBox(height: SetflowSpacing.xs),
           Text(
             subtitle,
             textAlign: TextAlign.center,
@@ -1109,7 +1109,7 @@ class _ScheduleMessageCard extends StatelessWidget {
             ),
           ),
           if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: SetflowSpacing.md),
             TextButton(onPressed: onAction, child: Text(actionLabel!)),
           ],
         ],
@@ -1143,7 +1143,7 @@ class _Day extends StatelessWidget {
           color: SetflowColors.secondaryText,
         ),
       ),
-      const SizedBox(height: 7),
+      const SizedBox(height: SetflowSpacing.sm),
       CircleAvatar(
         radius: 18,
         backgroundColor: count > 3 ? SetflowColors.primary : SetflowColors.soft,

@@ -41,7 +41,7 @@ class WorkspaceScreen extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     '주요 운영 지표를 한 화면에서 확인하세요.',
                     style: const TextStyle(
@@ -49,13 +49,13 @@ class WorkspaceScreen extends StatelessWidget {
                       color: SetflowColors.secondaryText,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: SetflowSpacing.xl),
                   _ResponsiveGrid(
                     width: contentWidth,
                     columns: columns,
                     children: config.stats,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: SetflowSpacing.xxl),
                   _ResponsiveGrid(
                     width: contentWidth,
                     columns: columns,
@@ -179,7 +179,7 @@ class WorkspaceScreen extends StatelessWidget {
                     color: SetflowColors.secondaryText,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: SetflowSpacing.xs),
                 const Text(
                   '14,280,000원',
                   style: TextStyle(
@@ -187,9 +187,9 @@ class WorkspaceScreen extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 const Divider(height: 1),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 const _EntryRow(
                   name: '장기 코칭',
                   subtitle: '박트레이너 · 이준호',
@@ -275,13 +275,13 @@ class WorkspaceScreen extends StatelessWidget {
                   value: .82,
                   color: SetflowColors.red,
                 ),
-                SizedBox(height: 18),
+                SizedBox(height: SetflowSpacing.xl),
                 _ProgressEntry(
                   label: 'Orange 신고 · 24시간',
                   value: .94,
                   color: SetflowColors.orange,
                 ),
-                SizedBox(height: 18),
+                SizedBox(height: SetflowSpacing.xl),
                 _ProgressEntry(
                   label: '인증 심사 · 3영업일',
                   value: .97,
@@ -420,7 +420,7 @@ class WorkspaceScreen extends StatelessWidget {
                     color: SetflowColors.secondaryText,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: SetflowSpacing.xs),
                 const Text(
                   '2,480,000원',
                   style: TextStyle(
@@ -428,9 +428,9 @@ class WorkspaceScreen extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 const Divider(height: 1),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 const _EntryRow(
                   name: '단기 코칭',
                   subtitle: '김코치 · 박민지',
@@ -474,7 +474,7 @@ class WorkspaceScreen extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         SectionTitle(title),
-        const SizedBox(height: 10),
+        const SizedBox(height: SetflowSpacing.sm2),
         SetflowCard(child: child),
       ],
     );
@@ -535,7 +535,7 @@ class _StatTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, color: tint, size: 22),
-        const SizedBox(height: 14),
+        const SizedBox(height: SetflowSpacing.md2),
         Text(
           label,
           style: const TextStyle(
@@ -544,7 +544,7 @@ class _StatTile extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: SetflowSpacing.xs),
         RichText(
           text: TextSpan(
             style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
@@ -597,13 +597,13 @@ class _EntryRow extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
-      const SizedBox(width: 12),
+      const SizedBox(width: SetflowSpacing.md),
       Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 2),
+            const SizedBox(height: SetflowSpacing.xxs),
             Text(
               subtitle,
               style: const TextStyle(
@@ -614,7 +614,7 @@ class _EntryRow extends StatelessWidget {
           ],
         ),
       ),
-      const SizedBox(width: 8),
+      const SizedBox(width: SetflowSpacing.sm),
       Text(
         trailing,
         style: TextStyle(fontWeight: FontWeight.w900, color: trailingColor),
@@ -651,7 +651,7 @@ class _ProgressEntry extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: 7),
+      const SizedBox(height: SetflowSpacing.sm),
       LinearProgressIndicator(
         value: value,
         minHeight: 8,

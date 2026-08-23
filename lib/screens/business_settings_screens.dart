@@ -304,7 +304,7 @@ class _BusinessSettingsPlanScreenState
                             color: plan.tint,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: SetflowSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,7 +348,7 @@ class _BusinessSettingsPlanScreenState
                           ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: SetflowSpacing.md2),
                     for (final perk in plan.perks)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
@@ -359,7 +359,7 @@ class _BusinessSettingsPlanScreenState
                               size: 16,
                               color: plan.tint,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: SetflowSpacing.sm),
                             Expanded(
                               child: Text(
                                 perk,
@@ -373,7 +373,7 @@ class _BusinessSettingsPlanScreenState
                         ),
                       ),
                     if (plan.id != _currentPlanId) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(height: SetflowSpacing.xs2),
                       PrimaryButton(
                         label: plan.id == 'enterprise' ? '문의' : '변경',
                         onPressed: live
@@ -423,7 +423,7 @@ class _BusinessSettingsPlanScreenState
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: SetflowSpacing.md2),
             ],
           ],
         ),
@@ -636,7 +636,7 @@ class _BusinessSettingsWithdrawScreenState
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: SetflowSpacing.sm2),
                 _WarningItem(
                   icon: Icons.schedule,
                   title: '30일 유예 기간',
@@ -655,7 +655,7 @@ class _BusinessSettingsWithdrawScreenState
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const Text(
             '탈퇴 사유를 선택해 주세요',
             style: TextStyle(
@@ -663,7 +663,7 @@ class _BusinessSettingsWithdrawScreenState
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           DropdownButtonFormField<String>(
             initialValue: _reason,
             hint: const Text('탈퇴 사유 선택'),
@@ -673,7 +673,7 @@ class _BusinessSettingsWithdrawScreenState
             ],
             onChanged: (value) => setState(() => _reason = value),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: SetflowSpacing.md2),
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
@@ -687,7 +687,7 @@ class _BusinessSettingsWithdrawScreenState
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           PrimaryButton(
             label: '탈퇴 신청하기',
             onPressed: canWithdraw ? () => _confirmWithdraw(context) : null,
@@ -741,7 +741,7 @@ class _WarningItem extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 18, color: SetflowColors.red),
-          const SizedBox(width: 10),
+          const SizedBox(width: SetflowSpacing.sm2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -753,7 +753,7 @@ class _WarningItem extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: SetflowSpacing.xxs),
                 Text(
                   message,
                   style: const TextStyle(
@@ -813,7 +813,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                 Row(
                   children: [
                     const Icon(Icons.shield_outlined, color: Colors.white),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: SetflowSpacing.sm),
                     const Text(
                       '연 1회 정기 심사',
                       style: TextStyle(
@@ -842,7 +842,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: SetflowSpacing.md2),
                 const Text(
                   '안전한 플랫폼을 위해 코치 자격을 재확인합니다.',
                   style: TextStyle(
@@ -852,7 +852,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                     height: 1.3,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: SetflowSpacing.sm),
                 const Text(
                   '만료일($_expiryDate) 전까지 증빙 서류를 제출하지 않으면 신규 회원 상담 및 결제 수신이 제한될 수 있습니다.',
                   style: TextStyle(
@@ -864,7 +864,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           const Text(
             '서류 업로드',
             style: TextStyle(
@@ -872,7 +872,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           if (!_fileAttached)
             SetflowCard(
               onTap: live ? null : () => setState(() => _fileAttached = true),
@@ -881,7 +881,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
               child: Column(
                 children: [
                   Icon(Icons.upload_file, size: 36, color: SetflowColors.blue),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: SetflowSpacing.md),
                   const Text(
                     '이곳을 눌러 파일을 선택하세요',
                     style: TextStyle(
@@ -889,7 +889,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: SetflowSpacing.xs),
                   const Text(
                     'JPG, PNG, PDF (최대 10MB) · 데모',
                     style: TextStyle(
@@ -916,7 +916,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                       color: SetflowColors.green,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: SetflowSpacing.md),
                   const Expanded(
                     child: Text(
                       '자격증_사본.pdf',
@@ -930,7 +930,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                 ],
               ),
             ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -947,7 +947,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                     fontSize: SetflowFontSize.label,
                   ),
                 ),
-                SizedBox(height: 8),
+                SizedBox(height: SetflowSpacing.sm),
                 Text(
                   '• 본명과 일치하는 공인 기관 발급 자격증만 인정됩니다.\n'
                   '• 자격번호, 발급일, 발급기관 직인이 선명해야 합니다.\n'
@@ -960,7 +960,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           PrimaryButton(
             label: _submitting ? '제출 중...' : '자격 갱신 서류 제출하기',
             icon: Icons.shield_outlined,
@@ -1069,7 +1069,7 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
                   color: _isGym ? SetflowColors.purple : SetflowColors.blue,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: SetflowSpacing.xxl),
               Text(
                 _isGym ? '센터 이름' : '이름',
                 style: const TextStyle(
@@ -1077,14 +1077,14 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: SetflowSpacing.sm),
               TextFormField(
                 controller: _nameController,
                 validator: (value) => (value?.trim().isEmpty ?? true)
                     ? '${_isGym ? '센터 이름' : '이름'}을 입력해주세요.'
                     : null,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: SetflowSpacing.xl),
               Text(
                 _isGym ? '위치' : '한 줄 키워드',
                 style: const TextStyle(
@@ -1092,14 +1092,14 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: SetflowSpacing.sm),
               TextFormField(
                 controller: _keywordController,
                 validator: (value) => (value?.trim().isEmpty ?? true)
                     ? '${_isGym ? '위치' : '키워드'}를 입력해주세요.'
                     : null,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: SetflowSpacing.xl),
               Text(
                 _isGym ? '센터 소개' : '자기소개',
                 style: const TextStyle(
@@ -1107,7 +1107,7 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: SetflowSpacing.sm),
               TextFormField(
                 controller: _introController,
                 maxLines: 4,

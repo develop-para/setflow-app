@@ -42,7 +42,7 @@ class AdminSystemScreen extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: SetflowSpacing.sm2),
         itemBuilder: (context, index) {
           final item = _items[index];
           return SetflowCard(
@@ -60,7 +60,7 @@ class AdminSystemScreen extends StatelessWidget {
                   ),
                   child: Icon(item.$1, color: item.$2),
                 ),
-                const SizedBox(width: 13),
+                const SizedBox(width: SetflowSpacing.md2),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,7 +72,7 @@ class AdminSystemScreen extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: SetflowSpacing.xs),
                       Text(
                         item.$4,
                         style: const TextStyle(
@@ -133,7 +133,7 @@ class _AdminSystemRankingScreenState extends State<AdminSystemRankingScreen> {
         padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
         children: [
           const SectionTitle('현재 트렌딩 순위'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
             padding: EdgeInsets.zero,
             child: Column(
@@ -166,9 +166,9 @@ class _AdminSystemRankingScreenState extends State<AdminSystemRankingScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('가중치 파라미터'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
             child: Column(
               children: [
@@ -178,28 +178,28 @@ class _AdminSystemRankingScreenState extends State<AdminSystemRankingScreen> {
                   max: 10,
                   onChanged: (value) => setState(() => _viewWeight = value),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 _WeightSlider(
                   label: '댓글수 (W_comment)',
                   value: _commentWeight,
                   max: 20,
                   onChanged: (value) => setState(() => _commentWeight = value),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 _WeightSlider(
                   label: '상담요청 (W_consult)',
                   value: _consultWeight,
                   max: 50,
                   onChanged: (value) => setState(() => _consultWeight = value),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 _WeightSlider(
                   label: '코칭결제 (W_purchase)',
                   value: _purchaseWeight,
                   max: 200,
                   onChanged: (value) => setState(() => _purchaseWeight = value),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: SetflowSpacing.lg),
                 _WeightSlider(
                   label: 'Time Decay (Gravity)',
                   value: _gravity,
@@ -209,7 +209,7 @@ class _AdminSystemRankingScreenState extends State<AdminSystemRankingScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           PrimaryButton(
             label: '파라미터 저장',
             icon: Icons.save_outlined,
@@ -299,7 +299,7 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                 icon: Icons.hourglass_empty,
                 tint: SetflowColors.orange,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: SetflowSpacing.sm2),
               const MetricCard(
                 label: '이번주 처리',
                 value: '132',
@@ -309,9 +309,9 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('낮은 신뢰도 검수 대기열'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           if (_queue.isEmpty)
             const EmptyState(
               icon: Icons.done_all,
@@ -337,7 +337,7 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                           color: SetflowColors.teal,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: SetflowSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,7 +348,7 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: SetflowSpacing.xs),
                             Text(
                               '인식 신뢰도 ${item.confidence}%',
                               style: TextStyle(
@@ -443,7 +443,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
                               fontWeight: FontWeight.w900,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: SetflowSpacing.xs),
                           Text(
                             '${plan.price} · ${plan.desc}',
                             style: const TextStyle(
@@ -471,7 +471,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
                 ),
               ),
             ),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           PrimaryButton(
             label: '새 플랜 추가',
             icon: Icons.add,
@@ -527,12 +527,12 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
                 controller: nameController,
                 decoration: const InputDecoration(labelText: '플랜 이름'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: SetflowSpacing.sm2),
               TextField(
                 controller: priceController,
                 decoration: const InputDecoration(labelText: '가격'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: SetflowSpacing.sm2),
               TextField(
                 controller: descController,
                 decoration: const InputDecoration(labelText: '설명'),
@@ -613,7 +613,7 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
             child: const Row(
               children: [
                 Icon(Icons.shield_outlined, color: SetflowColors.red),
-                SizedBox(width: 11),
+                SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Text(
                     '등록된 키워드가 포함된 게시글/댓글은 작성 즉시 자동 블라인드 처리됩니다.',
@@ -626,7 +626,7 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SetflowSpacing.lg),
           Row(
             children: [
               Expanded(
@@ -639,7 +639,7 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: SetflowSpacing.sm),
               FilledButton(
                 onPressed: _add,
                 style: FilledButton.styleFrom(
@@ -653,7 +653,7 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SetflowSpacing.lg),
           Text(
             '등록된 키워드 ${_keywords.length}개',
             style: const TextStyle(
@@ -662,7 +662,7 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
               color: SetflowColors.secondaryText,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           if (_keywords.isEmpty)
             const EmptyState(
               icon: Icons.block_outlined,
@@ -755,7 +755,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                 icon: Icons.cloud_done_outlined,
                 tint: SetflowColors.green,
               ),
-              SizedBox(width: 10),
+              SizedBox(width: SetflowSpacing.sm2),
               MetricCard(
                 label: '오류율',
                 value: '0.02',
@@ -765,7 +765,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: SetflowSpacing.xl),
           Wrap(
             spacing: 8,
             children: [
@@ -777,7 +777,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SetflowSpacing.lg),
           if (filtered.isEmpty)
             const EmptyState(
               icon: Icons.check_circle_outline,
@@ -812,7 +812,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: SetflowSpacing.sm),
                           Text(
                             log.$3,
                             style: const TextStyle(
@@ -831,7 +831,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: SetflowSpacing.sm),
                       Text(
                         log.$4,
                         style: const TextStyle(fontWeight: FontWeight.w700),

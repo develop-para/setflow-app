@@ -238,7 +238,7 @@ class _RecommendationProfileScreenState
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           Text(
             '답변은 계정에 저장되며 언제든 수정할 수 있습니다. 통증 부위만으로 진단하지 않고, 직접 선택한 제외 동작만 추천에서 뺍니다.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -246,7 +246,7 @@ class _RecommendationProfileScreenState
               height: 1.45,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           _SurveySection(
             title: '1. 운동 숙련도',
             subtitle: '동작 난이도와 종목 후보를 조정합니다.',
@@ -309,7 +309,7 @@ class _RecommendationProfileScreenState
                       ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: SetflowSpacing.sm2),
                 Text(
                   '일반 웨이트 머신은 머신 구역 전체를 뜻합니다. 직접 만든 운동은 안전 태그가 없어 자동 추천 후보에서 제외됩니다.',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -349,7 +349,7 @@ class _RecommendationProfileScreenState
                   ],
                 ),
                 if (painRegions.isNotEmpty) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: SetflowSpacing.lg),
                   Text(
                     '현재 통증 정도 · ${painLevel.round()}/10',
                     style: const TextStyle(fontWeight: FontWeight.w800),
@@ -366,7 +366,7 @@ class _RecommendationProfileScreenState
                         : (value) => setState(() => painLevel = value),
                   ),
                 ],
-                const SizedBox(height: 10),
+                const SizedBox(height: SetflowSpacing.sm2),
                 AppTextField(
                   key: const ValueKey('injury-note'),
                   controller: injuryNoteController,
@@ -437,7 +437,7 @@ class _RecommendationProfileScreenState
             ),
           ),
           if (painLevel >= 7) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: SetflowSpacing.xxs),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -448,7 +448,7 @@ class _RecommendationProfileScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.warning_amber_rounded, color: SetflowColors.red),
-                  SizedBox(width: 10),
+                  SizedBox(width: SetflowSpacing.sm2),
                   Expanded(
                     child: Text(
                       '통증이 7/10 이상이면 자동 추천을 중단합니다. 통증이 심하거나 갑자기 생겼다면 의료 전문가의 평가를 먼저 받아주세요.',
@@ -514,7 +514,7 @@ class _SurveySection extends StatelessWidget {
                 ?trailing,
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: SetflowSpacing.xs),
             Text(
               subtitle,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -522,7 +522,7 @@ class _SurveySection extends StatelessWidget {
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.md2),
             child,
           ],
         ),

@@ -108,14 +108,14 @@ class _ConsultationRetargetScreenState
                       Icons.campaign_outlined,
                       color: SetflowColors.orange,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: SetflowSpacing.sm),
                     Text(
                       '${gym ? '짐' : '트레이너'} 이번 달 발송 현황',
                       style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: SetflowSpacing.sm2),
                 Text(
                   '$_quotaUsed / $_quotaTotal건',
                   style: const TextStyle(
@@ -123,7 +123,7 @@ class _ConsultationRetargetScreenState
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: SetflowSpacing.sm),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
@@ -136,9 +136,9 @@ class _ConsultationRetargetScreenState
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: SetflowSpacing.lg),
           const SectionTitle('상담 후 미등록 회원'),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           Wrap(
             spacing: 8,
             runSpacing: 4,
@@ -158,7 +158,7 @@ class _ConsultationRetargetScreenState
                     )
                     .toList(),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           if (visible.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 32),
@@ -186,7 +186,7 @@ class _ConsultationRetargetScreenState
                               )
                             : null,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: SetflowSpacing.xs),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,7 +200,7 @@ class _ConsultationRetargetScreenState
                                   ),
                                 ),
                                 if (!target.optIn) ...[
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: SetflowSpacing.xs2),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 6,
@@ -224,7 +224,7 @@ class _ConsultationRetargetScreenState
                                 ],
                               ],
                             ),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: SetflowSpacing.xs),
                             Text(
                               '상담 후 ${target.daysSince}일 경과',
                               style: const TextStyle(
@@ -293,20 +293,20 @@ class _ConsultationRetargetScreenState
                 fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: SetflowSpacing.xs2),
             Text(
               recipients.map((t) => t.name).join(', '),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: SetflowColors.secondaryText),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: SetflowSpacing.xl),
             TextField(
               controller: _messageController,
               maxLines: 4,
               decoration: const InputDecoration(labelText: '발송 메시지'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: SetflowSpacing.lg),
             PrimaryButton(
               label: '발송하기',
               onPressed: () => _sendTo(recipients, sheetContext: sheetContext),

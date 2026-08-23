@@ -192,7 +192,7 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('하체 파워 데이', style: theme.textTheme.titleMedium),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: SetflowSpacing.xs),
                         Text(
                           '스쿼트 · 레그프레스 · 런지 · 6종',
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -243,67 +243,67 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n0,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n50,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n100,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n200,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n300,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n400,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n500,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n600,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n700,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n800,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                         Expanded(
                           child: ColoredBox(
                             color: SetflowNeutral.n900,
-                            child: SizedBox(height: 34),
+                            child: SizedBox(height: SetflowSpacing.section),
                           ),
                         ),
                       ],
@@ -391,7 +391,7 @@ Widget _swatch(BuildContext context, Color color, String label) {
           height: 16,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: SetflowSpacing.xs2),
         Text(label, style: theme.textTheme.labelMedium),
       ],
     ),

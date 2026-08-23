@@ -135,6 +135,9 @@ if (!context.mounted) return;
 - **페이지 좌우 여백은 어디서나 `SetflowSpacing.gutter`(18)다.** 화면마다 다르면 탭을 옮길 때
   본문이 좌우로 흔들린다. 페이지 스크롤에는 `SetflowInsets.*` 프리셋을 쓸 것 — 위아래 여유만
   다르고 좌우는 전부 같다. `test/page_margin_test.dart`가 화면에서 실측한다.
+- **화면 헤더는 `AppBar`다.** 뒤로가기·제목·액션을 직접 그리지 말 것 — 테마가 정한 타이포와
+  자동 뒤로가기를 잃는다. (섹션 제목·요약 카드는 헤더가 아니라 본문 요소다.)
+- **간격은 `SizedBox(height:)`든 `EdgeInsets`든 같은 그리드다.** 숫자 대신 `SetflowSpacing`을 쓸 것.
 - **여백은 짝수만 쓴다.** `SetflowSpacing`은 전부 짝수고(작은 쪽 2씩, 20 위로 4씩),
   홀수는 그리드를 벗어난 것이다 — 아키텍처 규칙이 잡는다. 페이지 좌우 여백은 `gutter`(18).
 - **굵기는 `SetflowWeight`에서 고른다.** `display`(w900)는 **화면에서 가장 큰 숫자에만** —

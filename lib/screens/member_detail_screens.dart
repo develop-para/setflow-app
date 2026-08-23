@@ -632,7 +632,7 @@ class _MemberSummaryHeader extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: SetflowSpacing.md2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,7 +656,7 @@ class _MemberSummaryHeader extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: SetflowSpacing.lg),
         Row(
           children: [
             MetricCard(
@@ -668,7 +668,7 @@ class _MemberSummaryHeader extends StatelessWidget {
                   ? SetflowColors.green
                   : SetflowColors.orange,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: SetflowSpacing.sm2),
             MetricCard(
               label: recentMetricLabel,
               value: recentMetricValue,
@@ -763,9 +763,9 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                 ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: SetflowSpacing.lg),
         const SectionTitle('최근 운동 기록'),
-        const SizedBox(height: 8),
+        const SizedBox(height: SetflowSpacing.sm),
         if (recent.isEmpty)
           const EmptyState(
             icon: Icons.event_busy,
@@ -787,7 +787,7 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                             '${DateFormat('MM.dd').format(session.date)} (${_weekdayLabel(session.date)})',
                             style: const TextStyle(fontWeight: FontWeight.w900),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: SetflowSpacing.xs),
                           Text(
                             '${session.exercises.length}개 종목 · '
                             '${session.completedSets}/${session.totalSets}'
@@ -845,7 +845,7 @@ class _MemberCalendarCell extends StatelessWidget {
               '${date.day}',
               style: const TextStyle(fontSize: SetflowFontSize.caption),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: SetflowSpacing.xxs),
             if (session != null)
               Container(
                 width: 5,
@@ -901,7 +901,7 @@ class _MemberRoutineTab extends StatelessWidget {
                     borderRadius: BorderRadius.circular(5),
                   ),
                 ),
-                const SizedBox(width: 11),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -913,7 +913,7 @@ class _MemberRoutineTab extends StatelessWidget {
                           fontSize: SetflowFontSize.bodyLarge,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: SetflowSpacing.xxs),
                       Text(
                         routine.description,
                         style: const TextStyle(
@@ -923,7 +923,7 @@ class _MemberRoutineTab extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: SetflowSpacing.xs),
                       Text(
                         '${routine.level} · ${routine.exercises.length}개 종목',
                         style: const TextStyle(
@@ -977,7 +977,7 @@ class _MemberCommunityTab extends StatelessWidget {
                     fontSize: SetflowFontSize.bodyLarge,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: SetflowSpacing.xs),
                 Text(
                   post.$2,
                   style: const TextStyle(
@@ -985,7 +985,7 @@ class _MemberCommunityTab extends StatelessWidget {
                     color: SetflowColors.secondaryText,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: SetflowSpacing.sm2),
                 Row(
                   children: [
                     const Icon(
@@ -993,18 +993,18 @@ class _MemberCommunityTab extends StatelessWidget {
                       size: 16,
                       color: SetflowColors.secondaryText,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: SetflowSpacing.xs),
                     Text(
                       '${post.$3}',
                       style: const TextStyle(fontSize: SetflowFontSize.caption),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: SetflowSpacing.md2),
                     const Icon(
                       Icons.mode_comment_outlined,
                       size: 16,
                       color: SetflowColors.secondaryText,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: SetflowSpacing.xs),
                     Text(
                       '${post.$4}',
                       style: const TextStyle(fontSize: SetflowFontSize.caption),
@@ -1043,7 +1043,7 @@ class _MemberLibraryTab extends StatelessWidget {
           child: Row(
             children: [
               Icon(exercise.icon, color: SetflowColors.primary, size: 20),
-              const SizedBox(width: 8),
+              const SizedBox(width: SetflowSpacing.sm),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

@@ -216,7 +216,7 @@ class _BusinessHeader extends StatelessWidget {
                     color: eyebrowColor,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: SetflowSpacing.xs),
                 Text(title, style: theme.textTheme.headlineLarge?.copyWith()),
               ],
             ),
@@ -874,7 +874,7 @@ class TrainerHome extends StatelessWidget {
                     child: Row(
                       children: [
                         Icon(Icons.verified_rounded, color: Colors.white),
-                        SizedBox(width: 7),
+                        SizedBox(width: SetflowSpacing.sm),
                         Flexible(
                           child: Text(
                             '인증 트레이너',
@@ -888,7 +888,7 @@ class TrainerHome extends StatelessWidget {
                       ],
                     ),
                   ),
-                  SizedBox(width: 12),
+                  SizedBox(width: SetflowSpacing.md),
                   Text(
                     'PRO',
                     style: TextStyle(
@@ -898,7 +898,7 @@ class TrainerHome extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: 20),
+              SizedBox(height: SetflowSpacing.xl),
               Text(
                 '이번 달 예상 수익',
                 style: TextStyle(
@@ -906,7 +906,7 @@ class TrainerHome extends StatelessWidget {
                   fontSize: SetflowFontSize.caption,
                 ),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: SetflowSpacing.xs),
               Text(
                 facts['revenue'] ?? '0원',
                 style: const TextStyle(
@@ -915,7 +915,7 @@ class TrainerHome extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              SizedBox(height: 8),
+              SizedBox(height: SetflowSpacing.sm),
               Text(
                 facts['revenueChange'] ?? '비교 데이터 없음',
                 style: const TextStyle(
@@ -927,7 +927,7 @@ class TrainerHome extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: SetflowSpacing.md2),
         Row(
           children: [
             MetricCard(
@@ -1074,7 +1074,7 @@ class GymHome extends StatelessWidget {
                         fontSize: SetflowFontSize.caption,
                       ),
                     ),
-                    SizedBox(height: 3),
+                    SizedBox(height: SetflowSpacing.xs),
                     Text(
                       facts['plan'] ?? '기본 플랜',
                       style: const TextStyle(
@@ -1090,7 +1090,7 @@ class GymHome extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: SetflowSpacing.md2),
         Row(
           children: [
             MetricCard(
@@ -1120,7 +1120,7 @@ class GymHome extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: SetflowSpacing.md2),
         Row(
           children: [
             MetricCard(
@@ -1456,7 +1456,7 @@ class AdminHome extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: SetflowSpacing.md),
         Row(
           children: [
             MetricCard(
@@ -1506,13 +1506,13 @@ class AdminHome extends StatelessWidget {
                 value: _percentageFact(facts, 'redSla'),
                 color: Theme.of(context).colorScheme.error,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: SetflowSpacing.xl),
               _ProgressRow(
                 label: 'Orange 신고 · 24시간',
                 value: _percentageFact(facts, 'orangeSla'),
                 color: context.setflowColors.orange,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: SetflowSpacing.xl),
               _ProgressRow(
                 label: '인증 심사 · 3영업일',
                 value: _percentageFact(facts, 'reviewSla'),
@@ -1557,7 +1557,7 @@ class AdminHome extends StatelessWidget {
           child: const Row(
             children: [
               Icon(Icons.tune_outlined, color: SetflowColors.primary),
-              SizedBox(width: 11),
+              SizedBox(width: SetflowSpacing.md),
               Expanded(
                 child: Text(
                   '랭킹 · OCR · 요금제 · 금칙어 · 로그 관리',
@@ -1770,7 +1770,7 @@ class _PeoplePageState extends State<PeoplePage> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 13),
+                              const SizedBox(width: SetflowSpacing.md2),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1782,7 +1782,7 @@ class _PeoplePageState extends State<PeoplePage> {
                                         fontWeight: FontWeight.w900,
                                       ),
                                     ),
-                                    const SizedBox(height: 3),
+                                    const SizedBox(height: SetflowSpacing.xs),
                                     Text(
                                       gym
                                           ? '${person.$2} · 담당 $assignedTrainerName'
@@ -1822,7 +1822,7 @@ class _PeoplePageState extends State<PeoplePage> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: SetflowSpacing.xs),
                               Icon(
                                 Icons.chevron_right,
                                 color: Theme.of(
@@ -1910,7 +1910,7 @@ class _PeoplePageState extends State<PeoplePage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: SetflowSpacing.md2),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1933,7 +1933,7 @@ class _PeoplePageState extends State<PeoplePage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: SetflowSpacing.md2),
                   OutlinedButton.icon(
                     onPressed: () {
                       Navigator.pop(sheetContext);
@@ -2058,7 +2058,7 @@ class _PeoplePageState extends State<PeoplePage> {
                     ],
                   ],
                   if (!live) ...[
-                    const SizedBox(height: 22),
+                    const SizedBox(height: SetflowSpacing.xxl),
                     Row(
                       children: [
                         MetricCard(
@@ -2068,7 +2068,7 @@ class _PeoplePageState extends State<PeoplePage> {
                           icon: Icons.check_circle_outline,
                           tint: SetflowColors.teal,
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: SetflowSpacing.sm2),
                         const MetricCard(
                           label: '최근 볼륨',
                           value: '4.8',
@@ -2078,9 +2078,9 @@ class _PeoplePageState extends State<PeoplePage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: SetflowSpacing.xxl),
                     const SectionTitle('최근 운동 기록'),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: SetflowSpacing.sm),
                     const SetflowCard(
                       child: Column(
                         children: [
@@ -2106,7 +2106,7 @@ class _PeoplePageState extends State<PeoplePage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: SetflowSpacing.xl),
                     Form(
                       key: formKey,
                       child: AppTextField(
@@ -2124,7 +2124,7 @@ class _PeoplePageState extends State<PeoplePage> {
                         },
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: SetflowSpacing.md2),
                     PrimaryButton(
                       label: '피드백 보내기',
                       onPressed: () {
@@ -2946,7 +2946,7 @@ class _RoutineShareStatusSheet extends StatelessWidget {
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              const SizedBox(height: 3),
+                              const SizedBox(height: SetflowSpacing.xs),
                               Text(
                                 _routineShareStatusLabel(share.status),
                                 style: TextStyle(
@@ -3093,7 +3093,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                   '마켓 이용 플랜',
                                   style: TextStyle(fontWeight: FontWeight.w900),
                                 ),
-                                SizedBox(height: 3),
+                                SizedBox(height: SetflowSpacing.xs),
                                 Text(
                                   '변경한 무료·유료 설정은 회원 마켓에 바로 반영돼요.',
                                   style: TextStyle(
@@ -3118,7 +3118,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                           icon: Icons.visibility_outlined,
                           tint: SetflowColors.blue,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: SetflowSpacing.sm),
                         MetricCard(
                           label: state.usesLiveBusinessData ? '등록 루틴' : '상담 전환',
                           value: state.usesLiveBusinessData
@@ -3132,7 +3132,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                         ),
                       ],
                     ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: SetflowSpacing.xl),
                   if (isAdminPage && state.usesLiveBusinessData) ...[
                     SectionTitle('심사 대기 ${pendingReviews.length}개'),
                     const SizedBox(height: SetflowSpacing.sm),
@@ -3196,7 +3196,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                         borderRadius: BorderRadius.circular(5),
                                       ),
                                     ),
-                                    const SizedBox(width: 11),
+                                    const SizedBox(width: SetflowSpacing.md),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -3348,7 +3348,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                       shares: routineShares,
                                     ),
                                   ],
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: SetflowSpacing.md),
                                   if (!state.usesLiveBusinessData)
                                     InkWell(
                                       onTap: () => Navigator.of(context).push(
@@ -3365,7 +3365,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                             size: 16,
                                             color: SetflowColors.blue,
                                           ),
-                                          SizedBox(width: 6),
+                                          SizedBox(width: SetflowSpacing.xs2),
                                           Text(
                                             '통계 보기',
                                             style: TextStyle(
@@ -3950,7 +3950,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                       ).colorScheme.onSurfaceVariant
                                     : context.setflowColors.orange,
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: SetflowSpacing.md),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3963,7 +3963,9 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                             fontWeight: FontWeight.w900,
                                           ),
                                         ),
-                                        const SizedBox(width: 7),
+                                        const SizedBox(
+                                          width: SetflowSpacing.sm,
+                                        ),
                                         if (!done)
                                           Container(
                                             width: 7,
@@ -3977,7 +3979,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                           ),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: SetflowSpacing.xs),
                                     Text(
                                       item.$2,
                                       style: Theme.of(context)
@@ -4178,7 +4180,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                         ).colorScheme.onSurfaceVariant
                                       : context.setflowColors.orange,
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: SetflowSpacing.md),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -4190,7 +4192,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                           fontWeight: FontWeight.w900,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: SetflowSpacing.xs),
                                       Text(item.goal ?? '운동 목표 미등록'),
                                       if (item.sharedRecommendationProfile !=
                                               null &&
@@ -4293,12 +4295,12 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                         '${consultation.memberName ?? '회원'}님의 상담',
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: SetflowSpacing.xs2),
                       Text(consultation.question ?? '질문 내용이 없습니다.'),
                       if (consultation.sharedRecommendationProfile != null &&
                           consultation.recommendationProfileShareRevokedAt ==
                               null) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: SetflowSpacing.lg),
                         SetflowCard(
                           key: const ValueKey(
                             'trainer-shared-recommendation-profile',
@@ -4311,7 +4313,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                 '회원이 공유한 정밀 추천 정보',
                                 style: TextStyle(fontWeight: FontWeight.w900),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: SetflowSpacing.xs),
                               Text(
                                 '이 상담을 위해 회원이 명시적으로 제공한 설문 사본입니다. 회복 상태의 기록 날짜를 함께 확인하세요.',
                                 style: Theme.of(context).textTheme.bodySmall
@@ -4333,7 +4335,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                         ),
                       ],
                       if (widget.role == UserRole.gym) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: SetflowSpacing.lg),
                         DropdownButtonFormField<String>(
                           key: const Key('consultation-trainer-select'),
                           initialValue: selectedTrainerId,
@@ -4353,7 +4355,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                   () => selectedTrainerId = value,
                                 ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: SetflowSpacing.sm2),
                         AppButton(
                           key: const Key('consultation-assign-trainer'),
                           label: assigning ? '배정 중...' : '트레이너에게 배정',
@@ -4398,7 +4400,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                 },
                         ),
                       ],
-                      const SizedBox(height: 18),
+                      const SizedBox(height: SetflowSpacing.xl),
                       AppTextField(
                         controller: controller,
                         maxLines: 4,
@@ -4410,7 +4412,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: SetflowSpacing.lg),
                       AppButton(
                         label: submitting
                             ? '전송 중...'
@@ -4494,14 +4496,14 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                     '${item.$1}님의 상담',
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: SetflowSpacing.xs2),
                   Text(
                     '${item.$2} · ${item.$3}',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: SetflowSpacing.xl),
                   AppTextField(
                     controller: controller,
                     maxLines: 4,
@@ -4514,7 +4516,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: SetflowSpacing.lg),
                   AppButton(
                     label: doneLabel(
                       AppScope.of(
@@ -4722,7 +4724,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: SetflowSpacing.md),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -4764,7 +4766,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: SetflowSpacing.xs),
                               const Icon(Icons.chevron_right),
                             ],
                           ),
@@ -4979,7 +4981,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                   CircleAvatar(
                                     child: Text(user.$1.characters.first),
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: SetflowSpacing.md),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -5075,7 +5077,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                       shape: BoxShape.circle,
                                     ),
                                   ),
-                                  const SizedBox(width: 5),
+                                  const SizedBox(width: SetflowSpacing.xs2),
                                   Text(
                                     blocked ? '이용 제한' : '정상 이용',
                                     style: TextStyle(
@@ -5322,7 +5324,8 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
               ),
               scrollDirection: Axis.horizontal,
               itemCount: _contentReviewEntries.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              separatorBuilder: (_, _) =>
+                  const SizedBox(width: SetflowSpacing.sm2),
               itemBuilder: (context, index) {
                 final entry = _contentReviewEntries[index];
                 return SizedBox(
@@ -5338,7 +5341,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(entry.$1, color: entry.$2),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: SetflowSpacing.sm),
                         Text(
                           entry.$3,
                           style: const TextStyle(
@@ -5346,7 +5349,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: SetflowSpacing.xxs),
                         Text(
                           entry.$4,
                           maxLines: 1,
@@ -5450,7 +5453,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: SetflowSpacing.md),
                         Text(
                           item.$2,
                           style: const TextStyle(
@@ -5458,7 +5461,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: SetflowSpacing.xs),
                         Text(
                           item.$3,
                           style: const TextStyle(
@@ -5466,7 +5469,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                             color: SetflowColors.secondaryText,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: SetflowSpacing.lg),
                         if (!done)
                           Row(
                             children: [
@@ -5477,7 +5480,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                   child: const Text('거절'),
                                 ),
                               ),
-                              const SizedBox(width: 9),
+                              const SizedBox(width: SetflowSpacing.sm2),
                               Expanded(
                                 child: FilledButton(
                                   onPressed: () => _approveReview(
@@ -5504,7 +5507,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                     ? context.setflowColors.success
                                     : Theme.of(context).colorScheme.error,
                               ),
-                              const SizedBox(width: 7),
+                              const SizedBox(width: SetflowSpacing.sm),
                               Expanded(
                                 child: Text(
                                   approved
@@ -5615,7 +5618,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: SetflowSpacing.sm2),
                         Text(
                           application.applicantName,
                           style: const TextStyle(
@@ -5623,10 +5626,10 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: SetflowSpacing.xs),
                         Text(detail),
                         if (rejected && application.rejectReason != null) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: SetflowSpacing.sm),
                           Text(
                             '반려 사유 · ${application.rejectReason}',
                             style: TextStyle(
@@ -5635,7 +5638,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                           ),
                         ],
                         if (pending) ...[
-                          const SizedBox(height: 16),
+                          const SizedBox(height: SetflowSpacing.lg),
                           Row(
                             children: [
                               Expanded(
@@ -5649,7 +5652,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                   child: Text(saving ? '처리 중' : '반려'),
                                 ),
                               ),
-                              const SizedBox(width: 9),
+                              const SizedBox(width: SetflowSpacing.sm2),
                               Expanded(
                                 child: FilledButton(
                                   onPressed: saving
@@ -5843,7 +5846,7 @@ class _SettlementPageState extends State<SettlementPage> {
                     fontSize: SetflowFontSize.caption,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: SetflowSpacing.xs2),
                 Text(
                   admin ? '48,620,000원' : '14,280,000원',
                   style: const TextStyle(
@@ -5852,7 +5855,7 @@ class _SettlementPageState extends State<SettlementPage> {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: SetflowSpacing.md),
                 const Text(
                   '에스크로 보호 적용 중',
                   style: TextStyle(
@@ -5881,7 +5884,7 @@ class _SettlementPageState extends State<SettlementPage> {
               ),
             ),
           ],
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           AppTextField(
             controller: searchController,
             onChanged: (value) => setState(() => query = value),
@@ -5911,9 +5914,9 @@ class _SettlementPageState extends State<SettlementPage> {
               ],
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('정산 내역'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           if (settlements.isEmpty)
             EmptyState(
               icon: Icons.receipt_long_outlined,
@@ -5944,7 +5947,7 @@ class _SettlementPageState extends State<SettlementPage> {
                             ? SetflowColors.red
                             : SetflowColors.green,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: SetflowSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -5985,9 +5988,9 @@ class _SettlementPageState extends State<SettlementPage> {
                   ),
                 ),
               ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('상세'),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
@@ -5997,7 +6000,7 @@ class _SettlementPageState extends State<SettlementPage> {
             child: Row(
               children: [
                 Icon(Icons.receipt_long_outlined, color: SetflowColors.red),
-                const SizedBox(width: 12),
+                const SizedBox(width: SetflowSpacing.md),
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -6018,7 +6021,7 @@ class _SettlementPageState extends State<SettlementPage> {
             ),
           ),
           if (role != UserRole.trainer) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: SetflowSpacing.sm2),
             SetflowCard(
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -6028,7 +6031,7 @@ class _SettlementPageState extends State<SettlementPage> {
               child: Row(
                 children: [
                   Icon(Icons.groups_outlined, color: SetflowColors.blue),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: SetflowSpacing.md),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6053,7 +6056,7 @@ class _SettlementPageState extends State<SettlementPage> {
             ),
           ],
           if (admin) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: SetflowSpacing.sm2),
             SetflowCard(
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -6063,7 +6066,7 @@ class _SettlementPageState extends State<SettlementPage> {
               child: Row(
                 children: [
                   Icon(Icons.percent_outlined, color: SetflowColors.purple),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: SetflowSpacing.md),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6086,7 +6089,7 @@ class _SettlementPageState extends State<SettlementPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: SetflowSpacing.sm2),
             SetflowCard(
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -6096,7 +6099,7 @@ class _SettlementPageState extends State<SettlementPage> {
               child: Row(
                 children: [
                   Icon(Icons.task_alt_outlined, color: SetflowColors.green),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: SetflowSpacing.md),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6169,7 +6172,7 @@ class _SettlementPageState extends State<SettlementPage> {
                       fontSize: SetflowFontSize.caption,
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: SetflowSpacing.xs2),
                   Text(
                     '${_formatBusinessWon(primaryAmount)}원',
                     style: const TextStyle(
@@ -6178,7 +6181,7 @@ class _SettlementPageState extends State<SettlementPage> {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: SetflowSpacing.sm),
                   const Text(
                     'Supabase 정산 원장 기준',
                     style: TextStyle(
@@ -6361,7 +6364,7 @@ class _ActionTile extends StatelessWidget {
     child: Row(
       children: [
         Icon(icon, color: color),
-        const SizedBox(width: 12),
+        const SizedBox(width: SetflowSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -6415,7 +6418,7 @@ class _PerformanceRow extends StatelessWidget {
           fontWeight: FontWeight.w900,
         ),
       ),
-      const SizedBox(width: 10),
+      const SizedBox(width: SetflowSpacing.sm2),
       Text(
         change,
         style: const TextStyle(
@@ -6447,7 +6450,7 @@ class _PersonRow extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
-      const SizedBox(width: 11),
+      const SizedBox(width: SetflowSpacing.md),
       Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -6495,7 +6498,7 @@ class _ProgressRow extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: 7),
+      const SizedBox(height: SetflowSpacing.sm),
       LinearProgressIndicator(
         value: value,
         minHeight: 8,
@@ -6524,7 +6527,7 @@ class _StatusRow extends StatelessWidget {
         height: 9,
         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
-      const SizedBox(width: 10),
+      const SizedBox(width: SetflowSpacing.sm2),
       Expanded(
         child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
       ),
@@ -6554,7 +6557,7 @@ class _MiniMetric extends StatelessWidget {
           fontWeight: FontWeight.w900,
         ),
       ),
-      const SizedBox(height: 3),
+      const SizedBox(height: SetflowSpacing.xs),
       Text(
         label,
         style: const TextStyle(

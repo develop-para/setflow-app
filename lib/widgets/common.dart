@@ -1506,7 +1506,7 @@ class _SetflowNavDestination extends StatelessWidget {
                     size: 24,
                     color: color,
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     item.label,
                     maxLines: 1,

@@ -133,7 +133,7 @@ class KineticStatBlock extends StatelessWidget {
                     ),
                   ),
                   if (unit != null) ...[
-                    const SizedBox(width: 6),
+                    const SizedBox(width: SetflowSpacing.xs2),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: Text(
@@ -158,14 +158,14 @@ class KineticStatBlock extends StatelessWidget {
                       size: 15,
                       color: deltaColor,
                     ),
-                    const SizedBox(width: 3),
+                    const SizedBox(width: SetflowSpacing.xs),
                     Text(
                       delta!,
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: deltaColor,
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: SetflowSpacing.xs2),
                     Text(
                       '지난주 대비',
                       style: theme.textTheme.bodySmall?.copyWith(color: sub),
@@ -226,7 +226,7 @@ class KineticStatStrip extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       KineticLabel(stats[i].label),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: SetflowSpacing.xs2),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.baseline,
                         textBaseline: TextBaseline.alphabetic,
@@ -241,7 +241,7 @@ class KineticStatStrip extends StatelessWidget {
                             ),
                           ),
                           if (stats[i].unit != null) ...[
-                            const SizedBox(width: 3),
+                            const SizedBox(width: SetflowSpacing.xs),
                             Text(
                               stats[i].unit!,
                               style: theme.textTheme.bodySmall?.copyWith(
@@ -419,7 +419,7 @@ class TrainingHeroCard extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(streakIcon, size: 13, color: yellow),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: SetflowSpacing.xs),
                               Text(
                                 streak!,
                                 style: text.bodySmall?.copyWith(
@@ -475,7 +475,7 @@ class TrainingHeroCard extends StatelessWidget {
                                         ),
                                 ),
                                 if (unit != null) ...[
-                                  const SizedBox(width: 5),
+                                  const SizedBox(width: SetflowSpacing.xs2),
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
                                     child: Text(
@@ -490,7 +490,7 @@ class TrainingHeroCard extends StatelessWidget {
                               ],
                             ),
                             if (delta != null) ...[
-                              const SizedBox(height: 4),
+                              const SizedBox(height: SetflowSpacing.xs),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -501,7 +501,7 @@ class TrainingHeroCard extends StatelessWidget {
                                     size: 14,
                                     color: deltaColor,
                                   ),
-                                  const SizedBox(width: 2),
+                                  const SizedBox(width: SetflowSpacing.xxs),
                                   Text(
                                     '$delta $deltaCaption',
                                     style: text.bodySmall?.copyWith(

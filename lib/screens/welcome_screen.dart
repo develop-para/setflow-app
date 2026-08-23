@@ -70,7 +70,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               const Center(
                 child: SetflowWordmark(fontSize: SetflowFontSize.display),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: SetflowSpacing.md),
               const Text(
                 '로그인하고 오늘의 운동을 시작하세요.',
                 textAlign: TextAlign.center,
@@ -80,7 +80,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   height: 1.5,
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: SetflowSpacing.huge),
               if (submitError != null) ...[
                 _OnboardingAlert(
                   message: submitError!,
@@ -170,7 +170,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           variant: variant,
           isLoading: isSubmitting && awaitingOAuth,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: SetflowSpacing.md),
       ],
     ];
   }
@@ -437,7 +437,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ),
               child: const Icon(Icons.apartment, color: SetflowColors.purple),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: SetflowSpacing.xxl),
             const Text(
               '헬스장 등록하기',
               style: TextStyle(
@@ -445,12 +445,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: SetflowSpacing.sm),
             const Text(
               '센터 운영과 회원 관리를 한곳에서 시작하세요.',
               style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: SetflowSpacing.section),
             AppTextField(
               controller: nameController,
               onChanged: (_) => setState(() {}),
@@ -459,7 +459,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               textInputAction: TextInputAction.next,
               validator: (value) => _requiredValidator(value, '헬스장명'),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.md2),
             AppTextField(
               controller: numberController,
               onChanged: (_) => setState(() {}),
@@ -472,7 +472,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ],
               validator: _gymNumberValidator,
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: SetflowSpacing.section),
             PrimaryButton(
               label: live ? '신청 내용 확인' : '다음',
               icon: live
@@ -525,12 +525,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           const Text(
             '원활한 정산과 안전한 센터 운영을 위해 필요해요.',
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.xxl2),
           SetflowCard(
             onTap: live
                 ? null
@@ -545,7 +545,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                       ? SetflowColors.green
                       : SetflowColors.purple,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: SetflowSpacing.md),
                 const Expanded(
                   child: Text(
                     '사업자등록증',
@@ -564,7 +564,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -578,7 +578,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                   size: 20,
                   color: SetflowColors.green,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: SetflowSpacing.sm2),
                 Expanded(
                   child: Text(
                     live
@@ -594,7 +594,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: SetflowSpacing.section),
           if (submitError != null) ...[
             _OnboardingAlert(
               message: submitError!,
@@ -640,7 +640,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               color: SetflowColors.purple,
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           const Text(
             '홈택스 사업자 인증',
             style: TextStyle(
@@ -648,17 +648,17 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           Text(
             live ? '국세청 사업자 상태 조회 서버 연동을 준비 중이에요.' : '국세청 홈택스 인증 흐름을 데모로 확인해요.',
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.xxl2),
           SetflowCard(
             child: Row(
               children: [
                 const Icon(Icons.business_rounded, color: SetflowColors.purple),
-                const SizedBox(width: 12),
+                const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -671,7 +671,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                           color: SetflowColors.secondaryText,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: SetflowSpacing.xxs),
                       Text(
                         bizNumber.isEmpty
                             ? '미입력'
@@ -684,7 +684,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           if (!gymHometaxVerified)
             Container(
               padding: const EdgeInsets.all(14),
@@ -699,7 +699,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     size: 20,
                     color: SetflowColors.purple,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: SetflowSpacing.sm2),
                   Expanded(
                     child: Text(
                       live
@@ -732,7 +732,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     size: 20,
                     color: SetflowColors.green,
                   ),
-                  SizedBox(width: 10),
+                  SizedBox(width: SetflowSpacing.sm2),
                   Expanded(
                     child: Text(
                       '인증 완료! 국세청 홈택스 기준 정상 영업 중인 사업자입니다.',
@@ -747,7 +747,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 ],
               ),
             ),
-          const SizedBox(height: 30),
+          const SizedBox(height: SetflowSpacing.section),
           if (!gymHometaxVerified)
             AppButton(
               label: live ? '서버 연동 준비 중' : '홈택스 인증하기',
@@ -779,7 +779,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       child: Column(
         children: [
           Icon(Icons.verified_rounded, size: 48, color: SetflowColors.ink),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.xxl2),
           Text(
             live ? '센터 신청 준비 완료' : '가입 심사 완료!',
             style: TextStyle(
@@ -787,7 +787,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           Text(
             live
                 ? '신청서를 제출하면 관리자가 사업자 정보를 확인합니다.\n승인 후 센터 운영 화면이 자동으로 열려요.'
@@ -795,7 +795,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: SetflowSpacing.section),
           AppButton(
             label: live ? '센터 신청 제출' : '운영 시작',
             icon: live ? Icons.send_rounded : Icons.rocket_launch_rounded,
@@ -878,7 +878,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 color: SetflowColors.blue,
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: SetflowSpacing.xxl),
             const Text(
               '트레이너로 시작하기',
               style: TextStyle(
@@ -886,12 +886,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: SetflowSpacing.sm),
             const Text(
               '인증 배지로 신뢰받는 코칭을 시작하세요.',
               style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: SetflowSpacing.section),
             AppTextField(
               controller: nameController,
               onChanged: (_) => setState(() {}),
@@ -900,7 +900,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               textInputAction: TextInputAction.next,
               validator: (value) => _requiredValidator(value, '이름'),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.md2),
             AppTextField(
               controller: numberController,
               onChanged: (_) => setState(() {}),
@@ -908,7 +908,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               hint: '예: 생활스포츠지도사 123456',
               validator: _trainerNumberValidator,
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: SetflowSpacing.section),
             AppButton(
               label: live ? '다음 · 서류 제출' : '다음',
               icon: Icons.arrow_forward_rounded,
@@ -949,12 +949,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: SetflowSpacing.sm2),
           const Text(
             '신뢰할 수 있는 코칭 환경을 위해 최소 2종의 서류가 필요해요.',
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.xxl2),
           if (live) ...[
             DropdownButtonFormField<TrainerApplicationDocumentType>(
               key: const Key('trainer-certificate-type'),
@@ -976,7 +976,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 }
               },
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: SetflowSpacing.md2),
           ],
           ...List.generate(docLabels.length, (index) {
             final uploaded = uploadedDocs.containsKey(index);
@@ -1006,7 +1006,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                           ? SetflowColors.green
                           : SetflowColors.blue,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: SetflowSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1055,7 +1055,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                   size: 20,
                   color: SetflowColors.green,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: SetflowSpacing.sm2),
                 Expanded(
                   child: Text(
                     live
@@ -1071,7 +1071,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: SetflowSpacing.section),
           if (submitError != null) ...[
             _OnboardingAlert(
               message: submitError!,
@@ -1106,7 +1106,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       child: Column(
         children: [
           Icon(Icons.search_rounded, size: 40, color: SetflowColors.blue),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           const Text(
             '서류 심사가\n진행 중입니다',
             textAlign: TextAlign.center,
@@ -1116,13 +1116,13 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           const Text(
             '제출해주신 서류를 확인하고 있어요.\n영업일 기준 3일 이내 완료될 예정입니다.',
             textAlign: TextAlign.center,
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: SetflowSpacing.section),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -1134,12 +1134,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 ? const Column(
                     children: [
                       Icon(Icons.admin_panel_settings_outlined),
-                      SizedBox(height: 8),
+                      SizedBox(height: SetflowSpacing.sm),
                       Text(
                         '승인 권한은 관리자에게만 있어요',
                         style: TextStyle(fontWeight: FontWeight.w900),
                       ),
-                      SizedBox(height: 4),
+                      SizedBox(height: SetflowSpacing.xs),
                       Text(
                         '심사 결과는 계정에 자동 반영됩니다.',
                         textAlign: TextAlign.center,
@@ -1156,7 +1156,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         '데모 시뮬레이션',
                         style: TextStyle(fontWeight: FontWeight.w900),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: SetflowSpacing.xs),
                       const Text(
                         '심사 결과를 직접 선택해보세요.',
                         style: TextStyle(
@@ -1164,7 +1164,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                           color: SetflowColors.secondaryText,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: SetflowSpacing.lg),
                       Row(
                         children: [
                           Expanded(
@@ -1179,7 +1179,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                               },
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: SetflowSpacing.md),
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => setState(
@@ -1228,7 +1228,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       child: Column(
         children: [
           Icon(Icons.error_outline_rounded, size: 38, color: SetflowColors.red),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           const Text(
             '서류 심사 반려',
             style: TextStyle(
@@ -1236,13 +1236,13 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           const Text(
             '제출해주신 서류에 보완이 필요한 부분이 있어\n부득이하게 심사가 반려되었습니다.',
             textAlign: TextAlign.center,
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: SetflowSpacing.xxl),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -1262,7 +1262,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: SetflowSpacing.section),
           PrimaryButton(
             label: '다시 제출하기',
             icon: Icons.refresh_rounded,
@@ -1288,7 +1288,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       child: Column(
         children: [
           Icon(Icons.verified_rounded, size: 48, color: SetflowColors.ink),
-          const SizedBox(height: 28),
+          const SizedBox(height: SetflowSpacing.xxl2),
           const Text(
             '심사 완료!',
             style: TextStyle(
@@ -1296,13 +1296,13 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: SetflowSpacing.md),
           const Text(
             '서류 심사가 성공적으로 완료되었습니다.\n공식 인증 배지와 함께 코칭을 시작해보세요!',
             textAlign: TextAlign.center,
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: SetflowSpacing.section),
           AppButton(
             label: '코칭 시작하기',
             icon: Icons.rocket_launch_rounded,

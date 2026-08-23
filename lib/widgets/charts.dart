@@ -205,7 +205,7 @@ class MiniBars extends StatelessWidget {
           ),
         ),
         if (labels != null) ...[
-          const SizedBox(height: 6),
+          const SizedBox(height: SetflowSpacing.xs2),
           Row(
             children: [
               for (var i = 0; i < labels!.length; i++)
@@ -412,7 +412,7 @@ class SplitBar extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: SetflowSpacing.xs2),
           ClipRRect(
             borderRadius: BorderRadius.circular(SetflowRadii.full),
             child: Stack(

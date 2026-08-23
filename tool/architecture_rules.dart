@@ -132,7 +132,9 @@ final architectureRules = <ArchitectureRule>[
   ArchitectureRule(
     name: '여백은 짝수 그리드를 벗어나지 않는다',
     pattern: RegExp(
-      r'EdgeInsets\.(?:all|symmetric|only|fromLTRB)\([^)]*'
+      // 여백은 EdgeInsets 로도 SizedBox 로도 만들어진다. 둘 다 같은 그리드다.
+      r'(?:EdgeInsets\.(?:all|symmetric|only|fromLTRB)\([^)]*'
+      r'|SizedBox\((?:width|height):\s*)'
       r'(?<![\w.])\d*[13579](?![\d.])',
     ),
     searchIn: const ['lib'],

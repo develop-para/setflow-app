@@ -554,7 +554,7 @@ class _MediaButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon),
-              const SizedBox(height: 4),
+              const SizedBox(height: SetflowSpacing.xs),
               Text(
                 label,
                 style: const TextStyle(
@@ -629,7 +629,7 @@ class _ShareTarget extends StatelessWidget {
           child: Column(
             children: [
               Icon(icon, color: color),
-              const SizedBox(height: 6),
+              const SizedBox(height: SetflowSpacing.xs2),
               Text(
                 label,
                 style: const TextStyle(
@@ -790,7 +790,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: SetflowSpacing.xs),
                           const Icon(
                             Icons.verified_rounded,
                             size: 17,
@@ -981,7 +981,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
             children: [
               Expanded(child: SectionTitle('생생한 후기')),
               Icon(Icons.star_rounded, color: SetflowColors.orange, size: 18),
-              SizedBox(width: 3),
+              SizedBox(width: SetflowSpacing.xs),
               Text('4.9 (128)'),
             ],
           ),
@@ -1035,7 +1035,7 @@ class _RoutineReview extends StatelessWidget {
               Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: SetflowSpacing.xs),
           Text(content),
         ],
       ),
@@ -1234,7 +1234,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                           Text('${post.likes}'),
                           const SizedBox(width: SetflowSpacing.md),
                           const Icon(Icons.chat_bubble_outline_rounded),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: SetflowSpacing.xs2),
                           Text('${post.comments.length}'),
                           const Spacer(),
                           IconButton(
@@ -1609,7 +1609,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
           const Row(
             children: [
               Icon(Icons.health_and_safety_outlined, color: SetflowColors.teal),
-              SizedBox(width: 10),
+              SizedBox(width: SetflowSpacing.sm2),
               Expanded(
                 child: Text(
                   '정밀 추천 정보 공유',
@@ -1621,7 +1621,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           Text(
             profile == null
                 ? '저장된 설문이 없습니다. 먼저 부상·통증, 장비, 숙련도와 회복 상태를 입력할 수 있어요.'
@@ -1632,7 +1632,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
             ),
           ),
           if (profile == null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: SetflowSpacing.sm),
             TextButton.icon(
               key: const ValueKey('consultation-create-profile'),
               onPressed: isSubmitting
@@ -2027,7 +2027,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                       ),
                     ),
                     if (profile.verified) ...[
-                      const SizedBox(width: 4),
+                      const SizedBox(width: SetflowSpacing.xs),
                       Icon(
                         Icons.verified_rounded,
                         size: 17,
@@ -2036,14 +2036,14 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                     ],
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: SetflowSpacing.xs),
                 Text(
                   details.join(' · '),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: SetflowSpacing.xs),
                 if (activeCoachingCount != null) ...[
                   Text(
                     '현재 코칭 $activeCoachingCount건',
@@ -2399,7 +2399,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     '이 상담에 함께 제공한 정밀 추천 정보',
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: SetflowSpacing.xs2),
                   Text(
                     '상담을 신청할 때 저장된 설문의 사본입니다.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -2408,7 +2408,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                   ),
                   const Divider(height: SetflowSpacing.xl),
                   RecommendationProfileSummary(profile: profile, compact: true),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: SetflowSpacing.sm),
                   if (consultation.recommendationProfileShareRevokedAt != null)
                     const Row(
                       children: [
@@ -2417,7 +2417,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                           size: 18,
                           color: SetflowColors.secondaryText,
                         ),
-                        SizedBox(width: 8),
+                        SizedBox(width: SetflowSpacing.sm),
                         Expanded(
                           child: Text(
                             '공유 철회됨 · 트레이너 화면에서는 더 이상 보이지 않습니다.',
@@ -2508,7 +2508,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: SetflowSpacing.xs2),
                     Text(
                       liveData
                           ? '실제 결제·에스크로 API 연동 후 이용할 수 있어요.'
@@ -2641,7 +2641,7 @@ class _ConsultField extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: SetflowSpacing.xs2),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(SetflowSpacing.md),

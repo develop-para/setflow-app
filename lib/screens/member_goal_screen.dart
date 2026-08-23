@@ -111,12 +111,12 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: SetflowSpacing.sm),
           const Text(
             '먼저 선택한 목표 하나를 추천 기준으로 사용하며, 최대 2개까지 프로필에 저장할 수 있습니다.',
             style: TextStyle(color: SetflowColors.secondaryText, height: 1.45),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: SetflowSpacing.xxl),
           for (final option in options)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -131,7 +131,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                       option.$1,
                       style: const TextStyle(fontSize: SetflowFontSize.display),
                     ),
-                    const SizedBox(width: 13),
+                    const SizedBox(width: SetflowSpacing.md2),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,7 +145,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                           ),
                           if (selected!.isNotEmpty &&
                               selected!.first == option.$2) ...[
-                            const SizedBox(height: 4),
+                            const SizedBox(height: SetflowSpacing.xs),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
@@ -167,7 +167,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 2),
+                          const SizedBox(height: SetflowSpacing.xxs),
                           Text(
                             option.$3,
                             style: const TextStyle(

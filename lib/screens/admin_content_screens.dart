@@ -3,44 +3,6 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// Pushed-screen header: back [AppIconButton] + big w900 title, athletic
-/// pattern language item 6. Kept private per file (see spec: don't share).
-class _AdminHeader extends StatelessWidget {
-  const _AdminHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        SetflowSpacing.lg,
-        SetflowSpacing.sm,
-        SetflowSpacing.lg,
-        SetflowSpacing.xs,
-      ),
-      child: Row(
-        children: [
-          AppIconButton(
-            icon: Icons.arrow_back_rounded,
-            tooltip: '뒤로',
-            onTap: () => Navigator.of(context).pop(),
-          ),
-          const SizedBox(width: SetflowSpacing.md),
-          Expanded(
-            child: Text(
-              title,
-              style: text.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Hero stat block (pattern language item 1, simplified): a screen's key
 /// count leads as a huge volt tabular numeral instead of a small caption.
 class _HeroCount extends StatelessWidget {
@@ -128,10 +90,10 @@ class _AdminContentRoutinesScreenState
     final text = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
+      appBar: AppBar(title: const Text('키워드 탐지 컨텐츠 검토')),
       body: SafeArea(
         child: Column(
           children: [
-            _AdminHeader(title: '키워드 탐지 컨텐츠 검토'),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
@@ -394,10 +356,10 @@ class _AdminContentReportsScreenState extends State<AdminContentReportsScreen> {
     final text = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
+      appBar: AppBar(title: const Text('유저 신고 검토 대기')),
       body: SafeArea(
         child: Column(
           children: [
-            const _AdminHeader(title: '유저 신고 검토 대기'),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
@@ -792,10 +754,10 @@ class _AdminUserSanctionHistoryScreenState
     final text = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
+      appBar: AppBar(title: const Text('제재 이력 관리')),
       body: SafeArea(
         child: Column(
           children: [
-            const _AdminHeader(title: '제재 이력 관리'),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
@@ -1139,10 +1101,10 @@ class _AdminContentMinorAlertsScreenState
     final text = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
+      appBar: AppBar(title: const Text('위험 행동 감지 현황')),
       body: SafeArea(
         child: Column(
           children: [
-            const _AdminHeader(title: '위험 행동 감지 현황'),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
