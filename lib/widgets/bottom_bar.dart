@@ -219,7 +219,7 @@ class _CenterLabelSlot extends StatelessWidget {
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 9),
+          padding: const EdgeInsets.only(bottom: 10),
           child: Text(
             label,
             maxLines: 1,

@@ -1564,7 +1564,7 @@ class _OnboardingProgress extends StatelessWidget {
               duration: SetflowMotion.micro,
               curve: Curves.easeOut,
               height: 4,
-              margin: EdgeInsets.only(right: index == total - 1 ? 0 : 6),
+              margin: EdgeInsets.only(right: index == total - 2 ? 0 : 6),
               decoration: BoxDecoration(
                 color: active
                     ? theme.colorScheme.primary

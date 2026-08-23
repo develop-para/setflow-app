@@ -372,7 +372,7 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
 Widget _swatch(BuildContext context, Color color, String label) {
   final theme = Theme.of(context);
   return Container(
-    padding: const EdgeInsets.fromLTRB(6, 5, 11, 5),
+    padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
     decoration: BoxDecoration(
       color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(SetflowRadii.full),

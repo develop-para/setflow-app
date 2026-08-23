@@ -320,7 +320,7 @@ class _RuleBullet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 7),
+            padding: const EdgeInsets.only(top: 8),
             child: Container(
               width: 5,
               height: 5,

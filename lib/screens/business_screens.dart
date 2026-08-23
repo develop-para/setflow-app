@@ -1755,7 +1755,7 @@ class _PeoplePageState extends State<PeoplePage> {
                                     .facts['memberAssignment.${person.$1}'] ??
                                 '미배정';
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: SetflowCard(
                           onTap: () => _showMember(context, person),
                           child: Row(
@@ -3940,7 +3940,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                       final item = visible[visibleIndex].$2;
                       final done = answered.contains(index);
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: SetflowCard(
                           onTap: () => _answer(context, index, item),
                           child: Row(
@@ -4166,7 +4166,7 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                         final item = visible[index];
                         final done = _hasBusinessReply(item);
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 11),
+                          padding: const EdgeInsets.only(bottom: 12),
                           child: SetflowCard(
                             onTap: _openConsultationIds.contains(item.id)
                                 ? null
@@ -4698,7 +4698,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                         SetflowColors.purple,
                       ][index % 4];
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: SetflowCard(
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -4975,7 +4975,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                         fallback: index == 2,
                       );
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 11),
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: SetflowCard(
                           child: Column(
                             children: [

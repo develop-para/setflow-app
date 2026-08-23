@@ -814,7 +814,7 @@ class _MemberScheduleRow extends StatelessWidget {
       children: [
         Container(
           width: 44,
-          padding: const EdgeInsets.symmetric(vertical: 7),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: SetflowColors.blue.withValues(alpha: .1),
             borderRadius: BorderRadius.circular(SetflowRadii.sm),
@@ -1166,7 +1166,7 @@ class _CalendarCell extends StatelessWidget {
                 child: InkWell(
                   onTap: onTap,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 5, 4, 4),
+                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 4),
                     child: Column(
                       children: [
                         Stack(
@@ -1848,7 +1848,10 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: SetflowColors.green.withValues(alpha: .11),
                   borderRadius: BorderRadius.circular(999),
@@ -2209,7 +2212,7 @@ class _MarketScreenState extends State<MarketScreen> {
             ),
           for (final routine in routines)
             Padding(
-              padding: const EdgeInsets.only(bottom: 13),
+              padding: const EdgeInsets.only(bottom: 14),
               child: SetflowCard(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
@@ -2241,8 +2244,8 @@ class _MarketScreenState extends State<MarketScreen> {
                             top: 14,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 5,
+                                horizontal: 10,
+                                vertical: 6,
                               ),
                               decoration: BoxDecoration(
                                 color: routine.color,
@@ -2334,7 +2337,7 @@ class _RoutineAccessBadge extends StatelessWidget {
     return Semantics(
       label: '${accessTier.label} 루틴',
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
           borderRadius: BorderRadius.circular(999),
@@ -3074,7 +3077,7 @@ class _MemberConsultationBadge extends StatelessWidget {
       },
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(SetflowRadii.sm),
@@ -3325,7 +3328,7 @@ class DashboardScreen extends StatelessWidget {
                   for (var i = 0; i < 7; i++)
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
@@ -3457,7 +3460,7 @@ class _PerformancePrRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           Text(

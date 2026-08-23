@@ -239,14 +239,26 @@ abstract final class SetflowFontSize {
   static const hero = 52.0;
 }
 
+/// 여백의 사다리. **전부 짝수다** — 화면이 촘촘해서 작은 쪽은 2씩, 20 위로는 4씩 오른다.
+///
+/// 홀수가 보이면 그리드를 벗어난 것이다. 실제로 5·7·9·11·13·15가 65군데 섞여 있었고,
+/// 그렇게 1px씩 어긋난 여백은 "레이아웃이 안 맞는다"로만 보인다. 아키텍처 규칙이 막는다.
 abstract final class SetflowSpacing {
   static const xxs = 2.0;
   static const xs = 4.0;
+  static const xs2 = 6.0;
   static const sm = 8.0;
+  static const sm2 = 10.0;
   static const md = 12.0;
+  static const md2 = 14.0;
   static const lg = 16.0;
+
+  /// 페이지의 좌우 여백. 앱에서 가장 많이 쓰이는 값이라 이름을 갖는다.
+  static const gutter = 18.0;
+
   static const xl = 20.0;
   static const xxl = 24.0;
+  static const xxl2 = 28.0;
   static const section = 32.0;
   static const huge = 40.0;
   static const page = 48.0;

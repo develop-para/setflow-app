@@ -104,7 +104,7 @@ abstract final class SetflowTheme {
         errorStyle: textTheme.labelMedium?.copyWith(color: scheme.error),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: SetflowSpacing.lg,
-          vertical: 15,
+          vertical: 16,
         ),
         border: OutlineInputBorder(
           borderRadius: radius16,

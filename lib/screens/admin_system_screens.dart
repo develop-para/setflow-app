@@ -321,7 +321,7 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
           else
             for (final item in _queue)
               Padding(
-                padding: const EdgeInsets.only(bottom: 11),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: SetflowCard(
                   child: Row(
                     children: [
@@ -428,7 +428,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
         children: [
           for (final plan in _plans)
             Padding(
-              padding: const EdgeInsets.only(bottom: 11),
+              padding: const EdgeInsets.only(bottom: 12),
               child: SetflowCard(
                 child: Row(
                   children: [
@@ -787,7 +787,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
           else
             for (final log in filtered)
               Padding(
-                padding: const EdgeInsets.only(bottom: 11),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: SetflowCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

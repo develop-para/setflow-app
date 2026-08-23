@@ -331,7 +331,7 @@ class _BusinessSettingsPlanScreenState
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
-                              vertical: 5,
+                              vertical: 6,
                             ),
                             decoration: BoxDecoration(
                               color: plan.tint,
@@ -825,7 +825,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 5,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
                         color: SetflowColors.red,

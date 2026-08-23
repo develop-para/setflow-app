@@ -1403,7 +1403,7 @@ class SegPills extends StatelessWidget {
           for (var i = 0; i < items.length; i++)
             Padding(
               padding: EdgeInsets.only(
-                right: i == items.length - 1 ? 0 : SetflowSpacing.sm,
+                right: i == items.length - 2 ? 0 : SetflowSpacing.sm,
               ),
               child: Material(
                 color: i == selectedIndex

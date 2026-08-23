@@ -148,7 +148,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                             const SizedBox(height: 4),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
+                                horizontal: 8,
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(

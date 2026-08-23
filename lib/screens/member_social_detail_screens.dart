@@ -236,7 +236,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
       body: Form(
         key: formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 40),
           children: [
             _WorkoutVisualPreview(
               media: selectedMedia,
@@ -718,7 +718,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 40),
         children: [
           Container(
             height: 210,
@@ -2107,7 +2107,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
       body: Form(
         key: formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 40),
           children: [
             const Text(
               '현재 상태를 자세히 알려주시면\n더 정확한 답변을 받을 수 있어요.',
@@ -2350,7 +2350,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('상담 상세')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 40),
         children: [
           Row(
             children: [
@@ -2600,7 +2600,7 @@ class _StatusChip extends StatelessWidget {
       ConsultationStatus.coaching => ('코칭 중', context.setflowColors.info),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(SetflowRadii.sm),

@@ -760,7 +760,10 @@ class _NumberField extends StatelessWidget {
         labelText: label,
         suffixText: suffix,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 9, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 12,
+        ),
       ),
     );
   }

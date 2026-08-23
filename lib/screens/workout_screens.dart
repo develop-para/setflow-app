@@ -219,7 +219,7 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                 final exercise = session.exercises[index];
                 return Padding(
                   key: ValueKey(exercise.id),
-                  padding: const EdgeInsets.only(bottom: 13),
+                  padding: const EdgeInsets.only(bottom: 14),
                   child: _ExerciseCard(
                     date: date,
                     exercise: exercise,
@@ -392,7 +392,7 @@ class _WorkoutSummaryBar extends StatelessWidget {
         : '${session.volume.toStringAsFixed(0)}$unit';
     return Container(
       constraints: const BoxConstraints(minHeight: 46),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: context.setflowColors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(SetflowRadii.md),
@@ -420,7 +420,7 @@ class _WorkoutSummaryBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(SetflowRadii.full),
               onTap: () => onRecommendationChanged(!recommendationEnabled),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(9, 5, 7, 5),
+                padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
                 decoration: BoxDecoration(
                   color: recommendationEnabled
                       ? SetflowColors.primary.withValues(alpha: .2)
@@ -1303,7 +1303,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
       },
       child: AnimatedContainer(
         duration: SetflowMotion.standard,
-        padding: const EdgeInsets.fromLTRB(9, 7, 7, 9),
+        padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
         decoration: BoxDecoration(
           color: widget.set.completed
               ? SetflowColors.teal.withValues(alpha: .09)
@@ -1322,7 +1322,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
-                    vertical: 5,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surface,
@@ -1676,7 +1676,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
       },
       child: AnimatedContainer(
         duration: SetflowMotion.standard,
-        padding: const EdgeInsets.fromLTRB(9, 7, 7, 9),
+        padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
         decoration: BoxDecoration(
           color: widget.set.completed
               ? SetflowColors.teal.withValues(alpha: .09)
@@ -1695,7 +1695,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
-                    vertical: 5,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surface,
@@ -2083,8 +2083,8 @@ class _SwipeableSetState extends State<_SwipeableSet> {
               opacity: (.45 + .55 * strength).clamp(0.0, 1.0),
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 7,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
                   color: fill,
@@ -2140,7 +2140,7 @@ class _CompletedSetLine extends StatelessWidget {
         onTap: onExpand,
         borderRadius: BorderRadius.circular(SetflowRadii.md),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: context.setflowColors.surfaceContainerLow,
             borderRadius: BorderRadius.circular(SetflowRadii.md),
@@ -2209,7 +2209,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
               ' · RPE ${cardio.minimumRpe}–${cardio.maximumRpe}';
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 2, 20, 22),
+        padding: const EdgeInsets.fromLTRB(20, 2, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3165,7 +3165,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                         ),
                         const SizedBox(height: 8),
                         Padding(
-                          padding: const EdgeInsets.only(left: 36),
+                          padding: const EdgeInsets.only(left: 40),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
@@ -3623,7 +3623,7 @@ class _NumberStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
             ? Colors.white10
@@ -3637,7 +3637,7 @@ class _NumberStepper extends StatelessWidget {
             onTap: onMinus,
             borderRadius: BorderRadius.circular(8),
             child: const Padding(
-              padding: EdgeInsets.all(5),
+              padding: EdgeInsets.all(6),
               child: Icon(Icons.remove, size: 15),
             ),
           ),
@@ -3672,7 +3672,7 @@ class _NumberStepper extends StatelessWidget {
             onTap: onPlus,
             borderRadius: BorderRadius.circular(8),
             child: const Padding(
-              padding: EdgeInsets.all(5),
+              padding: EdgeInsets.all(6),
               child: Icon(Icons.add, size: 15),
             ),
           ),

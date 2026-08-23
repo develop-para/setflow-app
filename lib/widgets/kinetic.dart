@@ -135,7 +135,7 @@ class KineticStatBlock extends StatelessWidget {
                   if (unit != null) ...[
                     const SizedBox(width: 6),
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 5),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: Text(
                         unit!,
                         style: theme.textTheme.titleMedium?.copyWith(
@@ -396,7 +396,7 @@ class TrainingHeroCard extends StatelessWidget {
               child: Container(height: 3, color: yellow),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -408,7 +408,7 @@ class TrainingHeroCard extends StatelessWidget {
                       if (streak != null)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
+                            horizontal: 10,
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
@@ -479,7 +479,7 @@ class TrainingHeroCard extends StatelessWidget {
                                 if (unit != null) ...[
                                   const SizedBox(width: 5),
                                   Padding(
-                                    padding: const EdgeInsets.only(bottom: 7),
+                                    padding: const EdgeInsets.only(bottom: 8),
                                     child: Text(
                                       unit!,
                                       style: text.titleMedium?.copyWith(

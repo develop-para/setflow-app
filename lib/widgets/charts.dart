@@ -181,7 +181,7 @@ class MiniBars extends StatelessWidget {
                 for (var i = 0; i < values.length; i++)
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: FractionallySizedBox(
                         alignment: Alignment.bottomCenter,
                         heightFactor:
@@ -344,7 +344,7 @@ class ContributionGrid extends StatelessWidget {
                 for (var d = 0; d < week.length; d++)
                   Padding(
                     padding: EdgeInsets.only(
-                      bottom: d == week.length - 1 ? 0 : gap,
+                      bottom: d == week.length - 2 ? 0 : gap,
                     ),
                     child: Container(
                       width: cell,

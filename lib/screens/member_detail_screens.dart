@@ -353,7 +353,7 @@ class _LiveSessionCardState extends State<_LiveSessionCard> {
                     const SizedBox(height: SetflowSpacing.xs),
                     for (final set in exercise.sets)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
                           children: [
                             SizedBox(
@@ -955,7 +955,7 @@ class _MemberCommunityTab extends StatelessWidget {
       itemBuilder: (_, index) {
         final post = _posts[index];
         return Padding(
-          padding: const EdgeInsets.only(bottom: 11),
+          padding: const EdgeInsets.only(bottom: 12),
           child: SetflowCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

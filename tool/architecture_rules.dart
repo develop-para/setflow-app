@@ -129,6 +129,22 @@ final architectureRules = <ArchitectureRule>[
         'tokens.dart의 SetflowFontSize에 이름을 붙여 추가한다.',
   ),
   ArchitectureRule(
+    name: '여백은 짝수 그리드를 벗어나지 않는다',
+    pattern: RegExp(
+      r'EdgeInsets\.(?:all|symmetric|only|fromLTRB)\([^)]*'
+      r'(?<![\w.])\d*[13579](?![\d.])',
+    ),
+    searchIn: const ['lib'],
+    allow: const [],
+    why:
+        'SetflowSpacing은 전부 짝수다(작은 쪽 2씩, 20 위로 4씩). 홀수가 들어오면 그리드를 '
+        '벗어난 것이고, 실제로 5·7·9·11·13·15가 65군데 섞여 1px씩 어긋나 있었다. '
+        '그 어긋남은 "레이아웃이 안 맞는다"로만 보이고 원인은 안 보인다.',
+    instead:
+        '위아래 짝수 중 하나로 붙일 것. SetflowSpacing에서 고르면 확실하다. '
+        '정말 홀수여야 하는 자리라면 tokens.dart에 이름을 붙여 추가하고 allow에 파일을 넣는다.',
+  ),
+  ArchitectureRule(
     name: '엣지 펑션 호출은 의도적으로만 늘린다',
     pattern: RegExp(r'functions\s*\.\s*invoke'),
     searchIn: const ['lib'],

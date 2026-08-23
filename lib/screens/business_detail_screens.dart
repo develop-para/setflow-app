@@ -782,7 +782,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
       ('Yellow', '부적절한 홍보', '2일 남음'),
     ])
       Padding(
-        padding: const EdgeInsets.only(bottom: 11),
+        padding: const EdgeInsets.only(bottom: 12),
         child: SetflowCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
