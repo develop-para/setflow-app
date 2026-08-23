@@ -37,12 +37,14 @@ Future<void> _ensurePrecisionRecommendationSurvey(
     builder: (dialogContext) => PopScope(
       canPop: false,
       child: AlertDialog(
-        icon: const Icon(Icons.tune_rounded, color: SetflowColors.orange),
-        title: const Text('더 정교한 추천을 받고 싶다면?'),
+        // 한글은 어절 단위로 안 끊긴다 — Flutter가 글자 사이 어디서든 줄을 바꿔서
+        // 긴 제목은 '싶다 / 면?' 처럼 낱말 가운데가 갈린다. 제목은 한 줄에 들어갈
+        // 길이로 쓰고 나머지는 본문으로 내린다.
+        title: const Text('추천을 더 정확하게'),
         content: const Text(
-          '부상·통증, 사용 장비, 숙련도와 오늘의 회복 상태를 약 1분 동안 알려주세요. '
-          '사용할 수 없거나 직접 피하고 싶은 동작을 추천에서 제외할 수 있어요.\n\n'
-          '설문하지 않아도 기존 추천은 그대로 이용할 수 있습니다.',
+          '부상·통증, 사용 장비, 숙련도와 오늘의 회복 상태를 1분만 알려주시면 '
+          '피하고 싶은 동작을 추천에서 빼드려요.\n\n'
+          '지금 넘어가도 기존 추천은 그대로 씁니다.',
         ),
         actions: [
           TextButton(

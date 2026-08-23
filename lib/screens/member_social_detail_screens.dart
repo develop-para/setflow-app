@@ -670,7 +670,6 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
         await showDialog<void>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            icon: const Icon(Icons.workspace_premium_rounded),
             title: const Text('유료 플랜이 필요해요'),
             content: const Text(
               '이 루틴은 유료 회원 전용이에요. 결제 기능이 연결되면 이 화면에서 바로 업그레이드할 수 있습니다.',

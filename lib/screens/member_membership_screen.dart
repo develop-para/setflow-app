@@ -116,10 +116,6 @@ class MemberMembershipScreen extends StatelessWidget {
         await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            icon: Icon(
-              Icons.link_off_rounded,
-              color: Theme.of(dialogContext).colorScheme.error,
-            ),
             title: const Text('센터 연결을 종료할까요?'),
             content: const Text('담당 트레이너 배정과 센터의 운동·체성분 기록 접근 권한이 즉시 종료됩니다.'),
             actions: [

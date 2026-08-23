@@ -249,6 +249,10 @@ abstract final class SetflowTheme {
           ),
         ),
       ),
+      // Every dialog in the app is a plain AlertDialog with no styling of its
+      // own, so this is the only place their type and spacing are decided.
+      // Without the text styles they fell back to Material's headline scale,
+      // which is a size the rest of the app never uses.
       dialogTheme: DialogThemeData(
         backgroundColor: semantic.surfaceContainerLow,
         surfaceTintColor: Colors.transparent,
@@ -256,6 +260,32 @@ abstract final class SetflowTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SetflowRadii.xl),
         ),
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          fontSize: 18,
+          height: 1.4,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.2,
+          color: onSurface,
+        ),
+        contentTextStyle: textTheme.bodyMedium?.copyWith(
+          height: 1.65,
+          color: isDark ? const Color(0xFF9C968C) : SetflowColors.secondaryText,
+        ),
+        // A question is not a decoration: the icon slot centres the title in
+        // Material 3, which is why the seven dialogs that used it read as a
+        // different component from the other thirty-one.
+        iconColor: isDark
+            ? const Color(0xFF9C968C)
+            : SetflowColors.secondaryText,
+        actionsPadding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.lg,
+          SetflowSpacing.sm,
+          SetflowSpacing.lg,
+          SetflowSpacing.lg,
+        ),
+        // Phones are 360 wide too; the default inset leaves a dialog almost
+        // edge to edge there.
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

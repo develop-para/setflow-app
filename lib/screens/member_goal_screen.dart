@@ -11,10 +11,6 @@ Future<bool> ensureMemberTrainingGoals(BuildContext context) async {
       await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          icon: const Icon(
-            Icons.track_changes_rounded,
-            color: SetflowColors.orange,
-          ),
           title: const Text('운동 목표가 필요해요'),
           content: const Text('목표를 작성해야 합니다. 작성창으로 이동하시겠습니까?'),
           actions: [

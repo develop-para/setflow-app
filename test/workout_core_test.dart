@@ -742,7 +742,7 @@ void main() {
 
       await tester.tap(find.text('운동 추가'));
       await tester.pumpAndSettle();
-      expect(find.text('더 정교한 추천을 받고 싶다면?'), findsOneWidget);
+      expect(find.text('추천을 더 정확하게'), findsOneWidget);
       expect(state.precisionRecommendationPrompted, isFalse);
 
       await tester.tap(find.byKey(const ValueKey('precision-survey-skip')));

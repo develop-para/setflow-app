@@ -340,10 +340,6 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
         await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            icon: const Icon(
-              Icons.delete_outline_rounded,
-              color: SetflowColors.red,
-            ),
             title: const Text('운동 기록을 삭제할까요?'),
             content: Text('${date.month}월 ${date.day}일의 운동과 세트 기록이 모두 삭제됩니다.'),
             actions: [

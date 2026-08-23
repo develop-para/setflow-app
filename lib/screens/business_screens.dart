@@ -2166,10 +2166,6 @@ class _PeoplePageState extends State<PeoplePage> {
     return await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            icon: Icon(
-              Icons.link_off_rounded,
-              color: Theme.of(dialogContext).colorScheme.error,
-            ),
             title: const Text('센터 연결을 종료할까요?'),
             content: Text(
               centerInitiated
@@ -2823,10 +2819,6 @@ class _RoutineShareStatusSheet extends StatelessWidget {
         await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            icon: Icon(
-              Icons.person_remove_outlined,
-              color: Theme.of(dialogContext).colorScheme.error,
-            ),
             title: const Text('회원 공유를 취소할까요?'),
             content: const Text('취소하면 해당 회원은 이 루틴을 더 이상 수락할 수 없습니다.'),
             actions: [
