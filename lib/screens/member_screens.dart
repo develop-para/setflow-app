@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../app_state.dart';
+import '../korean_holidays.dart';
 import '../data/business_repository.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
@@ -1000,10 +1001,13 @@ class _CalendarWeekdayHeader extends StatelessWidget {
                   ['월', '화', '수', '목', '금', '토', '일'][index],
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    // 주말은 hue가 아니라 농도로 구분한다 — 흐린 쪽이 쉬는 날.
-                    color: index >= 5
-                        ? theme.colorScheme.onSurfaceVariant
-                        : theme.colorScheme.onSurface,
+                    // 달력은 한국 사람이 평생 봐 온 규칙이 있다 — 일요일과 공휴일은
+                    // 빨강, 토요일은 파랑. 농도로 대신하면 그냥 흐린 글자일 뿐이다.
+                    color: switch (index) {
+                      6 => context.setflowColors.error,
+                      5 => context.setflowColors.blue,
+                      _ => theme.colorScheme.onSurface,
+                    },
                   ),
                 ),
               ),
@@ -1055,11 +1059,6 @@ class _CalendarCell extends StatelessWidget {
     final theme = Theme.of(context);
     final completion = session?.completion ?? 0;
     final hasSession = (session?.totalSets ?? 0) > 0;
-    final accent = completion >= 1
-        ? context.setflowColors.teal
-        : completion > 0
-        ? context.setflowColors.orange
-        : theme.colorScheme.onSurfaceVariant;
     final muscles =
         session?.exercises
             .map((item) => item.template.muscle.characters.first)
@@ -1142,16 +1141,22 @@ class _CalendarCell extends StatelessWidget {
                     : null,
               ),
               child: Material(
+                // 빈 날은 비워 둔다. 42칸을 전부 같은 회색 상자로 칠하면 달이
+                // 한 덩어리로 보여서, 운동한 날이 어디였는지가 사라진다.
                 color: isDropTarget
                     ? theme.colorScheme.primaryContainer
-                    : context.setflowColors.surfaceContainerLow,
+                    : hasSession
+                    ? context.setflowColors.surfaceContainerLow
+                    : Colors.transparent,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(SetflowRadii.sm),
                   side: BorderSide(
-                    color: isDropTarget || isToday
+                    color: isDropTarget
                         ? theme.colorScheme.primary
-                        : theme.colorScheme.outlineVariant,
-                    width: isDropTarget ? 2 : (isToday ? 1.5 : 1),
+                        : hasSession
+                        ? theme.colorScheme.outlineVariant
+                        : Colors.transparent,
+                    width: isDropTarget ? 2 : 1,
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -1182,9 +1187,10 @@ class _CalendarCell extends StatelessWidget {
                                   fontWeight: FontWeight.w900,
                                   color: isToday
                                       ? theme.colorScheme.onPrimary
-                                      : date.weekday == DateTime.sunday ||
-                                            date.weekday == DateTime.saturday
-                                      ? theme.colorScheme.onSurfaceVariant
+                                      : isRestDay(date)
+                                      ? context.setflowColors.error
+                                      : date.weekday == DateTime.saturday
+                                      ? context.setflowColors.blue
                                       : theme.colorScheme.onSurface,
                                 ),
                               ),
@@ -1206,40 +1212,44 @@ class _CalendarCell extends StatelessWidget {
                         ),
                         const Spacer(),
                         if (hasSession) ...[
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 3,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: .14),
-                              borderRadius: BorderRadius.circular(
-                                SetflowRadii.xs,
-                              ),
-                            ),
-                            child: Text(
-                              muscles,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.fade,
-                              style: TextStyle(
-                                color: accent,
-                                fontSize: 9,
-                                height: 1.1,
-                                fontWeight: FontWeight.w900,
-                              ),
+                          // 부위와 볼륨은 글자로만. 예전엔 완료율에 따라 teal/orange
+                          // 틴트를 깔았는데, 바로 위 오늘 표시가 라임이라 한 칸에
+                          // 색이 셋이었고 어느 것도 의미로 읽히지 않았다.
+                          Text(
+                            muscles,
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface,
+                              fontSize: 9,
+                              height: 1.1,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
-                          const SizedBox(height: 2),
                           Text(
                             activityLabel,
                             maxLines: 1,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                               fontSize: 8,
-                              height: 1,
+                              height: 1.2,
                               fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          // 한 칸에서 색을 쓰는 곳은 여기 하나다. 다 끝낸 날은
+                          // 성공색으로 꽉 차고, 하다 만 날은 브랜드가 그만큼만 찬다.
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              value: completion.clamp(0, 1).toDouble(),
+                              minHeight: 3,
+                              backgroundColor: theme.colorScheme.outlineVariant,
+                              valueColor: AlwaysStoppedAnimation(
+                                completion >= 1
+                                    ? context.setflowColors.success
+                                    : theme.colorScheme.primary,
+                              ),
                             ),
                           ),
                         ] else
