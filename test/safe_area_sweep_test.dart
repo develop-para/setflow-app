@@ -2,7 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/screens/admin_system_screens.dart';
+import 'package:setflow/screens/business_screens.dart';
+import 'package:setflow/screens/business_settings_screens.dart';
+import 'package:setflow/screens/detail_screens.dart';
+import 'package:setflow/screens/evidence_library_screen.dart';
+import 'package:setflow/screens/member_membership_screen.dart';
+import 'package:setflow/screens/member_mypage_screen.dart';
 import 'package:setflow/screens/member_screens.dart';
+import 'package:setflow/screens/settlement_detail_screens.dart';
 import 'package:setflow/screens/workout_screens.dart';
 import 'package:setflow/theme.dart';
 
@@ -128,6 +136,109 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expectAllReachable(tester, where: '이 화면');
+  });
+
+  /// Pump one screen on its own, the way a route push would.
+  Future<void> pumpScreen(WidgetTester tester, Widget screen) async {
+    applySystemBars(tester);
+    final state = AppState();
+    await state.initialize();
+    addTearDown(state.dispose);
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(theme: SetflowTheme.light, home: screen),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  testWidgets('every trainer-portal tab keeps its pinned buttons reachable', (
+    tester,
+  ) async {
+    // The pro shell still uses Material's NavigationBar rather than
+    // SetflowActionNavBar, so it insets itself differently from the member one.
+    for (final role in [UserRole.trainer, UserRole.gym, UserRole.admin]) {
+      var inspected = 0;
+      await pumpScreen(tester, BusinessShell(role: role));
+
+      final tabs = find.byType(NavigationDestination).evaluate().length;
+      expect(tabs, greaterThan(0), reason: '$role 셸에 탭이 없다');
+
+      for (var i = 0; i < tabs; i++) {
+        await tester.tap(find.byType(NavigationDestination).at(i));
+        await tester.pumpAndSettle();
+        final result = sweep(tester);
+        inspected += result.inspected;
+        expect(
+          result.offenders,
+          isEmpty,
+          reason: '$role 셸 $i번 탭에서 버튼이 시스템 바에 가린다',
+        );
+      }
+      expect(inspected, greaterThan(0), reason: '$role 셸에서 본 고정 버튼이 없다');
+    }
+  });
+
+  testWidgets('pushed detail screens keep their pinned buttons reachable', (
+    tester,
+  ) async {
+    final screens = <String, Widget>{
+      'BodyCompositionScreen': const BodyCompositionScreen(),
+      'PostComposerScreen': const PostComposerScreen(),
+      'CoachingDetailScreen': const CoachingDetailScreen(),
+      'MemberMembershipScreen': const MemberMembershipScreen(),
+      'MyPageScreen': const MyPageScreen(),
+      'EvidenceLibraryScreen': const EvidenceLibraryScreen(),
+      'BusinessSettingsListScreen': const BusinessSettingsListScreen(
+        role: UserRole.trainer,
+      ),
+      'BusinessSettingsPlanScreen': const BusinessSettingsPlanScreen(
+        role: UserRole.trainer,
+      ),
+      'BusinessSettingsNotificationsScreen':
+          const BusinessSettingsNotificationsScreen(role: UserRole.trainer),
+      'BusinessSettingsWithdrawScreen': const BusinessSettingsWithdrawScreen(
+        role: UserRole.trainer,
+      ),
+      'BusinessBadgeRenewScreen': const BusinessBadgeRenewScreen(),
+      'BusinessProfileEditScreen': const BusinessProfileEditScreen(
+        role: UserRole.trainer,
+      ),
+      'SettlementRefundsPage': const SettlementRefundsPage(role: UserRole.gym),
+      'TrainerSettlementBreakdownPage': const TrainerSettlementBreakdownPage(
+        role: UserRole.trainer,
+      ),
+      'SettlementCommissionPage': const SettlementCommissionPage(
+        role: UserRole.gym,
+      ),
+      'SettlementFinalConfirmPage': const SettlementFinalConfirmPage(
+        role: UserRole.gym,
+      ),
+      'AdminSystemScreen': const AdminSystemScreen(),
+      'AdminSystemRankingScreen': const AdminSystemRankingScreen(),
+      'AdminSystemOcrScreen': const AdminSystemOcrScreen(),
+      'AdminSystemPlansScreen': const AdminSystemPlansScreen(),
+      'AdminSystemKeywordsScreen': const AdminSystemKeywordsScreen(),
+      'AdminSystemLogsScreen': const AdminSystemLogsScreen(),
+    };
+
+    // Collected rather than asserted per screen: stopping at the first offender
+    // would hide the rest, and the whole point is to see every one of them.
+    var inspected = 0;
+    final broken = <String>[];
+    for (final entry in screens.entries) {
+      await pumpScreen(tester, entry.value);
+      final result = sweep(tester);
+      inspected += result.inspected;
+      for (final offender in result.offenders) {
+        broken.add('${entry.key}: $offender');
+      }
+    }
+    expect(broken, isEmpty, reason: '이 화면들의 버튼이 시스템 바에 가린다');
+    expect(inspected, greaterThan(0), reason: '스윕이 고정 버튼을 하나도 보지 못했다');
   });
 
   testWidgets('the exercise library keeps its pinned buttons reachable', (

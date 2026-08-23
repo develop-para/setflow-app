@@ -560,14 +560,23 @@ class _DarkStatBanner extends StatelessWidget {
           ),
           const SizedBox(height: SetflowSpacing.xs),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                value,
-                style: theme.textTheme.displayMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w900,
+              // A settlement figure runs to seven digits; at 393px it overran
+              // the card by 46px. Shrink the number rather than clip it — the
+              // amount is the one thing on this banner that must stay readable.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    style: theme.textTheme.displayMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
               ),
               if (unit != null) ...[
@@ -942,31 +951,39 @@ class _SettlementFinalConfirmPageState
               ],
             ),
           ),
+          // Pinned under the scroll view, so the navigation bar's inset is this
+          // screen's to add — nothing else is going to.
           if (nextIndex != -1)
-            Padding(
-              padding: SetflowInsets.bottomAction,
-              child: PrimaryButton(
-                label: _items[nextIndex].status == _PayoutStatus.pending
-                    ? '${_items[nextIndex].name} 입금 처리 시작'
-                    : '${_items[nextIndex].name} 최종 정산 확정',
-                onPressed: () => _advance(nextIndex),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: SetflowInsets.bottomAction,
+                child: PrimaryButton(
+                  label: _items[nextIndex].status == _PayoutStatus.pending
+                      ? '${_items[nextIndex].name} 입금 처리 시작'
+                      : '${_items[nextIndex].name} 최종 정산 확정',
+                  onPressed: () => _advance(nextIndex),
+                ),
               ),
             )
           else
-            Padding(
-              padding: SetflowInsets.bottomAction,
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: SetflowColors.green),
-                  const SizedBox(width: SetflowSpacing.sm),
-                  Text(
-                    '전체 정산이 확정되었습니다.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: SetflowColors.green,
-                      fontWeight: FontWeight.w800,
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: SetflowInsets.bottomAction,
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: SetflowColors.green),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Text(
+                      '전체 정산이 확정되었습니다.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: SetflowColors.green,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
         ],
