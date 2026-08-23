@@ -39,8 +39,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(MemberShell), findsOneWidget);
-    expect(find.byTooltip('설정'), findsOneWidget);
-    await tester.tap(find.byTooltip('설정'));
+    // 설정은 "마이"에 있다. 홈 헤더에 있던 사본은 걷어냈다 — 바텀바가 이미 가는 곳으로
+    // 셸 위에 라우트를 하나 더 쌓으면 돌아갈 길이 사라진다.
+    await tester.tap(find.text('마이').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('설정'), 300);
+    await tester.tap(find.text('설정'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('로그아웃'), 400);
     await tester.pumpAndSettle();

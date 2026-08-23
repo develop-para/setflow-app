@@ -621,9 +621,10 @@ void main() {
     expect(find.byType(DragTarget<DateTime>), findsNWidgets(42));
     expect(find.byTooltip('이전 달'), findsOneWidget);
 
-    // 헤더 토글은 스크롤 없이 늘 보이는 자리라 여기서 접는다.
-    expect(find.byKey(const Key('calendar-fold-toggle')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('calendar-fold-toggle')));
+    // 접기 손잡이는 격자 바로 아래 하나뿐이다 — 헤더에 있던 사본은 걷어냈다.
+    expect(find.byKey(const Key('calendar-fold-handle')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('calendar-fold-handle')));
+    await tester.tap(find.byKey(const Key('calendar-fold-handle')));
     await tester.pump();
     await tester.pump(SetflowMotion.standard);
     await tester.pump(SetflowMotion.standard);

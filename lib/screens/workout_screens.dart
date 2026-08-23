@@ -100,66 +100,38 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
     ];
     return Scaffold(
       appBar: AppBar(
-        // Adding an exercise and loading a routine live here and nowhere else.
-        // They used to be two full-width buttons pinned above the list, which
-        // cost a third of the screen on every day that already had exercises.
-        leadingWidth: 96,
-        leading: Row(
-          children: [
-            IconButton(
-              key: const Key('daily-add-exercise'),
-              tooltip: '운동 추가',
-              onPressed: _openExerciseFlow,
-              icon: const Icon(SetflowIcons.addExercise),
-            ),
-            IconButton(
-              key: const Key('daily-load-routine'),
-              tooltip: '루틴 불러오기',
-              onPressed: () => _openRoutinePicker(context),
-              icon: const Icon(SetflowIcons.routine),
-            ),
-          ],
-        ),
+        // The date is this screen's name, so it sits where a name sits: at the
+        // start, on the same 18px line as the cards under it. It used to be
+        // pushed inward by two icons parked in `leading`, a slot meant for one
+        // control, which left the title floating at neither margin.
+        titleSpacing: 18,
         title: Text(
           '${date.month}월 ${date.day}일 (${['월', '화', '수', '목', '금', '토', '일'][date.weekday - 1]})',
         ),
-        // 메모와 공유는 아직 자리만 잡아둔 기능이라, 아이콘 두 개를 새로 들인
-        // 헤더에서 자리를 다투게 두지 않고 메뉴로 접었다.
+        // Adding an exercise and loading a routine live here and nowhere else.
+        // They used to be two full-width buttons pinned above the list, which
+        // cost a third of the screen on every day that already had exercises.
         actions: [
+          IconButton(
+            key: const Key('daily-add-exercise'),
+            tooltip: '운동 추가',
+            onPressed: _openExerciseFlow,
+            icon: const Icon(SetflowIcons.addExercise),
+          ),
+          IconButton(
+            key: const Key('daily-load-routine'),
+            tooltip: '루틴 불러오기',
+            onPressed: () => _openRoutinePicker(context),
+            icon: const Icon(SetflowIcons.routine),
+          ),
           PopupMenuButton<String>(
             tooltip: '기록 메뉴',
             onSelected: (value) {
-              switch (value) {
-                case 'memo':
-                  showMessage(context, '운동 메모를 저장할 수 있습니다.');
-                case 'share':
-                  showMessage(context, '오늘 기록 공유 링크를 준비했습니다.');
-                case 'delete':
-                  _deleteWorkout(context);
-              }
+              if (value == 'delete') _deleteWorkout(context);
             },
+            // 메모와 공유는 눌러도 토스트만 뜨고 아무것도 저장·공유하지 않아서 뺐다.
+            // 만들어지면 그때 다시 넣는다 — 있는 척하는 메뉴가 없는 것보다 나쁘다.
             itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'memo',
-                child: Row(
-                  children: [
-                    Icon(Icons.note_alt_outlined),
-                    SizedBox(width: 10),
-                    Text('운동 메모'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'share',
-                child: Row(
-                  children: [
-                    Icon(Icons.ios_share_outlined),
-                    SizedBox(width: 10),
-                    Text('기록 공유'),
-                  ],
-                ),
-              ),
-              PopupMenuDivider(),
               PopupMenuItem(
                 value: 'delete',
                 child: Row(

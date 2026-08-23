@@ -382,18 +382,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     setState(() => expanded = !expanded);
   }
 
-  void _openDashboard(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const DashboardScreen()));
-  }
-
-  void _openSettings(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -505,62 +493,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 icon: Icons.chevron_right_rounded,
                                 onPressed: () => _step(1),
                               ),
-                              Container(
-                                width: 1,
-                                height: 18,
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                              // 접기는 헤더에도 둔다 — 격자 아래 손잡이는 펼친
-                              // 상태에서 화면 밖으로 밀려 보이지 않는다.
-                              _MonthArrowButton(
-                                key: const Key('calendar-fold-toggle'),
-                                tooltip: expanded ? '이번 주만 보기' : '한 달 전체 보기',
-                                icon: expanded
-                                    ? SetflowIcons.collapse
-                                    : SetflowIcons.expand,
-                                onPressed: _toggleExpanded,
-                              ),
                             ],
                           ),
                         ),
-                        if (compactHeader)
-                          PopupMenuButton<int>(
-                            tooltip: '더 보기',
-                            onSelected: (value) => value == 0
-                                ? _openDashboard(context)
-                                : _openSettings(context),
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: 0,
-                                child: ListTile(
-                                  leading: Icon(Icons.bar_chart_rounded),
-                                  title: Text('운동 통계'),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 1,
-                                child: ListTile(
-                                  leading: Icon(Icons.settings_outlined),
-                                  title: Text('설정'),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ],
-                            icon: const Icon(Icons.more_horiz_rounded),
-                          )
-                        else ...[
-                          IconButton(
-                            tooltip: '운동 통계',
-                            onPressed: () => _openDashboard(context),
-                            icon: const Icon(Icons.bar_chart_rounded),
-                          ),
-                          IconButton(
-                            tooltip: '설정',
-                            onPressed: () => _openSettings(context),
-                            icon: const Icon(Icons.menu_rounded),
-                          ),
-                        ],
+                        // 통계와 설정은 여기 없다. 통계는 바텀바의 "통계" 탭이고
+                        // 설정은 "마이"에 있다 — 여기서 push하면 셸 위에 바텀바 없는
+                        // 사본이 하나 더 열려서 돌아갈 길이 사라진다.
                       ],
                     );
                   },
@@ -928,7 +866,6 @@ class _MemberScheduleRow extends StatelessWidget {
 
 class _MonthArrowButton extends StatelessWidget {
   const _MonthArrowButton({
-    super.key,
     required this.tooltip,
     required this.icon,
     required this.onPressed,
