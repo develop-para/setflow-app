@@ -89,7 +89,11 @@ function Invoke-Git {
 
 $config = $null
 if (Test-Path $configPath) {
-    $config = Get-Content $configPath -Raw | ConvertFrom-Json
+    # -Encoding UTF8 is not optional: the tester group alias is Korean, and
+    # Windows PowerShell 5.1 reads a BOM-less file as the ANSI codepage. On a
+    # Korean install that turns the alias into mojibake, and Firebase answers a
+    # bare 404 for a group nobody can see is wrong.
+    $config = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
 function Resolve-Setting($explicit, $configKey, $envName, $fallback) {

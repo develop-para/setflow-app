@@ -1,7 +1,7 @@
 {
-  "_comment": "Firebase App Distribution settings for tool/distribute-android.ps1. None of these are secrets; the App ID and account email are safe to commit. Get the App ID with: firebase apps:list",
+  "_comment": "Firebase App Distribution settings for tool/distribute-android.ps1. None of these are secrets; the App ID and account email are safe to commit. Get the App ID with: firebase apps:list, the group aliases with: firebase appdistribution:group:list --project setflow-18eeb",
   "appId": "1:587270655673:android:ffd900f492834e1d509568",
   "account": "admin@teampara.co.kr",
-  "groups": "testers",
+  "groups": "내부",
   "testers": ""
 }
