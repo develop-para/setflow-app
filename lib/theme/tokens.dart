@@ -14,9 +14,21 @@ import 'package:flutter/material.dart';
 /// `context.setflowColors`. Prefer that over these constants wherever the
 /// colour lands on a surface that flips with the theme.
 abstract final class SetflowColors {
-  /// The accent. Black, not a hue: it fills the primary CTA, the nav
-  /// indicator and the bottom bar's center disc.
-  static const primary = Color(0xFF111113);
+  /// Setflow lime — the brand. It fills things: the primary CTA, the nav
+  /// indicator, the bottom bar's centre disc. Energy is the point, so it stays
+  /// the same in light and dark rather than inverting.
+  ///
+  /// **Never as text or an icon on a light surface.** Lime on white is 1.18:1;
+  /// it only works the other way round, carrying [onPrimary] ink on top of it.
+  static const brand = Color(0xFFCCFF00);
+
+  /// The accent that fills interactive surfaces. The brand, by definition —
+  /// kept as a separate name because plenty of call sites mean "the primary
+  /// control colour" rather than "the brand".
+  static const primary = brand;
+
+  /// What goes *on* [brand]. Ink at 16:1 — white would be 1.18:1 and vanish.
+  static const onBrand = Color(0xFF111113);
 
   /// Primary text. Pure-ish black, no warm cast.
   static const ink = Color(0xFF111113);

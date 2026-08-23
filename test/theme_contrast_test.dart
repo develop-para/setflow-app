@@ -80,6 +80,41 @@ void main() {
     }
   });
 
+  test('the brand does not change with the theme', () {
+    expect(SetflowTheme.light.colorScheme.primary, SetflowColors.brand);
+    expect(SetflowTheme.dark.colorScheme.primary, SetflowColors.brand);
+    // A brand that inverts is not a brand. Ink is what flips onto it — and it
+    // is the same ink either way, because lime is light in both themes.
+    expect(SetflowTheme.light.colorScheme.onPrimary, SetflowColors.onBrand);
+    expect(SetflowTheme.dark.colorScheme.onPrimary, SetflowColors.onBrand);
+  });
+
+  test('nothing white is ever put on the brand', () {
+    // Lime carries white at 1.18:1. This is the mistake the yellow brand made
+    // before, so it is worth a test rather than a comment.
+    for (final theme in [SetflowTheme.light, SetflowTheme.dark]) {
+      expect(theme.colorScheme.onPrimary, isNot(Colors.white));
+    }
+    expect(
+      contrast(SetflowColors.brand, Colors.white),
+      lessThan(floor),
+      reason: '라임이 흰 배경에서 읽힌다면 이 규칙의 전제가 틀린 것이다',
+    );
+  });
+
+  test('the brand is not mistaken for a state', () {
+    for (final theme in [SetflowTheme.light, SetflowTheme.dark]) {
+      final brand = theme.colorScheme.primary.toARGB32();
+      rolesOf(theme).forEach((role, color) {
+        expect(
+          color.toARGB32(),
+          isNot(brand),
+          reason: '브랜드가 $role 과 같은 색이다 — 채운 것이 "성공"으로 읽힌다',
+        );
+      });
+    }
+  });
+
   test('the primary control colour stays readable against its foreground', () {
     for (final theme in [SetflowTheme.light, SetflowTheme.dark]) {
       final scheme = theme.colorScheme;

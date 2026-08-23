@@ -18,11 +18,12 @@ abstract final class SetflowTheme {
     final onSurface = isDark ? const Color(0xFFF4F4F5) : SetflowColors.ink;
     final outline = isDark ? const Color(0xFF2A2A2E) : SetflowColors.divider;
 
-    // Monochrome: the accent inverts with the theme instead of being a hue, so
-    // "primary" is black on light and white on dark, and onPrimary flips with
-    // it. Anything that used to lean on yellow now reads as inverted ink.
-    final accent = isDark ? const Color(0xFFF4F4F5) : SetflowColors.primary;
-    final onAccent = isDark ? const Color(0xFF111113) : Colors.white;
+    // The brand does not invert. Lime is bright enough to sit on either
+    // surface, and a brand that changes colour with the theme is not a brand.
+    // What must never change is the foreground: ink on lime is 16:1, white on
+    // lime is 1.18:1 and disappears.
+    const accent = SetflowColors.brand;
+    const onAccent = SetflowColors.onBrand;
 
     final scheme =
         ColorScheme.fromSeed(
