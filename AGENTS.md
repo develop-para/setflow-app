@@ -103,17 +103,14 @@ if (!context.mounted) return;
 하는 필드라면 `onSubmitted`만으로 끝내지 말고 포커스를 잃을 때 커밋하는 리스너를
 **`initState`에서** 붙일 것.
 
-## 6. 디자인 — 옐로우 브랜드와 상태색
+## 6. 디자인 — 모노크롬, 로고 없음
 
-- 브랜드 기본은 **Supernova 옐로우 `#FFCA10` + 웜 잉크 + 화이트**다. 성공·경고·오류·안내와
-  역할/운동 카테고리는 `SetflowColors` · `SetflowSemanticColors`의 상태색을 쓴다. 화면에 임의의
-  색상 상수를 흩뿌리지 말고 먼저 토큰에서 고른다.
-- `theme.colorScheme.primary`는 라이트·다크 모두 브랜드 옐로우다. 그 위 전경색은 반드시
-  `onPrimary`를 쓴다. **옐로우 위 흰색 텍스트는 대비가 부족하므로 금지**한다.
-- 설치 아이콘과 OS 스플래시는 `SetflowMark`의 3단 Rep Stack을 쓴다. 원본 PNG는
-  `test/tools/generate_brand_assets_test.dart`로 생성하고 launcher/splash 생성기를 이어서 실행한다.
-- 일반 기능 아이콘에는 장식 목적의 배경을 남발하지 않는다. 의미·상태를 전달하거나 브랜드
-  진입점을 표시할 때만 토큰 색상의 배경을 쓴다.
+- 색은 **화이트 / 블랙 / 그레이만**. 새 색상 상수를 만들지 말고 `SetflowColors` · `SetflowNeutral`
+  에서 고른다. 의미는 색이 아니라 **농도**로 표현한다(어두울수록 강한 신호).
+- `theme.colorScheme.primary`는 **테마에 따라 반전**된다(라이트=검정, 다크=흰색).
+  그 위에 얹는 전경색은 반드시 `onPrimary` — `SetflowColors.ink`를 쓰면 검정 위 검정이 된다.
+- **로고 이미지를 만들지 말 것.** 브랜드는 `SetflowWordmark`(텍스트)뿐이다.
+- **아이콘 뒤에 원형/컬러 배경을 깔지 말 것.** 아이콘은 그대로 놓는다.
 - 아이콘은 `SetflowIcons`에서 고른다. `Icons.*`를 직접 쓰지 말고, 없으면 `theme/icons.dart`에
   개념을 추가한다(한 패밀리: Material rounded, 아웃라인=평소 / 채움=선택).
 - **전역 메시지는 화면 위쪽에 띄운다.** 하단은 엄지·기록 디스크·세트 행의 자리라 거기 뜬 메시지는

@@ -1,51 +1,62 @@
 import 'package:flutter/material.dart';
 
-/// Setflow brand colours and warm neutral tokens.
-///
-/// Supernova yellow is the primary accent. Supporting hues communicate state
-/// and workout categories, while the warm neutral ramp keeps those colours
-/// cohesive in both light and dark themes.
+/// Monochrome tokens. The system is white / black / grey only — no hue
+/// anywhere. Meaning that used to be carried by colour (danger red, success
+/// green, brand yellow) is now carried by **weight**: the darker the grey, the
+/// louder the signal. Token *names* are unchanged on purpose so every screen
+/// re-skins without being rewritten.
 abstract final class SetflowColors {
-  /// Supernova yellow — the official Setflow accent.
-  static const primary = Color(0xFFFFCA10);
+  /// The accent. Black, not a hue: it fills the primary CTA, the nav
+  /// indicator and the bottom bar's center disc.
+  static const primary = Color(0xFF111113);
 
-  /// Kinetic ink — a warm near-black used for primary text.
-  static const ink = Color(0xFF17140F);
+  /// Primary text. Pure-ish black, no warm cast.
+  static const ink = Color(0xFF111113);
 
-  /// Structural near-black for hero blocks and inverted surfaces.
-  static const inkBlock = Color(0xFF141210);
+  /// Structural black for inverted blocks and hero fields.
+  static const inkBlock = Color(0xFF18181B);
 
-  static const steel = Color(0xFF5F5C57);
+  /// Strong secondary — data labels that still need to read as text.
+  static const steel = Color(0xFF52525B);
 
-  static const secondaryText = Color(0xFF7A746B);
-  static const disabled = Color(0xFFA9A399);
+  static const secondaryText = Color(0xFF71717A);
+  static const disabled = Color(0xFFA1A1AA);
   static const surface = Color(0xFFFFFFFF);
-  static const soft = Color(0xFFF7F5F1);
-  static const elevated = Color(0xFFF0EDE7);
-  static const divider = Color(0xFFE8E4DB);
-  static const teal = Color(0xFF10CEBD);
-  static const orange = Color(0xFFFFB20C);
-  static const blue = Color(0xFF3B82F6);
-  static const purple = Color(0xFF8B5CF6);
-  static const green = Color(0xFF22C55E);
-  static const red = Color(0xFFEF4444);
-  static const warning = Color(0xFFF59E0B);
-  static const info = Color(0xFF3B82F6);
+  static const soft = Color(0xFFF7F7F8);
+  static const elevated = Color(0xFFF1F1F2);
+
+  /// Hairline.
+  static const divider = Color(0xFFE4E4E7);
+
+  // Former accent slots. They survive as greys so existing call sites keep
+  // compiling and simply render monochrome. Pick by loudness, not by hue.
+  static const teal = Color(0xFF71717A);
+  static const orange = Color(0xFF71717A);
+  static const blue = Color(0xFF52525B);
+  static const purple = Color(0xFF71717A);
+  static const green = Color(0xFF3F3F46);
+
+  /// Danger is the loudest grey there is — black — because destructive actions
+  /// can no longer shout in red.
+  static const red = Color(0xFF18181B);
+  static const warning = Color(0xFF52525B);
+  static const info = Color(0xFF52525B);
 }
 
-/// Warm neutral ramp matched to the yellow brand accent.
+/// The single grey ramp. True neutrals (zero chroma) — the old warm/stone tint
+/// is gone along with the yellow it was harmonising with.
 abstract final class SetflowNeutral {
   static const n0 = Color(0xFFFFFFFF); // pure surface
-  static const n50 = Color(0xFFF7F5F1); // low container
-  static const n100 = Color(0xFFF0EDE7); // container
-  static const n200 = Color(0xFFE8E4DB); // hairline / high container
-  static const n300 = Color(0xFFD8D2C7); // strong border
-  static const n400 = Color(0xFFA9A399); // disabled / hint
-  static const n500 = Color(0xFF8A847A); // muted label
-  static const n600 = Color(0xFF7A746B); // secondary text
-  static const n700 = Color(0xFF57534C); // strong secondary
-  static const n800 = Color(0xFF2A2620); // dark elevated
-  static const n900 = Color(0xFF141210); // ink block
+  static const n50 = Color(0xFFF7F7F8); // low container
+  static const n100 = Color(0xFFF1F1F2); // container
+  static const n200 = Color(0xFFE4E4E7); // hairline / high container
+  static const n300 = Color(0xFFD4D4D8); // strong border
+  static const n400 = Color(0xFFA1A1AA); // disabled / hint
+  static const n500 = Color(0xFF8A8A93); // muted label
+  static const n600 = Color(0xFF71717A); // secondary text
+  static const n700 = Color(0xFF52525B); // strong secondary
+  static const n800 = Color(0xFF27272A); // dark elevated
+  static const n900 = Color(0xFF111113); // ink block
 }
 
 @immutable
@@ -64,34 +75,34 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     required this.orange,
   });
 
-  // Warm-tinted surface ramp (light).
+  // Neutral surface ramp (light).
   static const light = SetflowSemanticColors(
-    surfaceContainerLow: Color(0xFFF7F5F1),
-    surfaceContainer: Color(0xFFF2EFE9),
-    surfaceContainerHigh: Color(0xFFECE8E0),
-    disabled: Color(0xFFA9A399),
-    success: Color(0xFF22C55E),
-    warning: Color(0xFFF59E0B),
-    info: Color(0xFF3B82F6),
-    teal: Color(0xFF10CEBD),
-    blue: Color(0xFF3B82F6),
-    purple: Color(0xFF8B5CF6),
-    orange: Color(0xFFFFB20C),
+    surfaceContainerLow: Color(0xFFF7F7F8),
+    surfaceContainer: Color(0xFFF1F1F2),
+    surfaceContainerHigh: Color(0xFFE9E9EC),
+    disabled: Color(0xFFA1A1AA),
+    success: Color(0xFF3F3F46),
+    warning: Color(0xFF52525B),
+    info: Color(0xFF52525B),
+    teal: Color(0xFF71717A),
+    blue: Color(0xFF52525B),
+    purple: Color(0xFF71717A),
+    orange: Color(0xFF71717A),
   );
 
-  // Warm near-black ramp (dark).
+  // Neutral near-black ramp (dark).
   static const dark = SetflowSemanticColors(
-    surfaceContainerLow: Color(0xFF1A1815),
-    surfaceContainer: Color(0xFF211E19),
-    surfaceContainerHigh: Color(0xFF2A2620),
-    disabled: Color(0xFF635E56),
-    success: Color(0xFF34D399),
-    warning: Color(0xFFF59E0B),
-    info: Color(0xFF60A5FA),
-    teal: Color(0xFF2DD4BF),
-    blue: Color(0xFF60A5FA),
-    purple: Color(0xFFA78BFA),
-    orange: Color(0xFFFFB020),
+    surfaceContainerLow: Color(0xFF161618),
+    surfaceContainer: Color(0xFF1C1C1F),
+    surfaceContainerHigh: Color(0xFF27272A),
+    disabled: Color(0xFF5C5C63),
+    success: Color(0xFFD4D4D8),
+    warning: Color(0xFFA1A1AA),
+    info: Color(0xFFA1A1AA),
+    teal: Color(0xFF8A8A93),
+    blue: Color(0xFFA1A1AA),
+    purple: Color(0xFF8A8A93),
+    orange: Color(0xFF8A8A93),
   );
 
   final Color surfaceContainerLow;

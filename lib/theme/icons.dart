@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 /// 1. **One family.** Everything is Material *rounded*; the geometry matches
 ///    the type's soft terminals and nothing looks borrowed.
 /// 2. **Outline = resting, filled = active.** A concept that can be selected
-///    exposes both variants, so selection remains clear without relying on
-///    colour alone.
+///    exposes both variants, so selection reads without colour — which is the
+///    whole point in a monochrome system.
 ///
 /// Add a concept here rather than reaching for `Icons.*` at a call site; that
 /// is how the app ended up with a rocket, a barbell and a gavel all meaning

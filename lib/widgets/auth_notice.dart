@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 
-/// Semantic notice tone. Icons and labels keep every state understandable
-/// without relying on colour alone.
+/// How loud the notice is. In a monochrome system this is tone, not hue —
+/// [danger] is simply the darkest, so it reads as the strongest signal without
+/// depending on colour vision.
 enum AuthNoticeTone { info, success, danger }
 
 /// The one panel every auth screen uses to say something back to the user.
@@ -31,13 +32,14 @@ class AuthNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final semantic = context.setflowColors;
     final (color, icon) = switch (tone) {
-      AuthNoticeTone.info => (semantic.info, SetflowIcons.mailSent),
-      AuthNoticeTone.success => (semantic.success, SetflowIcons.success),
+      AuthNoticeTone.info => (SetflowColors.ink, SetflowIcons.mailSent),
+      AuthNoticeTone.success => (SetflowColors.ink, SetflowIcons.success),
       AuthNoticeTone.danger => (SetflowColors.red, SetflowIcons.error),
     };
-    final onPanel = theme.colorScheme.onSurface;
+    final onPanel = theme.brightness == Brightness.dark
+        ? theme.colorScheme.onSurface
+        : color;
 
     return Semantics(
       liveRegion: true,

@@ -238,8 +238,8 @@ class _RecordActionSheet extends StatelessWidget {
           FractionalTranslation(translation: Offset(0, value), child: child),
       child: Material(
         color: theme.scaffoldBackgroundColor,
-        // Flat on purpose: the hairline separates the sheet without casting a
-        // shadow onto the bar's transparent riser.
+        // Flat on purpose: a monochrome sheet separates with a hairline, and a
+        // drop shadow here would smear onto the bar's transparent riser.
         shape: RoundedRectangleBorder(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           side: BorderSide(color: theme.colorScheme.outlineVariant),

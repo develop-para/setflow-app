@@ -5820,7 +5820,7 @@ class _SettlementPageState extends State<SettlementPage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: admin ? SetflowColors.ink : const Color(0xFF5635A5),
+              color: admin ? SetflowColors.ink : const Color(0xFF52525B),
               borderRadius: BorderRadius.circular(24),
             ),
             child: Column(
@@ -6143,7 +6143,7 @@ class _SettlementPageState extends State<SettlementPage> {
               decoration: BoxDecoration(
                 color: role == UserRole.admin
                     ? SetflowColors.ink
-                    : const Color(0xFF5635A5),
+                    : const Color(0xFF52525B),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Column(
