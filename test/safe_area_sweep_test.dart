@@ -2,7 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/data/business_repository.dart';
+import 'package:setflow/screens/admin_content_screens.dart';
 import 'package:setflow/screens/admin_system_screens.dart';
+import 'package:setflow/screens/business_detail_screens.dart';
+import 'package:setflow/screens/business_routine_flow_screens.dart';
+import 'package:setflow/screens/consultation_retarget_screen.dart';
+import 'package:setflow/screens/email_auth_screen.dart';
+import 'package:setflow/screens/member_detail_screens.dart';
+import 'package:setflow/screens/member_goal_screen.dart';
+import 'package:setflow/screens/member_social_detail_screens.dart';
+import 'package:setflow/screens/password_screens.dart';
+import 'package:setflow/screens/recommendation_profile_screen.dart';
+import 'package:setflow/screens/routine_editor_screen.dart';
+import 'package:setflow/screens/stats_detail_screens.dart';
+import 'package:setflow/screens/welcome_screen.dart';
+import 'package:setflow/screens/workspace_screen.dart';
 import 'package:setflow/screens/business_screens.dart';
 import 'package:setflow/screens/business_settings_screens.dart';
 import 'package:setflow/screens/detail_screens.dart';
@@ -231,6 +246,104 @@ void main() {
     final broken = <String>[];
     for (final entry in screens.entries) {
       await pumpScreen(tester, entry.value);
+      final error = tester.takeException();
+      // A layout overflow is as real a break as an unreachable button: it means
+      // content the screen cannot show. Attribute it to the screen that threw.
+      if (error != null) broken.add('${entry.key}: $error');
+      final result = sweep(tester);
+      inspected += result.inspected;
+      for (final offender in result.offenders) {
+        broken.add('${entry.key}: $offender');
+      }
+    }
+    expect(broken, isEmpty, reason: '이 화면들의 버튼이 시스템 바에 가린다');
+    expect(inspected, greaterThan(0), reason: '스윕이 고정 버튼을 하나도 보지 못했다');
+  });
+
+  testWidgets('screens built from real data keep their buttons reachable', (
+    tester,
+  ) async {
+    // These take arguments, so they can only be swept with something real in
+    // hand. The demo state carries routines, posts and consultations; a gym
+    // member is the one shape it has none of, so it is built here.
+    final fixtures = AppState();
+    await fixtures.initialize();
+    addTearDown(fixtures.dispose);
+    final date = DateTime(2026, 11, 1);
+    fixtures.addExercise(date, fixtures.exercises.first);
+
+    final routine = fixtures.routines.first;
+    final post = fixtures.communityPosts.first;
+    final consultation = fixtures.consultations.first;
+    final exercise =
+        fixtures.sessions[fixtures.dateOnly(date)]!.exercises.first;
+    const member = BusinessMember(
+      id: 'm-1',
+      gymId: 'g-1',
+      name: '박소현',
+      remainingPtSessions: 7,
+      goal: '체지방 감량',
+      level: '중급',
+    );
+
+    final screens = <String, Widget>{
+      'RoutineStatsPage': RoutineStatsPage(routine: routine),
+      'RoutineEditorScreen': RoutineEditorScreen(routine: routine),
+      'ExpertRoutineDetailScreen': ExpertRoutineDetailScreen(routine: routine),
+      'CommunityPostDetailScreen': CommunityPostDetailScreen(post: post),
+      'ConsultationDetailScreen': ConsultationDetailScreen(
+        consultation: consultation,
+      ),
+      'ExerciseSetScreen': ExerciseSetScreen(date: date, exercise: exercise),
+      'MemberDetailScreen': const MemberDetailScreen(
+        member: member,
+        role: UserRole.trainer,
+      ),
+      'BusinessRoutineEditorScreen': const BusinessRoutineEditorScreen(
+        ownerRole: UserRole.trainer,
+      ),
+      'TrainerPerformancePage': const TrainerPerformancePage(
+        name: '김동현',
+        membersLabel: '담당 24명',
+        feedbackRate: '92%',
+        rating: 4.8,
+        monthlySales: 4200000,
+        accentColor: SetflowColors.ink,
+      ),
+      'WorkspaceScreen': const WorkspaceScreen(role: UserRole.trainer),
+      'ConsultationRetargetScreen': const ConsultationRetargetScreen(
+        role: UserRole.trainer,
+      ),
+      'BusinessSetupScreen': const BusinessSetupScreen(role: UserRole.trainer),
+      'MemberGoalScreen': const MemberGoalScreen(),
+      'RecommendationProfileScreen': const RecommendationProfileScreen(),
+      'WelcomeScreen': const WelcomeScreen(),
+      'EmailAuthScreen': const EmailAuthScreen(),
+      'PasswordResetRequestScreen': const PasswordResetRequestScreen(),
+      'NewPasswordScreen': const NewPasswordScreen(),
+      'AdminContentRoutinesScreen': const AdminContentRoutinesScreen(),
+      'AdminContentReportsScreen': const AdminContentReportsScreen(),
+      'AdminUserSanctionHistoryScreen': const AdminUserSanctionHistoryScreen(),
+      'AdminContentMinorAlertsScreen': const AdminContentMinorAlertsScreen(),
+      for (final section in SettingSection.values)
+        'SettingDetailScreen.${section.name}': SettingDetailScreen(
+          section: section,
+        ),
+      for (final tool in BusinessTool.values)
+        'BusinessToolScreen.${tool.name}': BusinessToolScreen(
+          tool: tool,
+          role: UserRole.trainer,
+        ),
+    };
+
+    var inspected = 0;
+    final broken = <String>[];
+    for (final entry in screens.entries) {
+      await pumpScreen(tester, entry.value);
+      final error = tester.takeException();
+      // A layout overflow is as real a break as an unreachable button: it means
+      // content the screen cannot show. Attribute it to the screen that threw.
+      if (error != null) broken.add('${entry.key}: $error');
       final result = sweep(tester);
       inspected += result.inspected;
       for (final offender in result.offenders) {

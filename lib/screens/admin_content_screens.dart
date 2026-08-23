@@ -1164,32 +1164,44 @@ class _AdminContentMinorAlertsScreenState
                                     ),
                                   ),
                                   const SizedBox(width: SetflowSpacing.xs),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: SetflowSpacing.sm,
-                                      vertical: SetflowSpacing.xs,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: context
-                                          .setflowColors
-                                          .surfaceContainerHigh,
-                                      borderRadius: BorderRadius.circular(
-                                        SetflowRadii.xs,
+                                  // The severity chip and the timestamp both
+                                  // keep their size, so the type label is what
+                                  // has to give on a narrow phone — without
+                                  // this the row overran the card by 78px.
+                                  Flexible(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: SetflowSpacing.sm,
+                                        vertical: SetflowSpacing.xs,
                                       ),
-                                    ),
-                                    child: Text(
-                                      item.type,
-                                      style: text.bodySmall?.copyWith(
-                                        fontWeight: FontWeight.w900,
-                                        color: colors.onSurfaceVariant,
+                                      decoration: BoxDecoration(
+                                        color: context
+                                            .setflowColors
+                                            .surfaceContainerHigh,
+                                        borderRadius: BorderRadius.circular(
+                                          SetflowRadii.xs,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        item.type,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: text.bodySmall?.copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          color: colors.onSurfaceVariant,
+                                        ),
                                       ),
                                     ),
                                   ),
                                   const Spacer(),
-                                  Text(
-                                    item.detectedAt,
-                                    style: text.labelMedium?.copyWith(
-                                      color: context.setflowColors.disabled,
+                                  Flexible(
+                                    child: Text(
+                                      item.detectedAt,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: text.labelMedium?.copyWith(
+                                        color: context.setflowColors.disabled,
+                                      ),
                                     ),
                                   ),
                                 ],
