@@ -52,7 +52,7 @@ class PortalSwitcher extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: dark ? SetflowNeutral.n800 : SetflowNeutral.n100,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(SetflowRadii.full),
         ),
         child: Padding(
           padding: const EdgeInsets.all(4),
@@ -70,7 +70,7 @@ class PortalSwitcher extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: dark ? SetflowNeutral.n900 : SetflowColors.surface,
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(SetflowRadii.full),
                       boxShadow: dark ? null : SetflowShadows.level1,
                     ),
                   ),
@@ -152,7 +152,7 @@ class _PortalSegment extends StatelessWidget {
       label: '$semanticLabel 포탈',
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SetflowRadii.full),
         // Selection has to read without colour, so it rides the outline ->
         // filled swap on top of the sliding pill.
         child: Center(

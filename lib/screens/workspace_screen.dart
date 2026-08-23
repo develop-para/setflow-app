@@ -655,7 +655,7 @@ class _ProgressEntry extends StatelessWidget {
       LinearProgressIndicator(
         value: value,
         minHeight: 8,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(SetflowRadii.xs),
         color: color,
         backgroundColor: color.withValues(alpha: .12),
       ),

@@ -135,6 +135,10 @@ if (!context.mounted) return;
 - **페이지 좌우 여백은 어디서나 `SetflowSpacing.gutter`(18)다.** 화면마다 다르면 탭을 옮길 때
   본문이 좌우로 흔들린다. 페이지 스크롤에는 `SetflowInsets.*` 프리셋을 쓸 것 — 위아래 여유만
   다르고 좌우는 전부 같다. `test/page_margin_test.dart`가 화면에서 실측한다.
+- **모서리 반경은 `SetflowRadii`에서 고른다.** 16과 14, 20과 18이 섞이면 카드마다 모서리가
+  미묘하게 달라 보인다.
+- **화면에 hex를 박지 말 것.** `SetflowColors` / `SetflowNeutral`에서 고르고, 테마 따라
+  뒤집히는 면 위에서는 `context.setflowColors`를 쓴다. 셋 다 아키텍처 규칙이 강제한다.
 - **화면 헤더는 `AppBar`다.** 뒤로가기·제목·액션을 직접 그리지 말 것 — 테마가 정한 타이포와
   자동 뒤로가기를 잃는다. (섹션 제목·요약 카드는 헤더가 아니라 본문 요소다.)
 - **간격은 `SizedBox(height:)`든 `EdgeInsets`든 같은 그리드다.** 숫자 대신 `SetflowSpacing`을 쓸 것.

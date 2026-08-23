@@ -47,7 +47,7 @@ class KineticLabel extends StatelessWidget {
           margin: const EdgeInsets.only(right: SetflowSpacing.sm),
           decoration: BoxDecoration(
             color: tickColor ?? theme.colorScheme.primary,
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(SetflowRadii.xs),
           ),
         ),
         label,
@@ -104,7 +104,7 @@ class KineticStatBlock extends StatelessWidget {
     };
     final deltaColor = style == KineticStatStyle.brand
         ? SetflowColors.ink
-        : (deltaUp ? const Color(0xFFD4D4D8) : const Color(0xFF8A8A93));
+        : (deltaUp ? SetflowNeutral.n300 : SetflowNeutral.n500);
 
     return Material(
       color: bg,
@@ -357,9 +357,7 @@ class TrainingHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     const yellow = SetflowColors.primary;
-    final deltaColor = deltaUp
-        ? const Color(0xFFD4D4D8)
-        : const Color(0xFF8A8A93);
+    final deltaColor = deltaUp ? SetflowNeutral.n300 : SetflowNeutral.n500;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(SetflowRadii.xl),
@@ -368,7 +366,7 @@ class TrainingHeroCard extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1C1C1F), Color(0xFF0B0B0C)],
+            colors: [SetflowColors.inkBlockTop, SetflowColors.inkBlockBottom],
           ),
         ),
         child: Stack(

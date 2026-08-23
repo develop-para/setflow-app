@@ -433,7 +433,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               height: 64,
               decoration: BoxDecoration(
                 color: SetflowColors.purple.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
               child: const Icon(Icons.apartment, color: SetflowColors.purple),
             ),
@@ -569,7 +569,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: SetflowColors.soft,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(SetflowRadii.md),
             ),
             child: Row(
               children: [
@@ -633,7 +633,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             height: 64,
             decoration: BoxDecoration(
               color: SetflowColors.purple.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(SetflowRadii.lg),
             ),
             child: const Icon(
               Icons.account_balance_rounded,
@@ -690,7 +690,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: SetflowColors.soft,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(SetflowRadii.md),
               ),
               child: Row(
                 children: [
@@ -720,7 +720,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: SetflowColors.green.withValues(alpha: .1),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(SetflowRadii.md),
                 border: Border.all(
                   color: SetflowColors.green.withValues(alpha: .25),
                 ),
@@ -871,7 +871,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               height: 64,
               decoration: BoxDecoration(
                 color: SetflowColors.blue.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
               child: const Icon(
                 Icons.fitness_center,
@@ -1046,7 +1046,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: SetflowColors.soft,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(SetflowRadii.md),
             ),
             child: Row(
               children: [
@@ -1128,7 +1128,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: SetflowColors.soft,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(SetflowRadii.lg),
             ),
             child: live
                 ? const Column(
@@ -1192,7 +1192,9 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                                   color: SetflowColors.red,
                                 ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(18),
+                                  borderRadius: BorderRadius.circular(
+                                    SetflowRadii.lg,
+                                  ),
                                 ),
                               ),
                               child: const Text('심사 반려'),
@@ -1248,7 +1250,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: SetflowColors.red.withValues(alpha: .06),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(SetflowRadii.md),
               border: Border.all(
                 color: SetflowColors.red.withValues(alpha: .2),
               ),

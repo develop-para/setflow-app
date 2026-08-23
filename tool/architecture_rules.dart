@@ -148,6 +148,28 @@ final architectureRules = <ArchitectureRule>[
         '정말 홀수여야 하는 자리라면 tokens.dart에 이름을 붙여 추가하고 allow에 파일을 넣는다.',
   ),
   ArchitectureRule(
+    name: '모서리 반경은 사다리에서만 고른다',
+    pattern: RegExp(r'BorderRadius\.circular\(\s*[0-9]'),
+    searchIn: const ['lib'],
+    allow: const ['lib/theme/tokens.dart'],
+    why:
+        '반경이 76군데에 숫자로 박혀 있었고 서로 다른 값이 17종이었다. 16과 14, 17과 18, '
+        '20과 18이 한 화면 안에 섞이면 카드마다 모서리가 미묘하게 달라 보인다.',
+    instead: 'SetflowRadii(xs·sm·md·lg·xl·full)에서 고를 것.',
+  ),
+  ArchitectureRule(
+    name: '색은 토큰에서만 꺼낸다',
+    pattern: RegExp(r'Color\(0x'),
+    searchIn: const ['lib/screens', 'lib/widgets'],
+    allow: const [],
+    why:
+        '화면에 hex가 박히면 그 값이 무엇을 뜻하는지 아무도 모르고, 라이트·다크 어느 쪽을 '
+        '위한 값인지도 남지 않는다. 실제로 이미 SetflowNeutral에 있는 값을 다시 적은 곳이 있었다.',
+    instead:
+        'SetflowColors / SetflowNeutral에서 고를 것. 테마 따라 뒤집히는 면 위에서는 '
+        'context.setflowColors를 쓴다. 정말 새 값이면 tokens.dart에 이름을 붙여 추가한다.',
+  ),
+  ArchitectureRule(
     name: '엣지 펑션 호출은 의도적으로만 늘린다',
     pattern: RegExp(r'functions\s*\.\s*invoke'),
     searchIn: const ['lib'],

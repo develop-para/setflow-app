@@ -56,7 +56,7 @@ class AdminSystemScreen extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     color: item.$2.withValues(alpha: .15),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(SetflowRadii.md),
                   ),
                   child: Icon(item.$1, color: item.$2),
                 ),
@@ -330,7 +330,7 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                         height: 44,
                         decoration: BoxDecoration(
                           color: SetflowColors.teal.withValues(alpha: .15),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(SetflowRadii.md),
                         ),
                         child: const Icon(
                           Icons.image_search,
@@ -646,7 +646,7 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
                   backgroundColor: SetflowColors.ink,
                   minimumSize: const Size(0, 54),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(SetflowRadii.md),
                   ),
                 ),
                 child: const Text('추가'),
@@ -801,7 +801,9 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: _logColor(log.$2).withValues(alpha: .12),
-                              borderRadius: BorderRadius.circular(7),
+                              borderRadius: BorderRadius.circular(
+                                SetflowRadii.xs,
+                              ),
                             ),
                             child: Text(
                               log.$2,

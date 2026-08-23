@@ -125,7 +125,7 @@ class _ConsultationRetargetScreenState
                 ),
                 const SizedBox(height: SetflowSpacing.sm),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(SetflowRadii.xs),
                   child: LinearProgressIndicator(
                     value: _quotaUsed / _quotaTotal,
                     minHeight: 8,
@@ -210,7 +210,9 @@ class _ConsultationRetargetScreenState
                                       color: SetflowColors.red.withValues(
                                         alpha: .12,
                                       ),
-                                      borderRadius: BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(
+                                        SetflowRadii.xs,
+                                      ),
                                     ),
                                     child: const Text(
                                       '수신 거부',

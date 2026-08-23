@@ -148,7 +148,7 @@ class _MemberShellState extends State<MemberShell> {
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: _closeRecordSheet,
-                  child: const ColoredBox(color: Color(0x59000000)),
+                  child: const ColoredBox(color: SetflowColors.scrim),
                 ),
               ),
               Align(
@@ -258,7 +258,7 @@ class _RecordActionSheet extends StatelessWidget {
               height: 4,
               decoration: BoxDecoration(
                 color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(SetflowRadii.xs),
               ),
             ),
             const SizedBox(height: SetflowSpacing.lg),
@@ -1250,7 +1250,9 @@ class _CalendarCell extends StatelessWidget {
                           // 한 칸에서 색을 쓰는 곳은 여기 하나다. 다 끝낸 날은
                           // 성공색으로 꽉 차고, 하다 만 날은 브랜드가 그만큼만 찬다.
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.xs,
+                            ),
                             child: LinearProgressIndicator(
                               value: completion.clamp(0, 1).toDouble(),
                               minHeight: 3,
@@ -1473,7 +1475,9 @@ class RoutinesScreen extends StatelessWidget {
                           height: 42,
                           decoration: BoxDecoration(
                             color: routine.color,
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.xs,
+                            ),
                           ),
                         ),
                         const SizedBox(width: SetflowSpacing.md),
@@ -1643,7 +1647,7 @@ class RoutinesScreen extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
             ),
           ),
@@ -1861,7 +1865,7 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: SetflowColors.green.withValues(alpha: .11),
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(SetflowRadii.full),
                 ),
                 child: const Text(
                   '새 루틴',
@@ -2256,7 +2260,9 @@ class _MarketScreenState extends State<MarketScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: routine.color,
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(
+                                  SetflowRadii.xs,
+                                ),
                               ),
                               child: Text(
                                 routine.level,
@@ -2347,7 +2353,7 @@ class _RoutineAccessBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(SetflowRadii.full),
           border: Border.all(color: color.withValues(alpha: .32)),
         ),
         child: Row(
@@ -2493,7 +2499,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                 color: post.imageUrl == null
                                     ? Colors.transparent
                                     : Colors.black54,
-                                borderRadius: BorderRadius.circular(5),
+                                borderRadius: BorderRadius.circular(
+                                  SetflowRadii.xs,
+                                ),
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -2592,7 +2600,7 @@ class CoachingScreen extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: SetflowColors.primary.withValues(alpha: .18),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(SetflowRadii.xl),
             ),
             child: const Row(
               children: [
@@ -2792,7 +2800,7 @@ class CoachingScreen extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
             ),
           ),
@@ -3352,7 +3360,9 @@ class DashboardScreen extends StatelessWidget {
                                           : SetflowColors.teal.withValues(
                                               alpha: .7,
                                             ),
-                                      borderRadius: BorderRadius.circular(7),
+                                      borderRadius: BorderRadius.circular(
+                                        SetflowRadii.xs,
+                                      ),
                                     ),
                                   ),
                                 ),

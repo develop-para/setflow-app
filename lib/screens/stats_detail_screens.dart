@@ -36,7 +36,7 @@ class RoutineStatsPage extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     color: routine.color,
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(SetflowRadii.xs),
                   ),
                 ),
                 const SizedBox(width: SetflowSpacing.md),
@@ -308,7 +308,7 @@ class TrainerPerformancePage extends StatelessWidget {
                 LinearProgressIndicator(
                   value: _feedbackValue.clamp(0, 1),
                   minHeight: 8,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(SetflowRadii.xs),
                   color: accentColor,
                   backgroundColor: accentColor.withValues(alpha: .12),
                 ),
@@ -354,7 +354,7 @@ class _TrendChart extends StatelessWidget {
                       height: 84 * values[i] / maxValue,
                       decoration: BoxDecoration(
                         color: color.withValues(alpha: .75),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(SetflowRadii.xs),
                       ),
                     ),
                     const SizedBox(height: SetflowSpacing.xs2),

@@ -796,7 +796,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: _reportColor(item.$1).withValues(alpha: .12),
-                      borderRadius: BorderRadius.circular(7),
+                      borderRadius: BorderRadius.circular(SetflowRadii.xs),
                     ),
                     child: Text(
                       item.$1,

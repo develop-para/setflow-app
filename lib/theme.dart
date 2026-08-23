@@ -312,7 +312,9 @@ abstract final class SetflowTheme {
       // Branded styles for stock widgets so nothing renders with raw
       // Material defaults ("system design").
       checkboxTheme: CheckboxThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SetflowRadii.xs),
+        ),
         side: BorderSide(color: scheme.outline, width: 1.6),
         fillColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)

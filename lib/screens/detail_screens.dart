@@ -106,7 +106,9 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                                 color: i == entries.length - 1
                                     ? SetflowColors.primary
                                     : SetflowColors.teal.withValues(alpha: .55),
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(
+                                  SetflowRadii.sm,
+                                ),
                               ),
                             ),
                             const SizedBox(height: SetflowSpacing.sm),
@@ -270,12 +272,12 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
           InkWell(
             onTap: () =>
                 showMessage(context, '기기 사진 선택기는 네이티브 권한 연결 후 활성화됩니다.'),
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(SetflowRadii.xl),
             child: Container(
               height: 220,
               decoration: BoxDecoration(
                 color: SetflowColors.soft,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(SetflowRadii.xl),
                 border: Border.all(color: Theme.of(context).dividerColor),
               ),
               child: const Column(
@@ -457,7 +459,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: SetflowColors.green.withValues(alpha: .1),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
               child: const Row(
                 children: [
@@ -561,7 +563,7 @@ class _MessageBubble extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: mine ? SetflowColors.primary : SetflowColors.soft,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
       ),
       child: Text(
         text,

@@ -1960,7 +1960,7 @@ class _PeoplePageState extends State<PeoplePage> {
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(SetflowRadii.md),
                       ),
                     ),
                   ),
@@ -1981,7 +1981,9 @@ class _PeoplePageState extends State<PeoplePage> {
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.md,
+                            ),
                           ),
                         ),
                       ),
@@ -2005,7 +2007,7 @@ class _PeoplePageState extends State<PeoplePage> {
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(SetflowRadii.md),
                         ),
                       ),
                     ),
@@ -2051,7 +2053,9 @@ class _PeoplePageState extends State<PeoplePage> {
                           foregroundColor: Theme.of(context).colorScheme.error,
                           minimumSize: const Size.fromHeight(48),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.md,
+                            ),
                           ),
                         ),
                       ),
@@ -2790,7 +2794,7 @@ class _RoutineShareCountBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: .1),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(SetflowRadii.full),
       ),
       child: Text(
         label,
@@ -3193,7 +3197,9 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                       height: 44,
                                       decoration: BoxDecoration(
                                         color: routine.color,
-                                        borderRadius: BorderRadius.circular(5),
+                                        borderRadius: BorderRadius.circular(
+                                          SetflowRadii.xs,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: SetflowSpacing.md),
@@ -5421,7 +5427,9 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                             ? SetflowColors.blue
                                             : SetflowColors.purple)
                                         .withValues(alpha: .12),
-                                borderRadius: BorderRadius.circular(7),
+                                borderRadius: BorderRadius.circular(
+                                  SetflowRadii.xs,
+                                ),
                               ),
                               child: Text(
                                 item.$1,
@@ -5833,8 +5841,8 @@ class _SettlementPageState extends State<SettlementPage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: admin ? SetflowColors.ink : const Color(0xFF52525B),
-              borderRadius: BorderRadius.circular(24),
+              color: admin ? SetflowColors.ink : SetflowNeutral.n700,
+              borderRadius: BorderRadius.circular(SetflowRadii.xl),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6159,8 +6167,8 @@ class _SettlementPageState extends State<SettlementPage> {
               decoration: BoxDecoration(
                 color: role == UserRole.admin
                     ? SetflowColors.ink
-                    : const Color(0xFF52525B),
-                borderRadius: BorderRadius.circular(24),
+                    : SetflowNeutral.n700,
+                borderRadius: BorderRadius.circular(SetflowRadii.xl),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -6502,7 +6510,7 @@ class _ProgressRow extends StatelessWidget {
       LinearProgressIndicator(
         value: value,
         minHeight: 8,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(SetflowRadii.xs),
         color: color,
         backgroundColor: color.withValues(alpha: .12),
       ),

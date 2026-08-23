@@ -832,7 +832,7 @@ class _MemberCalendarCell extends StatelessWidget {
       padding: const EdgeInsets.all(2),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(SetflowRadii.sm),
           border: isToday
               ? Border.all(color: SetflowColors.primary, width: 1.4)
               : null,
@@ -898,7 +898,7 @@ class _MemberRoutineTab extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     color: routine.color,
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(SetflowRadii.xs),
                   ),
                 ),
                 const SizedBox(width: SetflowSpacing.md),

@@ -442,7 +442,7 @@ class _RecommendationProfileScreenState
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: SetflowColors.red.withValues(alpha: .09),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(SetflowRadii.md),
               ),
               child: const Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -410,7 +410,7 @@ class _BusinessInviteBannerState extends State<_BusinessInviteBanner> {
     return Material(
       elevation: 12,
       color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(SetflowRadii.lg),
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.all(SetflowSpacing.md),

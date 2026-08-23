@@ -213,7 +213,7 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                     child: Material(
                       color: Colors.transparent,
                       elevation: 14 * animation.value,
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(SetflowRadii.xl),
                       child: child,
                     ),
                   ),
@@ -723,7 +723,9 @@ class _RoutinePickerSheet extends StatelessWidget {
                           height: 48,
                           decoration: BoxDecoration(
                             color: routine.color,
-                            borderRadius: BorderRadius.circular(5),
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.xs,
+                            ),
                           ),
                         ),
                         const SizedBox(width: SetflowSpacing.md),
@@ -814,7 +816,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                         height: 42,
                         decoration: BoxDecoration(
                           color: SetflowColors.primary.withValues(alpha: .15),
-                          borderRadius: BorderRadius.circular(13),
+                          borderRadius: BorderRadius.circular(SetflowRadii.md),
                         ),
                         child: Icon(
                           exercise.template.icon,
@@ -2561,7 +2563,9 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                                   style: OutlinedButton.styleFrom(
                                     minimumSize: const Size.fromHeight(52),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(
+                                        SetflowRadii.md,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2708,8 +2712,8 @@ const _muscleCategories = <_MuscleCategory>[
   _MuscleCategory('어깨', Icons.accessibility_new_rounded, SetflowColors.teal),
   _MuscleCategory('하체', Icons.directions_walk_rounded, SetflowColors.green),
   _MuscleCategory('팔', Icons.sports_gymnastics_rounded, SetflowColors.orange),
-  _MuscleCategory('복근', Icons.self_improvement_rounded, Color(0xFF71717A)),
-  _MuscleCategory('유산소', Icons.directions_run_rounded, Color(0xFF71717A)),
+  _MuscleCategory('복근', Icons.self_improvement_rounded, SetflowNeutral.n600),
+  _MuscleCategory('유산소', Icons.directions_run_rounded, SetflowNeutral.n600),
 ];
 
 class _MuscleCategoryCard extends StatelessWidget {
@@ -2993,7 +2997,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: SetflowColors.primary.withValues(alpha: .16),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(SetflowRadii.lg),
             ),
             child: Row(
               children: [
@@ -3216,7 +3220,9 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                 value: set.completed,
                                 activeColor: SetflowColors.teal,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(7),
+                                  borderRadius: BorderRadius.circular(
+                                    SetflowRadii.xs,
+                                  ),
                                 ),
                                 onChanged: (_) async {
                                   final prs = set.completed
@@ -3326,7 +3332,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(17),
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
             ),
           ),
@@ -3432,7 +3438,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(52),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(17),
+                borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
             ),
           ),
@@ -3789,14 +3795,14 @@ class _NumberStepper extends StatelessWidget {
         color: Theme.of(context).brightness == Brightness.dark
             ? Colors.white10
             : SetflowColors.soft,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(SetflowRadii.sm),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           InkWell(
             onTap: onMinus,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(SetflowRadii.xs),
             child: const Padding(
               padding: EdgeInsets.all(6),
               child: Icon(Icons.remove, size: 15),
@@ -3831,7 +3837,7 @@ class _NumberStepper extends StatelessWidget {
           ),
           InkWell(
             onTap: onPlus,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(SetflowRadii.xs),
             child: const Padding(
               padding: EdgeInsets.all(6),
               child: Icon(Icons.add, size: 15),

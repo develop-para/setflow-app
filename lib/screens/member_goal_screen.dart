@@ -155,7 +155,9 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                                 color: SetflowColors.orange.withValues(
                                   alpha: .14,
                                 ),
-                                borderRadius: BorderRadius.circular(999),
+                                borderRadius: BorderRadius.circular(
+                                  SetflowRadii.full,
+                                ),
                               ),
                               child: const Text(
                                 '주 목표',

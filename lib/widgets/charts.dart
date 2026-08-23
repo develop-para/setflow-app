@@ -355,7 +355,7 @@ class ContributionGrid extends StatelessWidget {
                             : color.withValues(
                                 alpha: (0.28 + 0.72 * week[d]).clamp(0.0, 1.0),
                               ),
-                        borderRadius: BorderRadius.circular(3),
+                        borderRadius: BorderRadius.circular(SetflowRadii.xs),
                       ),
                     ),
                   ),

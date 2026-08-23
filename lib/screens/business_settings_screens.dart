@@ -297,7 +297,9 @@ class _BusinessSettingsPlanScreenState
                           height: 44,
                           decoration: BoxDecoration(
                             color: plan.tint.withValues(alpha: .15),
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.md,
+                            ),
                           ),
                           child: Icon(
                             Icons.workspace_premium,
@@ -335,7 +337,9 @@ class _BusinessSettingsPlanScreenState
                             ),
                             decoration: BoxDecoration(
                               color: plan.tint,
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(
+                                SetflowRadii.lg,
+                              ),
                             ),
                             child: const Text(
                               '현재 플랜',
@@ -621,7 +625,7 @@ class _BusinessSettingsWithdrawScreenState
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: SetflowColors.red.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(SetflowRadii.xl),
               border: Border.all(
                 color: SetflowColors.red.withValues(alpha: .2),
               ),
@@ -805,7 +809,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: SetflowColors.purple,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(SetflowRadii.xl),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -829,7 +833,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: SetflowColors.red,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(SetflowRadii.lg),
                       ),
                       child: const Text(
                         'D-$_dDay',
@@ -909,7 +913,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                     height: 44,
                     decoration: BoxDecoration(
                       color: SetflowColors.green.withValues(alpha: .12),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(SetflowRadii.md),
                     ),
                     child: const Icon(
                       Icons.description_outlined,
@@ -935,7 +939,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: SetflowColors.primary.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(SetflowRadii.lg),
             ),
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -52,6 +52,13 @@ abstract final class SetflowColors {
   // Every one of these clears 4.5:1 on white; the dark counterparts are in
   // SetflowSemanticColors.dark. Checked by test/theme_contrast_test.dart, which
   // is what keeps a hand-picked hex from quietly failing to be readable.
+  /// 잉크 블록의 그라디언트 양 끝. 통짜 검정이면 판이 죽어 보여서 아주 얕게 기울인다.
+  static const inkBlockTop = Color(0xFF1C1C1F);
+  static const inkBlockBottom = Color(0xFF0B0B0C);
+
+  /// 시트나 오버레이 뒤를 덮는 막. 아래 화면이 비쳐야 하므로 완전 불투명이 아니다.
+  static const scrim = Color(0x59000000);
+
   static const green = Color(0xFF15803D);
   static const red = Color(0xFFDC2626);
   static const warning = Color(0xFFB45309);
