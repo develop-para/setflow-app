@@ -201,9 +201,28 @@ jobs:
           # reports failure, which under set -e killed the shell instantly with
           # no message at all -- three runs died here before this was found.
           APP_ID=$(jq -r '.appId' tool/firebase-distribution.json)
-          TESTER_GROUPS=$(jq -r '.groups' tool/firebase-distribution.json)
+          TESTER_GROUPS=$(jq -r '.groups // empty' tool/firebase-distribution.json)
+          TESTER_EMAILS=$(jq -r '.testers // empty' tool/firebase-distribution.json)
           if [ -z "$APP_ID" ] || [ "$APP_ID" = 'null' ]; then
             echo "::error::appId missing from tool/firebase-distribution.json"
+            exit 1
+          fi
+
+          # Either addressing mode is fine, but one of them has to be set:
+          # firebase uploads the build happily with neither and then nobody is
+          # told about it.
+          # Written as if-blocks, not `[ -n "$X" ] && ...`: under set -e a false
+          # test is the last command on the line, so an unset value would kill
+          # the step silently instead of falling through to the next option.
+          RECIPIENTS=()
+          if [ -n "$TESTER_GROUPS" ]; then
+            RECIPIENTS+=(--groups "$TESTER_GROUPS")
+          fi
+          if [ -n "$TESTER_EMAILS" ]; then
+            RECIPIENTS+=(--testers "$TESTER_EMAILS")
+          fi
+          if [ ${#RECIPIENTS[@]} -eq 0 ]; then
+            echo "::error::tool/firebase-distribution.json sets neither groups nor testers, so this build would reach nobody."
             exit 1
           fi
 
@@ -211,11 +230,31 @@ jobs:
           # any character a commit subject can.
           printf '%s' "$RELEASE_NOTES" > "$RUNNER_TEMP/release-notes.txt"
 
-          firebase appdistribution:distribute \
+          # The upload and the hand-off are separate calls inside one command,
+          # and they fail for different reasons. Uploading proves the app id,
+          # the signing and the service account are all fine; a 404 after that
+          # means the recipient does not exist, which reads as "deploy broken"
+          # unless the log says otherwise.
+          set +e
+          OUTPUT=$(firebase appdistribution:distribute \
             build/app/outputs/flutter-apk/app-release.apk \
             --app "$APP_ID" \
-            --groups "$TESTER_GROUPS" \
-            --release-notes-file "$RUNNER_TEMP/release-notes.txt"
+            "${RECIPIENTS[@]}" \
+            --release-notes-file "$RUNNER_TEMP/release-notes.txt" 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+          if [ $STATUS -ne 0 ] && echo "$OUTPUT" | grep -q 'HTTP Error: 404'; then
+            if [ -n "$TESTER_GROUPS" ]; then
+              WHO="the tester group '$TESTER_GROUPS'"
+              FIX="Create it in the Firebase console (App Distribution -> Testers & Groups) with that exact alias, or set 'groups' in tool/firebase-distribution.json to an alias that exists. 'firebase appdistribution:group:list --project setflow-18eeb' prints them."
+            else
+              WHO="the testers '$TESTER_EMAILS'"
+              FIX="Check the addresses in 'testers' in tool/firebase-distribution.json."
+            fi
+            echo "::error::The build uploaded fine; $WHO was not found. $FIX The release is already in the console, so testers who have access can install it from there."
+          fi
+          exit $STATUS
 
       - name: Tag distributed build
         env:
