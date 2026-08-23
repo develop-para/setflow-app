@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -1374,13 +1375,6 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                     ),
                   ),
                 ),
-                _SetCompletionButton(
-                  key: ValueKey('inline-set-complete-${widget.set.number}'),
-                  setNumber: widget.set.number,
-                  unitLabel: '구간',
-                  completed: widget.set.completed,
-                  onPressed: widget.onToggle,
-                ),
               ],
             ),
             const SizedBox(height: 7),
@@ -1795,12 +1789,6 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                   ),
                 ),
                 const SizedBox(width: 4),
-                _SetCompletionButton(
-                  key: ValueKey('inline-set-complete-${widget.set.number}'),
-                  setNumber: widget.set.number,
-                  completed: widget.set.completed,
-                  onPressed: widget.onToggle,
-                ),
               ],
             ),
             const SizedBox(height: 7),
@@ -1945,11 +1933,13 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     );
   }
 
+  /// Colour marks the set types that are *not* ordinary. A plain set gets the
+  /// neutral label — tinting it too made every row look like it meant something.
   Color _typeColor(String type) => switch (type) {
     '웜업' => SetflowColors.orange,
     '드랍' => SetflowColors.blue,
     '실패' => SetflowColors.red,
-    _ => SetflowColors.teal,
+    _ => SetflowColors.steel,
   };
 }
 
@@ -2018,7 +2008,10 @@ class _SwipeableSetState extends State<_SwipeableSet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final logging = !towardsEnd;
-    final accent = logging ? theme.colorScheme.primary : SetflowColors.red;
+    // The wash is the brand; the glyph on top of it is not. Lime on a lime
+    // wash disappears, which is the same 1.18:1 trap the rule warns about.
+    final fill = logging ? theme.colorScheme.primary : SetflowColors.red;
+    final accent = logging ? theme.colorScheme.onSurface : SetflowColors.red;
     final radius = BorderRadius.circular(SetflowRadii.md);
 
     return ClipRRect(
@@ -2026,45 +2019,69 @@ class _SwipeableSetState extends State<_SwipeableSet> {
       // square corners of the track show through the moment the row starts to
       // travel.
       borderRadius: radius,
-      child: Dismissible(
-        key: ObjectKey(widget.set),
-        direction: widget.enabled
-            ? DismissDirection.horizontal
-            : DismissDirection.endToStart,
-        // Generous on purpose: the row lives inside a vertical scroll, and an
-        // accidental log also starts the rest timer.
-        dismissThresholds: const {
-          DismissDirection.startToEnd: .4,
-          DismissDirection.endToStart: .4,
+      child: Semantics(
+        // The circle is gone, so the gesture is the only way in — and a swipe
+        // is not something assistive tech can perform. This is the way back:
+        // TalkBack and VoiceOver list it as an action on the row itself,
+        // without putting a control on screen.
+        customSemanticsActions: {
+          if (widget.enabled)
+            CustomSemanticsAction(label: widget.set.completed ? '완료 취소' : '완료'):
+                widget.onToggle,
+          CustomSemanticsAction(label: '세트 삭제'): widget.onDelete,
         },
-        onUpdate: (details) {
-          if (details.reached && !details.previousReached) {
-            HapticFeedback.mediumImpact();
-          }
-          setState(() {
-            progress = details.progress;
-            towardsEnd = details.direction == DismissDirection.endToStart;
-          });
-        },
-        background: _track(accent: accent, logging: true),
-        secondaryBackground: _track(accent: SetflowColors.red, logging: false),
-        confirmDismiss: (direction) async {
-          if (direction == DismissDirection.startToEnd) {
-            widget.onToggle();
-          } else {
-            widget.onDelete();
-          }
-          return false;
-        },
-        child: widget.child,
+        child: Dismissible(
+          key: ObjectKey(widget.set),
+          direction: widget.enabled
+              ? DismissDirection.horizontal
+              : DismissDirection.endToStart,
+          // Generous on purpose: the row lives inside a vertical scroll, and an
+          // accidental log also starts the rest timer.
+          dismissThresholds: const {
+            DismissDirection.startToEnd: .4,
+            DismissDirection.endToStart: .4,
+          },
+          onUpdate: (details) {
+            if (details.reached && !details.previousReached) {
+              HapticFeedback.mediumImpact();
+            }
+            setState(() {
+              progress = details.progress;
+              towardsEnd = details.direction == DismissDirection.endToStart;
+            });
+          },
+          background: _track(fill: fill, accent: accent, logging: true),
+          secondaryBackground: _track(
+            fill: SetflowColors.red,
+            accent: SetflowColors.red,
+            logging: false,
+          ),
+          confirmDismiss: (direction) async {
+            if (direction == DismissDirection.startToEnd) {
+              widget.onToggle();
+            } else {
+              widget.onDelete();
+            }
+            return false;
+          },
+          child: widget.child,
+        ),
       ),
     );
   }
 
-  /// The track the row slides over — a fill that deepens with the drag rather
-  /// than a panel that is uncovered, so the gesture reads as "slide to unlock"
-  /// instead of "reveal a menu".
-  Widget _track({required Color accent, required bool logging}) {
+  /// The track the row slides over — a wash that deepens with the drag rather
+  /// than a panel being uncovered, so the gesture reads as "slide to unlock".
+  ///
+  /// The label rides a solid chip, not the wash. Against the wash no foreground
+  /// survives the whole drag in dark: ink needs the wash bright, white needs it
+  /// dim, and the wash passes through both. On the chip the pairing is fixed —
+  /// ink on lime is 16:1 wherever the drag happens to be.
+  Widget _track({
+    required Color fill,
+    required Color accent,
+    required bool logging,
+  }) {
     // Ramped, not linear: the wash should be unmistakable by the time the
     // threshold is near, and barely there for a stray sideways scroll.
     final strength = Curves.easeIn.transform(progress.clamp(0, 1).toDouble());
@@ -2075,32 +2092,42 @@ class _SwipeableSetState extends State<_SwipeableSet> {
         : Icons.delete_outline_rounded;
 
     return ColoredBox(
-      color: accent.withValues(alpha: .06 + .22 * strength),
+      color: fill.withValues(alpha: .10 + .40 * strength),
       child: Align(
         alignment: logging ? Alignment.centerLeft : Alignment.centerRight,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: AnimatedScale(
             // A small kick at the threshold: the row has to say "let go now"
             // without the thumb leaving the glass to look for a label.
-            scale: passed ? 1.12 : 1,
+            scale: passed ? 1.08 : 1,
             duration: SetflowMotion.micro,
             child: Opacity(
-              opacity: (.35 + .65 * strength).clamp(0.0, 1.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 19, color: accent),
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: accent,
+              opacity: (.45 + .55 * strength).clamp(0.0, 1.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: fill,
+                  borderRadius: BorderRadius.circular(SetflowRadii.full),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 17, color: accent),
+                    const SizedBox(width: 5),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: accent,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -2147,7 +2174,9 @@ class _CompletedSetLine extends StatelessWidget {
               Icon(
                 SetflowIcons.setComplete,
                 size: 17,
-                color: theme.colorScheme.primary,
+                // Success, not the brand. Lime is a fill — as a glyph on white
+                // it sits at 1.18:1 and simply is not there.
+                color: context.setflowColors.success,
               ),
               const SizedBox(width: 9),
               Text(
@@ -2171,79 +2200,6 @@ class _CompletedSetLine extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SetCompletionButton extends StatelessWidget {
-  const _SetCompletionButton({
-    required this.setNumber,
-    required this.completed,
-    required this.onPressed,
-    this.unitLabel = '세트',
-    super.key,
-  });
-
-  static const _diameter = 48.0;
-
-  final int setNumber;
-  final String unitLabel;
-  final bool completed;
-
-  /// Null when it is not this set's turn — sets are logged in order.
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final live = onPressed != null;
-    return Semantics(
-      label: '$setNumber$unitLabel 완료',
-      button: true,
-      enabled: live,
-      selected: completed,
-      child: SizedBox.square(
-        dimension: _diameter,
-        child: AnimatedContainer(
-          duration: SetflowMotion.micro,
-          curve: SetflowMotion.standardCurve,
-          decoration: BoxDecoration(
-            // primary flips with the theme (light = black, dark = white), so
-            // the foreground below has to be onPrimary, never a fixed ink.
-            color: completed ? theme.colorScheme.primary : Colors.transparent,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: completed
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant.withValues(
-                      alpha: live ? 1 : .4,
-                    ),
-              width: 1.5,
-            ),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onPressed,
-              child: ExcludeSemantics(
-                child: Center(
-                  child: Icon(
-                    SetflowIcons.setComplete,
-                    size: 22,
-                    color: completed
-                        ? theme.colorScheme.onPrimary
-                        : theme.colorScheme.outline.withValues(
-                            alpha: live ? 1 : .35,
-                          ),
-                  ),
-                ),
-              ),
-            ),
           ),
         ),
       ),

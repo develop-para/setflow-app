@@ -141,22 +141,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('웜업 세트'));
     await tester.pumpAndSettle();
-    final completionButton = find.byKey(
-      const ValueKey('inline-set-complete-1'),
-    );
-    // 원형 체크 하나. 48은 머티리얼 최소 터치 타깃이고, 글자를 뺀 만큼 숫자 박스가 넓어졌다.
-    expect(tester.getSize(completionButton).width, greaterThanOrEqualTo(48));
-    expect(tester.getSize(completionButton).height, greaterThanOrEqualTo(48));
-    expect(
-      tester
-          .getRect(completionButton)
-          .overlaps(
-            tester.getRect(find.byKey(const ValueKey('inline-set-rest-1'))),
-          ),
-      isFalse,
-    );
-    await tester.tap(completionButton);
-    await tester.pump();
+    // 행에 완료 버튼은 없다 — 미는 것이 유일한 조작이고, 행 전체가 그 타깃이다.
+    expect(find.byKey(const ValueKey('inline-set-complete-1')), findsNothing);
+    await _logSet(tester, 1);
 
     expect(exercise.sets.first.weight, 55.5);
     expect(exercise.sets.first.reps, 12);
@@ -279,7 +266,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await _pickInlineValue(tester, 'inline-set-weight-1', '82.5');
-      await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
+      await _logSet(tester, 1);
       await tester.pump();
       await state.flushPersistence();
 
@@ -315,19 +302,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final completionButton = find.byKey(
-      const ValueKey('inline-set-complete-1'),
-    );
-    final restField = find.byType(TextField).at(2);
-    // 세트마다 원형 체크 하나. '완료' 글자는 없앴다 — 행이 곧 세트라 끝낼 게 그것뿐이다.
-    expect(find.byKey(const ValueKey('inline-set-complete-2')), findsOneWidget);
-    expect(find.byKey(const ValueKey('inline-set-complete-3')), findsOneWidget);
-    expect(find.text('완료'), findsNothing);
-    expect(tester.getSize(completionButton), const Size(48, 48));
-    expect(
-      tester.getRect(completionButton).overlaps(tester.getRect(restField)),
-      isFalse,
-    );
+    // 세트 행에는 완료 컨트롤이 하나도 없다. 숫자 박스 세 개가 행을 다 쓰고,
+    // 완료는 미는 것으로만 한다.
+    for (var number = 1; number <= 3; number++) {
+      expect(
+        find.byKey(ValueKey('inline-set-complete-$number')),
+        findsNothing,
+        reason: '$number세트에 아직 완료 버튼이 남아 있다',
+      );
+    }
     expect(tester.takeException(), isNull);
     state.dispose();
   });
@@ -510,8 +493,7 @@ void main() {
     await tester.pumpAndSettle();
 
     for (var number = 1; number <= 3; number++) {
-      await tester.tap(find.byKey(ValueKey('inline-set-complete-$number')));
-      await tester.pump();
+      await _logSet(tester, number);
     }
     await tester.pumpAndSettle();
 
@@ -1285,3 +1267,12 @@ Future<void> _pickInlineValue(
 }
 
 final _headerDate = DateTime(2026, 11, 2);
+
+/// The circle is gone: a set is logged by pushing its row to the right.
+Future<void> _logSet(WidgetTester tester, int number) async {
+  await tester.drag(
+    find.byKey(ValueKey('inline-set-weight-$number')),
+    const Offset(400, 0),
+  );
+  await tester.pumpAndSettle();
+}

@@ -61,8 +61,7 @@ void main() {
     // Open before: the dials are there to be edited.
     expect(find.byKey(const ValueKey('inline-set-weight-1')), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 1);
 
     expect(sets.first.completed, isTrue);
     // Folded, but the numbers stay readable — that is the whole point of
@@ -126,14 +125,46 @@ void main() {
     await settle(tester, state);
   });
 
-  testWidgets('a set out of turn cannot be tapped either', (tester) async {
+  testWidgets('a screen reader can still log a set without the circle', (
+    tester,
+  ) async {
+    // Removing the visible control cannot remove the only non-gesture way in:
+    // a swipe is not something assistive tech can perform, so the action lives
+    // on the row's semantics instead.
     final state = await pumpDay(tester);
     final sets = exerciseOf(state).sets;
 
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-3')));
-    await tester.pumpAndSettle();
+    Set<String> actionsFor(String fieldKey) {
+      final labels = <String>{};
+      final wrappers = tester.widgetList<Semantics>(
+        find.ancestor(
+          of: find.byKey(ValueKey(fieldKey)),
+          matching: find.byType(Semantics),
+        ),
+      );
+      for (final wrapper in wrappers) {
+        final actions = wrapper.properties.customSemanticsActions;
+        if (actions != null) {
+          labels.addAll(
+            actions.keys.map((action) => action.label).whereType<String>(),
+          );
+        }
+      }
+      return labels;
+    }
 
-    expect(sets[2].completed, isFalse, reason: '순서를 건너뛴 세트가 탭으로 완료됐다');
+    expect(
+      actionsFor('inline-set-weight-1'),
+      contains('완료'),
+      reason: '차례인 세트에 완료 액션이 없다 — 스크린리더로 기록할 방법이 사라졌다',
+    );
+    expect(
+      actionsFor('inline-set-weight-3'),
+      isNot(contains('완료')),
+      reason: '차례가 아닌 세트에 완료 액션이 노출된다',
+    );
+    expect(sets.first.completed, isFalse);
+
     await settle(tester, state);
   });
 
@@ -143,18 +174,15 @@ void main() {
     final state = await pumpDay(tester);
     final sets = exerciseOf(state).sets;
 
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 1);
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
 
     // Set 2 is live now; set 3 still is not.
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-3')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 3);
     expect(sets[2].completed, isFalse);
 
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-2')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 2);
     expect(sets[1].completed, isTrue, reason: '차례가 된 세트가 완료되지 않았다');
     await settle(tester, state);
   });
@@ -164,16 +192,14 @@ void main() {
   ) async {
     final state = await pumpDay(tester);
 
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 1);
     expect(state.restRemaining, greaterThan(0), reason: '완료가 휴식을 시작하지 않았다');
 
     await tester.pump(const Duration(seconds: 5));
     final afterFive = state.restRemaining;
 
     // Tapping a set whose turn has not come must not put the clock back.
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-3')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 3);
 
     expect(
       state.restRemaining,
@@ -192,8 +218,7 @@ void main() {
     // Planned ten, got eight.
     state.updateSet(sets.first, reps: 8);
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 1);
 
     expect(sets[1].reps, 8, reason: '2세트가 계획값 10에 머물렀다');
     expect(sets[2].reps, 8, reason: '3세트가 계획값 10에 머물렀다');
@@ -207,8 +232,7 @@ void main() {
 
     state.updateSet(sets.first, reps: 8);
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 1);
     expect(sets[1].reps, 8);
 
     await tester.tap(find.text('되돌리기'));
@@ -228,8 +252,7 @@ void main() {
 
     state.updateSet(sets.first, reps: 12);
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 1);
 
     // The propagation toast sits over the rows and is tap-to-dismiss, so a tap
     // aimed at set 2 while it is up would land on the toast instead. Let it go
@@ -238,11 +261,19 @@ void main() {
     await tester.pumpAndSettle();
 
     // Set 2 is logged as it stands, then set 3 is what set 2 propagates onto.
-    await tester.tap(find.byKey(const ValueKey('inline-set-complete-2')));
-    await tester.pumpAndSettle();
+    await _logSet(tester, 2);
 
     expect(sets.first.reps, 12, reason: '기록된 1세트가 덮어써졌다');
     expect(sets[1].completed, isTrue);
     await settle(tester, state);
   });
+}
+
+/// The circle is gone: a set is logged by pushing its row to the right.
+Future<void> _logSet(WidgetTester tester, int number) async {
+  await tester.drag(
+    find.byKey(ValueKey('inline-set-weight-$number')),
+    const Offset(400, 0),
+  );
+  await tester.pumpAndSettle();
 }

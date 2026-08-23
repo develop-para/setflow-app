@@ -323,8 +323,11 @@ void main() {
       expect(edited.intensityRpe, 6.5);
       expect(state.restRemaining, 0);
 
-      await tester.tap(find.byKey(const ValueKey('inline-set-complete-1')));
-      await tester.pump();
+      await tester.drag(
+        find.byKey(const ValueKey('cardio-duration-1')),
+        const Offset(400, 0),
+      );
+      await tester.pumpAndSettle();
 
       expect(edited.completed, isTrue);
       expect(state.restRemaining, 0);

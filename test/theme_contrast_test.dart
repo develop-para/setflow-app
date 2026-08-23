@@ -102,6 +102,23 @@ void main() {
     );
   });
 
+  test('the brand cannot be a foreground on a light surface', () {
+    // Where the trap actually is. On the dark theme lime reads fine (16.7:1),
+    // which is exactly why "lime as a glyph" looked reasonable while it was
+    // being written — and then the completed tick and the swipe label came out
+    // invisible on the light theme, which is the one people use in a gym.
+    expect(
+      contrast(SetflowColors.brand, SetflowTheme.light.scaffoldBackgroundColor),
+      lessThan(3),
+      reason: '라임을 밝은 면 위 글자색으로 쓸 수 있다는 전제는 틀렸다 — 채우는 색이다',
+    );
+    // What rides on the brand is ink, by a margin that leaves no argument.
+    expect(
+      contrast(SetflowColors.brand, SetflowColors.onBrand),
+      greaterThan(12),
+    );
+  });
+
   test('the brand is not mistaken for a state', () {
     for (final theme in [SetflowTheme.light, SetflowTheme.dark]) {
       final brand = theme.colorScheme.primary.toARGB32();
