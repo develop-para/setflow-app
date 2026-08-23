@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/screens/workout_screens.dart';
 import 'package:setflow/theme.dart';
+import 'package:setflow/widgets/common.dart';
 
 /// Sheets opened with `useSafeArea: true` get `SafeArea(bottom: false)` from
 /// Flutter — the bottom inset is deliberately left to the sheet so its
@@ -53,6 +54,87 @@ void main() {
         )
         .first,
   );
+
+  /// The contract every sheet inherits.
+  ///
+  /// An architecture rule keeps `showModalBottomSheet` inside common.dart, so
+  /// every sheet in the app opens through `showSetflowSheet`. That makes these
+  /// three cases the guarantee for all of them, rather than something each
+  /// sheet has to be driven and measured to prove.
+  Future<Rect> probeSheet(
+    WidgetTester tester, {
+    required Widget Function(Widget probe) wrap,
+    double keyboard = 0,
+  }) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = screen;
+    tester.view.viewPadding = const FakeViewPadding(bottom: navBar);
+    // The keyboard covers the navigation bar's strip, so the OS reports the
+    // padding as consumed while viewPadding still describes the hardware.
+    tester.view.padding = FakeViewPadding(bottom: keyboard > 0 ? 0 : navBar);
+    tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: SetflowTheme.light,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showSetflowSheet<void>(
+                context,
+                builder: (_) => wrap(
+                  const SizedBox(
+                    key: Key('sheet-probe'),
+                    height: 40,
+                    width: double.infinity,
+                  ),
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    return tester.getRect(find.byKey(const Key('sheet-probe')));
+  }
+
+  testWidgets('showSetflowSheet clears the navigation bar for its content', (
+    tester,
+  ) async {
+    final rect = await probeSheet(tester, wrap: (probe) => probe);
+    expect(rect.bottom, safeBottom, reason: '시트 콘텐츠가 내비게이션 바를 비켜서지 않았다');
+  });
+
+  testWidgets('a sheet that wraps itself in SafeArea is not padded twice', (
+    tester,
+  ) async {
+    // Landing on safeBottom rather than safeBottom - navBar is what says the
+    // inner SafeArea found the padding already consumed. Each case gets its own
+    // pump: a second sheet inside one test opens on top of the first's route.
+    final rect = await probeSheet(
+      tester,
+      wrap: (probe) => SafeArea(child: probe),
+    );
+    expect(rect.bottom, safeBottom, reason: '중첩 SafeArea가 여백을 두 번 넣었다');
+  });
+
+  testWidgets('an open keyboard does not stack with the navigation bar', (
+    tester,
+  ) async {
+    // With the keyboard up the helper must add nothing, or the content would
+    // float a navigation bar's height above the keyboard. Clearing the keyboard
+    // itself stays with the sheet's own content, via viewInsets.
+    final rect = await probeSheet(
+      tester,
+      wrap: (probe) => probe,
+      keyboard: 300,
+    );
+    expect(rect.bottom, 852.0);
+  });
 
   testWidgets('the number dial keeps 적용 above the navigation bar', (
     tester,

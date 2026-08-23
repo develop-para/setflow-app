@@ -70,9 +70,17 @@ void main() {
     final found = <String>[];
     var inspected = 0;
 
+    // Text fields count too: one pinned under the navigation bar cannot be
+    // focused, and on the sheets that carry a "직접 입력" box that is the whole
+    // point of the sheet.
     for (final element
         in find
-            .byWidgetPredicate((w) => w is ButtonStyleButton || w is IconButton)
+            .byWidgetPredicate(
+              (w) =>
+                  w is ButtonStyleButton ||
+                  w is IconButton ||
+                  w is EditableText,
+            )
             .evaluate()) {
       final box = element.renderObject;
       if (box is! RenderBox || !box.hasSize || !box.attached) continue;
