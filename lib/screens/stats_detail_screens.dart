@@ -47,14 +47,14 @@ class RoutineStatsPage extends StatelessWidget {
                       Text(
                         routine.name,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: SetflowFontSize.title,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                       Text(
                         '${routine.author} · ${routine.level}',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: SetflowFontSize.small,
                           color: SetflowColors.secondaryText,
                         ),
                       ),
@@ -129,7 +129,7 @@ class RoutineStatsPage extends StatelessWidget {
                 Text(
                   '#$_ranking',
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: SetflowFontSize.titleLarge,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -192,7 +192,7 @@ class TrainerPerformancePage extends StatelessWidget {
                   child: Text(
                     name.characters.first,
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: SetflowFontSize.titleLarge,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -205,14 +205,14 @@ class TrainerPerformancePage extends StatelessWidget {
                       Text(
                         name,
                         style: const TextStyle(
-                          fontSize: 17,
+                          fontSize: SetflowFontSize.titleLarge,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                       Text(
                         liveData ? '센터 운영 데이터' : '소속 코치 성과 리포트',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: SetflowFontSize.small,
                           color: SetflowColors.secondaryText,
                         ),
                       ),
@@ -229,7 +229,7 @@ class TrainerPerformancePage extends StatelessWidget {
                     Text(
                       '$rating',
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: SetflowFontSize.caption,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -361,7 +361,7 @@ class _TrendChart extends StatelessWidget {
                     Text(
                       '${i + 1}',
                       style: const TextStyle(
-                        fontSize: 10,
+                        fontSize: SetflowFontSize.tiny,
                         color: SetflowColors.secondaryText,
                       ),
                     ),

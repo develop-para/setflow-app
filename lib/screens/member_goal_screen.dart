@@ -106,7 +106,10 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
         children: [
           const Text(
             '어떤 목표로 운동하시나요?',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: SetflowFontSize.headlineLarge,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -124,7 +127,10 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                     : null,
                 child: Row(
                   children: [
-                    Text(option.$1, style: const TextStyle(fontSize: 26)),
+                    Text(
+                      option.$1,
+                      style: const TextStyle(fontSize: SetflowFontSize.display),
+                    ),
                     const SizedBox(width: 13),
                     Expanded(
                       child: Column(
@@ -133,7 +139,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                           Text(
                             option.$2,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: SetflowFontSize.title,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -154,7 +160,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                               child: const Text(
                                 '주 목표',
                                 style: TextStyle(
-                                  fontSize: 9,
+                                  fontSize: SetflowFontSize.micro,
                                   color: SetflowColors.orange,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -165,7 +171,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                           Text(
                             option.$3,
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: SetflowFontSize.small,
                               color: SetflowColors.secondaryText,
                             ),
                           ),

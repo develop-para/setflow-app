@@ -740,7 +740,10 @@ class _BusinessNotificationSheet extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     '알림',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                    style: TextStyle(
+                      fontSize: SetflowFontSize.headlineLarge,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 if (notifications.isNotEmpty)
@@ -903,14 +906,17 @@ class TrainerHome extends StatelessWidget {
               SizedBox(height: 20),
               Text(
                 '이번 달 예상 수익',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: SetflowFontSize.caption,
+                ),
               ),
               SizedBox(height: 4),
               Text(
                 facts['revenue'] ?? '0원',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 28,
+                  fontSize: SetflowFontSize.display,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -919,7 +925,7 @@ class TrainerHome extends StatelessWidget {
                 facts['revenueChange'] ?? '비교 데이터 없음',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 12,
+                  fontSize: SetflowFontSize.caption,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1068,14 +1074,17 @@ class GymHome extends StatelessWidget {
                   children: [
                     const Text(
                       '사업자 인증 완료',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: SetflowFontSize.caption,
+                      ),
                     ),
                     SizedBox(height: 3),
                     Text(
                       facts['plan'] ?? '기본 플랜',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
+                        fontSize: SetflowFontSize.headline,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1774,7 +1783,7 @@ class _PeoplePageState extends State<PeoplePage> {
                                     Text(
                                       person.$1,
                                       style: const TextStyle(
-                                        fontSize: 16,
+                                        fontSize: SetflowFontSize.title,
                                         fontWeight: FontWeight.w900,
                                       ),
                                     ),
@@ -1901,7 +1910,7 @@ class _PeoplePageState extends State<PeoplePage> {
                         child: Text(
                           person.$1.characters.first,
                           style: const TextStyle(
-                            fontSize: 22,
+                            fontSize: SetflowFontSize.headlineLarge,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -1914,7 +1923,7 @@ class _PeoplePageState extends State<PeoplePage> {
                             Text(
                               person.$1,
                               style: const TextStyle(
-                                fontSize: 22,
+                                fontSize: SetflowFontSize.headlineLarge,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -2530,7 +2539,10 @@ class _GymBusinessInviteSheetState extends State<_GymBusinessInviteSheet> {
           const SizedBox(height: SetflowSpacing.md),
           const Text(
             '링크 유효기간 7일 · 링크는 한 계정만 사용할 수 있어요.',
-            style: TextStyle(color: SetflowColors.secondaryText, fontSize: 12),
+            style: TextStyle(
+              color: SetflowColors.secondaryText,
+              fontSize: SetflowFontSize.caption,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.xl),
           AppButton(
@@ -2739,7 +2751,10 @@ class _RoutineShareStatusSummary extends StatelessWidget {
               const Expanded(
                 child: Text(
                   '회원 전송 현황',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.caption,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
               if (accepted > 0)
@@ -2786,7 +2801,7 @@ class _RoutineShareCountBadge extends StatelessWidget {
         label,
         style: TextStyle(
           color: color,
-          fontSize: 10,
+          fontSize: SetflowFontSize.tiny,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -2941,7 +2956,7 @@ class _RoutineShareStatusSheet extends StatelessWidget {
                                 _routineShareStatusLabel(share.status),
                                 style: TextStyle(
                                   color: statusColor,
-                                  fontSize: 12,
+                                  fontSize: SetflowFontSize.caption,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -2950,7 +2965,7 @@ class _RoutineShareStatusSheet extends StatelessWidget {
                                   '${_relativeBusinessDate(share.createdAt)} 전송',
                                   style: const TextStyle(
                                     color: SetflowColors.secondaryText,
-                                    fontSize: 11,
+                                    fontSize: SetflowFontSize.small,
                                   ),
                                 ),
                               if (canRevoke) ...[
@@ -3088,7 +3103,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                   '변경한 무료·유료 설정은 회원 마켓에 바로 반영돼요.',
                                   style: TextStyle(
                                     color: SetflowColors.secondaryText,
-                                    fontSize: 12,
+                                    fontSize: SetflowFontSize.caption,
                                   ),
                                 ),
                               ],
@@ -3196,7 +3211,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                             routine.name,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w900,
-                                              fontSize: 16,
+                                              fontSize: SetflowFontSize.title,
                                             ),
                                           ),
                                           Text(
@@ -3206,7 +3221,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                                     owned.status,
                                                   ),
                                             style: TextStyle(
-                                              fontSize: 11,
+                                              fontSize: SetflowFontSize.small,
                                               color:
                                                   owned?.status ==
                                                       BusinessRoutineStatus
@@ -3298,7 +3313,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                         color: Theme.of(
                                           context,
                                         ).colorScheme.error,
-                                        fontSize: 12,
+                                        fontSize: SetflowFontSize.caption,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -3359,7 +3374,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                           Text(
                                             '통계 보기',
                                             style: TextStyle(
-                                              fontSize: 12,
+                                              fontSize: SetflowFontSize.caption,
                                               fontWeight: FontWeight.w900,
                                               color: SetflowColors.blue,
                                             ),
@@ -3506,7 +3521,10 @@ class _AdminRoutineAccessEditor extends StatelessWidget {
             const Expanded(
               child: Text(
                 '회원 이용 플랜',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  fontSize: SetflowFontSize.caption,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
             if (isSaving)
@@ -3521,7 +3539,7 @@ class _AdminRoutineAccessEditor extends StatelessWidget {
                   color: routine.accessTier == RoutineAccessTier.paid
                       ? SetflowColors.purple
                       : SetflowColors.green,
-                  fontSize: 12,
+                  fontSize: SetflowFontSize.caption,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -4717,7 +4735,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                                     Text(
                                       trainer.$1,
                                       style: const TextStyle(
-                                        fontSize: 16,
+                                        fontSize: SetflowFontSize.title,
                                         fontWeight: FontWeight.w900,
                                       ),
                                     ),
@@ -4745,7 +4763,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                                   Text(
                                     '${trainer.$4}',
                                     style: const TextStyle(
-                                      fontSize: 11,
+                                      fontSize: SetflowFontSize.small,
                                       fontWeight: FontWeight.w900,
                                     ),
                                   ),
@@ -5066,7 +5084,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                   Text(
                                     blocked ? '이용 제한' : '정상 이용',
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: SetflowFontSize.small,
                                       fontWeight: FontWeight.w800,
                                       color: blocked
                                           ? Theme.of(context).colorScheme.error
@@ -5229,7 +5247,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
         label,
         style: TextStyle(
           color: color,
-          fontSize: 10,
+          fontSize: SetflowFontSize.tiny,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -5324,7 +5342,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                         Text(
                           entry.$3,
                           style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: SetflowFontSize.label,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -5334,7 +5352,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: SetflowFontSize.tiny,
                             color: SetflowColors.secondaryText,
                           ),
                         ),
@@ -5405,7 +5423,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                               child: Text(
                                 item.$1,
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: SetflowFontSize.tiny,
                                   fontWeight: FontWeight.w900,
                                   color: item.$1 == '트레이너'
                                       ? SetflowColors.blue
@@ -5421,7 +5439,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                   ? '반려 완료'
                                   : 'D-2',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: SetflowFontSize.small,
                                 fontWeight: FontWeight.w900,
                                 color: approved
                                     ? context.setflowColors.success
@@ -5436,7 +5454,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                         Text(
                           item.$2,
                           style: const TextStyle(
-                            fontSize: 17,
+                            fontSize: SetflowFontSize.titleLarge,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -5444,7 +5462,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                         Text(
                           item.$3,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: SetflowFontSize.caption,
                             color: SetflowColors.secondaryText,
                           ),
                         ),
@@ -5601,7 +5619,7 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                         Text(
                           application.applicantName,
                           style: const TextStyle(
-                            fontSize: 17,
+                            fontSize: SetflowFontSize.titleLarge,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -5820,14 +5838,17 @@ class _SettlementPageState extends State<SettlementPage> {
               children: [
                 Text(
                   admin ? '이번 주 정산 예정' : '이번 달 정산 예정',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: SetflowFontSize.caption,
+                  ),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   admin ? '48,620,000원' : '14,280,000원',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 27,
+                    fontSize: SetflowFontSize.display,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -5836,7 +5857,7 @@ class _SettlementPageState extends State<SettlementPage> {
                   '에스크로 보호 적용 중',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 11,
+                    fontSize: SetflowFontSize.small,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -5937,7 +5958,7 @@ class _SettlementPageState extends State<SettlementPage> {
                             Text(
                               item.$2,
                               style: const TextStyle(
-                                fontSize: 11,
+                                fontSize: SetflowFontSize.small,
                                 color: SetflowColors.secondaryText,
                               ),
                             ),
@@ -5954,7 +5975,7 @@ class _SettlementPageState extends State<SettlementPage> {
                           Text(
                             item.$4,
                             style: const TextStyle(
-                              fontSize: 10,
+                              fontSize: SetflowFontSize.tiny,
                               color: SetflowColors.secondaryText,
                             ),
                           ),
@@ -5985,7 +6006,7 @@ class _SettlementPageState extends State<SettlementPage> {
                       Text(
                         '환불 요청 및 처리 이력 확인',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: SetflowFontSize.small,
                           color: SetflowColors.secondaryText,
                         ),
                       ),
@@ -6019,7 +6040,7 @@ class _SettlementPageState extends State<SettlementPage> {
                         Text(
                           '소속 코치 매출·분배 내역',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: SetflowFontSize.small,
                             color: SetflowColors.secondaryText,
                           ),
                         ),
@@ -6054,7 +6075,7 @@ class _SettlementPageState extends State<SettlementPage> {
                         Text(
                           '사업자·트레이너별 수수료 산정 내역',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: SetflowFontSize.small,
                             color: SetflowColors.secondaryText,
                           ),
                         ),
@@ -6087,7 +6108,7 @@ class _SettlementPageState extends State<SettlementPage> {
                         Text(
                           '지급 대상 확정 및 처리 상태 관리',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: SetflowFontSize.small,
                             color: SetflowColors.secondaryText,
                           ),
                         ),
@@ -6143,21 +6164,27 @@ class _SettlementPageState extends State<SettlementPage> {
                 children: [
                   Text(
                     role == UserRole.gym ? '누적 센터 매출' : '정산 예정 금액',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: SetflowFontSize.caption,
+                    ),
                   ),
                   const SizedBox(height: 5),
                   Text(
                     '${_formatBusinessWon(primaryAmount)}원',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 27,
+                      fontSize: SetflowFontSize.display,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'Supabase 정산 원장 기준',
-                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: SetflowFontSize.small,
+                    ),
                   ),
                 ],
               ),
@@ -6343,7 +6370,7 @@ class _ActionTile extends StatelessWidget {
               Text(
                 subtitle,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: SetflowFontSize.small,
                   color: SetflowColors.secondaryText,
                 ),
               ),
@@ -6383,14 +6410,17 @@ class _PerformanceRow extends StatelessWidget {
       ),
       Text(
         value,
-        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+        style: const TextStyle(
+          fontSize: SetflowFontSize.titleLarge,
+          fontWeight: FontWeight.w900,
+        ),
       ),
       const SizedBox(width: 10),
       Text(
         change,
         style: const TextStyle(
           color: SetflowColors.green,
-          fontSize: 11,
+          fontSize: SetflowFontSize.small,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -6426,7 +6456,7 @@ class _PersonRow extends StatelessWidget {
             Text(
               detail,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: SetflowFontSize.small,
                 color: SetflowColors.secondaryText,
               ),
             ),
@@ -6501,7 +6531,7 @@ class _StatusRow extends StatelessWidget {
       Text(
         status,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: SetflowFontSize.caption,
           color: color,
           fontWeight: FontWeight.w900,
         ),
@@ -6519,13 +6549,16 @@ class _MiniMetric extends StatelessWidget {
     children: [
       Text(
         value,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+        style: const TextStyle(
+          fontSize: SetflowFontSize.title,
+          fontWeight: FontWeight.w900,
+        ),
       ),
       const SizedBox(height: 3),
       Text(
         label,
         style: const TextStyle(
-          fontSize: 10,
+          fontSize: SetflowFontSize.tiny,
           color: SetflowColors.secondaryText,
         ),
       ),

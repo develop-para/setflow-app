@@ -68,7 +68,7 @@ class AdminSystemScreen extends StatelessWidget {
                       Text(
                         item.$3,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: SetflowFontSize.title,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -76,7 +76,7 @@ class AdminSystemScreen extends StatelessWidget {
                       Text(
                         item.$4,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: SetflowFontSize.caption,
                           color: SetflowColors.secondaryText,
                         ),
                       ),
@@ -246,7 +246,7 @@ class _WeightSlider extends StatelessWidget {
               child: Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -254,7 +254,7 @@ class _WeightSlider extends StatelessWidget {
             Text(
               value.toStringAsFixed(1),
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: SetflowFontSize.label,
                 fontWeight: FontWeight.w900,
                 color: SetflowColors.blue,
               ),
@@ -352,7 +352,7 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                             Text(
                               '인식 신뢰도 ${item.confidence}%',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: SetflowFontSize.small,
                                 fontWeight: FontWeight.w700,
                                 color: item.confidence < 60
                                     ? SetflowColors.red
@@ -439,7 +439,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
                           Text(
                             plan.name,
                             style: const TextStyle(
-                              fontSize: 15,
+                              fontSize: SetflowFontSize.bodyLarge,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -447,7 +447,7 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
                           Text(
                             '${plan.price} · ${plan.desc}',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: SetflowFontSize.caption,
                               color: SetflowColors.secondaryText,
                             ),
                           ),
@@ -617,7 +617,10 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
                 Expanded(
                   child: Text(
                     '등록된 키워드가 포함된 게시글/댓글은 작성 즉시 자동 블라인드 처리됩니다.',
-                    style: TextStyle(fontSize: 12, height: 1.45),
+                    style: TextStyle(
+                      fontSize: SetflowFontSize.caption,
+                      height: 1.45,
+                    ),
                   ),
                 ),
               ],
@@ -654,7 +657,7 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
           Text(
             '등록된 키워드 ${_keywords.length}개',
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: SetflowFontSize.caption,
               fontWeight: FontWeight.w900,
               color: SetflowColors.secondaryText,
             ),
@@ -804,7 +807,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                               log.$2,
                               style: TextStyle(
                                 color: _logColor(log.$2),
-                                fontSize: 10,
+                                fontSize: SetflowFontSize.tiny,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -813,7 +816,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                           Text(
                             log.$3,
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: SetflowFontSize.small,
                               fontWeight: FontWeight.w900,
                               color: SetflowColors.secondaryText,
                             ),
@@ -822,7 +825,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                           Text(
                             log.$1,
                             style: const TextStyle(
-                              fontSize: 10,
+                              fontSize: SetflowFontSize.tiny,
                               color: SetflowColors.secondaryText,
                             ),
                           ),

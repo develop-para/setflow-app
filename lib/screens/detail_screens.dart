@@ -95,7 +95,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                             Text(
                               '${entries[i].weight}',
                               style: const TextStyle(
-                                fontSize: 11,
+                                fontSize: SetflowFontSize.small,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -113,7 +113,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                             Text(
                               entries[i].date,
                               style: const TextStyle(
-                                fontSize: 9,
+                                fontSize: SetflowFontSize.micro,
                                 color: SetflowColors.secondaryText,
                               ),
                             ),
@@ -174,7 +174,10 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
             children: [
               const Text(
                 '체성분 직접 입력',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  fontSize: SetflowFontSize.headlineLarge,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 18),
               Row(
@@ -373,7 +376,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                           Text(
                             '김코치',
                             style: TextStyle(
-                              fontSize: 17,
+                              fontSize: SetflowFontSize.titleLarge,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -388,7 +391,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                       Text(
                         '응답 평균 2시간 · 평점 4.9',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: SetflowFontSize.small,
                           color: SetflowColors.secondaryText,
                         ),
                       ),
@@ -415,13 +418,16 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                 children: [
                   const Text(
                     '4주 1:1 비동기 코칭',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                    style: TextStyle(
+                      fontSize: SetflowFontSize.titleLarge,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 5),
                   const Text(
                     '맞춤 루틴 · 주 1회 피드백 · 72시간 응답 보장',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                       color: SetflowColors.secondaryText,
                     ),
                   ),
@@ -431,7 +437,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                       const Text(
                         '149,000원',
                         style: TextStyle(
-                          fontSize: 21,
+                          fontSize: SetflowFontSize.headline,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -464,7 +470,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                     child: Text(
                       '코칭이 시작되었습니다. 결제 금액은 에스크로로 안전하게 보호됩니다.',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: SetflowFontSize.caption,
                         height: 1.4,
                         fontWeight: FontWeight.w700,
                       ),
@@ -652,14 +658,14 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
                         Text(
                           state.memberDisplayName,
                           style: const TextStyle(
-                            fontSize: 17,
+                            fontSize: SetflowFontSize.titleLarge,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         Text(
                           '${state.hasPaidPlan ? '유료' : '무료'} 플랜 · 루틴 ${state.routines.length}/${state.hasPaidPlan ? '무제한' : '4'}',
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: SetflowFontSize.small,
                             color: SetflowColors.secondaryText,
                           ),
                         ),

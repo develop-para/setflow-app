@@ -312,7 +312,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                   Text(
                     '${_scheduleTime(schedule.startMinutes)}–${_scheduleTime(schedule.endMinutes)} · $counterpart',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                       color: SetflowColors.secondaryText,
                     ),
                   ),
@@ -604,7 +604,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     Text(
                       item.$2,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: SetflowFontSize.small,
                         color: SetflowColors.secondaryText,
                       ),
                     ),
@@ -614,7 +614,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
               Text(
                 item.$3,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: SetflowFontSize.small,
                   fontWeight: FontWeight.w900,
                   color: SetflowColors.orange,
                 ),
@@ -631,13 +631,19 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('현재 플랜', style: TextStyle(color: Colors.white70, fontSize: 11)),
+          Text(
+            '현재 플랜',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: SetflowFontSize.small,
+            ),
+          ),
           SizedBox(height: 5),
           Text(
             'PRO',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 26,
+              fontSize: SetflowFontSize.display,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -670,7 +676,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     Text(
                       item.$3,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: SetflowFontSize.small,
                         color: SetflowColors.secondaryText,
                       ),
                     ),
@@ -796,7 +802,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                       item.$1,
                       style: TextStyle(
                         color: _reportColor(item.$1),
-                        fontSize: 10,
+                        fontSize: SetflowFontSize.tiny,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -805,7 +811,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                   Text(
                     item.$3,
                     style: const TextStyle(
-                      fontSize: 10,
+                      fontSize: SetflowFontSize.tiny,
                       color: SetflowColors.secondaryText,
                     ),
                   ),
@@ -850,7 +856,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         trailing: Text(
           item.$2,
           style: const TextStyle(
-            fontSize: 11,
+            fontSize: SetflowFontSize.small,
             color: SetflowColors.red,
             fontWeight: FontWeight.w900,
           ),
@@ -867,7 +873,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           Expanded(
             child: Text(
               '위험 행동 패턴은 최소 수집 원칙으로 탐지하며 운영자 검토 전 자동 제재하지 않습니다.',
-              style: TextStyle(fontSize: 12, height: 1.45),
+              style: TextStyle(fontSize: SetflowFontSize.caption, height: 1.45),
             ),
           ),
         ],
@@ -969,7 +975,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     Text(
                       item.$3,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: SetflowFontSize.small,
                         color: SetflowColors.secondaryText,
                       ),
                     ),
@@ -1047,7 +1053,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         leading: Text(
           item.$1,
           style: const TextStyle(
-            fontSize: 10,
+            fontSize: SetflowFontSize.tiny,
             fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),
@@ -1058,7 +1064,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         trailing: Text(
           item.$2,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: SetflowFontSize.tiny,
             fontWeight: FontWeight.w900,
             color: item.$2 == 'WARN'
                 ? SetflowColors.orange
@@ -1098,7 +1104,7 @@ class _ScheduleMessageCard extends StatelessWidget {
             subtitle,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: SetflowFontSize.caption,
               color: SetflowColors.secondaryText,
             ),
           ),
@@ -1133,7 +1139,7 @@ class _Day extends StatelessWidget {
       Text(
         label,
         style: const TextStyle(
-          fontSize: 10,
+          fontSize: SetflowFontSize.tiny,
           color: SetflowColors.secondaryText,
         ),
       ),

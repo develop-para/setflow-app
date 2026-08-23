@@ -270,7 +270,10 @@ class _RecordActionSheet extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '무엇으로 기록할까요?',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.titleLarge,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ),
@@ -651,7 +654,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             '${dragSource!.month}월 ${dragSource!.day}일 운동을 다른 날짜 위에 놓아주세요',
                                             style: TextStyle(
                                               color: Colors.white,
-                                              fontSize: 12,
+                                              fontSize: SetflowFontSize.caption,
                                               fontWeight: FontWeight.w800,
                                             ),
                                           ),
@@ -780,7 +783,7 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
                 const Text(
                   '읽기 전용',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: SetflowFontSize.tiny,
                     color: SetflowColors.secondaryText,
                   ),
                 ),
@@ -821,13 +824,13 @@ class _MemberScheduleRow extends StatelessWidget {
               Text(
                 '${schedule.date.month}/${schedule.date.day}',
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: SetflowFontSize.tiny,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               Text(
                 '$startHour:$startMinute',
-                style: const TextStyle(fontSize: 10),
+                style: const TextStyle(fontSize: SetflowFontSize.tiny),
               ),
             ],
           ),
@@ -844,7 +847,7 @@ class _MemberScheduleRow extends StatelessWidget {
               Text(
                 schedule.trainerName ?? schedule.gymName ?? '담당 트레이너',
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: SetflowFontSize.small,
                   color: SetflowColors.secondaryText,
                 ),
               ),
@@ -1221,7 +1224,7 @@ class _CalendarCell extends StatelessWidget {
                             overflow: TextOverflow.fade,
                             style: TextStyle(
                               color: theme.colorScheme.onSurface,
-                              fontSize: 9,
+                              fontSize: SetflowFontSize.micro,
                               height: 1.1,
                               fontWeight: FontWeight.w900,
                             ),
@@ -1231,7 +1234,7 @@ class _CalendarCell extends StatelessWidget {
                             maxLines: 1,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
-                              fontSize: 8,
+                              fontSize: SetflowFontSize.micro,
                               height: 1.2,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1351,13 +1354,16 @@ class _WeeklySummary extends StatelessWidget {
                     text: '$sets',
                     style: TextStyle(
                       color: theme.colorScheme.onSurface,
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   const TextSpan(
                     text: ' 세트',
-                    style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: SetflowFontSize.micro,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -1367,7 +1373,7 @@ class _WeeklySummary extends StatelessWidget {
               '${_formatMinuteValue(cardioSeconds / 60)}분 유산소',
               style: TextStyle(
                 color: theme.colorScheme.onSurface,
-                fontSize: 9,
+                fontSize: SetflowFontSize.micro,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1377,7 +1383,7 @@ class _WeeklySummary extends StatelessWidget {
                   ? '${(volume / 1000).toStringAsFixed(1)}t'
                   : '${volume.toStringAsFixed(0)}${state.weightUnit}',
               style: TextStyle(
-                fontSize: 8,
+                fontSize: SetflowFontSize.micro,
                 color: theme.colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
@@ -1438,7 +1444,7 @@ class RoutinesScreen extends StatelessWidget {
               const Text(
                 '무료 플랜',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: SetflowFontSize.small,
                   fontWeight: FontWeight.w900,
                   color: SetflowColors.orange,
                 ),
@@ -1471,14 +1477,14 @@ class RoutinesScreen extends StatelessWidget {
                               Text(
                                 routine.name,
                                 style: const TextStyle(
-                                  fontSize: 17,
+                                  fontSize: SetflowFontSize.titleLarge,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
                               Text(
                                 '${routine.exercises.length}개 운동 · ${routine.level}',
                                 style: const TextStyle(
-                                  fontSize: 12,
+                                  fontSize: SetflowFontSize.caption,
                                   color: SetflowColors.secondaryText,
                                 ),
                               ),
@@ -1593,7 +1599,9 @@ class RoutinesScreen extends StatelessWidget {
                             (item) => Chip(
                               label: Text(
                                 item.name,
-                                style: const TextStyle(fontSize: 11),
+                                style: const TextStyle(
+                                  fontSize: SetflowFontSize.small,
+                                ),
                               ),
                               visualDensity: VisualDensity.compact,
                             ),
@@ -1710,7 +1718,10 @@ class _IncomingRoutineSharesSection extends StatelessWidget {
             const Expanded(
               child: Text(
                 '트레이너가 보낸 루틴',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  fontSize: SetflowFontSize.titleLarge,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
             TextButton(
@@ -1748,7 +1759,7 @@ class _IncomingRoutineSharesSection extends StatelessWidget {
                     '링크의 루틴을 확인하고 내 루틴으로 안전하게 가져옵니다.',
                     style: TextStyle(
                       color: SetflowColors.secondaryText,
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                     ),
                   ),
                   const SizedBox(height: SetflowSpacing.md),
@@ -1822,7 +1833,7 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                     Text(
                       share.routineTitle,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: SetflowFontSize.title,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1830,7 +1841,7 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                       '${share.senderName} · ${share.routine?.exercises.length ?? 0}개 운동',
                       style: const TextStyle(
                         color: SetflowColors.secondaryText,
-                        fontSize: 12,
+                        fontSize: SetflowFontSize.caption,
                       ),
                     ),
                   ],
@@ -1846,7 +1857,7 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                   '새 루틴',
                   style: TextStyle(
                     color: SetflowColors.green,
-                    fontSize: 10,
+                    fontSize: SetflowFontSize.tiny,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1864,7 +1875,7 @@ class _IncomingRoutineShareCard extends StatelessWidget {
               '${DateFormat('yyyy.MM.dd HH:mm').format(expiresAt.toLocal())}까지 수락 가능',
               style: const TextStyle(
                 color: SetflowColors.secondaryText,
-                fontSize: 11,
+                fontSize: SetflowFontSize.small,
               ),
             ),
           ],
@@ -2241,7 +2252,7 @@ class _MarketScreenState extends State<MarketScreen> {
                                 routine.level,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 11,
+                                  fontSize: SetflowFontSize.small,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
@@ -2265,7 +2276,7 @@ class _MarketScreenState extends State<MarketScreen> {
                           Text(
                             routine.name,
                             style: const TextStyle(
-                              fontSize: 18,
+                              fontSize: SetflowFontSize.titleLarge,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -2274,7 +2285,7 @@ class _MarketScreenState extends State<MarketScreen> {
                             routine.description,
                             style: const TextStyle(
                               color: SetflowColors.secondaryText,
-                              fontSize: 13,
+                              fontSize: SetflowFontSize.label,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -2290,7 +2301,7 @@ class _MarketScreenState extends State<MarketScreen> {
                                 child: Text(
                                   routine.author,
                                   style: const TextStyle(
-                                    fontSize: 12,
+                                    fontSize: SetflowFontSize.caption,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -2344,7 +2355,7 @@ class _RoutineAccessBadge extends StatelessWidget {
               accessTier.label,
               style: TextStyle(
                 color: color,
-                fontSize: 11,
+                fontSize: SetflowFontSize.small,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -2487,7 +2498,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                     color: post.imageUrl == null
                                         ? null
                                         : Colors.white,
-                                    fontSize: 9,
+                                    fontSize: SetflowFontSize.micro,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
@@ -2584,7 +2595,7 @@ class CoachingScreen extends StatelessWidget {
                       Text(
                         '내 기록을 전문가와 연결하세요',
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: SetflowFontSize.titleLarge,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -2592,7 +2603,7 @@ class CoachingScreen extends StatelessWidget {
                       Text(
                         '상담 답변을 확인하고 1:1 코칭까지 이어갈 수 있어요.',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: SetflowFontSize.caption,
                           color: SetflowColors.secondaryText,
                           height: 1.4,
                         ),
@@ -2675,7 +2686,7 @@ class CoachingScreen extends StatelessWidget {
                                 Text(
                                   entry.consultation.specialty,
                                   style: const TextStyle(
-                                    fontSize: 12,
+                                    fontSize: SetflowFontSize.caption,
                                     color: SetflowColors.secondaryText,
                                   ),
                                 ),
@@ -3072,7 +3083,7 @@ class _MemberConsultationBadge extends StatelessWidget {
         label,
         style: TextStyle(
           color: color,
-          fontSize: 10,
+          fontSize: SetflowFontSize.tiny,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -3273,7 +3284,7 @@ class DashboardScreen extends StatelessWidget {
                     '시간·거리·RPE 기록',
                     style: TextStyle(
                       color: SetflowColors.secondaryText,
-                      fontSize: 11,
+                      fontSize: SetflowFontSize.small,
                     ),
                   ),
                 ],
@@ -3345,7 +3356,7 @@ class DashboardScreen extends StatelessWidget {
                             Text(
                               ['월', '화', '수', '목', '금', '토', '일'][i],
                               style: const TextStyle(
-                                fontSize: 10,
+                                fontSize: SetflowFontSize.tiny,
                                 color: SetflowColors.secondaryText,
                               ),
                             ),
@@ -3395,7 +3406,7 @@ class DashboardScreen extends StatelessWidget {
                     trailing: Text(
                       '${summary.currentE1rm.toStringAsFixed(1)}${state.weightUnit}',
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: SetflowFontSize.titleLarge,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -3486,7 +3497,7 @@ class SettingsScreen extends StatelessWidget {
             title: Text(
               '계정 & 개인화',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: SetflowFontSize.label,
                 color: SetflowColors.secondaryText,
                 fontWeight: FontWeight.w900,
               ),
@@ -3542,7 +3553,7 @@ class SettingsScreen extends StatelessWidget {
             title: Text(
               '운동 기록',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: SetflowFontSize.label,
                 color: SetflowColors.secondaryText,
                 fontWeight: FontWeight.w900,
               ),
@@ -3583,7 +3594,7 @@ class SettingsScreen extends StatelessWidget {
             title: Text(
               state.usesLiveBusinessData ? '전문가 계정' : '데모 워크스페이스',
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: SetflowFontSize.label,
                 color: SetflowColors.secondaryText,
                 fontWeight: FontWeight.w900,
               ),
@@ -3656,7 +3667,7 @@ class SettingsScreen extends StatelessWidget {
             title: Text(
               '참고자료',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: SetflowFontSize.label,
                 color: SetflowColors.secondaryText,
                 fontWeight: FontWeight.w900,
               ),

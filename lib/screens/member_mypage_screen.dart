@@ -43,7 +43,7 @@ class MyPageScreen extends StatelessWidget {
                             ? '게스트'
                             : state.memberDisplayName,
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: SetflowFontSize.titleLarge,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -51,7 +51,7 @@ class MyPageScreen extends StatelessWidget {
                       Text(
                         signedIn ? '클라우드 동기화 중' : '로그인하면 기록이 백업돼요',
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: SetflowFontSize.caption,
                           color: SetflowColors.secondaryText,
                           fontWeight: FontWeight.w600,
                         ),

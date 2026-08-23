@@ -119,7 +119,10 @@ class _BusinessRoutineEditorScreenState
               children: [
                 const Text(
                   '기본 정보',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.titleLarge,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: SetflowSpacing.lg),
                 TextField(
@@ -193,7 +196,7 @@ class _BusinessRoutineEditorScreenState
                 child: Text(
                   '운동 구성 ${_exercises.length}개',
                   style: const TextStyle(
-                    fontSize: 17,
+                    fontSize: SetflowFontSize.titleLarge,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -488,7 +491,7 @@ class _RoutineExerciseEditorCard extends StatelessWidget {
                       exercise.targetMuscle,
                       style: const TextStyle(
                         color: SetflowColors.secondaryText,
-                        fontSize: 11,
+                        fontSize: SetflowFontSize.small,
                       ),
                     ),
                   ],
@@ -1225,7 +1228,7 @@ class AdminRoutineReviewCard extends StatelessWidget {
                     Text(
                       routine.title,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: SetflowFontSize.title,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1233,7 +1236,7 @@ class AdminRoutineReviewCard extends StatelessWidget {
                       '${routine.exercises.length}개 운동 · $setCount세트',
                       style: const TextStyle(
                         color: SetflowColors.secondaryText,
-                        fontSize: 11,
+                        fontSize: SetflowFontSize.small,
                       ),
                     ),
                   ],

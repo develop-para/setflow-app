@@ -65,7 +65,7 @@ class _SplashScreenState extends State<SplashScreen>
                   children: [
                     const SetflowWordmark(
                       key: ValueKey('setflow-loading-logo'),
-                      fontSize: 34,
+                      fontSize: SetflowFontSize.displayLarge,
                     ),
                     const SizedBox(height: SetflowSpacing.xl),
                     // A hairline rule instead of a spinner: monochrome systems

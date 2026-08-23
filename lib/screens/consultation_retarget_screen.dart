@@ -114,7 +114,7 @@ class _ConsultationRetargetScreenState
                 Text(
                   '$_quotaUsed / $_quotaTotal건',
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: SetflowFontSize.headline,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -210,7 +210,7 @@ class _ConsultationRetargetScreenState
                                     child: const Text(
                                       '수신 거부',
                                       style: TextStyle(
-                                        fontSize: 10,
+                                        fontSize: SetflowFontSize.tiny,
                                         fontWeight: FontWeight.w900,
                                         color: SetflowColors.red,
                                       ),
@@ -223,7 +223,7 @@ class _ConsultationRetargetScreenState
                             Text(
                               '상담 후 ${target.daysSince}일 경과',
                               style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: SetflowFontSize.caption,
                                 color: SetflowColors.secondaryText,
                               ),
                             ),
@@ -283,7 +283,10 @@ class _ConsultationRetargetScreenState
           children: [
             Text(
               '${recipients.length}명에게 재상담 안내',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              style: const TextStyle(
+                fontSize: SetflowFontSize.headline,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 6),
             Text(

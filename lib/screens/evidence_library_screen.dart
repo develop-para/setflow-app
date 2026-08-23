@@ -71,7 +71,7 @@ class EvidenceLibraryScreen extends StatelessWidget {
                           Text(
                             'Setflow의 추천 근거',
                             style: TextStyle(
-                              fontSize: 17,
+                              fontSize: SetflowFontSize.titleLarge,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -118,7 +118,7 @@ class EvidenceLibraryScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: SetflowColors.secondaryText,
-                  fontSize: 12,
+                  fontSize: SetflowFontSize.caption,
                   height: 1.5,
                 ),
               ),
@@ -300,7 +300,7 @@ class _EvidenceSubheading extends StatelessWidget {
           title,
           style: Theme.of(
             context,
-          ).textTheme.titleMedium?.copyWith(fontSize: 14),
+          ).textTheme.titleMedium?.copyWith(fontSize: SetflowFontSize.body),
         ),
       ],
     );

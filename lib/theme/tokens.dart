@@ -215,6 +215,30 @@ extension SetflowThemeContext on BuildContext {
           : SetflowSemanticColors.light);
 }
 
+/// 글자 크기의 사다리. `theme.textTheme`의 역할들과 같은 값이고, 역할 하나로
+/// 딱 떨어지지 않는 자리(세트 행의 촘촘한 캡션 같은)를 위해 이름으로도 꺼내 쓴다.
+///
+/// 이게 생기기 전엔 화면에 fontSize가 307군데 박혀 있었고 **서로 다른 값이 25종**이었다.
+/// 13과 13.5, 17과 18, 25·26·27이 한 앱 안에 같이 있었다 — 눈에는 "안 맞는다"로만 보이는
+/// 종류의 어긋남이다. 새 숫자를 만들지 말고 여기서 고를 것.
+abstract final class SetflowFontSize {
+  /// 달력 칸의 볼륨, 세트 행의 보조 캡션. 이보다 작게 쓰지 않는다.
+  static const micro = 9.0;
+  static const tiny = 10.0;
+  static const small = 11.0;
+  static const caption = 12.0;
+  static const label = 13.5;
+  static const body = 14.0;
+  static const bodyLarge = 15.0;
+  static const title = 16.0;
+  static const titleLarge = 18.0;
+  static const headline = 20.0;
+  static const headlineLarge = 24.0;
+  static const display = 28.0;
+  static const displayLarge = 38.0;
+  static const hero = 52.0;
+}
+
 abstract final class SetflowSpacing {
   static const xxs = 2.0;
   static const xs = 4.0;

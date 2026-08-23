@@ -54,7 +54,10 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
           children: [
             const Text(
               '새 루틴 만들기',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                fontSize: SetflowFontSize.headlineLarge,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: SetflowSpacing.xl),
             AppTextField(
@@ -555,7 +558,7 @@ class _MediaButton extends StatelessWidget {
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: SetflowFontSize.small,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -592,7 +595,7 @@ class _PreviewLabel extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 11,
+            fontSize: SetflowFontSize.small,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -630,7 +633,7 @@ class _ShareTarget extends StatelessWidget {
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: SetflowFontSize.small,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -761,7 +764,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           Text(
             routine.name,
             style: const TextStyle(
-              fontSize: 27,
+              fontSize: SetflowFontSize.display,
               height: 1.2,
               fontWeight: FontWeight.w900,
             ),
@@ -799,7 +802,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                         '전문 루틴 12개 · 코칭 340회',
                         style: TextStyle(
                           color: SetflowColors.secondaryText,
-                          fontSize: 11,
+                          fontSize: SetflowFontSize.small,
                         ),
                       ),
                     ],
@@ -860,7 +863,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: SetflowColors.secondaryText,
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                     ),
                   ),
                 ],
@@ -952,7 +955,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                                 exercise.muscle,
                                 style: const TextStyle(
                                   color: SetflowColors.secondaryText,
-                                  fontSize: 11,
+                                  fontSize: SetflowFontSize.small,
                                 ),
                               ),
                             ],
@@ -963,7 +966,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                           textAlign: TextAlign.right,
                           style: const TextStyle(
                             color: SetflowColors.secondaryText,
-                            fontSize: 11,
+                            fontSize: SetflowFontSize.small,
                             height: 1.4,
                           ),
                         ),
@@ -1015,7 +1018,10 @@ class _RoutineReview extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       title: Text(
         author,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+        style: const TextStyle(
+          fontSize: SetflowFontSize.label,
+          fontWeight: FontWeight.w900,
+        ),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1199,7 +1205,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                       Text(
                         post.content,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: SetflowFontSize.title,
                           height: 1.55,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1265,7 +1271,9 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                             subtitle: Text(comment.content),
                             trailing: Text(
                               _relativeTime(comment.createdAt),
-                              style: const TextStyle(fontSize: 10),
+                              style: const TextStyle(
+                                fontSize: SetflowFontSize.tiny,
+                              ),
                             ),
                           ),
                     ],
@@ -1605,7 +1613,10 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
               Expanded(
                 child: Text(
                   '정밀 추천 정보 공유',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.title,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -2101,7 +2112,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
             const Text(
               '현재 상태를 자세히 알려주시면\n더 정확한 답변을 받을 수 있어요.',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: SetflowFontSize.headlineLarge,
                 height: 1.25,
                 fontWeight: FontWeight.w900,
               ),
@@ -2465,7 +2476,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                               consultation.specialty,
                               style: const TextStyle(
                                 color: SetflowColors.secondaryText,
-                                fontSize: 12,
+                                fontSize: SetflowFontSize.caption,
                               ),
                             ),
                           ],
@@ -2495,7 +2506,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     const Text(
                       '4주 1:1 비동기 코칭',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: SetflowFontSize.titleLarge,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -2514,7 +2525,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                         Text(
                           liveData ? '결제 API 준비 중' : '149,000원',
                           style: const TextStyle(
-                            fontSize: 22,
+                            fontSize: SetflowFontSize.headlineLarge,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -2598,7 +2609,7 @@ class _StatusChip extends StatelessWidget {
         label,
         style: TextStyle(
           color: color,
-          fontSize: 11,
+          fontSize: SetflowFontSize.small,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -2628,7 +2639,7 @@ class _ConsultField extends StatelessWidget {
             label,
             style: const TextStyle(
               color: SetflowColors.secondaryText,
-              fontSize: 11,
+              fontSize: SetflowFontSize.small,
               fontWeight: FontWeight.w800,
             ),
           ),

@@ -263,7 +263,10 @@ class _LiveMemberRecordTab extends StatelessWidget {
                 const Expanded(
                   child: Text(
                     '회원이 공유에 동의한 운동 기록만 표시됩니다.',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: SetflowFontSize.caption,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -531,7 +534,10 @@ class _MemberFeedbackTab extends StatelessWidget {
               const Expanded(
                 child: Text(
                   '센터에는 회원이 공유에 동의한 기록만 표시됩니다.',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.caption,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -621,7 +627,7 @@ class _MemberSummaryHeader extends StatelessWidget {
               child: Text(
                 member.name.characters.first,
                 style: const TextStyle(
-                  fontSize: 19,
+                  fontSize: SetflowFontSize.headline,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -634,14 +640,14 @@ class _MemberSummaryHeader extends StatelessWidget {
                   Text(
                     member.name,
                     style: const TextStyle(
-                      fontSize: 19,
+                      fontSize: SetflowFontSize.headline,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   Text(
                     '${member.goal ?? '목표 미등록'} · 마지막 기록 ${_relativeDate(member.lastActivityAt)}',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                       color: SetflowColors.secondaryText,
                     ),
                   ),
@@ -729,7 +735,7 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                 DateFormat('yyyy.MM').format(month),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: SetflowFontSize.title,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -788,7 +794,7 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                             '${session.hasCardio ? '항목' : '세트'} · '
                             '${_workoutSessionActivityText(session)}',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: SetflowFontSize.caption,
                               color: SetflowColors.secondaryText,
                             ),
                           ),
@@ -835,7 +841,10 @@ class _MemberCalendarCell extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('${date.day}', style: const TextStyle(fontSize: 12)),
+            Text(
+              '${date.day}',
+              style: const TextStyle(fontSize: SetflowFontSize.caption),
+            ),
             const SizedBox(height: 2),
             if (session != null)
               Container(
@@ -896,14 +905,14 @@ class _MemberRoutineTab extends StatelessWidget {
                         routine.name,
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
-                          fontSize: 15,
+                          fontSize: SetflowFontSize.bodyLarge,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         routine.description,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: SetflowFontSize.caption,
                           color: SetflowColors.secondaryText,
                         ),
                         maxLines: 2,
@@ -913,7 +922,7 @@ class _MemberRoutineTab extends StatelessWidget {
                       Text(
                         '${routine.level} · ${routine.exercises.length}개 종목',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: SetflowFontSize.small,
                           color: SetflowColors.disabled,
                         ),
                       ),
@@ -955,14 +964,14 @@ class _MemberCommunityTab extends StatelessWidget {
                   post.$1,
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
-                    fontSize: 15,
+                    fontSize: SetflowFontSize.bodyLarge,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   post.$2,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: SetflowFontSize.caption,
                     color: SetflowColors.secondaryText,
                   ),
                 ),
@@ -975,7 +984,10 @@ class _MemberCommunityTab extends StatelessWidget {
                       color: SetflowColors.secondaryText,
                     ),
                     const SizedBox(width: 4),
-                    Text('${post.$3}', style: const TextStyle(fontSize: 12)),
+                    Text(
+                      '${post.$3}',
+                      style: const TextStyle(fontSize: SetflowFontSize.caption),
+                    ),
                     const SizedBox(width: 14),
                     const Icon(
                       Icons.mode_comment_outlined,
@@ -983,7 +995,10 @@ class _MemberCommunityTab extends StatelessWidget {
                       color: SetflowColors.secondaryText,
                     ),
                     const SizedBox(width: 4),
-                    Text('${post.$4}', style: const TextStyle(fontSize: 12)),
+                    Text(
+                      '${post.$4}',
+                      style: const TextStyle(fontSize: SetflowFontSize.caption),
+                    ),
                   ],
                 ),
               ],
@@ -1028,7 +1043,7 @@ class _MemberLibraryTab extends StatelessWidget {
                       exercise.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
-                        fontSize: 12,
+                        fontSize: SetflowFontSize.caption,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1036,7 +1051,7 @@ class _MemberLibraryTab extends StatelessWidget {
                     Text(
                       exercise.muscle,
                       style: const TextStyle(
-                        fontSize: 10,
+                        fontSize: SetflowFontSize.tiny,
                         color: SetflowColors.secondaryText,
                       ),
                     ),

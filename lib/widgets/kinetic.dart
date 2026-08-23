@@ -461,7 +461,7 @@ class TrainingHeroCard extends StatelessWidget {
                                               : 0,
                                           style: text.displayLarge?.copyWith(
                                             color: Colors.white,
-                                            fontSize: 46,
+                                            fontSize: SetflowFontSize.hero,
                                           ),
                                         )
                                       : Text(
@@ -471,7 +471,8 @@ class TrainingHeroCard extends StatelessWidget {
                                           softWrap: false,
                                           style: text.displayLarge?.copyWith(
                                             color: Colors.white,
-                                            fontSize: 40,
+                                            fontSize:
+                                                SetflowFontSize.displayLarge,
                                           ),
                                         ),
                                 ),
@@ -538,7 +539,7 @@ class TrainingHeroCard extends StatelessWidget {
                                   ringBottom!,
                                   style: text.bodySmall?.copyWith(
                                     color: Colors.white54,
-                                    fontSize: 9,
+                                    fontSize: SetflowFontSize.micro,
                                   ),
                                 ),
                             ],

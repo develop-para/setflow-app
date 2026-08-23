@@ -62,7 +62,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Center(child: SetflowWordmark(fontSize: 30)),
+              const Center(
+                child: SetflowWordmark(fontSize: SetflowFontSize.display),
+              ),
               const SizedBox(height: 12),
               const Text(
                 '로그인하고 오늘의 운동을 시작하세요.',
@@ -108,7 +110,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 '가입하면 기록이 Supabase에 암호화 전송되며, 본인 계정만 접근할 수 있어요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: SetflowFontSize.caption,
                   height: 1.45,
                   color: SetflowColors.secondaryText,
                 ),
@@ -146,7 +148,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             child: Text(
               'SNS 계정으로 계속',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: SetflowFontSize.caption,
                 color: SetflowColors.secondaryText,
               ),
             ),
@@ -428,7 +430,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             const SizedBox(height: 22),
             const Text(
               '헬스장 등록하기',
-              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                fontSize: SetflowFontSize.display,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -500,7 +505,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           const Text(
             '사업자등록증을\n제출해주세요',
             style: TextStyle(
-              fontSize: 27,
+              fontSize: SetflowFontSize.display,
               fontWeight: FontWeight.w900,
               height: 1.2,
             ),
@@ -565,7 +570,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         ? '실제 파일 업로드가 연결되기 전에는 제출 완료 상태를 만들지 않아요.'
                         : '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 제출 상태를 전환해보세요.',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                       height: 1.45,
                       color: SetflowColors.secondaryText,
                     ),
@@ -618,7 +623,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           const SizedBox(height: 22),
           const Text(
             '홈택스 사업자 인증',
-            style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: SetflowFontSize.display,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -638,7 +646,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                       const Text(
                         '사업자등록번호',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: SetflowFontSize.small,
                           fontWeight: FontWeight.w700,
                           color: SetflowColors.secondaryText,
                         ),
@@ -678,7 +686,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                           ? '실제 사업자 조회가 연결되기 전에는 인증 완료 상태를 만들지 않아요.'
                           : '안전한 코칭 환경을 위해 실제 영업 중인 사업자만 인증됩니다. 데모에서는 버튼을 누르면 바로 인증됩니다.',
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: SetflowFontSize.caption,
                         height: 1.45,
                         color: SetflowColors.secondaryText,
                       ),
@@ -709,7 +717,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     child: Text(
                       '인증 완료! 국세청 홈택스 기준 정상 영업 중인 사업자입니다.',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: SetflowFontSize.caption,
                         height: 1.45,
                         fontWeight: FontWeight.w700,
                         color: SetflowColors.secondaryText,
@@ -749,7 +757,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           const SizedBox(height: 28),
           Text(
             live ? '센터 신청 준비 완료' : '가입 심사 완료!',
-            style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: SetflowFontSize.display,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -840,7 +851,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             const SizedBox(height: 22),
             const Text(
               '트레이너로 시작하기',
-              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                fontSize: SetflowFontSize.display,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -895,7 +909,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           const Text(
             '인증 서류를\n제출해주세요',
             style: TextStyle(
-              fontSize: 27,
+              fontSize: SetflowFontSize.display,
               fontWeight: FontWeight.w900,
               height: 1.2,
             ),
@@ -972,7 +986,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 11,
+                                fontSize: SetflowFontSize.small,
                                 color: SetflowColors.secondaryText,
                               ),
                             ),
@@ -1013,7 +1027,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         ? '카드를 눌러 카메라로 촬영하거나 갤러리 이미지를 선택하세요. 파일은 비공개 저장소에 업로드됩니다.'
                         : '데모에서는 카드를 눌러 서류 제출 상태를 전환할 수 있어요.',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                       height: 1.45,
                       color: SetflowColors.secondaryText,
                     ),
@@ -1057,7 +1071,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             '서류 심사가\n진행 중입니다',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 25,
+              fontSize: SetflowFontSize.headlineLarge,
               fontWeight: FontWeight.w900,
               height: 1.2,
             ),
@@ -1090,7 +1104,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         '심사 결과는 계정에 자동 반영됩니다.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: SetflowFontSize.caption,
                           color: SetflowColors.secondaryText,
                         ),
                       ),
@@ -1106,7 +1120,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                       const Text(
                         '심사 결과를 직접 선택해보세요.',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: SetflowFontSize.caption,
                           color: SetflowColors.secondaryText,
                         ),
                       ),
@@ -1172,7 +1186,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           const SizedBox(height: 24),
           const Text(
             '서류 심사 반려',
-            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: SetflowFontSize.headlineLarge,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -1194,7 +1211,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             child: const Text(
               '반려 사유: 제출된 서류의 이미지가 흐려 식별이 어렵습니다. 선명하게 재촬영하여 업로드해주세요.',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: SetflowFontSize.caption,
                 height: 1.5,
                 color: SetflowColors.secondaryText,
               ),
@@ -1224,7 +1241,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           const SizedBox(height: 28),
           const Text(
             '심사 완료!',
-            style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: SetflowFontSize.display,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 12),
           const Text(

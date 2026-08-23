@@ -111,6 +111,24 @@ final architectureRules = <ArchitectureRule>[
         '(SafeArea는 중첩해도 이중으로 들어가지 않으니 시트 안의 SafeArea는 그대로 둬도 된다).',
   ),
   ArchitectureRule(
+    name: '글자 크기는 사다리에서만 고른다',
+    pattern: RegExp(r'fontSize:\s*[0-9]'),
+    searchIn: const ['lib'],
+    allow: const [
+      'lib/theme/tokens.dart', // 사다리 자체를 정의하는 곳
+      'lib/theme.dart', // textTheme의 역할별 크기
+      'lib/widgets/kinetic.dart', // 알파 .035 워터마크 숫자 — 글자가 아니라 그래픽
+    ],
+    why:
+        '화면에 fontSize가 307군데 박혀 있었고 서로 다른 값이 25종이었다. '
+        '13과 13.5, 17과 18, 25·26·27이 한 앱 안에 같이 있었고, '
+        '거의 같지만 미묘하게 다른 값은 눈에 "안 맞는다"로만 보인다.',
+    instead:
+        'SetflowFontSize에서 고르거나(촘촘한 캡션 등), 역할이 맞으면 '
+        'theme.textTheme.*를 쓸 것. 사다리에 없는 크기가 정말 필요하면 '
+        'tokens.dart의 SetflowFontSize에 이름을 붙여 추가한다.',
+  ),
+  ArchitectureRule(
     name: '엣지 펑션 호출은 의도적으로만 늘린다',
     pattern: RegExp(r'functions\s*\.\s*invoke'),
     searchIn: const ['lib'],

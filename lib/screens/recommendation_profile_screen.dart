@@ -233,7 +233,7 @@ class _RecommendationProfileScreenState
           const Text(
             '내 상황에 맞지 않는 운동을\n먼저 걸러낼게요.',
             style: TextStyle(
-              fontSize: 24,
+              fontSize: SetflowFontSize.headlineLarge,
               height: 1.25,
               fontWeight: FontWeight.w900,
             ),
@@ -506,7 +506,7 @@ class _SurveySection extends StatelessWidget {
                   child: Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: SetflowFontSize.title,
                       fontWeight: FontWeight.w900,
                     ),
                   ),

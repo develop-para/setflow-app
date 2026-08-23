@@ -331,7 +331,10 @@ class _RoutineExercisePickerSheetState
         children: [
           const Text(
             '루틴 운동 선택',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: SetflowFontSize.headline,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.md),
           AppTextField(

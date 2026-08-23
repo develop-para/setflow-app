@@ -32,7 +32,7 @@ class WorkspaceScreen extends StatelessWidget {
                   Text(
                     config.subtitle,
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: SetflowFontSize.headlineLarge,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -40,7 +40,7 @@ class WorkspaceScreen extends StatelessWidget {
                   Text(
                     '주요 운영 지표를 한 화면에서 확인하세요.',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                       color: SetflowColors.secondaryText,
                     ),
                   ),
@@ -170,14 +170,17 @@ class WorkspaceScreen extends StatelessWidget {
                 const Text(
                   '이번 달 정산 예정',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: SetflowFontSize.caption,
                     color: SetflowColors.secondaryText,
                   ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
                   '14,280,000원',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.headlineLarge,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 const Divider(height: 1),
@@ -408,14 +411,17 @@ class WorkspaceScreen extends StatelessWidget {
                 const Text(
                   '이번 달 정산 예정',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: SetflowFontSize.caption,
                     color: SetflowColors.secondaryText,
                   ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
                   '2,480,000원',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.headlineLarge,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 const Divider(height: 1),
@@ -529,7 +535,7 @@ class _StatTile extends StatelessWidget {
           label,
           style: const TextStyle(
             color: SetflowColors.secondaryText,
-            fontSize: 12,
+            fontSize: SetflowFontSize.caption,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -541,7 +547,7 @@ class _StatTile extends StatelessWidget {
               TextSpan(
                 text: value,
                 style: const TextStyle(
-                  fontSize: 24,
+                  fontSize: SetflowFontSize.headlineLarge,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -549,7 +555,7 @@ class _StatTile extends StatelessWidget {
                 TextSpan(
                   text: ' $suffix',
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: SetflowFontSize.caption,
                     fontWeight: FontWeight.w700,
                     color: SetflowColors.secondaryText,
                   ),
@@ -596,7 +602,7 @@ class _EntryRow extends StatelessWidget {
             Text(
               subtitle,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: SetflowFontSize.small,
                 color: SetflowColors.secondaryText,
               ),
             ),

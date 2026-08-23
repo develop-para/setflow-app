@@ -268,7 +268,7 @@ class _PortalTransitionOverlayState extends State<PortalTransitionOverlay>
               child: const ExcludeSemantics(
                 child: SetflowWordmark(
                   key: ValueKey('portal-transition-logo'),
-                  fontSize: 30,
+                  fontSize: SetflowFontSize.display,
                 ),
               ),
             ),

@@ -30,7 +30,7 @@ class BusinessSettingsListScreen extends StatelessWidget {
               title: Text(
                 '계정',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   color: SetflowColors.secondaryText,
                   fontWeight: FontWeight.w900,
                 ),
@@ -104,7 +104,7 @@ class BusinessSettingsListScreen extends StatelessWidget {
               title: Text(
                 '화면',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   color: SetflowColors.secondaryText,
                   fontWeight: FontWeight.w900,
                 ),
@@ -126,7 +126,7 @@ class BusinessSettingsListScreen extends StatelessWidget {
               title: Text(
                 '참고자료',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   color: SetflowColors.secondaryText,
                   fontWeight: FontWeight.w900,
                 ),
@@ -312,14 +312,14 @@ class _BusinessSettingsPlanScreenState
                               Text(
                                 plan.name,
                                 style: const TextStyle(
-                                  fontSize: 16,
+                                  fontSize: SetflowFontSize.title,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
                               Text(
                                 plan.price,
                                 style: const TextStyle(
-                                  fontSize: 13,
+                                  fontSize: SetflowFontSize.label,
                                   fontWeight: FontWeight.w700,
                                   color: SetflowColors.secondaryText,
                                 ),
@@ -341,7 +341,7 @@ class _BusinessSettingsPlanScreenState
                               '현재 플랜',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 11,
+                                fontSize: SetflowFontSize.small,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -364,7 +364,7 @@ class _BusinessSettingsPlanScreenState
                               child: Text(
                                 perk,
                                 style: const TextStyle(
-                                  fontSize: 13,
+                                  fontSize: SetflowFontSize.label,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -499,7 +499,7 @@ class _BusinessSettingsNotificationsScreenState
               title: Text(
                 '활동 알림',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   color: SetflowColors.secondaryText,
                   fontWeight: FontWeight.w900,
                 ),
@@ -537,7 +537,7 @@ class _BusinessSettingsNotificationsScreenState
               title: Text(
                 '이벤트 및 혜택',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   color: SetflowColors.secondaryText,
                   fontWeight: FontWeight.w900,
                 ),
@@ -631,7 +631,10 @@ class _BusinessSettingsWithdrawScreenState
               children: [
                 const Text(
                   '잠깐, 탈퇴 전에 확인해 주세요',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.title,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _WarningItem(
@@ -655,7 +658,10 @@ class _BusinessSettingsWithdrawScreenState
           const SizedBox(height: 20),
           const Text(
             '탈퇴 사유를 선택해 주세요',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: SetflowFontSize.body,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
@@ -675,7 +681,10 @@ class _BusinessSettingsWithdrawScreenState
             onChanged: (value) => setState(() => _agreed = value ?? false),
             title: const Text(
               '안내사항을 모두 확인하였으며 탈퇴 및 수익금 정산 처리에 동의합니다.',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: SetflowFontSize.label,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -740,7 +749,7 @@ class _WarningItem extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: SetflowFontSize.label,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -748,7 +757,7 @@ class _WarningItem extends StatelessWidget {
                 Text(
                   message,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: SetflowFontSize.caption,
                     color: SetflowColors.secondaryText,
                     height: 1.4,
                   ),
@@ -826,7 +835,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                         'D-$_dDay',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: SetflowFontSize.caption,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -838,7 +847,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                   '안전한 플랫폼을 위해 코치 자격을 재확인합니다.',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 17,
+                    fontSize: SetflowFontSize.titleLarge,
                     fontWeight: FontWeight.w900,
                     height: 1.3,
                   ),
@@ -848,7 +857,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                   '만료일($_expiryDate) 전까지 증빙 서류를 제출하지 않으면 신규 회원 상담 및 결제 수신이 제한될 수 있습니다.',
                   style: TextStyle(
                     color: Colors.white70,
-                    fontSize: 12,
+                    fontSize: SetflowFontSize.caption,
                     height: 1.4,
                   ),
                 ),
@@ -858,7 +867,10 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
           const SizedBox(height: 20),
           const Text(
             '서류 업로드',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              fontSize: SetflowFontSize.body,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 10),
           if (!_fileAttached)
@@ -872,13 +884,16 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                   const SizedBox(height: 12),
                   const Text(
                     '이곳을 눌러 파일을 선택하세요',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                    style: TextStyle(
+                      fontSize: SetflowFontSize.bodyLarge,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   const Text(
                     'JPG, PNG, PDF (최대 10MB) · 데모',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: SetflowFontSize.caption,
                       color: SetflowColors.secondaryText,
                     ),
                   ),
@@ -927,14 +942,20 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
               children: [
                 Text(
                   '필수 확인 사항',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: SetflowFontSize.label,
+                  ),
                 ),
                 SizedBox(height: 8),
                 Text(
                   '• 본명과 일치하는 공인 기관 발급 자격증만 인정됩니다.\n'
                   '• 자격번호, 발급일, 발급기관 직인이 선명해야 합니다.\n'
                   '• 허위 서류 제출 시 활동이 정지될 수 있습니다.',
-                  style: TextStyle(fontSize: 12, height: 1.6),
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.caption,
+                    height: 1.6,
+                  ),
                 ),
               ],
             ),
@@ -1052,7 +1073,7 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
               Text(
                 _isGym ? '센터 이름' : '이름',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1067,7 +1088,7 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
               Text(
                 _isGym ? '위치' : '한 줄 키워드',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1082,7 +1103,7 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
               Text(
                 _isGym ? '센터 소개' : '자기소개',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: SetflowFontSize.label,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1127,7 +1148,7 @@ class _LiveIntegrationNotice extends StatelessWidget {
             child: Text(
               message,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: SetflowFontSize.caption,
                 height: 1.45,
                 fontWeight: FontWeight.w700,
                 color: SetflowColors.secondaryText,

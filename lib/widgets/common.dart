@@ -703,7 +703,7 @@ class _GlobalRestTimerOverlayState extends State<GlobalRestTimerOverlay> {
                               '$minutes:$remainder',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 17,
+                                fontSize: SetflowFontSize.titleLarge,
                                 fontWeight: FontWeight.w900,
                                 fontFeatures: [FontFeature.tabularFigures()],
                               ),

@@ -215,7 +215,7 @@ class MiniBars extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Pretendard',
-                      fontSize: 10,
+                      fontSize: SetflowFontSize.tiny,
                       fontWeight: i == highlightIndex
                           ? FontWeight.w800
                           : FontWeight.w600,
