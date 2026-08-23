@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../data/business_repository.dart';
+import '../data/exercise_guides.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
@@ -861,12 +862,25 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                       PopupMenuButton<String>(
                         tooltip: '운동 메뉴',
                         onSelected: (value) {
-                          if (value == 'delete') {
+                          if (value == 'guide') {
+                            _showExerciseGuide(context, exercise.template);
+                          } else if (value == 'delete') {
                             _confirmDeleteExercise(context, state);
                           }
                         },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
+                        itemBuilder: (_) => [
+                          if (exerciseGuides.containsKey(exercise.template.id))
+                            const PopupMenuItem(
+                              value: 'guide',
+                              child: Row(
+                                children: [
+                                  Icon(SetflowIcons.guide),
+                                  SizedBox(width: 10),
+                                  Text('수행 방법'),
+                                ],
+                              ),
+                            ),
+                          const PopupMenuItem(
                             value: 'delete',
                             child: Row(
                               children: [
@@ -3485,6 +3499,67 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
         ) ??
         false;
   }
+}
+
+/// 이 동작을 어떻게 하는지. 글자로 된 종목명만 보고는 초보자가 알 수 없다.
+///
+/// 사진이 아니라 글인 이유: 이 문장들의 출처인 데이터셋은 텍스트만 MIT이고 GIF는
+/// Gym visual 소유라 우리가 쓸 권리가 없다. 자세히는 docs/exercise-guides.md.
+void _showExerciseGuide(BuildContext context, ExerciseTemplate template) {
+  final steps = exerciseGuides[template.id];
+  if (steps == null) return;
+  showSetflowSheet<void>(
+    context,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      final theme = Theme.of(sheetContext);
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          0,
+          SetflowSpacing.gutter,
+          SetflowSpacing.xxl,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(template.name, style: theme.textTheme.titleLarge),
+            const SizedBox(height: SetflowSpacing.xxs),
+            Text(
+              '${template.muscle} · ${steps.length}단계',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            for (var i = 0; i < steps.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: SetflowSpacing.lg),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 번호는 순서가 정보라서 붙인다 — 이 문장들은 따라 하는 차례다.
+                    SizedBox(
+                      width: 22,
+                      child: Text(
+                        '${i + 1}',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(steps[i], style: theme.textTheme.bodyMedium),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 Future<double?> _showNumberDial(

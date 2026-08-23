@@ -47,6 +47,9 @@ abstract final class SetflowIcons {
   /// 체크를 변형해 쓰지 않는다 — 위 규칙대로 완료 글리프는 하나뿐이다.
   static const undo = Icons.undo_rounded;
 
+  /// 종목 수행 방법. '설명'이 아니라 **따라 하는 순서**라 목록 글리프를 쓴다.
+  static const guide = Icons.format_list_numbered_rounded;
+
   // --- record surfaces ------------------------------------------------------
   static const routine = Icons.checklist_rounded;
   static const market = Icons.workspace_premium_outlined;

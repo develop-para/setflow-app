@@ -189,7 +189,17 @@ if (!context.mounted) return;
   것은 시스템 바에 깔리는 순간 못 누른다. `test/safe_area_sweep_test.dart`가 노치·내비바를 씌운
   화면에서 이걸 실측한다.
 
-## 7. 테스트
+## 7. 종목 수행 방법 — 텍스트만 가져왔다
+
+`lib/data/exercise_guides.dart`의 한국어 단계 설명은 hasaneyldrm/exercises-dataset에서 왔다.
+그 저장소는 **라이선스가 두 겹**이다 — 텍스트는 MIT지만 **GIF·썸네일은 Gym visual 소유**이고
+재배포 허가는 그쪽이 받은 것이지 우리 것이 아니다. **이미지를 앱에 넣지 말 것.**
+넣으려면 Gym visual과 별도 계약이 먼저다. 배경: `docs/exercise-guides.md`
+
+74종 중 68종이 연결됐다. 없는 6종은 **비워 둔다** — 비슷한 종목으로 억지로 이으면
+초보자에게 틀린 동작을 가르치게 된다.
+
+## 8. 테스트
 
 - 화면·흐름을 바꾸면 해당 위젯 테스트도 같이 고친다. 테스트를 지우거나 `skip` 하지 말 것.
 - 무한 반복 애니메이션이 떠 있으면 `pumpAndSettle()`이 영원히 안 끝난다. 명시적 `pump(duration)`을 쓸 것.
