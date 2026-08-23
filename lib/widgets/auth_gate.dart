@@ -44,8 +44,8 @@ Future<bool> requireSignIn(
   required AuthReason reason,
 }) async {
   if (Auth.instance.hasAuthenticatedUser) return true;
-  final signedIn = await showModalBottomSheet<bool>(
-    context: context,
+  final signedIn = await showSetflowSheet<bool>(
+    context,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (_) => _SignInPrompt(reason: reason),

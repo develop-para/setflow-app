@@ -185,8 +185,8 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
 
   Future<void> _chooseExercises() async {
     final catalog = AppScope.of(context).exercises;
-    final selected = await showModalBottomSheet<List<ExerciseTemplate>>(
-      context: context,
+    final selected = await showSetflowSheet<List<ExerciseTemplate>>(
+      context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _RoutineExercisePickerSheet(

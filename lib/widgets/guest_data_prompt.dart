@@ -23,8 +23,8 @@ Future<bool> askToAdoptGuestData(
   required int workoutDays,
   required int routineCount,
 }) async {
-  final adopted = await showModalBottomSheet<bool>(
-    context: context,
+  final adopted = await showSetflowSheet<bool>(
+    context,
     showDragHandle: true,
     isScrollControlled: true,
     // Losing track of this question would leave the records stranded with no

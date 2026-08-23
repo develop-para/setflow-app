@@ -173,8 +173,8 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
   }
 
   Future<void> _showMediaOptions() async {
-    final source = await showModalBottomSheet<PostMediaSource>(
-      context: context,
+    final source = await showSetflowSheet<PostMediaSource>(
+      context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Column(

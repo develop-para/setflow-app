@@ -295,8 +295,8 @@ class _BusinessHeader extends StatelessWidget {
   }
 
   void _showNotifications(BuildContext context, Color accent) {
-    showModalBottomSheet<void>(
-      context: context,
+    showSetflowSheet<void>(
+      context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (_) => _BusinessNotificationSheet(
@@ -357,8 +357,8 @@ class _BusinessHeader extends StatelessWidget {
             ],
             _ => const <(IconData, String, BusinessTool)>[],
           };
-    showModalBottomSheet<void>(
-      context: context,
+    showSetflowSheet<void>(
+      context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => DraggableScrollableSheet(
@@ -509,8 +509,8 @@ class _BusinessHeader extends StatelessWidget {
       ),
       const (Icons.payments_outlined, '정산', SettlementPage(role: UserRole.gym)),
     ];
-    showModalBottomSheet<void>(
-      context: context,
+    showSetflowSheet<void>(
+      context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: ListView(
@@ -1870,8 +1870,8 @@ class _PeoplePageState extends State<PeoplePage> {
         : state.businessMembers
               .where((member) => member.id == person.$5)
               .firstOrNull;
-    await showModalBottomSheet<void>(
-      context: context,
+    await showSetflowSheet<void>(
+      context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {
@@ -2239,8 +2239,8 @@ class _PeoplePageState extends State<PeoplePage> {
               .where((member) => member.id == memberId)
               .firstOrNull;
     var saving = false;
-    await showModalBottomSheet<void>(
-      context: context,
+    await showSetflowSheet<void>(
+      context,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => SafeArea(
@@ -2365,8 +2365,8 @@ class _PeoplePageState extends State<PeoplePage> {
   }) async {
     final state = AppScope.of(context);
     if (state.usesLiveBusinessData) {
-      await showModalBottomSheet<void>(
-        context: context,
+      await showSetflowSheet<void>(
+        context,
         isScrollControlled: true,
         showDragHandle: true,
         builder: (_) => _GymBusinessInviteSheet(
@@ -2378,8 +2378,8 @@ class _PeoplePageState extends State<PeoplePage> {
       return;
     }
     const inviteLink = 'https://setflow.app/invite/gym-7K2M9';
-    await showModalBottomSheet<void>(
-      context: context,
+    await showSetflowSheet<void>(
+      context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Padding(
@@ -2802,8 +2802,8 @@ Future<void> _showRoutineShareStatusSheet(
   BuildContext context,
   OwnedCoachingRoutine routine,
 ) {
-  return showModalBottomSheet<void>(
-    context: context,
+  return showSetflowSheet<void>(
+    context,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (_) => _RoutineShareStatusSheet(routine: routine),
@@ -3577,8 +3577,8 @@ Future<void> _showRoutineCreate(BuildContext context, UserRole role) async {
   final selectedExerciseIds = <String>{};
   var saving = false;
   Future<void>? sheetCompleted;
-  await showModalBottomSheet<void>(
-    context: context,
+  await showSetflowSheet<void>(
+    context,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (sheetContext) {
@@ -4263,8 +4263,8 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
         : null;
     Future<void>? sheetCompleted;
     try {
-      await showModalBottomSheet<void>(
-        context: context,
+      await showSetflowSheet<void>(
+        context,
         isScrollControlled: true,
         showDragHandle: true,
         builder: (sheetContext) {
@@ -4465,8 +4465,8 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
     Future<void>? sheetCompleted;
-    await showModalBottomSheet<void>(
-      context: context,
+    await showSetflowSheet<void>(
+      context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {
@@ -4789,8 +4789,8 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
   Future<void> _showInviteSheet() async {
     final state = AppScope.of(context);
     if (state.usesLiveBusinessData) {
-      await showModalBottomSheet<void>(
-        context: context,
+      await showSetflowSheet<void>(
+        context,
         isScrollControlled: true,
         showDragHandle: true,
         builder: (_) => _GymBusinessInviteSheet(
@@ -4801,8 +4801,8 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
       return;
     }
     const inviteLink = 'https://setflow.app/invite/trainer-GYM7K2';
-    await showModalBottomSheet<void>(
-      context: context,
+    await showSetflowSheet<void>(
+      context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Padding(
@@ -5186,8 +5186,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     bool blocked,
     int index,
   ) {
-    showModalBottomSheet<void>(
-      context: context,
+    showSetflowSheet<void>(
+      context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Padding(
@@ -6214,8 +6214,8 @@ class _SettlementPageState extends State<SettlementPage> {
     (String, String, String, String, String) item,
   ) {
     final hold = item.$5 == 'hold';
-    showModalBottomSheet<void>(
-      context: context,
+    showSetflowSheet<void>(
+      context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Padding(

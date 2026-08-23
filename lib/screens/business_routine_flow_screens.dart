@@ -264,8 +264,8 @@ class _BusinessRoutineEditorScreenState
   Future<void> _showExercisePicker() async {
     final state = AppScope.of(context);
     final selectedNames = _exercises.map((item) => item.name).toSet();
-    final selected = await showModalBottomSheet<ExerciseTemplate>(
-      context: context,
+    final selected = await showSetflowSheet<ExerciseTemplate>(
+      context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
@@ -899,8 +899,8 @@ Future<bool?> showRoutineMemberShareSheet(
   BuildContext context, {
   required OwnedCoachingRoutine routine,
 }) {
-  return showModalBottomSheet<bool>(
-    context: context,
+  return showSetflowSheet<bool>(
+    context,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (_) => _RoutineMemberShareSheet(routine: routine),
@@ -1297,8 +1297,8 @@ class AdminRoutineReviewCard extends StatelessWidget {
     var tier = RoutineAccessTier.free;
     final reasonController = TextEditingController();
     Future<void>? sheetCompleted;
-    final decision = await showModalBottomSheet<_RoutineReviewDecision>(
-      context: context,
+    final decision = await showSetflowSheet<_RoutineReviewDecision>(
+      context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {

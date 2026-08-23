@@ -160,8 +160,8 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
     final muscle = TextEditingController(text: '32.6');
     final fat = TextEditingController(text: '19.4');
     Future<void>? sheetCompleted;
-    await showModalBottomSheet<void>(
-      context: context,
+    await showSetflowSheet<void>(
+      context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {

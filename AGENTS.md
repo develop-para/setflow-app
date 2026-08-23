@@ -116,6 +116,14 @@ if (!context.mounted) return;
 - **전역 메시지는 화면 위쪽에 띄운다.** 하단은 엄지·기록 디스크·세트 행의 자리라 거기 뜬 메시지는
   방금 고친 행을 가린다. 토스트는 `AppSnackbar`(상단 30%)로만, `ScaffoldMessenger`를 직접 부르지 말 것.
   휴식 타이머도 헤더 아래 슬림 바다.
+- **바텀시트는 `showSetflowSheet`로만 연다.** `showModalBottomSheet`는 하단 세이프에리어를
+  콘텐츠에 떠넘긴다 — `useSafeArea: true`조차 `SafeArea(bottom: false)`라 하단은 빠진다. 직접
+  부르면 잊기 쉽고, 실제로 숫자 다이얼의 "적용"이 내비게이션 바 아래 28px에 깔려 세트를 저장할 수
+  없었다. 인셋은 `showSetflowSheet` 한 곳에서만 넣는다(`SafeArea`는 중첩해도 이중으로 들어가지
+  않으니 시트 안의 `SafeArea`는 그대로 둬도 된다). 키보드 여백만 콘텐츠가 `viewInsets`로 챙긴다.
+- **스크롤 밖에 고정된 버튼은 세이프에리어 안에 있어야 한다.** 스크롤 안이면 밀어서 닿지만 고정된
+  것은 시스템 바에 깔리는 순간 못 누른다. `test/safe_area_sweep_test.dart`가 노치·내비바를 씌운
+  화면에서 이걸 실측한다.
 
 ## 7. 테스트
 

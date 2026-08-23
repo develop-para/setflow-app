@@ -1696,8 +1696,8 @@ class RoutinesScreen extends StatelessWidget {
       AppSnackbar.error(context, '무료 플랜은 루틴을 4개까지 저장할 수 있어요.');
       return;
     }
-    final draft = await showModalBottomSheet<RoutineDraft>(
-      context: context,
+    final draft = await showSetflowSheet<RoutineDraft>(
+      context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => const RoutineCreateSheet(),
@@ -2085,8 +2085,8 @@ Future<void> _acceptRoutineShareToken(
 Future<void> _showRoutineShareCodeSheet(BuildContext context) async {
   final controller = TextEditingController();
   Future<void>? sheetCompleted;
-  final token = await showModalBottomSheet<String>(
-    context: context,
+  final token = await showSetflowSheet<String>(
+    context,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (sheetContext) {

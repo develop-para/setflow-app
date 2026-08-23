@@ -98,6 +98,19 @@ final architectureRules = <ArchitectureRule>[
         '위치는 AppSnackbar.topFraction 한 곳에서 정한다.',
   ),
   ArchitectureRule(
+    name: '바텀시트는 showSetflowSheet 한 곳에서만 연다',
+    pattern: RegExp(r'showModalBottomSheet'),
+    searchIn: const ['lib'],
+    allow: const ['lib/widgets/common.dart'],
+    why:
+        'showModalBottomSheet는 하단 세이프에리어를 콘텐츠에 넘긴다(useSafeArea: true도 '
+        'SafeArea(bottom: false)라 하단은 제외된다). 직접 부르면 그걸 잊기 쉽고, 실제로 숫자 '
+        '다이얼의 "적용"이 내비게이션 바 아래 28px에 깔려 세트를 저장할 수 없었다.',
+    instead:
+        'showSetflowSheet(context, builder: ...)를 쓸 것. 하단 인셋을 거기서 한 번만 넣는다 '
+        '(SafeArea는 중첩해도 이중으로 들어가지 않으니 시트 안의 SafeArea는 그대로 둬도 된다).',
+  ),
+  ArchitectureRule(
     name: '엣지 펑션 호출은 의도적으로만 늘린다',
     pattern: RegExp(r'functions\s*\.\s*invoke'),
     searchIn: const ['lib'],

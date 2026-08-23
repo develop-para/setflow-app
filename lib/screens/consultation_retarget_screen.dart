@@ -266,8 +266,8 @@ class _ConsultationRetargetScreenState
   }
 
   void _openComposer(List<_RetargetTarget> recipients) {
-    showModalBottomSheet<void>(
-      context: context,
+    showSetflowSheet<void>(
+      context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => KeyboardSafeBottomSheet(

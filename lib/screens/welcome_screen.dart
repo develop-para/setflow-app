@@ -1329,8 +1329,8 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   }
 
   Future<void> _pickTrainerDocument(int index) async {
-    final source = await showModalBottomSheet<TrainerDocumentSource>(
-      context: context,
+    final source = await showSetflowSheet<TrainerDocumentSource>(
+      context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Wrap(

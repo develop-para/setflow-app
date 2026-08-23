@@ -69,8 +69,8 @@ Future<bool> requireProAccess(BuildContext context) async {
   final access = proAccessStateOf(state);
   if (access == ProAccessState.approved) return true;
 
-  await showModalBottomSheet<void>(
-    context: context,
+  await showSetflowSheet<void>(
+    context,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (_) =>

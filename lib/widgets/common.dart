@@ -1078,15 +1078,52 @@ class SheetAction<T> {
   final bool destructive;
 }
 
+/// Every modal sheet in the app opens through here.
+///
+/// `showModalBottomSheet` leaves the bottom inset to the caller: with
+/// `useSafeArea: true` Flutter wraps the sheet in `SafeArea(bottom: false)` so
+/// the sheet's own background can still paint under the gesture bar. Callers
+/// kept forgetting to put that inset back on the *content*, and the action row
+/// ended up under the system navigation bar — on the number dial that meant the
+/// only 적용 that writes a set was unreachable.
+///
+/// So the inset is added once, here. Nesting costs nothing: a sheet that already
+/// wraps itself in `SafeArea` sees the padding as consumed and adds none of its
+/// own. Keyboard insets stay with the content — `SafeArea` does not consume
+/// `MediaQuery.viewInsets`, so the two compose instead of doubling up.
+Future<T?> showSetflowSheet<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  bool isScrollControlled = false,
+  bool showDragHandle = true,
+  bool isDismissible = true,
+  bool enableDrag = true,
+  Color? backgroundColor,
+  BoxConstraints? constraints,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: isScrollControlled,
+    showDragHandle: showDragHandle,
+    isDismissible: isDismissible,
+    enableDrag: enableDrag,
+    backgroundColor: backgroundColor,
+    constraints: constraints,
+    // Keeps the sheet clear of the status bar; the bottom half is ours below.
+    useSafeArea: true,
+    builder: (sheetContext) =>
+        SafeArea(top: false, child: builder(sheetContext)),
+  );
+}
+
 Future<T?> showAppActionSheet<T>(
   BuildContext context, {
   String? title,
   String? subtitle,
   required List<SheetAction<T>> actions,
 }) {
-  return showModalBottomSheet<T>(
-    context: context,
-    showDragHandle: true,
+  return showSetflowSheet<T>(
+    context,
     builder: (sheetContext) {
       final theme = Theme.of(sheetContext);
       return SafeArea(
