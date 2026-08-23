@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
@@ -2491,12 +2492,7 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        0,
-        20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + _sheetBottomGap(context)),
       child: Form(
         key: formKey,
         child: Column(
@@ -3174,6 +3170,22 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
   }
 }
 
+/// The bottom gap a modal sheet has to add for itself.
+///
+/// `showModalBottomSheet(useSafeArea: true)` wraps the sheet in
+/// `SafeArea(bottom: false)`: the bottom inset is left out on purpose so the
+/// sheet's background can paint under the gesture bar. The *content* still has
+/// to clear it, or the last row — here the only "적용" that saves the value —
+/// sits under the system navigation bar and cannot be tapped.
+///
+/// Take the larger of the two rather than stacking them: when the keyboard is
+/// up it already covers the navigation bar's strip, so adding both would leave
+/// a gap the height of the bar above the keyboard.
+double _sheetBottomGap(BuildContext context) => math.max(
+  MediaQuery.viewInsetsOf(context).bottom,
+  MediaQuery.viewPaddingOf(context).bottom,
+);
+
 Future<double?> _showNumberDial(
   BuildContext context, {
   required String title,
@@ -3276,7 +3288,7 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final bottomInset = _sheetBottomGap(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
       child: Column(
