@@ -773,14 +773,37 @@ abstract final class AppSnackbar {
     _show(context, message, Icons.info_rounded, context.setflowColors.info);
   }
 
+  /// A message the user can take back on the spot.
+  ///
+  /// For things the app decided on its own — propagating a logged set's numbers
+  /// onto the sets still ahead of it, say. Announcing that without a way back
+  /// would make the app's guess cost more to undo than it saved.
+  static void undoable(
+    BuildContext context,
+    String message, {
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
+    _show(
+      context,
+      message,
+      Icons.check_circle_rounded,
+      SetflowColors.green,
+      actionLabel: actionLabel,
+      onAction: onAction,
+    );
+  }
+
   static OverlayEntry? _current;
 
   static void _show(
     BuildContext context,
     String message,
     IconData icon,
-    Color color,
-  ) {
+    Color color, {
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
     // The root overlay is inside the web app frame (the frame wraps the
     // Navigator in MaterialApp.builder), so the toast keeps the phone width
     // instead of stretching across the browser.
@@ -794,6 +817,8 @@ abstract final class AppSnackbar {
         message: message,
         icon: icon,
         iconColor: color,
+        actionLabel: actionLabel,
+        onAction: onAction,
         onDismiss: () {
           if (identical(_current, entry)) _current = null;
           entry.remove();
@@ -818,12 +843,16 @@ class _Toast extends StatefulWidget {
     required this.icon,
     required this.iconColor,
     required this.onDismiss,
+    this.actionLabel,
+    this.onAction,
   });
 
   final String message;
   final IconData icon;
   final Color iconColor;
   final VoidCallback onDismiss;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   State<_Toast> createState() => _ToastState();
@@ -925,6 +954,25 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
                           style: snack.contentTextStyle,
                         ),
                       ),
+                      if (widget.onAction != null) ...[
+                        const SizedBox(width: SetflowSpacing.sm),
+                        TextButton(
+                          onPressed: () {
+                            widget.onAction!();
+                            _close();
+                          },
+                          style: TextButton.styleFrom(
+                            // The toast paints on ink, where the only readable
+                            // foreground is white.
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: SetflowSpacing.sm,
+                            ),
+                            minimumSize: const Size(0, 36),
+                          ),
+                          child: Text(widget.actionLabel ?? '되돌리기'),
+                        ),
+                      ],
                     ],
                   ),
                 ),

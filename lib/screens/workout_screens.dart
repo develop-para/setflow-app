@@ -936,39 +936,46 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                       for (final set in exercise.sets)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: exercise.template.isCardio
-                              ? _InlineCardioRow(
-                                  key: ObjectKey(set),
-                                  template: exercise.template,
-                                  set: set,
-                                  onToggle: () => _toggleSet(state, set),
-                                  onDurationChanged: (seconds) => state
-                                      .updateSet(set, durationSeconds: seconds),
-                                  onDistanceChanged: (distance) => state
-                                      .updateSet(set, distanceKm: distance),
-                                  onRpeChanged: (rpe) =>
-                                      state.updateSet(set, intensityRpe: rpe),
-                                  onDelete: () =>
-                                      _confirmDeleteSet(context, state, set),
-                                )
-                              : _InlineSetRow(
-                                  key: ObjectKey(set),
-                                  set: set,
-                                  unit: state.weightUnit,
-                                  onToggle: () => _toggleSet(state, set),
-                                  onTypeChanged: (type) =>
-                                      state.updateSet(set, type: type),
-                                  onWeightChanged: (weight) =>
-                                      state.updateSet(set, weight: weight),
-                                  onRepsChanged: (reps) =>
-                                      state.updateSet(set, reps: reps),
-                                  onRestChanged: (seconds) => state.updateSet(
-                                    set,
-                                    restSeconds: seconds,
+                          child: _SwipeableSet(
+                            set: set,
+                            onToggle: () => _toggleSet(state, set),
+                            onDelete: () =>
+                                _confirmDeleteSet(context, state, set),
+                            child: exercise.template.isCardio
+                                ? _InlineCardioRow(
+                                    template: exercise.template,
+                                    set: set,
+                                    onToggle: () => _toggleSet(state, set),
+                                    onDurationChanged: (seconds) =>
+                                        state.updateSet(
+                                          set,
+                                          durationSeconds: seconds,
+                                        ),
+                                    onDistanceChanged: (distance) => state
+                                        .updateSet(set, distanceKm: distance),
+                                    onRpeChanged: (rpe) =>
+                                        state.updateSet(set, intensityRpe: rpe),
+                                    onDelete: () =>
+                                        _confirmDeleteSet(context, state, set),
+                                  )
+                                : _InlineSetRow(
+                                    set: set,
+                                    unit: state.weightUnit,
+                                    onToggle: () => _toggleSet(state, set),
+                                    onTypeChanged: (type) =>
+                                        state.updateSet(set, type: type),
+                                    onWeightChanged: (weight) =>
+                                        state.updateSet(set, weight: weight),
+                                    onRepsChanged: (reps) =>
+                                        state.updateSet(set, reps: reps),
+                                    onRestChanged: (seconds) => state.updateSet(
+                                      set,
+                                      restSeconds: seconds,
+                                    ),
+                                    onDelete: () =>
+                                        _confirmDeleteSet(context, state, set),
                                   ),
-                                  onDelete: () =>
-                                      _confirmDeleteSet(context, state, set),
-                                ),
+                          ),
                         ),
                       TextButton.icon(
                         onPressed: () => state.addSet(exercise),
@@ -1004,12 +1011,30 @@ class _ExerciseCardState extends State<_ExerciseCard> {
       return;
     }
     final labels = prs.map((type) => type.label).join(' · ');
-    AppSnackbar.success(
-      context,
-      labels.isEmpty
-          ? '${set.number}${widget.exercise.template.isCardio ? '구간' : '세트'}을 저장했어요.'
-          : '🏆 $labels을 달성했어요!',
-    );
+    final unit = widget.exercise.template.isCardio ? '구간' : '세트';
+    // What was actually lifted becomes the plan for the sets still ahead. The
+    // snapshot is taken first so the toast can hand it straight back.
+    final undo = AppState.snapshotPendingSets(widget.exercise, set);
+    final adopted = state.adoptActualIntoPendingSets(widget.exercise, set);
+    // The undo has to survive a PR: the first set of an exercise is very often
+    // a record, and that is exactly the set whose numbers get propagated.
+    // Announcing the record instead of the change would leave the guess
+    // standing with no way back.
+    final headline = labels.isEmpty ? '${set.number}$unit 저장' : '🏆 $labels 달성';
+    if (adopted > 0) {
+      AppSnackbar.undoable(
+        context,
+        '$headline · 남은 $adopted$unit도 같은 값으로 맞췄어요.',
+        actionLabel: '되돌리기',
+        onAction: () => state.restorePendingSets(undo),
+      );
+    } else if (labels.isNotEmpty) {
+      AppSnackbar.success(context, '🏆 $labels을 달성했어요!');
+    }
+    // No toast for an ordinary logged set. The row folding to one line is the
+    // confirmation, and a message in the middle of the screen every set — this
+    // loop runs fifteen times a session — sits on top of the next set's button
+    // and eats the tap meant for it.
     final allCompleted =
         widget.exercise.sets.isNotEmpty &&
         widget.exercise.sets.every((item) => item.completed);
@@ -1190,6 +1215,9 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
   late final TextEditingController rpeController;
   bool deleteRevealed = false;
 
+  /// A logged set folds down to one line; tapping opens it again for editing.
+  bool reopened = false;
+
   CardioExerciseDefinition? get definition =>
       cardioDefinitionForExercise(widget.template.id);
 
@@ -1207,6 +1235,9 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
   @override
   void didUpdateWidget(covariant _InlineCardioRow oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Un-completing reopens the card: a set that is no longer logged has to
+    // show its dials again.
+    if (oldWidget.set.completed && !widget.set.completed) reopened = false;
     if (oldWidget.set.durationSeconds != widget.set.durationSeconds) {
       durationController.text = _durationText();
     }
@@ -1266,6 +1297,15 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.set.completed && !reopened) {
+      return _CompletedSetLine(
+        key: ValueKey('inline-cardio-done-${widget.set.number}'),
+        number: widget.set.number,
+        label: '구간',
+        summary: _summary,
+        onExpand: () => setState(() => reopened = true),
+      );
+    }
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onLongPress: () {
@@ -1518,21 +1558,39 @@ class _DialValueField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      enabled: enabled,
-      readOnly: true,
-      canRequestFocus: false,
-      mouseCursor: SystemMouseCursors.click,
-      textAlign: TextAlign.center,
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
-      decoration: InputDecoration(
-        labelText: label,
-        suffixText: suffix,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+    // The TextField is here for its decoration only — the box is a button, not
+    // an input (AGENTS.md 5). Its own gestures are switched off because the
+    // selection drag wins the arena against the row's swipe, and the three
+    // boxes cover most of the row: the set's own numbers would swallow the
+    // gesture that logs it.
+    return Semantics(
+      button: enabled,
+      label: '$label ${controller.text}$suffix',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onDial : null,
+        child: IgnorePointer(
+          child: TextField(
+            controller: controller,
+            enabled: enabled,
+            readOnly: true,
+            canRequestFocus: false,
+            mouseCursor: SystemMouseCursors.click,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+            decoration: InputDecoration(
+              labelText: label,
+              suffixText: suffix,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 10,
+              ),
+            ),
+          ),
+        ),
       ),
-      onTap: onDial,
     );
   }
 }
@@ -1550,7 +1608,6 @@ class _InlineSetRow extends StatefulWidget {
     required this.onRepsChanged,
     required this.onRestChanged,
     required this.onDelete,
-    super.key,
   });
 
   final WorkoutSetEntry set;
@@ -1572,6 +1629,9 @@ class _InlineSetRowState extends State<_InlineSetRow> {
   late final TextEditingController restController;
   bool deleteRevealed = false;
 
+  /// A logged set folds down to one line; tapping opens it again for editing.
+  bool reopened = false;
+
   @override
   void initState() {
     super.initState();
@@ -1583,6 +1643,9 @@ class _InlineSetRowState extends State<_InlineSetRow> {
   @override
   void didUpdateWidget(covariant _InlineSetRow oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Un-completing reopens the card: a set that is no longer logged has to
+    // show its dials again.
+    if (oldWidget.set.completed && !widget.set.completed) reopened = false;
     if (oldWidget.set.weight != widget.set.weight) {
       weightController.text = _weightText();
     }
@@ -1607,6 +1670,15 @@ class _InlineSetRowState extends State<_InlineSetRow> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.set.completed && !reopened) {
+      return _CompletedSetLine(
+        key: ValueKey('inline-set-done-${widget.set.number}'),
+        number: widget.set.number,
+        label: '세트',
+        summary: '${_weightText()}${widget.unit} × ${widget.set.reps}회',
+        onExpand: () => setState(() => reopened = true),
+      );
+    }
     final estimate = PerformanceEngine.estimate(
       widget.set.weight,
       widget.set.reps,
@@ -1875,6 +1947,181 @@ class _InlineSetRowState extends State<_InlineSetRow> {
 /// to three grey number boxes read as one more field. So it is a circle with a
 /// check, and the state is carried the way this app carries every state:
 /// **by density**. Empty outline = not done, black fill = done.
+/// Right to log the set, left to delete it.
+///
+/// The set loop is the same three moves over and over — lift, log, rest — and a
+/// 48px circle is a small target for a shaking hand. Swiping makes the whole row
+/// the target. The circle stays inside the row: a gesture is the only way to
+/// reach a control that has no other affordance, and that leaves a screen reader
+/// with nothing to press.
+///
+/// Neither direction removes the row here. Completing collapses it (the numbers
+/// stay on screen as history), and deleting goes through the confirm dialog that
+/// owns the removal — so `confirmDismiss` always answers false and the row
+/// springs back while the real work happens behind it.
+class _SwipeableSet extends StatelessWidget {
+  const _SwipeableSet({
+    required this.set,
+    required this.onToggle,
+    required this.onDelete,
+    required this.child,
+  });
+
+  final WorkoutSetEntry set;
+  final VoidCallback onToggle;
+  final VoidCallback onDelete;
+  final Widget child;
+
+  Widget _hint(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool fromStart,
+  }) {
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 19, color: color),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: color,
+          ),
+        ),
+      ],
+    );
+    return Container(
+      alignment: fromStart ? Alignment.centerLeft : Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(SetflowRadii.md),
+      ),
+      child: content,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = Theme.of(context).colorScheme.primary;
+    return Dismissible(
+      key: ObjectKey(set),
+      direction: DismissDirection.horizontal,
+      // Generous on purpose: the row lives inside a vertical scroll, and an
+      // accidental completion also starts the rest timer.
+      dismissThresholds: const {
+        DismissDirection.startToEnd: .4,
+        DismissDirection.endToStart: .4,
+      },
+      onUpdate: (details) {
+        if (details.reached && !details.previousReached) {
+          HapticFeedback.mediumImpact();
+        }
+      },
+      background: _hint(
+        context,
+        icon: set.completed ? SetflowIcons.undo : SetflowIcons.setComplete,
+        label: set.completed ? '되돌리기' : '완료',
+        color: ink,
+        fromStart: true,
+      ),
+      secondaryBackground: _hint(
+        context,
+        icon: Icons.delete_outline_rounded,
+        label: '삭제',
+        color: SetflowColors.red,
+        fromStart: false,
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          onToggle();
+        } else {
+          onDelete();
+        }
+        return false;
+      },
+      child: child,
+    );
+  }
+}
+
+/// A logged set, folded down to the one line that answers "what did I just do".
+///
+/// Completed sets used to keep all three dial boxes, so three sets in you had to
+/// scroll to see the set you were about to repeat. Folded, the sets behind you
+/// all stay on screen and the only open card is the one you are working on.
+/// Tapping opens it again — a logged set is still editable.
+class _CompletedSetLine extends StatelessWidget {
+  const _CompletedSetLine({
+    required this.number,
+    required this.summary,
+    required this.label,
+    required this.onExpand,
+    super.key,
+  });
+
+  final int number;
+  final String summary;
+  final String label;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      label: '$number$label $summary, 눌러서 펼치기',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onExpand,
+        borderRadius: BorderRadius.circular(SetflowRadii.md),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+          decoration: BoxDecoration(
+            color: context.setflowColors.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(SetflowRadii.md),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                SetflowIcons.setComplete,
+                size: 17,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 9),
+              Text(
+                '$number$label',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: SetflowColors.secondaryText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SetCompletionButton extends StatelessWidget {
   const _SetCompletionButton({
     required this.setNumber,

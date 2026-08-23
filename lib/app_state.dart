@@ -1357,6 +1357,81 @@ class AppState extends ChangeNotifier {
     await flushPersistence();
   }
 
+  /// What a set held before [adoptActualIntoPendingSets] rewrote it.
+  ///
+  /// Kept so the toast can hand the change straight back: the app guessed, and
+  /// a guess the user cannot undo costs more than it saves.
+  static Map<WorkoutSetEntry, Map<String, num>> snapshotPendingSets(
+    WorkoutExercise exercise,
+    WorkoutSetEntry after,
+  ) {
+    final index = exercise.sets.indexOf(after);
+    if (index < 0) return const {};
+    return {
+      for (final set in exercise.sets.skip(index + 1))
+        if (!set.completed)
+          set: {
+            'weight': set.weight,
+            'reps': set.reps,
+            'durationSeconds': set.durationSeconds,
+            'distanceKm': set.distanceKm,
+            'intensityRpe': set.intensityRpe,
+          },
+    };
+  }
+
+  /// After a set is logged, the sets still ahead of it inherit what actually
+  /// happened instead of what was planned.
+  ///
+  /// Lifting 8 reps when the routine said 10 means the next two sets are far
+  /// more likely to be 8 than 10 — without this the same dial trip repeats once
+  /// per remaining set. Completed sets are never touched: they are history.
+  int adoptActualIntoPendingSets(
+    WorkoutExercise exercise,
+    WorkoutSetEntry from,
+  ) {
+    final index = exercise.sets.indexOf(from);
+    if (index < 0) return 0;
+    final cardio = exercise.template.isCardio;
+    var changed = 0;
+    for (final set in exercise.sets.skip(index + 1)) {
+      if (set.completed) continue;
+      final differs = cardio
+          ? set.durationSeconds != from.durationSeconds ||
+                set.distanceKm != from.distanceKm ||
+                set.intensityRpe != from.intensityRpe
+          : set.weight != from.weight || set.reps != from.reps;
+      if (!differs) continue;
+      if (cardio) {
+        set.durationSeconds = from.durationSeconds;
+        set.distanceKm = from.distanceKm;
+        set.intensityRpe = from.intensityRpe;
+      } else {
+        set.weight = from.weight;
+        set.reps = from.reps;
+      }
+      changed++;
+    }
+    if (changed == 0) return 0;
+    _schedulePersist();
+    notifyListeners();
+    return changed;
+  }
+
+  /// Puts back exactly what [snapshotPendingSets] captured.
+  void restorePendingSets(Map<WorkoutSetEntry, Map<String, num>> snapshot) {
+    if (snapshot.isEmpty) return;
+    snapshot.forEach((set, values) {
+      set.weight = values['weight']!.toDouble();
+      set.reps = values['reps']!.toInt();
+      set.durationSeconds = values['durationSeconds']!.toInt();
+      set.distanceKm = values['distanceKm']!.toDouble();
+      set.intensityRpe = values['intensityRpe']!.toDouble();
+    });
+    _schedulePersist();
+    notifyListeners();
+  }
+
   int copySession(DateTime from, DateTime to) {
     final source = sessions[dateOnly(from)];
     if (source == null || source.exercises.isEmpty) return 0;
