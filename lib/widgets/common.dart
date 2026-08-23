@@ -619,6 +619,155 @@ class ErrorState extends StatelessWidget {
 /// Collapsed it is 44px: how far along the rest is, the label, the clock, and
 /// the way out. Tapping opens the one action that is not urgent enough to sit
 /// there permanently (+30초).
+/// 휴식 중에 화면을 덮는 판. 타이머와 끝내기 버튼 말고는 아무것도 못 누른다.
+///
+/// 세트 사이에 폰을 들면 딴짓이 시작되고, 그러다 휴식이 끝난 줄도 모른다. 쉬는 동안은
+/// 쉬는 것만 보이게 하고, 대신 **지금 어디쯤인지**(남은 세트, 다음 종목)를 같이 적어 둔다 —
+/// 화면을 막았으면 궁금해질 것을 미리 답해 줘야 한다.
+///
+/// 막되 가두지는 않는다. "화면 보기"로 접으면 타이머는 계속 가면서 슬림 바로 돌아간다.
+/// 방금 잘못 누른 숫자를 고치러 갈 길은 남아 있어야 한다.
+class RestFocusOverlay extends StatelessWidget {
+  const RestFocusOverlay({
+    required this.seconds,
+    required this.totalSeconds,
+    required this.exerciseName,
+    required this.setsLeft,
+    required this.nextExercise,
+    required this.onAddTime,
+    required this.onFinish,
+    required this.onCollapse,
+    super.key,
+  });
+
+  final int seconds;
+  final int totalSeconds;
+  final String? exerciseName;
+  final int setsLeft;
+  final String? nextExercise;
+  final VoidCallback onAddTime;
+  final VoidCallback onFinish;
+  final VoidCallback onCollapse;
+
+  String get _clock {
+    final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
+    final rest = (seconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$rest';
+  }
+
+  /// 지금 어디쯤인지. 세트가 남았으면 그 수를, 종목을 끝냈으면 다음 종목을 말한다.
+  String get _whereYouAre {
+    if (setsLeft > 0) {
+      final name = exerciseName;
+      return name == null ? '$setsLeft세트 남음' : '$name · $setsLeft세트 남음';
+    }
+    final next = nextExercise;
+    if (next != null) return '이 종목 끝 · 다음은 $next';
+    return '마지막 종목까지 끝냈어요';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = totalSeconds <= 0
+        ? 0.0
+        : (seconds / totalSeconds).clamp(0.0, 1.0);
+
+    return Semantics(
+      label: '휴식 중 $_clock 남음. $_whereYouAre',
+      liveRegion: true,
+      child: ColoredBox(
+        // 아래를 완전히 덮는다 — 반투명이면 뒤가 보여서 누르고 싶어진다.
+        color: SetflowColors.ink.withValues(alpha: .94),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(SetflowSpacing.section),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '휴식 중',
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.caption,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
+                    color: Colors.white.withValues(alpha: .55),
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                Text(
+                  _clock,
+                  style: const TextStyle(
+                    fontSize: SetflowFontSize.hero,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.xxl),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(SetflowRadii.full),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 4,
+                      // 잉크 위에서 읽히는 건 흰색뿐이다.
+                      backgroundColor: Colors.white12,
+                      valueColor: const AlwaysStoppedAnimation(Colors.white),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.xxl),
+                Text(
+                  _whereYouAre,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.label,
+                    fontWeight: FontWeight.w700,
+                    height: 1.5,
+                    color: Colors.white.withValues(alpha: .72),
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.section),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    OutlinedButton(
+                      key: const ValueKey('rest-focus-add'),
+                      onPressed: onAddTime,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white24),
+                      ),
+                      child: const Text('+30초'),
+                    ),
+                    const SizedBox(width: SetflowSpacing.md),
+                    FilledButton(
+                      key: const ValueKey('rest-focus-finish'),
+                      onPressed: onFinish,
+                      child: const Text('휴식 끝내기'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SetflowSpacing.lg),
+                TextButton(
+                  key: const ValueKey('rest-focus-collapse'),
+                  onPressed: onCollapse,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white.withValues(alpha: .6),
+                  ),
+                  child: const Text('화면 보기'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class GlobalRestTimerOverlay extends StatefulWidget {
   const GlobalRestTimerOverlay({
     required this.seconds,

@@ -36,6 +36,7 @@ abstract final class AppSnapshotCodec {
         'gender': snapshot.gender,
         'precisionRecommendationPrompted':
             snapshot.precisionRecommendationPrompted,
+        'hasSwipedSet': snapshot.hasSwipedSet,
         'recommendationProfile': snapshot.recommendationProfile?.toJson(),
       },
       'customExercises': snapshot.customExercises
@@ -173,6 +174,7 @@ abstract final class AppSnapshotCodec {
         gender: profile['gender'] as String?,
         precisionRecommendationPrompted:
             profile['precisionRecommendationPrompted'] as bool? ?? false,
+        hasSwipedSet: profile['hasSwipedSet'] as bool? ?? false,
         recommendationProfile: RecommendationProfile.tryFromJson(
           profile['recommendationProfile'],
         ),

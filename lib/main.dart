@@ -329,7 +329,24 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                if (state.restRemaining > 0)
+                // 휴식은 두 모습을 갖는다. 기본은 화면을 덮는 판 — 세트 사이에 폰을
+                // 들면 딴짓이 시작되고 휴식이 끝난 줄도 모른다. "화면 보기"로 접으면
+                // 타이머는 그대로 가면서 아래 슬림 바로 내려온다.
+                if (state.restRemaining > 0 && !state.restFocusCollapsed)
+                  Positioned.fill(
+                    child: RestFocusOverlay(
+                      seconds: state.restRemaining,
+                      totalSeconds: state.restDefaultSeconds,
+                      exerciseName: state.restFocus?.exerciseName,
+                      setsLeft: state.restFocus?.setsLeft ?? 0,
+                      nextExercise: state.restFocus?.nextExercise,
+                      onAddTime: () =>
+                          state.startRestTimer(state.restRemaining + 30),
+                      onFinish: state.cancelRestTimer,
+                      onCollapse: state.collapseRestFocus,
+                    ),
+                  ),
+                if (state.restRemaining > 0 && state.restFocusCollapsed)
                   Positioned(
                     left: SetflowSpacing.lg,
                     right: SetflowSpacing.lg,

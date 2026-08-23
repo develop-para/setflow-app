@@ -909,6 +909,10 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                           child: _SwipeableSet(
                             set: set,
                             enabled: _isSetLive(exercise, set),
+                            showHint:
+                                !state.hasSwipedSet &&
+                                !set.completed &&
+                                _isSetLive(exercise, set),
                             onToggle: () => _toggleSet(state, set),
                             onDelete: () =>
                                 _confirmDeleteSet(context, state, set),
@@ -1003,6 +1007,11 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     final unit = widget.exercise.template.isCardio ? '구간' : '세트';
     // What was actually lifted becomes the plan for the sets still ahead. The
     // snapshot is taken first so the toast can hand it straight back.
+    // 휴식 화면이 "무엇을 하다 쉬는지"를 말하려면 지금 찍어 둬야 한다.
+    if (set.completed) {
+      final session = state.sessions[state.dateOnly(widget.date)];
+      if (session != null) state.noteRestFocus(session, widget.exercise);
+    }
     final undo = AppState.snapshotPendingSets(widget.exercise, set);
     final adopted = state.adoptActualIntoPendingSets(widget.exercise, set);
     // The undo has to survive a PR: the first set of an exercise is very often
@@ -1961,6 +1970,7 @@ class _SwipeableSet extends StatefulWidget {
   const _SwipeableSet({
     required this.set,
     required this.enabled,
+    required this.showHint,
     required this.onToggle,
     required this.onDelete,
     required this.child,
@@ -1968,6 +1978,9 @@ class _SwipeableSet extends StatefulWidget {
 
   final WorkoutSetEntry set;
   final bool enabled;
+
+  /// 아직 밀어본 적 없는 사용자에게, 차례인 행 하나만 움직여 보인다.
+  final bool showHint;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final Widget child;
@@ -1976,10 +1989,59 @@ class _SwipeableSet extends StatefulWidget {
   State<_SwipeableSet> createState() => _SwipeableSetState();
 }
 
-class _SwipeableSetState extends State<_SwipeableSet> {
+class _SwipeableSetState extends State<_SwipeableSet>
+    with SingleTickerProviderStateMixin {
   /// How far the row has travelled, 0..1 of its own width.
   double progress = 0;
   bool towardsEnd = false;
+
+  /// A swipe has no handle, so before anyone has done one there is nothing on
+  /// screen that says the row moves. The live row nudges itself a few pixels
+  /// and settles back — enough to read as "this slides", not enough to look
+  /// like a glitch. It runs twice and never again once a set has been logged
+  /// this way.
+  late final AnimationController _hint = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeHint());
+  }
+
+  @override
+  void didUpdateWidget(covariant _SwipeableSet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The turn moves down the list as sets are logged; the new live row gets
+    // the hint if the lesson still has not landed.
+    if (!oldWidget.enabled && widget.enabled) _maybeHint();
+  }
+
+  void _maybeHint() {
+    if (!mounted || !widget.showHint) return;
+    // Someone who turned animations off is not being taught with motion.
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return;
+    _hint.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _hint.dispose();
+    super.dispose();
+  }
+
+  /// Two soft pushes to the right, each returning to rest.
+  double get _nudge {
+    final t = _hint.value;
+    if (t >= 1) return 0;
+    final cycle = (t * 2) % 1;
+    final wave = Curves.easeInOut.transform(
+      cycle < .5 ? cycle * 2 : (1 - cycle) * 2,
+    );
+    return wave * 14;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2007,41 +2069,46 @@ class _SwipeableSetState extends State<_SwipeableSet> {
                 widget.onToggle,
           CustomSemanticsAction(label: '세트 삭제'): widget.onDelete,
         },
-        child: Dismissible(
-          key: ObjectKey(widget.set),
-          direction: widget.enabled
-              ? DismissDirection.horizontal
-              : DismissDirection.endToStart,
-          // Generous on purpose: the row lives inside a vertical scroll, and an
-          // accidental log also starts the rest timer.
-          dismissThresholds: const {
-            DismissDirection.startToEnd: .4,
-            DismissDirection.endToStart: .4,
-          },
-          onUpdate: (details) {
-            if (details.reached && !details.previousReached) {
-              HapticFeedback.mediumImpact();
-            }
-            setState(() {
-              progress = details.progress;
-              towardsEnd = details.direction == DismissDirection.endToStart;
-            });
-          },
-          background: _track(fill: fill, accent: accent, logging: true),
-          secondaryBackground: _track(
-            fill: SetflowColors.red,
-            accent: SetflowColors.red,
-            logging: false,
+        child: AnimatedBuilder(
+          animation: _hint,
+          builder: (context, child) =>
+              Transform.translate(offset: Offset(_nudge, 0), child: child),
+          child: Dismissible(
+            key: ObjectKey(widget.set),
+            direction: widget.enabled
+                ? DismissDirection.horizontal
+                : DismissDirection.endToStart,
+            // Generous on purpose: the row lives inside a vertical scroll, and an
+            // accidental log also starts the rest timer.
+            dismissThresholds: const {
+              DismissDirection.startToEnd: .4,
+              DismissDirection.endToStart: .4,
+            },
+            onUpdate: (details) {
+              if (details.reached && !details.previousReached) {
+                HapticFeedback.mediumImpact();
+              }
+              setState(() {
+                progress = details.progress;
+                towardsEnd = details.direction == DismissDirection.endToStart;
+              });
+            },
+            background: _track(fill: fill, accent: accent, logging: true),
+            secondaryBackground: _track(
+              fill: SetflowColors.red,
+              accent: SetflowColors.red,
+              logging: false,
+            ),
+            confirmDismiss: (direction) async {
+              if (direction == DismissDirection.startToEnd) {
+                widget.onToggle();
+              } else {
+                widget.onDelete();
+              }
+              return false;
+            },
+            child: widget.child,
           ),
-          confirmDismiss: (direction) async {
-            if (direction == DismissDirection.startToEnd) {
-              widget.onToggle();
-            } else {
-              widget.onDelete();
-            }
-            return false;
-          },
-          child: widget.child,
         ),
       ),
     );

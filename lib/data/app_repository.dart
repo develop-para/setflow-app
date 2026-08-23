@@ -22,6 +22,7 @@ class AppSnapshot {
     this.age,
     this.gender,
     this.precisionRecommendationPrompted = false,
+    this.hasSwipedSet = false,
     this.recommendationProfile,
     this.communityPosts = const [],
     this.consultations = const [],
@@ -49,6 +50,9 @@ class AppSnapshot {
   final int? age;
   final String? gender;
   final bool precisionRecommendationPrompted;
+
+  /// 세트를 밀어서 기록해 본 적이 있는가. 없으면 그 행에 살짝 미는 힌트를 보여준다.
+  final bool hasSwipedSet;
   final RecommendationProfile? recommendationProfile;
   final List<CommunityPost> communityPosts;
   final List<ConsultationData> consultations;

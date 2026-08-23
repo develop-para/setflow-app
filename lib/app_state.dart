@@ -44,6 +44,23 @@ class MemberProfileDraft {
   final String? gender;
 }
 
+/// 휴식 중에 보여 줄 것. 남은 세트와 다음 종목은 세트를 마친 순간에만 알 수 있다.
+class RestFocus {
+  const RestFocus({
+    required this.exerciseName,
+    required this.setsLeft,
+    this.nextExercise,
+  });
+
+  final String exerciseName;
+
+  /// 이 종목에 아직 남은 세트 수.
+  final int setsLeft;
+
+  /// 이 종목을 다 했을 때 이어지는 종목. 마지막이면 null.
+  final String? nextExercise;
+}
+
 class AppState extends ChangeNotifier {
   AppState({
     AppRepository? repository,
@@ -139,6 +156,21 @@ class AppState extends ChangeNotifier {
   int? age;
   String? gender;
   bool precisionRecommendationPrompted = false;
+
+  /// 지금 쉬는 이유. 휴식 화면이 "무엇을 하다 쉬는지"를 말할 수 있게 한다.
+  ///
+  /// 타이머만 있으면 남은 시간밖에 못 보여준다. 몇 세트가 남았고 다음이 무엇인지는
+  /// 세트를 마친 그 순간에만 알 수 있어서, 그때 찍어 둔다.
+  RestFocus? restFocus;
+
+  /// 휴식 화면을 접어 뒀는가. 접으면 헤더 아래 슬림 바로 돌아간다.
+  bool restFocusCollapsed = false;
+
+  /// 세트를 밀어서 기록해 본 적이 있는가.
+  ///
+  /// 미는 조작에는 손잡이가 없어서, 해 보기 전에는 있는 줄도 모른다. 아직 안 해 봤으면
+  /// 차례인 행이 스스로 살짝 움직여 보인다. 한 번 하고 나면 다시는 안 한다.
+  bool hasSwipedSet = false;
   RecommendationProfile? recommendationProfile;
   int restRemaining = 0;
   Timer? _restTimer;
@@ -694,6 +726,39 @@ class AppState extends ChangeNotifier {
     this.weight = weight;
     this.age = age;
     this.gender = gender;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  /// 방금 마친 세트를 기준으로 휴식 화면이 말할 내용을 채운다.
+  void noteRestFocus(WorkoutSession session, WorkoutExercise exercise) {
+    final remaining = exercise.sets.where((item) => !item.completed).length;
+    final index = session.exercises.indexOf(exercise);
+    final next = remaining > 0
+        ? null
+        : session.exercises
+              .skip(index + 1)
+              .where((item) => item.sets.any((set) => !set.completed))
+              .firstOrNull;
+    restFocus = RestFocus(
+      exerciseName: exercise.template.name,
+      setsLeft: remaining,
+      nextExercise: next?.template.name,
+    );
+    restFocusCollapsed = false;
+  }
+
+  /// 휴식 화면을 접는다. 타이머는 계속 간다 — 잘못 누른 숫자를 고치러 갈 길은 있어야 한다.
+  void collapseRestFocus() {
+    if (restFocusCollapsed) return;
+    restFocusCollapsed = true;
+    notifyListeners();
+  }
+
+  /// 세트를 밀어서 기록했다. 힌트는 여기서 영구히 꺼진다.
+  void markSwipeLearned() {
+    if (hasSwipedSet) return;
+    hasSwipedSet = true;
     _schedulePersist();
     notifyListeners();
   }
@@ -4993,6 +5058,7 @@ class AppState extends ChangeNotifier {
     age: age,
     gender: gender,
     precisionRecommendationPrompted: precisionRecommendationPrompted,
+    hasSwipedSet: hasSwipedSet,
     recommendationProfile: recommendationProfile,
     communityPosts: communityRepository == null
         ? List<CommunityPost>.unmodifiable(communityPosts)
@@ -5092,6 +5158,7 @@ class AppState extends ChangeNotifier {
     precisionRecommendationPrompted =
         snapshot.precisionRecommendationPrompted ||
         snapshot.recommendationProfile != null;
+    hasSwipedSet = snapshot.hasSwipedSet;
     recommendationProfile = snapshot.recommendationProfile;
     customExercises
       ..clear()
@@ -5152,6 +5219,7 @@ class AppState extends ChangeNotifier {
     age = null;
     gender = null;
     precisionRecommendationPrompted = false;
+    hasSwipedSet = false;
     recommendationProfile = null;
     customExercises.clear();
     exercises
