@@ -712,20 +712,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('운동 KPI'), findsOneWidget);
-    expect(find.byKey(const Key('calendar-kpi-grid')), findsOneWidget);
-    expect(find.byKey(const Key('calendar-kpi-e1rm')), findsOneWidget);
-    expect(find.byKey(const Key('calendar-kpi-change')), findsOneWidget);
-    expect(find.byKey(const Key('calendar-kpi-pr')), findsOneWidget);
-    expect(find.byKey(const Key('calendar-kpi-sessions')), findsOneWidget);
+    // 홈은 캘린더만 보여준다. 지표는 통계 탭(DashboardScreen)이 정본이고,
+    // 추천은 운동 화면에서 종목을 더할 때만 나온다.
+    expect(find.text('운동 KPI'), findsNothing);
+    expect(find.byKey(const Key('calendar-kpi-grid')), findsNothing);
+    expect(find.byKey(const Key('calendar-kpi-action')), findsNothing);
     expect(find.byKey(const Key('calendar-kpi-next')), findsNothing);
     expect(find.text('NEXT SESSION'), findsNothing);
     expect(find.text('오늘 운동에 적용'), findsNothing);
-    await tester.ensureVisible(find.text('오늘 운동 기록하기'));
-    await tester.tap(find.text('오늘 운동 기록하기'));
-    await tester.pumpAndSettle();
 
     final today = state.dateOnly(DateTime.now());
+    final todayCell = find.bySemanticsLabel(
+      RegExp('^${today.year}년 ${today.month}월 ${today.day}일'),
+    );
+    await tester.ensureVisible(todayCell);
+    await tester.tap(todayCell);
+    await tester.pumpAndSettle();
+
     expect(find.byType(DailyWorkoutScreen), findsOneWidget);
     expect(state.sessions[today]!.exercises, isEmpty);
 
