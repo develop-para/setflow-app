@@ -17,7 +17,11 @@ import '../widgets/common.dart';
 /// their set does**. So the room is not a chat with a timer bolted on; it is a
 /// timer that two people share, and everything else is arranged around it.
 class TogetherScreen extends StatefulWidget {
-  const TogetherScreen({super.key});
+  const TogetherScreen({this.onOpenRecord, super.key});
+
+  /// 방의 "지금 세트" 카드가 오늘 기록이 비었을 때 기록 탭으로 보내는 통로.
+  /// 기록은 셸의 탭이라 push하면 바텀바 없는 사본이 열린다.
+  final VoidCallback? onOpenRecord;
 
   @override
   State<TogetherScreen> createState() => _TogetherScreenState();
@@ -160,6 +164,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
                 party: _party!,
                 userId: _userId,
                 busy: _busy,
+                liveSet: _liveSetOfToday(AppScope.of(context)),
+                onOpenRecord: widget.onOpenRecord,
                 onStart: () =>
                     _run(() => _repository!.startTogether(_party!.id)),
                 onSetDone: _reportSetDone,
@@ -188,8 +194,34 @@ class _TogetherScreenState extends State<TogetherScreen> {
     await _run(() => _repository!.joinParty(code));
   }
 
+  /// 오늘 기록의 차례인 세트. 기록 화면과 같은 규칙이다: 각 종목에서 완료
+  /// 안 된 첫 세트가 차례고, 종목은 목록 순서를 따른다.
+  (WorkoutExercise, WorkoutSetEntry)? _liveSetOfToday(AppState state) {
+    final session = state.sessions[state.dateOnly(DateTime.now())];
+    if (session == null) return null;
+    for (final exercise in session.exercises) {
+      for (final set in exercise.sets) {
+        if (!set.completed) return (exercise, set);
+      }
+    }
+    return null;
+  }
+
+  /// "세트 끝냈어요"는 신호가 아니라 기록이다. 방에만 알리고 장부에 안 남으면
+  /// 같은 세트를 기록 탭에서 한 번 더 밀어야 한다 — 같은 행위가 두 번이 된다.
   Future<void> _reportSetDone() async {
-    final rest = AppScope.of(context).restDefaultSeconds;
+    final state = AppScope.of(context);
+    final live = _liveSetOfToday(state);
+    var rest = state.restDefaultSeconds;
+    if (live != null) {
+      final (exercise, set) = live;
+      rest = set.restSeconds > 0 ? set.restSeconds : rest;
+      // 휴식은 방이 정한 공유 시각으로 시작해야 한다 — 여기서 로컬 타이머를
+      // 켜면 서버 echo와 두 개가 돈다.
+      await state.toggleSet(set, startRest: false);
+      state.adoptActualIntoPendingSets(exercise, set);
+      if (!mounted) return;
+    }
     await _run(
       () => _repository!.reportSetDone(partyId: _party!.id, restSeconds: rest),
     );
@@ -415,6 +447,8 @@ class _PartyRoom extends StatelessWidget {
     required this.party,
     required this.userId,
     required this.busy,
+    required this.liveSet,
+    required this.onOpenRecord,
     required this.onStart,
     required this.onSetDone,
     required this.onModeChanged,
@@ -426,6 +460,11 @@ class _PartyRoom extends StatelessWidget {
   final TrainingParty party;
   final String? userId;
   final bool busy;
+
+  /// 오늘 기록에서 차례인 세트. 방은 "무슨 세트를 하는 중인가"를 기록에서
+  /// 읽는다 — 여기 없는 별도 장부를 만들지 않는다.
+  final (WorkoutExercise, WorkoutSetEntry)? liveSet;
+  final VoidCallback? onOpenRecord;
   final VoidCallback onStart;
   final VoidCallback onSetDone;
   final ValueChanged<PartyMode> onModeChanged;
@@ -470,6 +509,17 @@ class _PartyRoom extends StatelessWidget {
           ),
           const SizedBox(height: SetflowSpacing.sm),
         ],
+        if (party.members.length == 1) ...[
+          Text(
+            '코드를 공유하고 친구를 기다리고 있어요. 들어오면 같이 시작을 누르세요.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+        ],
+        _LiveSetCard(liveSet: liveSet, onOpenRecord: onOpenRecord),
         const SizedBox(height: SetflowSpacing.lg),
         // In 교대 the button is only live on your turn: a set logged out of
         // turn would move the rotation past someone who never lifted.
@@ -477,7 +527,9 @@ class _PartyRoom extends StatelessWidget {
           key: const ValueKey('together-set-done'),
           label: party.mode == PartyMode.alternating && !myTurn
               ? '상대 차례예요'
-              : '세트 끝냈어요',
+              : liveSet == null
+              ? '세트 끝냈어요'
+              : '${liveSet!.$2.number}세트 끝냈어요',
           icon: SetflowIcons.setComplete,
           isLoading: busy,
           onPressed:
@@ -535,6 +587,100 @@ class _PartyRoom extends StatelessWidget {
           onPressed: onLeave,
         ),
       ],
+    );
+  }
+}
+
+/// 지금 하는 세트 — 방과 기록을 잇는 다리.
+///
+/// 방에서 "세트 끝냈어요"를 누르면 오늘 기록의 이 세트가 완료된다. 이 카드가
+/// 없으면 버튼이 무엇을 끝내는지 화면 어디에도 없다 — 실기기 피드백 그대로
+/// "뭘 해야 할지 모르겠는" 방이 된다.
+class _LiveSetCard extends StatelessWidget {
+  const _LiveSetCard({required this.liveSet, required this.onOpenRecord});
+
+  final (WorkoutExercise, WorkoutSetEntry)? liveSet;
+  final VoidCallback? onOpenRecord;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final live = liveSet;
+    if (live == null) {
+      return SetflowCard(
+        key: const ValueKey('together-live-set-empty'),
+        onTap: onOpenRecord,
+        child: Row(
+          children: [
+            Icon(
+              SetflowIcons.record,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: SetflowSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '오늘 기록에 운동이 없어요',
+                    style: TextStyle(fontWeight: SetflowWeight.strong),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '기록 탭에서 운동을 추가하면 여기서 세트가 넘어가요.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onOpenRecord != null)
+              Icon(
+                Icons.chevron_right,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+          ],
+        ),
+      );
+    }
+
+    final (exercise, set) = live;
+    final total = exercise.sets.length;
+    final plan = exercise.template.isCardio
+        ? '${(set.durationSeconds / 60).round()}분'
+        : '${set.weight.toStringAsFixed(set.weight % 1 == 0 ? 0 : 1)}kg × ${set.reps}회';
+    return SetflowCard(
+      key: const ValueKey('together-live-set'),
+      child: Row(
+        children: [
+          Icon(
+            exercise.template.icon,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: SetflowSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exercise.template.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: SetflowWeight.strong),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${set.number}세트 / $total세트 · $plan',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

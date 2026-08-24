@@ -202,6 +202,56 @@ void main() {
       expect(find.text('상대 차례예요'), findsOneWidget);
     });
 
+    testWidgets("세트 끝냈어요 logs the set in today's record, not just the room", (
+      tester,
+    ) async {
+      // 방의 버튼이 신호에 그치면 같은 세트를 기록 탭에서 한 번 더 밀어야
+      // 한다 — 실기기 피드백("어떤 세트를 하는지 보여야 하는 것 아닌가")의
+      // 핵심이 이 연결이다.
+      final state = await pumpTogether(tester, repository: client('u-me', '나'));
+      final today = state.dateOnly(DateTime.now());
+      state.addExercise(today, state.exercises.firstWhere((e) => !e.isCardio));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+
+      // 방이 오늘 기록의 차례 세트를 보여준다.
+      expect(find.byKey(const ValueKey('together-live-set')), findsOneWidget);
+      expect(find.text('1세트 끝냈어요'), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('together-set-done')),
+      );
+      await tester.tap(find.byKey(const ValueKey('together-set-done')));
+      await tester.pumpAndSettle();
+
+      final session = state.sessions[today]!;
+      expect(
+        session.exercises.first.sets.first.completed,
+        isTrue,
+        reason: '방에서 끝낸 세트가 오늘 기록에 남지 않았다',
+      );
+      // 다음 차례 세트로 넘어간 것도 화면에 보인다.
+      expect(find.text('2세트 끝냈어요'), findsOneWidget);
+      state.cancelRestTimer();
+    });
+
+    testWidgets(
+      'an empty day points at the record tab instead of a bare button',
+      (tester) async {
+        await pumpTogether(tester, repository: client('u-me', '나'));
+        await tester.tap(find.byKey(const ValueKey('together-create')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const ValueKey('together-live-set-empty')),
+          findsOneWidget,
+        );
+        expect(find.text('오늘 기록에 운동이 없어요'), findsOneWidget);
+      },
+    );
+
     testWidgets('leaving puts me back in the lobby', (tester) async {
       await pumpTogether(tester, repository: client('u-me', '나'));
       await tester.tap(find.byKey(const ValueKey('together-create')));

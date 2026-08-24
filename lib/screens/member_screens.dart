@@ -108,7 +108,7 @@ class _MemberShellState extends State<MemberShell> {
       CalendarScreen(onOpenTogether: () => setState(() => index = 1)),
       // 통계(DashboardScreen)가 있던 자리. 화면은 지우지 않고 메뉴에서만 내렸다 —
       // 지표는 나중에 다시 올릴 것이고, 그때 되살릴 코드가 남아 있어야 한다.
-      const TogetherScreen(),
+      TogetherScreen(onOpenRecord: () => setState(() => index = _recordPage)),
       DailyWorkoutScreen(date: today),
       const CommunityScreen(),
       const MyPageScreen(),
