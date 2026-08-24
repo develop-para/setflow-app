@@ -8,12 +8,12 @@ import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/screens/workout_screens.dart';
 import 'package:setflow/theme.dart';
 
-/// People turn the system font up. At 1.5× the app has to still hold together —
+/// People turn the system font up. At 2× the app has to still hold together —
 /// that is a setting, not an edge case, and it is the one most likely to be on
 /// for someone reading a set row mid-workout.
 void main() {
-  // 1.5는 흔한 설정이다. 여기서 처음 깨졌고, 깨진 곳이 하필 기록·달력이었다.
-  const scale = 1.5;
+  // 2배까지 버틴다. 1.5배에서 기록·달력이, 2배에서 체중 차트가 깨졌었다.
+  const scale = 2.0;
 
   Future<String?> pumpAt(WidgetTester tester, Widget screen) async {
     await tester.binding.setSurfaceSize(const Size(393, 852));
@@ -44,7 +44,7 @@ void main() {
     return error?.toString();
   }
 
-  testWidgets('the screens people live in survive 1.5x text', (tester) async {
+  testWidgets('the screens people live in survive 2x text', (tester) async {
     final date = DateTime(2026, 11, 20);
     final screens = <String, Widget>{
       'CalendarScreen': const Scaffold(body: CalendarScreen()),
@@ -61,6 +61,6 @@ void main() {
       final error = await pumpAt(tester, entry.value);
       if (error != null) broken.add('${entry.key}: $error');
     }
-    expect(broken, isEmpty, reason: '글자를 1.5배로 키우면 이 화면들이 깨진다');
+    expect(broken, isEmpty, reason: '글자를 2배로 키우면 이 화면들이 깨진다');
   });
 }

@@ -80,58 +80,55 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
           const SectionTitle('체중 변화'),
           const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
-            child: SizedBox(
-              // 막대 위에 숫자가 붙어 있어서, 글자를 키우면 고정 높이를 넘는다.
-              // 막대 길이는 그대로 두고 차트가 글자만큼 자란다.
-              height:
-                  170 + (MediaQuery.textScalerOf(context).scale(11) - 11) * 3,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (var i = 0; i < entries.length; i++)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${entries[i].weight}',
-                              style: const TextStyle(
-                                fontSize: SetflowFontSize.small,
-                                fontWeight: SetflowWeight.medium,
+            // 높이를 박지 않는다. 막대는 길이가 정해져 있고 글자는 배율을 타므로,
+            // Row 가 가장 큰 자식만큼 높아지게 두는 편이 어떤 배율에서도 맞다.
+            // (예전엔 170을 박아두고 배율만큼 더했는데, 배율이 커질수록 어김없이 모자랐다.)
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < entries.length; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${entries[i].weight}',
+                            style: const TextStyle(
+                              fontSize: SetflowFontSize.small,
+                              fontWeight: SetflowWeight.medium,
+                            ),
+                          ),
+                          const SizedBox(height: SetflowSpacing.xs2),
+                          Container(
+                            height: 76 + i * 18,
+                            decoration: BoxDecoration(
+                              color: i == entries.length - 1
+                                  ? SetflowColors.primary
+                                  : context.setflowColors.teal.withValues(
+                                      alpha: .55,
+                                    ),
+                              borderRadius: BorderRadius.circular(
+                                SetflowRadii.sm,
                               ),
                             ),
-                            const SizedBox(height: SetflowSpacing.xs2),
-                            Container(
-                              height: 76 + i * 18,
-                              decoration: BoxDecoration(
-                                color: i == entries.length - 1
-                                    ? SetflowColors.primary
-                                    : context.setflowColors.teal.withValues(
-                                        alpha: .55,
-                                      ),
-                                borderRadius: BorderRadius.circular(
-                                  SetflowRadii.sm,
-                                ),
-                              ),
+                          ),
+                          const SizedBox(height: SetflowSpacing.sm),
+                          Text(
+                            entries[i].date,
+                            style: TextStyle(
+                              fontSize: SetflowFontSize.micro,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
-                            const SizedBox(height: SetflowSpacing.sm),
-                            Text(
-                              entries[i].date,
-                              style: TextStyle(
-                                fontSize: SetflowFontSize.micro,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: SetflowSpacing.xxl),
