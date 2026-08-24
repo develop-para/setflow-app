@@ -79,7 +79,8 @@ class _BusinessShellState extends State<BusinessShell> {
       bottomNavigationBar: NavigationBar(
         height: 64,
         selectedIndex: index,
-        indicatorColor: config.color.withValues(alpha: .14),
+        // 인디케이터는 테마가 정한다(잉크 바 + 라임). 역할색 14%는 검은 바
+        // 위에서 사실상 보이지 않았다 — 어느 탭인지 라벨 굵기로만 읽혔다.
         onDestinationSelected: (value) {
           HapticFeedback.selectionClick();
           setState(() => index = value);
@@ -863,7 +864,13 @@ class TrainerHome extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(SetflowSpacing.xl),
           decoration: BoxDecoration(
-            color: accent,
+            // 돈이 걸린 히어로는 어디서나 잉크 블록이다(정산 카드와 같은 판).
+            // 파란 슬랩은 카테고리 색을 포털에서 제일 큰 면에 쓰는 일이었다.
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [SetflowColors.inkBlockTop, SetflowColors.inkBlockBottom],
+            ),
             borderRadius: BorderRadius.circular(SetflowRadii.lg),
           ),
           child: Column(
@@ -874,7 +881,10 @@ class TrainerHome extends StatelessWidget {
                   Expanded(
                     child: Row(
                       children: [
-                        Icon(Icons.verified_rounded, color: Colors.white),
+                        Icon(
+                          Icons.verified_rounded,
+                          color: SetflowColors.brand,
+                        ),
                         SizedBox(width: SetflowSpacing.sm),
                         Flexible(
                           child: Text(
@@ -893,7 +903,7 @@ class TrainerHome extends StatelessWidget {
                   Text(
                     'PRO',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: SetflowColors.brand,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1057,7 +1067,14 @@ class GymHome extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(SetflowSpacing.xl),
           decoration: BoxDecoration(
-            color: accent,
+            // 트레이너 수익 카드와 같은 잉크 블록 — 보라 슬랩은 카테고리
+            // 색을 포털의 제일 큰 면에 쓰는 일이었다. 인증 표시는 브랜드가
+            // 맡는다.
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [SetflowColors.inkBlockTop, SetflowColors.inkBlockBottom],
+            ),
             borderRadius: BorderRadius.circular(SetflowRadii.lg),
           ),
           child: Row(
@@ -1087,7 +1104,7 @@ class GymHome extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.verified_rounded, color: Colors.white),
+              const Icon(Icons.verified_rounded, color: SetflowColors.brand),
             ],
           ),
         ),
@@ -3209,13 +3226,15 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                               children: [
                                 Row(
                                   children: [
+                                    // 루틴 식별색은 어디서나 가는 선이다 —
+                                    // 내 루틴·불러오기 시트와 같은 문법.
                                     Container(
-                                      width: 10,
-                                      height: 44,
+                                      width: 4,
+                                      height: 36,
                                       decoration: BoxDecoration(
                                         color: routine.color,
                                         borderRadius: BorderRadius.circular(
-                                          SetflowRadii.xs,
+                                          SetflowRadii.full,
                                         ),
                                       ),
                                     ),

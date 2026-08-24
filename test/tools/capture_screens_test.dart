@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/screens/business_screens.dart';
+import 'package:setflow/theme.dart';
 import 'package:setflow/services/auth_service.dart';
 
 const _enabled = bool.fromEnvironment('CAPTURE');
@@ -277,5 +279,50 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.binding.setSurfaceSize(null);
+  }, skip: !_enabled);
+
+  // 트레이너/헬스장/관리자 포털. role 전환은 셸 교체라 pageBack 워크과 성격이
+  // 달라서, 포털 셸을 직접 띄우고 탭만 순회한다.
+  testWidgets('capture business portals', (tester) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+          const EventChannel('com.llfbandit.app_links/events'),
+          MockStreamHandler.inline(onListen: (_, _) {}),
+        );
+    await tester.runAsync(_loadFonts);
+    await tester.binding.setSurfaceSize(const Size(400, 860));
+
+    final state = AppState();
+    await state.initialize();
+    addTearDown(state.dispose);
+
+    Future<void> portal(UserRole role, String name, List<String> tabs) async {
+      state.chooseRole(role, enforceAccess: false);
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: SetflowTheme.light,
+            // 키가 없으면 이전 역할의 셸 상태(탭 인덱스)가 재사용된다.
+            home: BusinessShell(key: ValueKey(role), role: role),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _shot(tester, 'build/shots/${name}_home.png');
+      for (final (i, tab) in tabs.indexed) {
+        await tester.tap(find.text(tab).last);
+        await tester.pumpAndSettle();
+        await _shot(tester, 'build/shots/${name}_tab${i + 1}.png');
+      }
+    }
+
+    await portal(UserRole.trainer, 'trainer', ['회원', '루틴', '상담']);
+    await portal(UserRole.gym, 'gym', ['회원', '운영', '정산']);
+    await portal(UserRole.admin, 'admin', ['유저', '루틴', '심사', '정산']);
+
+    await tester.binding.setSurfaceSize(null);
+    await tester.pump(const Duration(milliseconds: 400));
   }, skip: !_enabled);
 }
