@@ -35,7 +35,10 @@ class AuthNotice extends StatelessWidget {
     final (color, icon) = switch (tone) {
       AuthNoticeTone.info => (SetflowColors.ink, SetflowIcons.mailSent),
       AuthNoticeTone.success => (SetflowColors.ink, SetflowIcons.success),
-      AuthNoticeTone.danger => (SetflowColors.red, SetflowIcons.error),
+      AuthNoticeTone.danger => (
+        context.setflowColors.error,
+        SetflowIcons.error,
+      ),
     };
     final onPanel = theme.brightness == Brightness.dark
         ? theme.colorScheme.onSurface

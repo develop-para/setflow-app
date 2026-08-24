@@ -665,8 +665,8 @@ class _MemberSummaryHeader extends StatelessWidget {
               suffix: '%',
               icon: Icons.check_circle_outline,
               tint: member.completionRate >= 80
-                  ? SetflowColors.green
-                  : SetflowColors.orange,
+                  ? context.setflowColors.success
+                  : context.setflowColors.orange,
             ),
             const SizedBox(width: SetflowSpacing.sm2),
             MetricCard(
@@ -676,7 +676,7 @@ class _MemberSummaryHeader extends StatelessWidget {
               icon: hasRecentCardio && !hasRecentResistance
                   ? Icons.directions_run_rounded
                   : Icons.monitor_weight_outlined,
-              tint: SetflowColors.blue,
+              tint: context.setflowColors.blue,
             ),
           ],
         ),
@@ -806,8 +806,8 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         color: session.completion >= .8
-                            ? SetflowColors.green
-                            : SetflowColors.orange,
+                            ? context.setflowColors.success
+                            : context.setflowColors.orange,
                       ),
                     ),
                   ],
@@ -853,8 +853,8 @@ class _MemberCalendarCell extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: session!.completion >= .8
-                      ? SetflowColors.green
-                      : SetflowColors.orange,
+                      ? context.setflowColors.success
+                      : context.setflowColors.orange,
                 ),
               ),
           ],

@@ -33,7 +33,7 @@ class _BusinessShellState extends State<BusinessShell> {
 
   @override
   Widget build(BuildContext context) {
-    final config = _roleConfig(widget.role);
+    final config = _roleConfig(context, widget.role);
     final pages = switch (widget.role) {
       UserRole.trainer => const [
         TrainerHome(),
@@ -47,7 +47,7 @@ class _BusinessShellState extends State<BusinessShell> {
         GymOperationsPage(),
         SettlementPage(role: UserRole.gym),
       ],
-      UserRole.admin => const [
+      UserRole.admin => [
         AdminHome(),
         AdminUsersPage(),
         RoutineManagerPage(role: UserRole.admin),
@@ -138,13 +138,14 @@ Color _businessKindColor(BuildContext context, String kind) {
 }
 
 ({String title, Color color, List<(IconData, String)> nav}) _roleConfig(
+  BuildContext context,
   UserRole role,
 ) {
   return switch (role) {
     UserRole.trainer => (
       title: '트레이너',
-      color: SetflowColors.blue,
-      nav: const [
+      color: context.setflowColors.blue,
+      nav: [
         (Icons.dashboard_outlined, '홈'),
         (Icons.people_outline, '회원'),
         (Icons.fitness_center, '루틴'),
@@ -153,7 +154,7 @@ Color _businessKindColor(BuildContext context, String kind) {
     ),
     UserRole.gym => (
       title: '헬스장',
-      color: SetflowColors.purple,
+      color: context.setflowColors.purple,
       nav: const [
         (Icons.dashboard_outlined, '홈'),
         (Icons.people_outline, '회원'),
@@ -469,10 +470,10 @@ class _BusinessHeader extends StatelessWidget {
               ],
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.logout, color: SetflowColors.red),
-                title: const Text(
+                leading: Icon(Icons.logout, color: context.setflowColors.error),
+                title: Text(
                   '로그아웃',
-                  style: TextStyle(color: SetflowColors.red),
+                  style: TextStyle(color: context.setflowColors.error),
                 ),
                 onTap: () async {
                   final route = ModalRoute.of(sheetContext);
@@ -532,10 +533,10 @@ class _BusinessHeader extends StatelessWidget {
               ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.logout, color: SetflowColors.red),
-              title: const Text(
+              leading: Icon(Icons.logout, color: context.setflowColors.error),
+              title: Text(
                 '로그아웃',
-                style: TextStyle(color: SetflowColors.red),
+                style: TextStyle(color: context.setflowColors.error),
               ),
               onTap: () async {
                 final route = ModalRoute.of(sheetContext);
@@ -642,9 +643,9 @@ class _BusinessHomeFrameState extends State<_BusinessHomeFrame> {
                 ).colorScheme.errorContainer.withValues(alpha: .5),
                 borderRadius: BorderRadius.circular(SetflowRadii.md),
                 child: ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.cloud_off_rounded,
-                    color: SetflowColors.red,
+                    color: context.setflowColors.error,
                   ),
                   title: const Text(
                     '운영 데이터 저장에 실패했어요.',
@@ -776,9 +777,9 @@ class _BusinessNotificationSheet extends StatelessWidget {
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 18),
                         color: context.setflowColors.teal.withValues(alpha: .1),
-                        child: const Icon(
+                        child: Icon(
                           Icons.done_rounded,
-                          color: SetflowColors.teal,
+                          color: context.setflowColors.teal,
                         ),
                       ),
                       child: ListTile(
@@ -840,7 +841,7 @@ Widget _businessNotificationPage(UserRole role, String kind) {
   return switch (kind) {
     'review' => const AdminUsersPage(),
     'settlement' => const SettlementPage(role: UserRole.admin),
-    _ => const AdminReviewPage(),
+    _ => AdminReviewPage(),
   };
 }
 
@@ -1387,9 +1388,7 @@ class AdminHome extends StatelessWidget {
                 icon: Icons.fact_check_outlined,
                 tint: context.setflowColors.orange,
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const AdminReviewPage(),
-                  ),
+                  MaterialPageRoute<void>(builder: (_) => AdminReviewPage()),
                 ),
               ),
               const SizedBox(width: SetflowSpacing.md),
@@ -1553,7 +1552,7 @@ class AdminHome extends StatelessWidget {
         SetflowCard(
           onTap: () => Navigator.of(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const AdminSystemScreen())),
+          ).push(MaterialPageRoute(builder: (_) => AdminSystemScreen())),
           child: const Row(
             children: [
               Icon(Icons.tune_outlined, color: SetflowColors.primary),
@@ -1590,8 +1589,8 @@ void _openBusinessTask(
     ),
     'gym_member_assignment' => const PeoplePage(role: UserRole.gym),
     'gym_feedback_rate' => const TrainerManagementPage(),
-    'admin_urgent_reports' => const AdminReviewPage(),
-    'admin_business_reviews' => const AdminReviewPage(),
+    'admin_urgent_reports' => AdminReviewPage(),
+    'admin_business_reviews' => AdminReviewPage(),
     _ => WorkspaceScreen(role: role),
   };
   Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
@@ -1759,9 +1758,9 @@ class _PeoplePageState extends State<PeoplePage> {
                                 radius: 24,
                                 backgroundColor: [
                                   SetflowColors.primary,
-                                  SetflowColors.teal,
-                                  SetflowColors.purple,
-                                  SetflowColors.blue,
+                                  context.setflowColors.teal,
+                                  context.setflowColors.purple,
+                                  context.setflowColors.blue,
                                 ][index % 4].withValues(alpha: .2),
                                 child: Text(
                                   person.$1.characters.first,
@@ -1843,7 +1842,7 @@ class _PeoplePageState extends State<PeoplePage> {
               heroTag: 'gym-member-invite',
               tooltip: '회원 초대',
               onPressed: () => _showInviteSheet(context),
-              backgroundColor: SetflowColors.purple,
+              backgroundColor: context.setflowColors.purple,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.person_add_alt_1),
               label: const Text('초대'),
@@ -2070,15 +2069,15 @@ class _PeoplePageState extends State<PeoplePage> {
                           value: '${person.$4}',
                           suffix: '%',
                           icon: Icons.check_circle_outline,
-                          tint: SetflowColors.teal,
+                          tint: context.setflowColors.teal,
                         ),
                         const SizedBox(width: SetflowSpacing.sm2),
-                        const MetricCard(
+                        MetricCard(
                           label: '최근 볼륨',
                           value: '4.8',
                           suffix: 't',
                           icon: Icons.monitor_weight_outlined,
-                          tint: SetflowColors.orange,
+                          tint: context.setflowColors.orange,
                         ),
                       ],
                     ),
@@ -2561,10 +2560,10 @@ class _GymBusinessInviteSheetState extends State<_GymBusinessInviteSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(
+        Icon(
           Icons.check_circle_rounded,
           size: 42,
-          color: SetflowColors.teal,
+          color: context.setflowColors.teal,
         ),
         const SizedBox(height: SetflowSpacing.md),
         Text('초대 링크를 만들었어요', style: Theme.of(context).textTheme.headlineMedium),
@@ -2668,6 +2667,10 @@ RoutineData _routineDataFromOwned(AppState state, OwnedCoachingRoutine record) {
     id: record.id,
     name: record.title,
     description: record.intro ?? '설명이 등록되지 않았습니다.',
+    // 여기만 라이트 상수로 남는다: 이 색은 모델(RoutineData)에 실려 나가고,
+    // 모델은 BuildContext 를 모른다. 제대로 고치려면 색을 모델에서 빼고 화면이
+    // status -> 색을 그릴 때 정해야 한다 — 별개의 작업이다.
+    // 배경: docs/dark-mode-debt.md
     color: switch (record.status) {
       BusinessRoutineStatus.approved => SetflowColors.green,
       BusinessRoutineStatus.rejected => SetflowColors.red,
@@ -2704,13 +2707,16 @@ String _routineShareStatusLabel(RoutineShareStatus status) => switch (status) {
   RoutineShareStatus.unknown => '상태 확인 필요',
 };
 
-Color _routineShareStatusColor(RoutineShareStatus status) => switch (status) {
-  RoutineShareStatus.accepted => SetflowColors.green,
-  RoutineShareStatus.pending => SetflowColors.orange,
+Color _routineShareStatusColor(
+  BuildContext context,
+  RoutineShareStatus status,
+) => switch (status) {
+  RoutineShareStatus.accepted => context.setflowColors.success,
+  RoutineShareStatus.pending => context.setflowColors.orange,
   RoutineShareStatus.declined ||
   RoutineShareStatus.revoked ||
   RoutineShareStatus.expired => SetflowColors.secondaryText,
-  RoutineShareStatus.unknown => SetflowColors.red,
+  RoutineShareStatus.unknown => context.setflowColors.error,
 };
 
 class _RoutineShareStatusSummary extends StatelessWidget {
@@ -2741,10 +2747,10 @@ class _RoutineShareStatusSummary extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.xs),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.send_outlined,
                 size: 18,
-                color: SetflowColors.blue,
+                color: context.setflowColors.blue,
               ),
               const SizedBox(width: SetflowSpacing.sm),
               const Expanded(
@@ -2759,14 +2765,14 @@ class _RoutineShareStatusSummary extends StatelessWidget {
               if (accepted > 0)
                 _RoutineShareCountBadge(
                   label: '수락 $accepted',
-                  color: SetflowColors.green,
+                  color: context.setflowColors.success,
                 ),
               if (accepted > 0 && pending > 0)
                 const SizedBox(width: SetflowSpacing.xs),
               if (pending > 0)
                 _RoutineShareCountBadge(
                   label: '대기 $pending',
-                  color: SetflowColors.orange,
+                  color: context.setflowColors.orange,
                 ),
               const SizedBox(width: SetflowSpacing.xs),
               const Icon(
@@ -2922,7 +2928,10 @@ class _RoutineShareStatusSheet extends StatelessWidget {
                                 .firstOrNull
                                 ?.name ??
                             '연결 종료 회원';
-                  final statusColor = _routineShareStatusColor(share.status);
+                  final statusColor = _routineShareStatusColor(
+                    context,
+                    share.status,
+                  );
                   final canRevoke =
                       state.supportsRoutineShareRevocation &&
                       share.kind == RoutineShareKind.direct &&
@@ -3003,9 +3012,9 @@ class _RoutineShareStatusSheet extends StatelessWidget {
                           ),
                         ),
                         if (share.status == RoutineShareStatus.accepted)
-                          const Icon(
+                          Icon(
                             Icons.check_circle_rounded,
-                            color: SetflowColors.green,
+                            color: context.setflowColors.success,
                           ),
                       ],
                     ),
@@ -3120,7 +3129,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                               ? '${liveOwnedRoutines.fold<int>(0, (sum, item) => sum + item.cumulativeUsers)}'
                               : '3,482',
                           icon: Icons.visibility_outlined,
-                          tint: SetflowColors.blue,
+                          tint: context.setflowColors.blue,
                         ),
                         const SizedBox(width: SetflowSpacing.sm),
                         MetricCard(
@@ -3132,7 +3141,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                           icon: state.usesLiveBusinessData
                               ? Icons.library_books_outlined
                               : Icons.trending_up,
-                          tint: SetflowColors.green,
+                          tint: context.setflowColors.success,
                         ),
                       ],
                     ),
@@ -3230,7 +3239,9 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                                   ? Theme.of(
                                                       context,
                                                     ).colorScheme.error
-                                                  : SetflowColors.green,
+                                                  : context
+                                                        .setflowColors
+                                                        .success,
                                               fontWeight: FontWeight.w800,
                                             ),
                                           ),
@@ -3364,12 +3375,12 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                           ),
                                         ),
                                       ),
-                                      child: const Row(
+                                      child: Row(
                                         children: [
                                           Icon(
                                             Icons.bar_chart_rounded,
                                             size: 16,
-                                            color: SetflowColors.blue,
+                                            color: context.setflowColors.blue,
                                           ),
                                           SizedBox(width: SetflowSpacing.xs2),
                                           Text(
@@ -3377,7 +3388,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                             style: TextStyle(
                                               fontSize: SetflowFontSize.caption,
                                               fontWeight: SetflowWeight.medium,
-                                              color: SetflowColors.blue,
+                                              color: context.setflowColors.blue,
                                             ),
                                           ),
                                           Spacer(),
@@ -3538,8 +3549,8 @@ class _AdminRoutineAccessEditor extends StatelessWidget {
                 routine.accessTier.label,
                 style: TextStyle(
                   color: routine.accessTier == RoutineAccessTier.paid
-                      ? SetflowColors.purple
-                      : SetflowColors.green,
+                      ? context.setflowColors.purple
+                      : context.setflowColors.success,
                   fontSize: SetflowFontSize.caption,
                   fontWeight: SetflowWeight.medium,
                 ),
@@ -4210,7 +4221,8 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                               .textTheme
                                               .labelSmall
                                               ?.copyWith(
-                                                color: SetflowColors.teal,
+                                                color:
+                                                    context.setflowColors.teal,
                                                 fontWeight: FontWeight.w800,
                                               ),
                                         ),
@@ -4311,7 +4323,9 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                           key: const ValueKey(
                             'trainer-shared-recommendation-profile',
                           ),
-                          color: SetflowColors.teal.withValues(alpha: .07),
+                          color: context.setflowColors.teal.withValues(
+                            alpha: .07,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -4695,10 +4709,10 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                       final index = visible[visibleIndex].$1;
                       final trainer = visible[visibleIndex].$2;
                       final accentColor = [
-                        SetflowColors.blue,
-                        SetflowColors.teal,
-                        SetflowColors.orange,
-                        SetflowColors.purple,
+                        context.setflowColors.blue,
+                        context.setflowColors.teal,
+                        context.setflowColors.orange,
+                        context.setflowColors.purple,
                       ][index % 4];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -5008,7 +5022,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                             _statusPill(
                                               label: user.$3,
                                               color: user.$3 == '프리미엄'
-                                                  ? SetflowColors.orange
+                                                  ? context.setflowColors.orange
                                                   : Theme.of(context)
                                                         .colorScheme
                                                         .onSurfaceVariant,
@@ -5266,8 +5280,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
-        const Spacer(),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
+        Spacer(),
+        Text(value, style: TextStyle(fontWeight: FontWeight.w900)),
       ],
     );
   }
@@ -5282,16 +5296,34 @@ class AdminReviewPage extends StatefulWidget {
 class _AdminReviewPageState extends State<AdminReviewPage> {
   final Set<String> _savingApplicationIds = {};
 
-  static const _contentReviewEntries = [
-    (Icons.fitness_center_outlined, SetflowColors.teal, '루틴 심사', '키워드 탐지 검토'),
+  /// 아이콘·색·제목 묶음. 색이 테마를 따라야 해서 const 리터럴에서 함수가 됐다.
+  List<(IconData, Color, String, String)> _contentReviewEntries(
+    BuildContext context,
+  ) => [
+    (
+      Icons.fitness_center_outlined,
+      context.setflowColors.teal,
+      '루틴 심사',
+      '키워드 탐지 검토',
+    ),
     (
       Icons.report_gmailerrorred_outlined,
-      SetflowColors.red,
+      context.setflowColors.error,
       '신고 처리',
       '유저 신고 대기열',
     ),
-    (Icons.history_outlined, SetflowColors.purple, '제재 이력', '유저 제재 누적 이력'),
-    (Icons.warning_amber_outlined, SetflowColors.orange, '미성년 알림', '위험 행동 감지'),
+    (
+      Icons.history_outlined,
+      context.setflowColors.purple,
+      '제재 이력',
+      '유저 제재 누적 이력',
+    ),
+    (
+      Icons.warning_amber_outlined,
+      context.setflowColors.orange,
+      '미성년 알림',
+      '위험 행동 감지',
+    ),
   ];
 
   Widget _contentReviewScreenFor(int index) => switch (index) {
@@ -5329,11 +5361,11 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                 4,
               ),
               scrollDirection: Axis.horizontal,
-              itemCount: _contentReviewEntries.length,
+              itemCount: _contentReviewEntries(context).length,
               separatorBuilder: (_, _) =>
                   const SizedBox(width: SetflowSpacing.sm2),
               itemBuilder: (context, index) {
-                final entry = _contentReviewEntries[index];
+                final entry = _contentReviewEntries(context)[index];
                 return SizedBox(
                   width: 132,
                   child: SetflowCard(
@@ -5424,8 +5456,8 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                               decoration: BoxDecoration(
                                 color:
                                     (item.$1 == '트레이너'
-                                            ? SetflowColors.blue
-                                            : SetflowColors.purple)
+                                            ? context.setflowColors.blue
+                                            : context.setflowColors.purple)
                                         .withValues(alpha: .12),
                                 borderRadius: BorderRadius.circular(
                                   SetflowRadii.xs,
@@ -5437,8 +5469,8 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                   fontSize: SetflowFontSize.tiny,
                                   fontWeight: SetflowWeight.medium,
                                   color: item.$1 == '트레이너'
-                                      ? SetflowColors.blue
-                                      : SetflowColors.purple,
+                                      ? context.setflowColors.blue
+                                      : context.setflowColors.purple,
                                 ),
                               ),
                             ),
@@ -5952,8 +5984,8 @@ class _SettlementPageState extends State<SettlementPage> {
                             ? Icons.pause_circle_outline
                             : Icons.payments_outlined,
                         color: item.$1 == '환불 보류'
-                            ? SetflowColors.red
-                            : SetflowColors.green,
+                            ? context.setflowColors.error
+                            : context.setflowColors.success,
                       ),
                       const SizedBox(width: SetflowSpacing.md),
                       Expanded(
@@ -6007,7 +6039,10 @@ class _SettlementPageState extends State<SettlementPage> {
             ),
             child: Row(
               children: [
-                Icon(Icons.receipt_long_outlined, color: SetflowColors.red),
+                Icon(
+                  Icons.receipt_long_outlined,
+                  color: context.setflowColors.error,
+                ),
                 const SizedBox(width: SetflowSpacing.md),
                 const Expanded(
                   child: Column(
@@ -6038,7 +6073,10 @@ class _SettlementPageState extends State<SettlementPage> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.groups_outlined, color: SetflowColors.blue),
+                  Icon(
+                    Icons.groups_outlined,
+                    color: context.setflowColors.blue,
+                  ),
                   const SizedBox(width: SetflowSpacing.md),
                   const Expanded(
                     child: Column(
@@ -6073,7 +6111,10 @@ class _SettlementPageState extends State<SettlementPage> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.percent_outlined, color: SetflowColors.purple),
+                  Icon(
+                    Icons.percent_outlined,
+                    color: context.setflowColors.purple,
+                  ),
                   const SizedBox(width: SetflowSpacing.md),
                   const Expanded(
                     child: Column(
@@ -6106,7 +6147,10 @@ class _SettlementPageState extends State<SettlementPage> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.task_alt_outlined, color: SetflowColors.green),
+                  Icon(
+                    Icons.task_alt_outlined,
+                    color: context.setflowColors.success,
+                  ),
                   const SizedBox(width: SetflowSpacing.md),
                   const Expanded(
                     child: Column(
@@ -6212,7 +6256,7 @@ class _SettlementPageState extends State<SettlementPage> {
                   icon: role == UserRole.gym
                       ? Icons.people_outline_rounded
                       : Icons.account_balance_wallet_outlined,
-                  tint: SetflowColors.green,
+                  tint: context.setflowColors.success,
                 ),
                 const SizedBox(width: SetflowSpacing.sm),
                 MetricCard(
@@ -6222,7 +6266,7 @@ class _SettlementPageState extends State<SettlementPage> {
                       : '${metrics?.activeMembers ?? 0}',
                   suffix: '명',
                   icon: Icons.people_outline_rounded,
-                  tint: SetflowColors.blue,
+                  tint: context.setflowColors.blue,
                 ),
               ],
             ),
@@ -6429,8 +6473,8 @@ class _PerformanceRow extends StatelessWidget {
       const SizedBox(width: SetflowSpacing.sm2),
       Text(
         change,
-        style: const TextStyle(
-          color: SetflowColors.green,
+        style: TextStyle(
+          color: context.setflowColors.success,
           fontSize: SetflowFontSize.small,
           fontWeight: SetflowWeight.medium,
         ),

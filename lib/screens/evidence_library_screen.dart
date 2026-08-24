@@ -59,10 +59,13 @@ class EvidenceLibraryScreen extends StatelessWidget {
             children: [
               SetflowCard(
                 color: context.setflowColors.surfaceContainer,
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.science_outlined, color: SetflowColors.teal),
+                    Icon(
+                      Icons.science_outlined,
+                      color: context.setflowColors.teal,
+                    ),
                     SizedBox(width: SetflowSpacing.md),
                     Expanded(
                       child: Column(

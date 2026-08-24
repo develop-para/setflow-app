@@ -911,11 +911,16 @@ abstract final class AppSnackbar {
   static const topFraction = .3;
 
   static void success(BuildContext context, String message) {
-    _show(context, message, Icons.check_circle_rounded, SetflowColors.green);
+    _show(
+      context,
+      message,
+      Icons.check_circle_rounded,
+      context.setflowColors.success,
+    );
   }
 
   static void error(BuildContext context, String message) {
-    _show(context, message, Icons.error_rounded, SetflowColors.red);
+    _show(context, message, Icons.error_rounded, context.setflowColors.error);
   }
 
   static void info(BuildContext context, String message) {
@@ -937,7 +942,7 @@ abstract final class AppSnackbar {
       context,
       message,
       Icons.check_circle_rounded,
-      SetflowColors.green,
+      context.setflowColors.success,
       actionLabel: actionLabel,
       onAction: onAction,
     );

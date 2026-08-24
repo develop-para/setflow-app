@@ -150,14 +150,14 @@ class BusinessSettingsListScreen extends StatelessWidget {
                 Icons.person_off_outlined,
                 color: state.usesLiveBusinessData
                     ? SetflowColors.secondaryText
-                    : SetflowColors.red,
+                    : context.setflowColors.error,
               ),
               title: Text(
                 _isGym ? '헬스장 탈퇴' : '탈퇴',
                 style: TextStyle(
                   color: state.usesLiveBusinessData
                       ? SetflowColors.secondaryText
-                      : SetflowColors.red,
+                      : context.setflowColors.error,
                 ),
               ),
               subtitle: state.usesLiveBusinessData
@@ -213,7 +213,7 @@ class _BusinessSettingsPlanScreenState
 
   List<({String id, String name, String price, Color tint, List<String> perks})>
   get _plans => _isGym
-      ? const [
+      ? [
           (
             id: 'basic',
             name: 'Basic',
@@ -225,14 +225,14 @@ class _BusinessSettingsPlanScreenState
             id: 'standard',
             name: 'Standard',
             price: '99,000원 / 월',
-            tint: SetflowColors.blue,
+            tint: context.setflowColors.blue,
             perks: ['등록 회원 최대 100명', '트레이너 관리 도구', '정산 리포트'],
           ),
           (
             id: 'pro',
             name: 'Pro',
             price: '290,000원 / 월',
-            tint: SetflowColors.purple,
+            tint: context.setflowColors.purple,
             perks: ['등록 회원 최대 500명', '마켓 상단 우선 노출', '고급 통계'],
           ),
           (
@@ -243,7 +243,7 @@ class _BusinessSettingsPlanScreenState
             perks: ['등록 회원 무제한', '전담 매니저 지원'],
           ),
         ]
-      : const [
+      : [
           (
             id: 'starter',
             name: '스타터',
@@ -262,7 +262,7 @@ class _BusinessSettingsPlanScreenState
             id: 'enterprise',
             name: '엔터프라이즈',
             price: '29,900원 / 월',
-            tint: SetflowColors.purple,
+            tint: context.setflowColors.purple,
             perks: ['관리 회원 무제한', '리타겟팅 발송 (월 100건)', '마켓 홈 상단 우선 노출'],
           ),
         ];
@@ -624,10 +624,10 @@ class _BusinessSettingsWithdrawScreenState
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: SetflowColors.red.withValues(alpha: .08),
+              color: context.setflowColors.error.withValues(alpha: .08),
               borderRadius: BorderRadius.circular(SetflowRadii.xl),
               border: Border.all(
-                color: SetflowColors.red.withValues(alpha: .2),
+                color: context.setflowColors.error.withValues(alpha: .2),
               ),
             ),
             child: Column(
@@ -714,7 +714,10 @@ class _BusinessSettingsWithdrawScreenState
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('탈퇴', style: TextStyle(color: SetflowColors.red)),
+            child: Text(
+              '탈퇴',
+              style: TextStyle(color: context.setflowColors.error),
+            ),
           ),
         ],
       ),
@@ -744,7 +747,7 @@ class _WarningItem extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: SetflowColors.red),
+          Icon(icon, size: 18, color: context.setflowColors.error),
           const SizedBox(width: SetflowSpacing.sm2),
           Expanded(
             child: Column(
@@ -808,7 +811,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: SetflowColors.purple,
+              color: context.setflowColors.purple,
               borderRadius: BorderRadius.circular(SetflowRadii.xl),
             ),
             child: Column(
@@ -832,7 +835,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: SetflowColors.red,
+                        color: context.setflowColors.error,
                         borderRadius: BorderRadius.circular(SetflowRadii.lg),
                       ),
                       child: const Text(
@@ -880,11 +883,15 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
           if (!_fileAttached)
             SetflowCard(
               onTap: live ? null : () => setState(() => _fileAttached = true),
-              color: SetflowColors.blue.withValues(alpha: .06),
+              color: context.setflowColors.blue.withValues(alpha: .06),
               padding: const EdgeInsets.all(28),
               child: Column(
                 children: [
-                  Icon(Icons.upload_file, size: 36, color: SetflowColors.blue),
+                  Icon(
+                    Icons.upload_file,
+                    size: 36,
+                    color: context.setflowColors.blue,
+                  ),
                   const SizedBox(height: SetflowSpacing.md),
                   const Text(
                     '이곳을 눌러 파일을 선택하세요',
@@ -912,12 +919,14 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: SetflowColors.green.withValues(alpha: .12),
+                      color: context.setflowColors.success.withValues(
+                        alpha: .12,
+                      ),
                       borderRadius: BorderRadius.circular(SetflowRadii.md),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.description_outlined,
-                      color: SetflowColors.green,
+                      color: context.setflowColors.success,
                     ),
                   ),
                   const SizedBox(width: SetflowSpacing.md),
@@ -1070,7 +1079,9 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
                 child: Icon(
                   _isGym ? Icons.apartment : Icons.person,
                   size: 46,
-                  color: _isGym ? SetflowColors.purple : SetflowColors.blue,
+                  color: _isGym
+                      ? context.setflowColors.purple
+                      : context.setflowColors.blue,
                 ),
               ),
               const SizedBox(height: SetflowSpacing.xxl),
@@ -1135,17 +1146,19 @@ class _LiveIntegrationNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(SetflowSpacing.lg),
       decoration: BoxDecoration(
-        color: SetflowColors.orange.withValues(alpha: .1),
+        color: context.setflowColors.orange.withValues(alpha: .1),
         borderRadius: BorderRadius.circular(SetflowRadii.lg),
-        border: Border.all(color: SetflowColors.orange.withValues(alpha: .24)),
+        border: Border.all(
+          color: context.setflowColors.orange.withValues(alpha: .24),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.cloud_off_outlined,
             size: 20,
-            color: SetflowColors.orange,
+            color: context.setflowColors.orange,
           ),
           const SizedBox(width: SetflowSpacing.sm),
           Expanded(

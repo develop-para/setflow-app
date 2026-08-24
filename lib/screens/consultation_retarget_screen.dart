@@ -104,9 +104,9 @@ class _ConsultationRetargetScreenState
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.campaign_outlined,
-                      color: SetflowColors.orange,
+                      color: context.setflowColors.orange,
                     ),
                     const SizedBox(width: SetflowSpacing.sm),
                     Text(
@@ -207,19 +207,18 @@ class _ConsultationRetargetScreenState
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: SetflowColors.red.withValues(
-                                        alpha: .12,
-                                      ),
+                                      color: context.setflowColors.error
+                                          .withValues(alpha: .12),
                                       borderRadius: BorderRadius.circular(
                                         SetflowRadii.xs,
                                       ),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       '수신 거부',
                                       style: TextStyle(
                                         fontSize: SetflowFontSize.tiny,
                                         fontWeight: SetflowWeight.medium,
-                                        color: SetflowColors.red,
+                                        color: context.setflowColors.error,
                                       ),
                                     ),
                                   ),
@@ -242,9 +241,9 @@ class _ConsultationRetargetScreenState
                         onPressed: target.optIn
                             ? () => _sendTo([target])
                             : null,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.send_outlined,
-                          color: SetflowColors.blue,
+                          color: context.setflowColors.blue,
                         ),
                       ),
                     ],

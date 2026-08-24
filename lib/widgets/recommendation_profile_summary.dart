@@ -94,7 +94,11 @@ class _SummaryRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: compact ? 17 : 19, color: SetflowColors.teal),
+          Icon(
+            icon,
+            size: compact ? 17 : 19,
+            color: context.setflowColors.teal,
+          ),
           const SizedBox(width: SetflowSpacing.sm2),
           SizedBox(
             width: compact ? 70 : 82,

@@ -155,7 +155,7 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
             const SizedBox(height: SetflowSpacing.section),
             const KineticLabel('빠른 지표', tick: true),
             const SizedBox(height: SetflowSpacing.md),
-            const Row(
+            Row(
               children: [
                 MetricCard(
                   label: '주간 운동',
@@ -170,7 +170,7 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
                   value: '58',
                   suffix: '분',
                   icon: Icons.timer_outlined,
-                  tint: SetflowColors.teal,
+                  tint: context.setflowColors.teal,
                 ),
               ],
             ),
@@ -202,7 +202,10 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
                       ],
                     ),
                   ),
-                  const StatusChip(label: '진행중', color: SetflowColors.green),
+                  StatusChip(
+                    label: '진행중',
+                    color: context.setflowColors.success,
+                  ),
                 ],
               ),
             ),
@@ -218,15 +221,15 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
             Wrap(
               spacing: SetflowSpacing.sm,
               runSpacing: SetflowSpacing.sm,
-              children: const [
-                StatusChip(label: '초급', color: SetflowColors.blue),
-                StatusChip(label: '근력', color: SetflowColors.purple),
+              children: [
+                StatusChip(label: '초급', color: context.setflowColors.blue),
+                StatusChip(label: '근력', color: context.setflowColors.purple),
                 StatusChip(
                   label: '완료',
-                  color: SetflowColors.green,
+                  color: context.setflowColors.success,
                   icon: Icons.check_rounded,
                 ),
-                StatusChip(label: '주의', color: SetflowColors.warning),
+                StatusChip(label: '주의', color: context.setflowColors.warning),
               ],
             ),
             const SizedBox(height: SetflowSpacing.section),
@@ -323,7 +326,7 @@ class _KineticPreviewScreenState extends State<KineticPreviewScreen> {
                       _swatch(context, context.setflowColors.purple, 'Purple'),
                       _swatch(context, context.setflowColors.success, 'Green'),
                       _swatch(context, context.setflowColors.orange, 'Orange'),
-                      _swatch(context, SetflowColors.red, 'Red'),
+                      _swatch(context, context.setflowColors.error, 'Red'),
                     ],
                   ),
                 ],

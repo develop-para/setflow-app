@@ -135,9 +135,9 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
                                 tooltip: '${exercise.name} 제거',
                                 onPressed: () =>
                                     setState(() => _exercises.removeAt(index)),
-                                icon: const Icon(
+                                icon: Icon(
                                   Icons.remove_circle_outline_rounded,
-                                  color: SetflowColors.red,
+                                  color: context.setflowColors.error,
                                 ),
                               ),
                               ReorderableDragStartListener(

@@ -111,8 +111,8 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
             widget.role == UserRole.gym ? Icons.apartment : Icons.person,
             size: 50,
             color: widget.role == UserRole.gym
-                ? SetflowColors.purple
-                : SetflowColors.blue,
+                ? context.setflowColors.purple
+                : context.setflowColors.blue,
           ),
           const Positioned(
             right: 0,
@@ -291,7 +291,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                   ? Icons.check_rounded
                   : Icons.schedule_rounded,
               color: schedule.isCompleted
-                  ? SetflowColors.green
+                  ? context.setflowColors.success
                   : SetflowColors.ink,
             ),
             const SizedBox(width: SetflowSpacing.md),
@@ -344,7 +344,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     ? Icons.check_circle_rounded
                     : Icons.lock_outline_rounded,
                 color: schedule.isCompleted
-                    ? SetflowColors.green
+                    ? context.setflowColors.success
                     : SetflowColors.secondaryText,
                 size: 20,
               ),
@@ -561,14 +561,14 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
   }
 
   List<Widget> _refunds(BuildContext context) => [
-    const Row(
+    Row(
       children: [
         MetricCard(
           label: '미정산',
           value: '1.28',
           suffix: '백만원',
           icon: Icons.hourglass_bottom,
-          tint: SetflowColors.orange,
+          tint: context.setflowColors.orange,
         ),
         SizedBox(width: SetflowSpacing.sm2),
         MetricCard(
@@ -576,7 +576,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           value: '3',
           suffix: '건',
           icon: Icons.replay,
-          tint: SetflowColors.red,
+          tint: context.setflowColors.error,
         ),
       ],
     ),
@@ -591,7 +591,10 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         child: SetflowCard(
           child: Row(
             children: [
-              const Icon(Icons.receipt_long_outlined, color: SetflowColors.red),
+              Icon(
+                Icons.receipt_long_outlined,
+                color: context.setflowColors.error,
+              ),
               const SizedBox(width: SetflowSpacing.md),
               Expanded(
                 child: Column(
@@ -613,10 +616,10 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
               ),
               Text(
                 item.$3,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: SetflowFontSize.small,
                   fontWeight: SetflowWeight.medium,
-                  color: SetflowColors.orange,
+                  color: context.setflowColors.orange,
                 ),
               ),
             ],
@@ -719,11 +722,11 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
   ];
 
   List<Widget> _withdraw(BuildContext context) => [
-    const SetflowCard(
+    SetflowCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.warning_amber_rounded, color: SetflowColors.red),
+          Icon(Icons.warning_amber_rounded, color: context.setflowColors.error),
           SizedBox(width: SetflowSpacing.md),
           Expanded(
             child: Text(
@@ -743,7 +746,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     FilledButton(
       onPressed: () => showMessage(context, '데모에서는 탈퇴 요청을 실제 처리하지 않습니다.'),
       style: FilledButton.styleFrom(
-        backgroundColor: SetflowColors.red,
+        backgroundColor: context.setflowColors.error,
         minimumSize: const Size.fromHeight(54),
       ),
       child: const Text('탈퇴 요청'),
@@ -834,9 +837,9 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
   ];
 
   Color _reportColor(String grade) => grade == 'Red'
-      ? SetflowColors.red
+      ? context.setflowColors.error
       : grade == 'Orange'
-      ? SetflowColors.orange
+      ? context.setflowColors.orange
       : SetflowColors.primary;
 
   List<Widget> _sanctions() => [
@@ -847,7 +850,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     ])
       ListTile(
         contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.gavel_outlined, color: SetflowColors.red),
+        leading: Icon(Icons.gavel_outlined, color: context.setflowColors.error),
         title: Text(
           item.$1,
           style: const TextStyle(fontWeight: FontWeight.w900),
@@ -855,9 +858,9 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         subtitle: Text(item.$3),
         trailing: Text(
           item.$2,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: SetflowFontSize.small,
-            color: SetflowColors.red,
+            color: context.setflowColors.error,
             fontWeight: SetflowWeight.medium,
           ),
         ),
@@ -865,10 +868,10 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
   ];
 
   List<Widget> _minorAlerts(BuildContext context) => [
-    const SetflowCard(
+    SetflowCard(
       child: Row(
         children: [
-          Icon(Icons.child_care, color: SetflowColors.orange),
+          Icon(Icons.child_care, color: context.setflowColors.orange),
           SizedBox(width: SetflowSpacing.md),
           Expanded(
             child: Text(
@@ -1023,14 +1026,14 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
   ];
 
   List<Widget> _logs() => [
-    const Row(
+    Row(
       children: [
         MetricCard(
           label: '업타임',
           value: '99.98',
           suffix: '%',
           icon: Icons.cloud_done_outlined,
-          tint: SetflowColors.green,
+          tint: context.setflowColors.success,
         ),
         SizedBox(width: SetflowSpacing.sm2),
         MetricCard(
@@ -1038,7 +1041,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           value: '0.02',
           suffix: '%',
           icon: Icons.error_outline,
-          tint: SetflowColors.red,
+          tint: context.setflowColors.error,
         ),
       ],
     ),
@@ -1067,8 +1070,8 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
             fontSize: SetflowFontSize.tiny,
             fontWeight: SetflowWeight.medium,
             color: item.$2 == 'WARN'
-                ? SetflowColors.orange
-                : SetflowColors.green,
+                ? context.setflowColors.orange
+                : context.setflowColors.success,
           ),
         ),
       ),

@@ -14,7 +14,7 @@ class WorkspaceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final config = _workspaceConfig(role);
+    final config = _workspaceConfig(context, role);
     return Scaffold(
       appBar: AppBar(leading: const BackButton(), title: Text(config.title)),
       body: SafeArea(
@@ -44,18 +44,18 @@ class WorkspaceScreen extends StatelessWidget {
                   const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     '주요 운영 지표를 한 화면에서 확인하세요.',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: SetflowFontSize.caption,
                       color: SetflowColors.secondaryText,
                     ),
                   ),
-                  const SizedBox(height: SetflowSpacing.xl),
+                  SizedBox(height: SetflowSpacing.xl),
                   _ResponsiveGrid(
                     width: contentWidth,
                     columns: columns,
                     children: config.stats,
                   ),
-                  const SizedBox(height: SetflowSpacing.xxl),
+                  SizedBox(height: SetflowSpacing.xxl),
                   _ResponsiveGrid(
                     width: contentWidth,
                     columns: columns,
@@ -71,81 +71,81 @@ class WorkspaceScreen extends StatelessWidget {
   }
 
   ({String title, String subtitle, List<Widget> stats, List<Widget> panels})
-  _workspaceConfig(UserRole role) {
+  _workspaceConfig(BuildContext context, UserRole role) {
     return switch (role) {
       UserRole.gym => (
         title: 'PC 요약',
         subtitle: '모션짐 강남점 운영 현황',
-        stats: const [
+        stats: [
           _StatTile(
             label: '전체 회원',
             value: '4',
             suffix: '명',
             icon: Icons.groups_outlined,
-            tint: SetflowColors.teal,
+            tint: context.setflowColors.teal,
           ),
           _StatTile(
             label: '이번 달 매출',
             value: '18.4',
             suffix: '백만원',
             icon: Icons.trending_up,
-            tint: SetflowColors.green,
+            tint: context.setflowColors.success,
           ),
           _StatTile(
             label: '소속 트레이너',
             value: '4',
             suffix: '명',
             icon: Icons.badge_outlined,
-            tint: SetflowColors.purple,
+            tint: context.setflowColors.purple,
           ),
           _StatTile(
             label: '신규 상담',
             value: '9',
             suffix: '건',
             icon: Icons.chat_bubble_outline,
-            tint: SetflowColors.orange,
+            tint: context.setflowColors.orange,
           ),
         ],
         panels: [
           _panel(
             title: '소속 트레이너 현황',
-            child: const Column(
+            child: Column(
               children: [
                 _EntryRow(
                   name: '김코치',
                   subtitle: '회원 18명 · 피드백 98%',
                   trailing: '4.9',
-                  trailingColor: SetflowColors.blue,
-                  avatarColor: SetflowColors.blue,
+                  trailingColor: context.setflowColors.blue,
+                  avatarColor: context.setflowColors.blue,
                 ),
                 Divider(height: 22),
                 _EntryRow(
                   name: '박트레이너',
                   subtitle: '회원 15명 · 피드백 94%',
                   trailing: '4.8',
-                  trailingColor: SetflowColors.teal,
-                  avatarColor: SetflowColors.teal,
+                  trailingColor: context.setflowColors.teal,
+                  avatarColor: context.setflowColors.teal,
                 ),
                 Divider(height: 22),
                 _EntryRow(
                   name: '이코치',
                   subtitle: '회원 12명 · 피드백 78%',
                   trailing: '4.6',
-                  trailingColor: SetflowColors.orange,
-                  avatarColor: SetflowColors.orange,
+                  trailingColor: context.setflowColors.orange,
+                  avatarColor: context.setflowColors.orange,
                 ),
               ],
             ),
           ),
           _panel(
             title: '신규 상담 대기',
-            child: const Column(
+            child: Column(
               children: [
                 _EntryRow(
                   name: '이수진',
                   subtitle: '근육 증가 · 운동 경력 3개월',
                   trailing: '미답변',
-                  trailingColor: SetflowColors.red,
+                  trailingColor: context.setflowColors.error,
                   avatarColor: SetflowColors.primary,
                 ),
                 Divider(height: 22),
@@ -153,7 +153,7 @@ class WorkspaceScreen extends StatelessWidget {
                   name: '김도윤',
                   subtitle: '체중 감량 · 무릎 통증 있음',
                   trailing: '미답변',
-                  trailingColor: SetflowColors.red,
+                  trailingColor: context.setflowColors.error,
                   avatarColor: SetflowColors.primary,
                 ),
                 Divider(height: 22),
@@ -161,7 +161,7 @@ class WorkspaceScreen extends StatelessWidget {
                   name: '정민아',
                   subtitle: '체력 향상 · 러닝 병행 희망',
                   trailing: '답변 완료',
-                  trailingColor: SetflowColors.green,
+                  trailingColor: context.setflowColors.success,
                   avatarColor: SetflowColors.primary,
                 ),
               ],
@@ -172,60 +172,60 @@ class WorkspaceScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   '이번 달 정산 예정',
                   style: TextStyle(
                     fontSize: SetflowFontSize.caption,
                     color: SetflowColors.secondaryText,
                   ),
                 ),
-                const SizedBox(height: SetflowSpacing.xs),
-                const Text(
+                SizedBox(height: SetflowSpacing.xs),
+                Text(
                   '14,280,000원',
                   style: TextStyle(
                     fontSize: SetflowFontSize.headlineLarge,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: SetflowSpacing.lg),
-                const Divider(height: 1),
-                const SizedBox(height: SetflowSpacing.lg),
-                const _EntryRow(
+                SizedBox(height: SetflowSpacing.lg),
+                Divider(height: 1),
+                SizedBox(height: SetflowSpacing.lg),
+                _EntryRow(
                   name: '장기 코칭',
                   subtitle: '박트레이너 · 이준호',
                   trailing: '680,000원',
                   trailingColor: SetflowColors.ink,
-                  avatarColor: SetflowColors.green,
+                  avatarColor: context.setflowColors.success,
                 ),
-                const Divider(height: 22),
-                const _EntryRow(
+                Divider(height: 22),
+                _EntryRow(
                   name: '환불 보류',
                   subtitle: '이코치 · 최서연',
                   trailing: '120,000원',
-                  trailingColor: SetflowColors.red,
-                  avatarColor: SetflowColors.red,
+                  trailingColor: context.setflowColors.error,
+                  avatarColor: context.setflowColors.error,
                 ),
               ],
             ),
           ),
           _panel(
             title: '운영 알림',
-            child: const Column(
+            child: Column(
               children: [
                 _EntryRow(
                   name: '신규 회원 배정 필요',
                   subtitle: '상담 완료 회원 3명',
                   trailing: '배정',
-                  trailingColor: SetflowColors.purple,
-                  avatarColor: SetflowColors.purple,
+                  trailingColor: context.setflowColors.purple,
+                  avatarColor: context.setflowColors.purple,
                 ),
                 Divider(height: 22),
                 _EntryRow(
                   name: '피드백 이행률 확인',
                   subtitle: '이행률 80% 미만 트레이너 1명',
                   trailing: '보기',
-                  trailingColor: SetflowColors.orange,
-                  avatarColor: SetflowColors.orange,
+                  trailingColor: context.setflowColors.orange,
+                  avatarColor: context.setflowColors.orange,
                 ),
               ],
             ),
@@ -235,87 +235,87 @@ class WorkspaceScreen extends StatelessWidget {
       UserRole.admin => (
         title: '운영 워크스페이스',
         subtitle: 'Setflow 운영 현황',
-        stats: const [
+        stats: [
           _StatTile(
             label: '전체 사용자',
             value: '8,420',
             suffix: '명',
             icon: Icons.groups_outlined,
-            tint: SetflowColors.blue,
+            tint: context.setflowColors.blue,
           ),
           _StatTile(
             label: '활성 코칭',
             value: '284',
             suffix: '건',
             icon: Icons.handshake_outlined,
-            tint: SetflowColors.teal,
+            tint: context.setflowColors.teal,
           ),
           _StatTile(
             label: '심사 대기',
             value: '14',
             suffix: '건',
             icon: Icons.fact_check_outlined,
-            tint: SetflowColors.orange,
+            tint: context.setflowColors.orange,
           ),
           _StatTile(
             label: '신고 큐',
             value: '6',
             suffix: '건',
             icon: Icons.report_outlined,
-            tint: SetflowColors.red,
+            tint: context.setflowColors.error,
           ),
         ],
         panels: [
           _panel(
             title: 'SLA 처리 현황',
-            child: const Column(
+            child: Column(
               children: [
                 _ProgressEntry(
                   label: 'Red 신고 · 1시간',
                   value: .82,
-                  color: SetflowColors.red,
+                  color: context.setflowColors.error,
                 ),
                 SizedBox(height: SetflowSpacing.xl),
                 _ProgressEntry(
                   label: 'Orange 신고 · 24시간',
                   value: .94,
-                  color: SetflowColors.orange,
+                  color: context.setflowColors.orange,
                 ),
                 SizedBox(height: SetflowSpacing.xl),
                 _ProgressEntry(
                   label: '인증 심사 · 3영업일',
                   value: .97,
-                  color: SetflowColors.green,
+                  color: context.setflowColors.success,
                 ),
               ],
             ),
           ),
           _panel(
             title: '시스템 상태',
-            child: const Column(
+            child: Column(
               children: [
                 _EntryRow(
                   name: 'API',
                   subtitle: '정상',
                   trailing: '정상',
-                  trailingColor: SetflowColors.green,
-                  avatarColor: SetflowColors.green,
+                  trailingColor: context.setflowColors.success,
+                  avatarColor: context.setflowColors.success,
                 ),
                 Divider(height: 22),
                 _EntryRow(
                   name: 'OCR 서비스',
                   subtitle: '정상',
                   trailing: '정상',
-                  trailingColor: SetflowColors.green,
-                  avatarColor: SetflowColors.green,
+                  trailingColor: context.setflowColors.success,
+                  avatarColor: context.setflowColors.success,
                 ),
                 Divider(height: 22),
                 _EntryRow(
                   name: '정산 배치',
                   subtitle: '대기 2건',
                   trailing: '대기',
-                  trailingColor: SetflowColors.orange,
-                  avatarColor: SetflowColors.orange,
+                  trailingColor: context.setflowColors.orange,
+                  avatarColor: context.setflowColors.orange,
                 ),
               ],
             ),
@@ -325,7 +325,7 @@ class WorkspaceScreen extends StatelessWidget {
       _ => (
         title: '트레이너 워크스페이스',
         subtitle: '안녕하세요, 김코치님',
-        stats: const [
+        stats: [
           _StatTile(
             label: '이번 달 예상수익',
             value: '2,480,000',
@@ -338,33 +338,33 @@ class WorkspaceScreen extends StatelessWidget {
             value: '12',
             suffix: '/ 50명',
             icon: Icons.people_outline,
-            tint: SetflowColors.purple,
+            tint: context.setflowColors.purple,
           ),
           _StatTile(
             label: '피드백 대기',
             value: '3',
             suffix: '건',
             icon: Icons.mark_chat_unread_outlined,
-            tint: SetflowColors.orange,
+            tint: context.setflowColors.orange,
           ),
           _StatTile(
             label: '루틴 조회수',
             value: '1,284',
             suffix: '회',
             icon: Icons.bar_chart_rounded,
-            tint: SetflowColors.blue,
+            tint: context.setflowColors.blue,
           ),
         ],
         panels: [
           _panel(
             title: '담당 회원 현황',
-            child: const Column(
+            child: Column(
               children: [
                 _EntryRow(
                   name: '박민지',
                   subtitle: '근육 증가 · 마지막 기록 오늘',
                   trailing: '92%',
-                  trailingColor: SetflowColors.green,
+                  trailingColor: context.setflowColors.success,
                   avatarColor: SetflowColors.primary,
                 ),
                 Divider(height: 22),
@@ -372,29 +372,29 @@ class WorkspaceScreen extends StatelessWidget {
                   name: '이준호',
                   subtitle: '체중 감량 · 마지막 기록 어제',
                   trailing: '78%',
-                  trailingColor: SetflowColors.orange,
-                  avatarColor: SetflowColors.teal,
+                  trailingColor: context.setflowColors.orange,
+                  avatarColor: context.setflowColors.teal,
                 ),
                 Divider(height: 22),
                 _EntryRow(
                   name: '정하늘',
                   subtitle: '건강 유지 · 마지막 기록 오늘',
                   trailing: '88%',
-                  trailingColor: SetflowColors.green,
-                  avatarColor: SetflowColors.blue,
+                  trailingColor: context.setflowColors.success,
+                  avatarColor: context.setflowColors.blue,
                 ),
               ],
             ),
           ),
           _panel(
             title: '상담 대기',
-            child: const Column(
+            child: Column(
               children: [
                 _EntryRow(
                   name: '이수진',
                   subtitle: '근육 증가 · 운동 경력 3개월',
                   trailing: '미답변',
-                  trailingColor: SetflowColors.red,
+                  trailingColor: context.setflowColors.error,
                   avatarColor: SetflowColors.primary,
                 ),
                 Divider(height: 22),
@@ -402,7 +402,7 @@ class WorkspaceScreen extends StatelessWidget {
                   name: '김도윤',
                   subtitle: '체중 감량 · 무릎 통증 있음',
                   trailing: '미답변',
-                  trailingColor: SetflowColors.red,
+                  trailingColor: context.setflowColors.error,
                   avatarColor: SetflowColors.primary,
                 ),
               ],
@@ -413,52 +413,52 @@ class WorkspaceScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   '이번 달 정산 예정',
                   style: TextStyle(
                     fontSize: SetflowFontSize.caption,
                     color: SetflowColors.secondaryText,
                   ),
                 ),
-                const SizedBox(height: SetflowSpacing.xs),
-                const Text(
+                SizedBox(height: SetflowSpacing.xs),
+                Text(
                   '2,480,000원',
                   style: TextStyle(
                     fontSize: SetflowFontSize.headlineLarge,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: SetflowSpacing.lg),
-                const Divider(height: 1),
-                const SizedBox(height: SetflowSpacing.lg),
-                const _EntryRow(
+                SizedBox(height: SetflowSpacing.lg),
+                Divider(height: 1),
+                SizedBox(height: SetflowSpacing.lg),
+                _EntryRow(
                   name: '단기 코칭',
                   subtitle: '김코치 · 박민지',
                   trailing: '350,000원',
                   trailingColor: SetflowColors.ink,
-                  avatarColor: SetflowColors.green,
+                  avatarColor: context.setflowColors.success,
                 ),
               ],
             ),
           ),
           _panel(
             title: '루틴 성과',
-            child: const Column(
+            child: Column(
               children: [
                 _EntryRow(
                   name: '루틴 조회수',
                   subtitle: '지난달 대비',
                   trailing: '+18%',
-                  trailingColor: SetflowColors.green,
-                  avatarColor: SetflowColors.blue,
+                  trailingColor: context.setflowColors.success,
+                  avatarColor: context.setflowColors.blue,
                 ),
                 Divider(height: 22),
                 _EntryRow(
                   name: '상담 전환',
                   subtitle: '지난달 대비',
                   trailing: '+2.1%',
-                  trailingColor: SetflowColors.green,
-                  avatarColor: SetflowColors.purple,
+                  trailingColor: context.setflowColors.success,
+                  avatarColor: context.setflowColors.purple,
                 ),
               ],
             ),

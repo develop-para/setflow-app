@@ -73,14 +73,14 @@ class RoutineStatsPage extends StatelessWidget {
                 label: '조회수',
                 value: NumberFormat('#,###').format(_views),
                 icon: Icons.visibility_outlined,
-                tint: SetflowColors.blue,
+                tint: context.setflowColors.blue,
               ),
               const SizedBox(width: SetflowSpacing.sm),
               MetricCard(
                 label: '저장수',
                 value: NumberFormat('#,###').format(_saves),
                 icon: Icons.bookmark_outline,
-                tint: SetflowColors.purple,
+                tint: context.setflowColors.purple,
               ),
             ],
           ),
@@ -91,7 +91,7 @@ class RoutineStatsPage extends StatelessWidget {
                 label: '적용수',
                 value: NumberFormat('#,###').format(_applies),
                 icon: Icons.play_circle_outline,
-                tint: SetflowColors.teal,
+                tint: context.setflowColors.teal,
               ),
               const SizedBox(width: SetflowSpacing.sm),
               MetricCard(
@@ -99,7 +99,7 @@ class RoutineStatsPage extends StatelessWidget {
                 value: _conversion.toStringAsFixed(1),
                 suffix: '%',
                 icon: Icons.trending_up,
-                tint: SetflowColors.green,
+                tint: context.setflowColors.success,
               ),
             ],
           ),
@@ -115,9 +115,9 @@ class RoutineStatsPage extends StatelessWidget {
           SetflowCard(
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.emoji_events_outlined,
-                  color: SetflowColors.orange,
+                  color: context.setflowColors.orange,
                 ),
                 const SizedBox(width: SetflowSpacing.sm2),
                 const Expanded(
@@ -247,7 +247,7 @@ class TrainerPerformancePage extends StatelessWidget {
                 label: '담당 회원',
                 value: membersLabel,
                 icon: Icons.groups_outlined,
-                tint: SetflowColors.blue,
+                tint: context.setflowColors.blue,
               ),
               const SizedBox(width: SetflowSpacing.sm),
               MetricCard(
@@ -255,7 +255,7 @@ class TrainerPerformancePage extends StatelessWidget {
                 value: NumberFormat('#,###').format(_revenue),
                 suffix: '원',
                 icon: Icons.payments_outlined,
-                tint: SetflowColors.green,
+                tint: context.setflowColors.success,
               ),
             ],
           ),
@@ -268,14 +268,14 @@ class TrainerPerformancePage extends StatelessWidget {
                   value: _conversionRate.toStringAsFixed(1),
                   suffix: '%',
                   icon: Icons.trending_up,
-                  tint: SetflowColors.teal,
+                  tint: context.setflowColors.teal,
                 ),
                 const SizedBox(width: SetflowSpacing.sm),
                 MetricCard(
                   label: '상담 건수',
                   value: '$_consultations',
                   icon: Icons.forum_outlined,
-                  tint: SetflowColors.purple,
+                  tint: context.setflowColors.purple,
                 ),
               ],
             ),

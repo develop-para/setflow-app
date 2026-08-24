@@ -128,14 +128,13 @@ class SettlementRefundsPage extends StatelessWidget {
                     Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor: SetflowColors.red.withValues(
-                            alpha: .12,
-                          ),
+                          backgroundColor: context.setflowColors.error
+                              .withValues(alpha: .12),
                           child: Text(
                             item.date,
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: SetflowWeight.medium,
-                              color: SetflowColors.red,
+                              color: context.setflowColors.error,
                               fontFeatures: const [
                                 FontFeature.tabularFigures(),
                               ],
@@ -185,9 +184,9 @@ class SettlementRefundsPage extends StatelessWidget {
                           const SizedBox(height: SetflowSpacing.sm),
                           Text(
                             '-${_formatAmount(item.amount)}원',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w900,
-                              color: SetflowColors.red,
+                              color: context.setflowColors.error,
                               fontFeatures: [FontFeature.tabularFigures()],
                             ),
                           ),
@@ -216,7 +215,8 @@ class SettlementRefundsPage extends StatelessWidget {
                                   '${item.member} 님의 환불을 승인했습니다.',
                                 ),
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: SetflowColors.green,
+                                  backgroundColor:
+                                      context.setflowColors.success,
                                 ),
                                 child: const Text('전액 환불 승인'),
                               ),
@@ -275,9 +275,9 @@ StatusChip _refundStatusChip(BuildContext context, _RefundStatus status) =>
         label: '처리 완료',
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
-      _RefundStatus.disputed => const StatusChip(
+      _RefundStatus.disputed => StatusChip(
         label: '분쟁 중',
-        color: SetflowColors.red,
+        color: context.setflowColors.error,
       ),
     };
 
@@ -917,15 +917,15 @@ class _SettlementFinalConfirmPageState
                             const SizedBox(height: SetflowSpacing.md),
                             Row(
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.check_circle,
-                                  color: SetflowColors.green,
+                                  color: context.setflowColors.success,
                                 ),
                                 const SizedBox(width: SetflowSpacing.sm),
                                 Text(
                                   '최종 정산이 확정되었습니다.',
                                   style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: SetflowColors.green,
+                                    color: context.setflowColors.success,
                                     fontWeight: SetflowWeight.medium,
                                   ),
                                 ),
@@ -961,12 +961,15 @@ class _SettlementFinalConfirmPageState
                 padding: SetflowInsets.bottomAction,
                 child: Row(
                   children: [
-                    const Icon(Icons.check_circle, color: SetflowColors.green),
+                    Icon(
+                      Icons.check_circle,
+                      color: context.setflowColors.success,
+                    ),
                     const SizedBox(width: SetflowSpacing.sm),
                     Text(
                       '전체 정산이 확정되었습니다.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: SetflowColors.green,
+                        color: context.setflowColors.success,
                         fontWeight: SetflowWeight.medium,
                       ),
                     ),
@@ -1044,8 +1047,8 @@ StatusChip _payoutStatusChip(BuildContext context, _PayoutStatus status) =>
         label: '처리 중',
         color: context.setflowColors.blue,
       ),
-      _PayoutStatus.confirmed => const StatusChip(
+      _PayoutStatus.confirmed => StatusChip(
         label: '확정 완료',
-        color: SetflowColors.green,
+        color: context.setflowColors.success,
       ),
     };

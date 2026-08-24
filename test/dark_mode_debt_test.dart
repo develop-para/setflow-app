@@ -4,23 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/theme.dart';
 
-/// The colour debt dark mode is carrying, written down so it stops being a
-/// rumour.
+/// What dark mode still gets wrong, and what it no longer does.
 ///
-/// `SetflowColors.*` are **light-theme values**. Dark mode is a real switch in
-/// settings, and on the dark scaffold most of those constants fall under 4.5:1
-/// — `red` at 4.07, `green` at 3.92, `purple` at 3.45. The theme-aware path
-/// exists (`context.setflowColors`) and already carries lifted dark variants
-/// for most of them.
+/// `SetflowColors.*` are light-theme values; on the dark scaffold most of them
+/// fall under 4.5:1. 363 call sites used to reach for them directly and 359 now
+/// go through `context.setflowColors`, which carries a lifted dark value for
+/// each role.
 ///
-/// What blocks the swap is not the colours, it is `const`: roughly two thirds
-/// of the call sites sit inside const data tables that pair an icon, a colour
-/// and a label, and those cannot read a BuildContext. Converting them is a
-/// restructuring per file, not a find-and-replace, so it has not been done.
+/// Four are left, all in one place: the colour that rides along inside a
+/// `RoutineData`. A model cannot read a BuildContext, and the real fix is to
+/// take the colour out of the model and let the screen decide it from the
+/// status — a change to what the model holds, not a colour swap.
 ///
-/// These tests pin the two halves of that: the theme-aware values are correct
-/// (so the destination is sound), and the constants are the ones that are not
-/// (so nobody re-derives the finding from scratch).
+/// These tests pin both ends so neither has to be measured again: the
+/// theme-aware values are sound, and the constants are what fails.
 void main() {
   double contrast(Color a, Color b) {
     double lum(Color c) {
@@ -59,10 +56,11 @@ void main() {
     }
   });
 
-  test('the light constants are what fails on the dark surface', () {
-    // Not a target to fix here — a record of why the call sites must move.
-    // If one of these starts passing, the constant was changed and the note
-    // above needs revisiting rather than the test being deleted.
+  test('the light constants are what failed, and why they had to move', () {
+    // Kept after the migration, not before it: this is the evidence for why
+    // 359 call sites moved, and the guard on the four that could not. If one
+    // starts passing, someone changed a constant and the note above needs
+    // revisiting rather than the test being deleted.
     final surface = SetflowTheme.dark.scaffoldBackgroundColor;
     final failing = <String>[];
     for (final entry in {

@@ -132,19 +132,19 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
             },
             // 메모와 공유는 눌러도 토스트만 뜨고 아무것도 저장·공유하지 않아서 뺐다.
             // 만들어지면 그때 다시 넣는다 — 있는 척하는 메뉴가 없는 것보다 나쁘다.
-            itemBuilder: (_) => const [
+            itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
                     Icon(
                       Icons.delete_outline_rounded,
-                      color: SetflowColors.red,
+                      color: context.setflowColors.error,
                     ),
                     SizedBox(width: SetflowSpacing.sm2),
                     Text(
                       '이 날짜 기록 삭제',
-                      style: TextStyle(color: SetflowColors.red),
+                      style: TextStyle(color: context.setflowColors.error),
                     ),
                   ],
                 ),
@@ -356,7 +356,7 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: SetflowColors.red,
+                  backgroundColor: context.setflowColors.error,
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('삭제'),
@@ -440,7 +440,7 @@ class _WorkoutSummaryBar extends StatelessWidget {
                       Icons.auto_awesome_rounded,
                       size: 14,
                       color: recommendationEnabled
-                          ? SetflowColors.orange
+                          ? context.setflowColors.orange
                           : SetflowColors.disabled,
                     ),
                     const SizedBox(width: SetflowSpacing.xs),
@@ -820,7 +820,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                         ),
                         child: Icon(
                           exercise.template.icon,
-                          color: SetflowColors.orange,
+                          color: context.setflowColors.orange,
                           size: 22,
                         ),
                       ),
@@ -888,18 +888,20 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                 ],
                               ),
                             ),
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'delete',
                             child: Row(
                               children: [
                                 Icon(
                                   Icons.delete_outline_rounded,
-                                  color: SetflowColors.red,
+                                  color: context.setflowColors.error,
                                 ),
                                 SizedBox(width: SetflowSpacing.sm2),
                                 Text(
                                   '운동 삭제',
-                                  style: TextStyle(color: SetflowColors.red),
+                                  style: TextStyle(
+                                    color: context.setflowColors.error,
+                                  ),
                                 ),
                               ],
                             ),
@@ -1154,7 +1156,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: SetflowColors.red,
+                  backgroundColor: context.setflowColors.error,
                 ),
                 child: const Text('삭제'),
               ),
@@ -1187,7 +1189,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: SetflowColors.red,
+                  backgroundColor: context.setflowColors.error,
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('삭제'),
@@ -1335,12 +1337,12 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
         padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
         decoration: BoxDecoration(
           color: widget.set.completed
-              ? SetflowColors.teal.withValues(alpha: .09)
+              ? context.setflowColors.teal.withValues(alpha: .09)
               : context.setflowColors.surfaceContainerLow,
           borderRadius: BorderRadius.circular(SetflowRadii.md),
           border: Border.all(
             color: widget.set.completed
-                ? SetflowColors.teal.withValues(alpha: .35)
+                ? context.setflowColors.teal.withValues(alpha: .35)
                 : Theme.of(context).colorScheme.outlineVariant,
           ),
         ),
@@ -1484,7 +1486,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                             icon: const Icon(Icons.delete_outline_rounded),
                             label: const Text('구간 삭제'),
                             style: TextButton.styleFrom(
-                              foregroundColor: SetflowColors.red,
+                              foregroundColor: context.setflowColors.error,
                             ),
                           ),
                         ],
@@ -1708,12 +1710,12 @@ class _InlineSetRowState extends State<_InlineSetRow> {
         padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
         decoration: BoxDecoration(
           color: widget.set.completed
-              ? SetflowColors.teal.withValues(alpha: .09)
+              ? context.setflowColors.teal.withValues(alpha: .09)
               : context.setflowColors.surfaceContainerLow,
           borderRadius: BorderRadius.circular(SetflowRadii.md),
           border: Border.all(
             color: widget.set.completed
-                ? SetflowColors.teal.withValues(alpha: .35)
+                ? context.setflowColors.teal.withValues(alpha: .35)
                 : Theme.of(context).colorScheme.outlineVariant,
           ),
         ),
@@ -1762,7 +1764,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                       widget.onTypeChanged(value);
                     }
                   },
-                  itemBuilder: (_) => const [
+                  itemBuilder: (_) => [
                     PopupMenuItem(value: '일반', child: Text('일반 세트')),
                     PopupMenuItem(value: '웜업', child: Text('웜업 세트')),
                     PopupMenuItem(value: '드랍', child: Text('드랍 세트')),
@@ -1772,7 +1774,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                       value: 'delete',
                       child: Text(
                         '세트 삭제',
-                        style: TextStyle(color: SetflowColors.red),
+                        style: TextStyle(color: context.setflowColors.error),
                       ),
                     ),
                   ],
@@ -1884,7 +1886,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                             icon: const Icon(Icons.delete_outline_rounded),
                             label: const Text('세트 삭제'),
                             style: TextButton.styleFrom(
-                              foregroundColor: SetflowColors.red,
+                              foregroundColor: context.setflowColors.error,
                             ),
                           ),
                         ],
@@ -1942,9 +1944,9 @@ class _InlineSetRowState extends State<_InlineSetRow> {
   /// Colour marks the set types that are *not* ordinary. A plain set gets the
   /// neutral label — tinting it too made every row look like it meant something.
   Color _typeColor(String type) => switch (type) {
-    '웜업' => SetflowColors.orange,
-    '드랍' => SetflowColors.blue,
-    '실패' => SetflowColors.red,
+    '웜업' => context.setflowColors.orange,
+    '드랍' => context.setflowColors.blue,
+    '실패' => context.setflowColors.error,
     _ => SetflowColors.steel,
   };
 }
@@ -2069,8 +2071,12 @@ class _SwipeableSetState extends State<_SwipeableSet>
     final logging = !towardsEnd;
     // The wash is the brand; the glyph on top of it is not. Lime on a lime
     // wash disappears, which is the same 1.18:1 trap the rule warns about.
-    final fill = logging ? theme.colorScheme.primary : SetflowColors.red;
-    final accent = logging ? theme.colorScheme.onSurface : SetflowColors.red;
+    final fill = logging
+        ? theme.colorScheme.primary
+        : context.setflowColors.error;
+    final accent = logging
+        ? theme.colorScheme.onSurface
+        : context.setflowColors.error;
     final radius = BorderRadius.circular(SetflowRadii.md);
 
     return ClipRRect(
@@ -2115,8 +2121,8 @@ class _SwipeableSetState extends State<_SwipeableSet>
             },
             background: _track(fill: fill, accent: accent, logging: true),
             secondaryBackground: _track(
-              fill: SetflowColors.red,
-              accent: SetflowColors.red,
+              fill: context.setflowColors.error,
+              accent: context.setflowColors.error,
               logging: false,
             ),
             confirmDismiss: (direction) async {
@@ -2303,9 +2309,9 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.auto_awesome_rounded,
-                  color: SetflowColors.orange,
+                  color: context.setflowColors.orange,
                 ),
                 const SizedBox(width: SetflowSpacing.sm2),
                 Text(
@@ -2486,9 +2492,9 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                         ),
-                    itemCount: _muscleCategories.length,
+                    itemCount: _muscleCategories(context).length,
                     itemBuilder: (_, index) {
-                      final category = _muscleCategories[index];
+                      final category = _muscleCategories(context)[index];
                       final count = category.name == '전체'
                           ? state.exercises.length
                           : state.exercises
@@ -2698,20 +2704,37 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
 }
 
 class _MuscleCategory {
-  const _MuscleCategory(this.name, this.icon, this.color);
+  _MuscleCategory(this.name, this.icon, this.color);
 
   final String name;
   final IconData icon;
   final Color color;
 }
 
-const _muscleCategories = <_MuscleCategory>[
-  _MuscleCategory('전체', Icons.apps_rounded, SetflowColors.orange),
-  _MuscleCategory('가슴', Icons.fitness_center_rounded, SetflowColors.red),
-  _MuscleCategory('등', Icons.rowing_rounded, SetflowColors.blue),
-  _MuscleCategory('어깨', Icons.accessibility_new_rounded, SetflowColors.teal),
-  _MuscleCategory('하체', Icons.directions_walk_rounded, SetflowColors.green),
-  _MuscleCategory('팔', Icons.sports_gymnastics_rounded, SetflowColors.orange),
+/// 부위별 색은 테마를 따라야 해서 const 리스트에서 함수가 됐다.
+List<_MuscleCategory> _muscleCategories(BuildContext context) => [
+  _MuscleCategory('전체', Icons.apps_rounded, context.setflowColors.orange),
+  _MuscleCategory(
+    '가슴',
+    Icons.fitness_center_rounded,
+    context.setflowColors.error,
+  ),
+  _MuscleCategory('등', Icons.rowing_rounded, context.setflowColors.blue),
+  _MuscleCategory(
+    '어깨',
+    Icons.accessibility_new_rounded,
+    context.setflowColors.teal,
+  ),
+  _MuscleCategory(
+    '하체',
+    Icons.directions_walk_rounded,
+    context.setflowColors.success,
+  ),
+  _MuscleCategory(
+    '팔',
+    Icons.sports_gymnastics_rounded,
+    context.setflowColors.orange,
+  ),
   _MuscleCategory('복근', Icons.self_improvement_rounded, SetflowNeutral.n600),
   _MuscleCategory('유산소', Icons.directions_run_rounded, SetflowNeutral.n600),
 ];
@@ -2879,7 +2902,7 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
                 labelText: '운동 부위',
                 prefixIcon: Icon(Icons.accessibility_new_rounded),
               ),
-              items: _muscleCategories
+              items: _muscleCategories(context)
                   .where((category) => category.name != '전체')
                   .map(
                     (category) => DropdownMenuItem(
@@ -2917,10 +2940,13 @@ class _PersistenceNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: SetflowColors.red.withValues(alpha: .08),
+      color: context.setflowColors.error.withValues(alpha: .08),
       borderRadius: BorderRadius.circular(SetflowRadii.md),
       child: ListTile(
-        leading: const Icon(Icons.cloud_off_rounded, color: SetflowColors.red),
+        leading: Icon(
+          Icons.cloud_off_rounded,
+          color: context.setflowColors.error,
+        ),
         title: const Text('기록을 기기에 저장하지 못했어요.'),
         trailing: TextButton(onPressed: onRetry, child: const Text('재시도')),
       ),
@@ -2936,12 +2962,12 @@ class _PersistenceSyncNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: SetflowColors.orange.withValues(alpha: .09),
+      color: context.setflowColors.orange.withValues(alpha: .09),
       borderRadius: BorderRadius.circular(SetflowRadii.md),
       child: ListTile(
-        leading: const Icon(
+        leading: Icon(
           Icons.cloud_sync_outlined,
-          color: SetflowColors.orange,
+          color: context.setflowColors.orange,
         ),
         title: const Text('기기에 저장됨 · 서버 동기화 대기 중'),
         trailing: TextButton(onPressed: onRetry, child: const Text('지금 동기화')),
@@ -3001,9 +3027,9 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.trending_up_rounded,
-                  color: SetflowColors.orange,
+                  color: context.setflowColors.orange,
                 ),
                 const SizedBox(width: SetflowSpacing.md),
                 Expanded(
@@ -3054,8 +3080,8 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                     '${state.weightUnit}',
                     style: TextStyle(
                       color: change >= 0
-                          ? SetflowColors.green
-                          : SetflowColors.orange,
+                          ? context.setflowColors.success
+                          : context.setflowColors.orange,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -3132,7 +3158,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                 padding: const EdgeInsets.only(right: SetflowSpacing.xl),
                 alignment: Alignment.centerRight,
                 decoration: BoxDecoration(
-                  color: SetflowColors.red,
+                  color: context.setflowColors.error,
                   borderRadius: BorderRadius.circular(SetflowRadii.lg),
                 ),
                 child: const Icon(
@@ -3157,7 +3183,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                       vertical: 12,
                     ),
                     color: set.completed
-                        ? SetflowColors.teal.withValues(alpha: .1)
+                        ? context.setflowColors.teal.withValues(alpha: .1)
                         : null,
                     child: Column(
                       children: [
@@ -3218,7 +3244,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                               width: 50,
                               child: Checkbox(
                                 value: set.completed,
-                                activeColor: SetflowColors.teal,
+                                activeColor: context.setflowColors.teal,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(
                                     SetflowRadii.xs,
@@ -3337,10 +3363,10 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.xl),
-          const SetflowCard(
+          SetflowCard(
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: SetflowColors.blue),
+                Icon(Icons.info_outline, color: context.setflowColors.blue),
                 SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Text(
@@ -3376,11 +3402,14 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
         ),
         children: [
           SetflowCard(
-            color: SetflowColors.blue.withValues(alpha: .08),
-            child: const Row(
+            color: context.setflowColors.blue.withValues(alpha: .08),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.directions_run_rounded, color: SetflowColors.blue),
+                Icon(
+                  Icons.directions_run_rounded,
+                  color: context.setflowColors.blue,
+                ),
                 SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Text(
@@ -3464,7 +3493,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: SetflowColors.red,
+                  backgroundColor: context.setflowColors.error,
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('삭제'),
@@ -3516,7 +3545,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: SetflowColors.red,
+                  backgroundColor: context.setflowColors.error,
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('삭제'),

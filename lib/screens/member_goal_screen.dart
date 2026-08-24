@@ -152,18 +152,18 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: SetflowColors.orange.withValues(
+                                color: context.setflowColors.orange.withValues(
                                   alpha: .14,
                                 ),
                                 borderRadius: BorderRadius.circular(
                                   SetflowRadii.full,
                                 ),
                               ),
-                              child: const Text(
+                              child: Text(
                                 '주 목표',
                                 style: TextStyle(
                                   fontSize: SetflowFontSize.micro,
-                                  color: SetflowColors.orange,
+                                  color: context.setflowColors.orange,
                                   fontWeight: SetflowWeight.medium,
                                 ),
                               ),
@@ -185,7 +185,7 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                           ? Icons.check_circle_rounded
                           : Icons.circle_outlined,
                       color: selected!.contains(option.$2)
-                          ? SetflowColors.teal
+                          ? context.setflowColors.teal
                           : SetflowColors.disabled,
                     ),
                   ],

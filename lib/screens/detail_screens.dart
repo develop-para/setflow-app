@@ -44,7 +44,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                 value: latest.weight.toStringAsFixed(1),
                 suffix: 'kg',
                 icon: Icons.monitor_weight_outlined,
-                tint: SetflowColors.blue,
+                tint: context.setflowColors.blue,
               ),
               const SizedBox(width: SetflowSpacing.sm2),
               MetricCard(
@@ -52,7 +52,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                 value: latest.muscle.toStringAsFixed(1),
                 suffix: 'kg',
                 icon: Icons.fitness_center,
-                tint: SetflowColors.teal,
+                tint: context.setflowColors.teal,
               ),
             ],
           ),
@@ -64,15 +64,15 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                 value: latest.fat.toStringAsFixed(1),
                 suffix: '%',
                 icon: Icons.water_drop_outlined,
-                tint: SetflowColors.orange,
+                tint: context.setflowColors.orange,
               ),
               const SizedBox(width: SetflowSpacing.sm2),
-              const MetricCard(
+              MetricCard(
                 label: '최근 변화',
                 value: '-1.5',
                 suffix: 'kg',
                 icon: Icons.trending_down,
-                tint: SetflowColors.green,
+                tint: context.setflowColors.success,
               ),
             ],
           ),
@@ -105,7 +105,9 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                               decoration: BoxDecoration(
                                 color: i == entries.length - 1
                                     ? SetflowColors.primary
-                                    : SetflowColors.teal.withValues(alpha: .55),
+                                    : context.setflowColors.teal.withValues(
+                                        alpha: .55,
+                                      ),
                                 borderRadius: BorderRadius.circular(
                                   SetflowRadii.sm,
                                 ),
@@ -133,9 +135,9 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
           for (final entry in entries.reversed)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(
+              leading: Icon(
                 Icons.analytics_outlined,
-                color: SetflowColors.blue,
+                color: context.setflowColors.blue,
               ),
               title: Text(
                 entry.date,
@@ -364,10 +366,10 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
         children: [
-          const SetflowCard(
+          SetflowCard(
             child: Row(
               children: [
-                Icon(Icons.person, color: SetflowColors.blue),
+                Icon(Icons.person, color: context.setflowColors.blue),
                 SizedBox(width: SetflowSpacing.md2),
                 Expanded(
                   child: Column(
@@ -385,7 +387,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                           SizedBox(width: SetflowSpacing.xs2),
                           Icon(
                             Icons.verified,
-                            color: SetflowColors.blue,
+                            color: context.setflowColors.blue,
                             size: 17,
                           ),
                         ],
@@ -458,14 +460,14 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: SetflowColors.green.withValues(alpha: .1),
+                color: context.setflowColors.success.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(
                     Icons.verified_user_outlined,
-                    color: SetflowColors.green,
+                    color: context.setflowColors.success,
                   ),
                   SizedBox(width: SetflowSpacing.sm2),
                   Expanded(
@@ -656,7 +658,7 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             SetflowCard(
               child: Row(
                 children: [
-                  const Icon(Icons.person, color: SetflowColors.orange),
+                  Icon(Icons.person, color: context.setflowColors.orange),
                   SizedBox(width: SetflowSpacing.md),
                   Expanded(
                     child: Column(
@@ -836,13 +838,13 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
               onTap: () => showMessage(context, '계정 비활성화 안내를 확인했습니다.'),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.delete_forever_outlined,
-                color: SetflowColors.red,
+                color: context.setflowColors.error,
               ),
-              title: const Text(
+              title: Text(
                 '회원 탈퇴',
-                style: TextStyle(color: SetflowColors.red),
+                style: TextStyle(color: context.setflowColors.error),
               ),
               onTap: () => showMessage(context, '탈퇴는 30일 유예 후 처리됩니다.'),
             ),

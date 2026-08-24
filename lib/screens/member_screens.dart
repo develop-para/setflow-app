@@ -774,10 +774,10 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.event_note_rounded,
                   size: 19,
-                  color: SetflowColors.blue,
+                  color: context.setflowColors.blue,
                 ),
                 const SizedBox(width: SetflowSpacing.sm),
                 Text(
@@ -823,7 +823,7 @@ class _MemberScheduleRow extends StatelessWidget {
           width: 44,
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: SetflowColors.blue.withValues(alpha: .1),
+            color: context.setflowColors.blue.withValues(alpha: .1),
             borderRadius: BorderRadius.circular(SetflowRadii.sm),
           ),
           child: Column(
@@ -867,7 +867,7 @@ class _MemberScheduleRow extends StatelessWidget {
               : Icons.chevron_right_rounded,
           size: 18,
           color: schedule.isCompleted
-              ? SetflowColors.green
+              ? context.setflowColors.success
               : SetflowColors.secondaryText,
         ),
       ],
@@ -1450,12 +1450,12 @@ class RoutinesScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const Text(
+              Text(
                 '무료 플랜',
                 style: TextStyle(
                   fontSize: SetflowFontSize.small,
                   fontWeight: SetflowWeight.medium,
-                  color: SetflowColors.orange,
+                  color: context.setflowColors.orange,
                 ),
               ),
             ],
@@ -1503,14 +1503,16 @@ class RoutinesScreen extends StatelessWidget {
                           ),
                         ),
                         PopupMenuButton<String>(
-                          itemBuilder: (_) => const [
+                          itemBuilder: (_) => [
                             PopupMenuItem(value: 'apply', child: Text('오늘 적용')),
                             PopupMenuItem(value: 'edit', child: Text('수정')),
                             PopupMenuItem(
                               value: 'delete',
                               child: Text(
                                 '삭제',
-                                style: TextStyle(color: SetflowColors.red),
+                                style: TextStyle(
+                                  color: context.setflowColors.error,
+                                ),
                               ),
                             ),
                           ],
@@ -1556,7 +1558,8 @@ class RoutinesScreen extends StatelessWidget {
                                             true,
                                           ),
                                           style: FilledButton.styleFrom(
-                                            backgroundColor: SetflowColors.red,
+                                            backgroundColor:
+                                                context.setflowColors.error,
                                             foregroundColor: Colors.white,
                                           ),
                                           child: const Text('삭제'),
@@ -1828,12 +1831,12 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: SetflowColors.orange.withValues(alpha: .12),
+                  color: context.setflowColors.orange.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(SetflowRadii.md),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.fitness_center_rounded,
-                  color: SetflowColors.orange,
+                  color: context.setflowColors.orange,
                 ),
               ),
               const SizedBox(width: SetflowSpacing.md),
@@ -1864,13 +1867,13 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: SetflowColors.green.withValues(alpha: .11),
+                  color: context.setflowColors.success.withValues(alpha: .11),
                   borderRadius: BorderRadius.circular(SetflowRadii.full),
                 ),
-                child: const Text(
+                child: Text(
                   '새 루틴',
                   style: TextStyle(
-                    color: SetflowColors.green,
+                    color: context.setflowColors.success,
                     fontSize: SetflowFontSize.tiny,
                     fontWeight: SetflowWeight.medium,
                   ),
@@ -2307,9 +2310,9 @@ class _MarketScreenState extends State<MarketScreen> {
                           const SizedBox(height: SetflowSpacing.md),
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.verified_rounded,
-                                color: SetflowColors.blue,
+                                color: context.setflowColors.blue,
                                 size: 17,
                               ),
                               const SizedBox(width: SetflowSpacing.xs2),
@@ -2346,7 +2349,9 @@ class _RoutineAccessBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPaid = accessTier == RoutineAccessTier.paid;
-    final color = isPaid ? SetflowColors.purple : SetflowColors.green;
+    final color = isPaid
+        ? context.setflowColors.purple
+        : context.setflowColors.success;
     return Semantics(
       label: '${accessTier.label} 루틴',
       child: Container(
@@ -2686,9 +2691,9 @@ class CoachingScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.person_rounded,
-                            color: SetflowColors.blue,
+                            color: context.setflowColors.blue,
                           ),
                           const SizedBox(width: SetflowSpacing.md),
                           Expanded(
@@ -2807,11 +2812,14 @@ class CoachingScreen extends StatelessWidget {
           const SizedBox(height: SetflowSpacing.xxl2),
           const SectionTitle('코칭 보호 정책'),
           const SizedBox(height: SetflowSpacing.sm),
-          const SetflowCard(
+          SetflowCard(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.shield_outlined, color: SetflowColors.green),
+                Icon(
+                  Icons.shield_outlined,
+                  color: context.setflowColors.success,
+                ),
                 SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Text(
@@ -2993,9 +3001,9 @@ class _ConsultationHistoryCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
+              Icon(
                 Icons.support_agent_rounded,
-                color: SetflowColors.green,
+                color: context.setflowColors.success,
               ),
               const SizedBox(width: SetflowSpacing.md),
               Expanded(
@@ -3076,15 +3084,30 @@ class _MemberConsultationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (entry.cloud?.status) {
-      BusinessConsultationStatus.pending => ('답변 대기', SetflowColors.orange),
-      BusinessConsultationStatus.assigned => ('담당 배정', SetflowColors.blue),
-      BusinessConsultationStatus.answered => ('답변 완료', SetflowColors.green),
-      BusinessConsultationStatus.replied => ('상담 완료', SetflowColors.green),
-      BusinessConsultationStatus.unknown => ('상태 확인 필요', SetflowColors.red),
+      BusinessConsultationStatus.pending => (
+        '답변 대기',
+        context.setflowColors.orange,
+      ),
+      BusinessConsultationStatus.assigned => (
+        '담당 배정',
+        context.setflowColors.blue,
+      ),
+      BusinessConsultationStatus.answered => (
+        '답변 완료',
+        context.setflowColors.success,
+      ),
+      BusinessConsultationStatus.replied => (
+        '상담 완료',
+        context.setflowColors.success,
+      ),
+      BusinessConsultationStatus.unknown => (
+        '상태 확인 필요',
+        context.setflowColors.error,
+      ),
       null => switch (entry.consultation.status) {
-        ConsultationStatus.waiting => ('답변 대기', SetflowColors.orange),
-        ConsultationStatus.answered => ('상담 완료', SetflowColors.green),
-        ConsultationStatus.coaching => ('코칭 중', SetflowColors.blue),
+        ConsultationStatus.waiting => ('답변 대기', context.setflowColors.orange),
+        ConsultationStatus.answered => ('상담 완료', context.setflowColors.success),
+        ConsultationStatus.coaching => ('코칭 중', context.setflowColors.blue),
       },
     };
     return Container(
@@ -3255,7 +3278,7 @@ class DashboardScreen extends StatelessWidget {
                 value: '$workoutDays',
                 suffix: '회',
                 icon: Icons.calendar_today,
-                tint: SetflowColors.teal,
+                tint: context.setflowColors.teal,
               ),
               const SizedBox(width: SetflowSpacing.sm2),
               MetricCard(
@@ -3273,7 +3296,7 @@ class DashboardScreen extends StatelessWidget {
                 icon: chartShowsResistance
                     ? Icons.monitor_weight_outlined
                     : Icons.directions_run_rounded,
-                tint: SetflowColors.orange,
+                tint: context.setflowColors.orange,
               ),
             ],
           ),
@@ -3282,9 +3305,9 @@ class DashboardScreen extends StatelessWidget {
             SetflowCard(
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.directions_run_rounded,
-                    color: SetflowColors.teal,
+                    color: context.setflowColors.teal,
                   ),
                   const SizedBox(width: SetflowSpacing.md),
                   Expanded(
@@ -3313,7 +3336,7 @@ class DashboardScreen extends StatelessWidget {
                 value: '${_currentStreak(state, today)}',
                 suffix: '일',
                 icon: Icons.local_fire_department,
-                tint: SetflowColors.red,
+                tint: context.setflowColors.error,
               ),
               const SizedBox(width: SetflowSpacing.sm2),
               MetricCard(
@@ -3323,7 +3346,7 @@ class DashboardScreen extends StatelessWidget {
                     : '${(completedSets / totalSets * 100).round()}',
                 suffix: '%',
                 icon: Icons.check_circle_outline,
-                tint: SetflowColors.blue,
+                tint: context.setflowColors.blue,
               ),
             ],
           ),
@@ -3357,9 +3380,8 @@ class DashboardScreen extends StatelessWidget {
                                     decoration: BoxDecoration(
                                       color: i == today.weekday - 1
                                           ? SetflowColors.primary
-                                          : SetflowColors.teal.withValues(
-                                              alpha: .7,
-                                            ),
+                                          : context.setflowColors.teal
+                                                .withValues(alpha: .7),
                                       borderRadius: BorderRadius.circular(
                                         SetflowRadii.xs,
                                       ),
@@ -3404,9 +3426,9 @@ class DashboardScreen extends StatelessWidget {
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.trending_up,
-                      color: SetflowColors.orange,
+                      color: context.setflowColors.orange,
                     ),
                     title: Text(
                       summary.template.name,
@@ -3725,13 +3747,13 @@ class SettingsScreen extends StatelessWidget {
             )
           else
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 SetflowIcons.signOut,
-                color: SetflowColors.red,
+                color: context.setflowColors.error,
               ),
-              title: const Text(
+              title: Text(
                 '로그아웃',
-                style: TextStyle(color: SetflowColors.red),
+                style: TextStyle(color: context.setflowColors.error),
               ),
               // Waits for the sheet to finish closing before signing out, so the
               // teardown never races the route animation.

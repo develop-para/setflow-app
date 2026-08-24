@@ -84,7 +84,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               if (submitError != null) ...[
                 _OnboardingAlert(
                   message: submitError!,
-                  color: SetflowColors.red,
+                  color: context.setflowColors.error,
                   icon: Icons.error_outline_rounded,
                 ),
                 const SizedBox(height: SetflowSpacing.lg),
@@ -309,7 +309,9 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
 
   Widget _buildExistingApplication(BusinessApplication application) {
     final pending = application.status == BusinessApplicationStatus.pending;
-    final accent = pending ? SetflowColors.orange : SetflowColors.red;
+    final accent = pending
+        ? context.setflowColors.orange
+        : context.setflowColors.error;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -432,10 +434,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: SetflowColors.purple.withValues(alpha: .12),
+                color: context.setflowColors.purple.withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
-              child: const Icon(Icons.apartment, color: SetflowColors.purple),
+              child: Icon(Icons.apartment, color: context.setflowColors.purple),
             ),
             const SizedBox(height: SetflowSpacing.xxl),
             const Text(
@@ -510,9 +512,9 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (live) ...[
-            const _OnboardingAlert(
+            _OnboardingAlert(
               message: '사업자 서류 업로드는 서버 연동 준비 중이에요.',
-              color: SetflowColors.orange,
+              color: context.setflowColors.orange,
               icon: Icons.cloud_off_outlined,
             ),
             const SizedBox(height: SetflowSpacing.lg),
@@ -542,8 +544,8 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                       ? Icons.check_circle
                       : Icons.upload_file_rounded,
                   color: gymDocUploaded
-                      ? SetflowColors.green
-                      : SetflowColors.purple,
+                      ? context.setflowColors.success
+                      : context.setflowColors.purple,
                 ),
                 const SizedBox(width: SetflowSpacing.md),
                 const Expanded(
@@ -557,7 +559,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: gymDocUploaded
-                        ? SetflowColors.green
+                        ? context.setflowColors.success
                         : SetflowColors.secondaryText,
                   ),
                 ),
@@ -573,10 +575,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.verified_user_outlined,
                   size: 20,
-                  color: SetflowColors.green,
+                  color: context.setflowColors.success,
                 ),
                 const SizedBox(width: SetflowSpacing.sm2),
                 Expanded(
@@ -598,7 +600,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           if (submitError != null) ...[
             _OnboardingAlert(
               message: submitError!,
-              color: SetflowColors.red,
+              color: context.setflowColors.error,
               icon: Icons.error_outline_rounded,
             ),
             const SizedBox(height: SetflowSpacing.lg),
@@ -632,12 +634,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: SetflowColors.purple.withValues(alpha: .12),
+              color: context.setflowColors.purple.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(SetflowRadii.lg),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.account_balance_rounded,
-              color: SetflowColors.purple,
+              color: context.setflowColors.purple,
             ),
           ),
           const SizedBox(height: SetflowSpacing.xxl),
@@ -657,7 +659,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           SetflowCard(
             child: Row(
               children: [
-                const Icon(Icons.business_rounded, color: SetflowColors.purple),
+                Icon(
+                  Icons.business_rounded,
+                  color: context.setflowColors.purple,
+                ),
                 const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
@@ -694,10 +699,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.info_outline_rounded,
                     size: 20,
-                    color: SetflowColors.purple,
+                    color: context.setflowColors.purple,
                   ),
                   const SizedBox(width: SetflowSpacing.sm2),
                   Expanded(
@@ -719,18 +724,18 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: SetflowColors.green.withValues(alpha: .1),
+                color: context.setflowColors.success.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(SetflowRadii.md),
                 border: Border.all(
-                  color: SetflowColors.green.withValues(alpha: .25),
+                  color: context.setflowColors.success.withValues(alpha: .25),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(
                     Icons.check_circle_rounded,
                     size: 20,
-                    color: SetflowColors.green,
+                    color: context.setflowColors.success,
                   ),
                   SizedBox(width: SetflowSpacing.sm2),
                   Expanded(
@@ -870,12 +875,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: SetflowColors.blue.withValues(alpha: .12),
+                color: context.setflowColors.blue.withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(SetflowRadii.lg),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.fitness_center,
-                color: SetflowColors.blue,
+                color: context.setflowColors.blue,
               ),
             ),
             const SizedBox(height: SetflowSpacing.xxl),
@@ -1003,8 +1008,8 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     Icon(
                       uploaded ? Icons.check_circle : Icons.upload_file_rounded,
                       color: uploaded
-                          ? SetflowColors.green
-                          : SetflowColors.blue,
+                          ? context.setflowColors.success
+                          : context.setflowColors.blue,
                     ),
                     const SizedBox(width: SetflowSpacing.md),
                     Expanded(
@@ -1033,7 +1038,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: uploaded
-                            ? SetflowColors.green
+                            ? context.setflowColors.success
                             : SetflowColors.secondaryText,
                       ),
                     ),
@@ -1050,10 +1055,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.verified_user_outlined,
                   size: 20,
-                  color: SetflowColors.green,
+                  color: context.setflowColors.success,
                 ),
                 const SizedBox(width: SetflowSpacing.sm2),
                 Expanded(
@@ -1075,7 +1080,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           if (submitError != null) ...[
             _OnboardingAlert(
               message: submitError!,
-              color: SetflowColors.red,
+              color: context.setflowColors.error,
               icon: Icons.error_outline_rounded,
             ),
             const SizedBox(height: SetflowSpacing.lg),
@@ -1105,7 +1110,11 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       ),
       child: Column(
         children: [
-          Icon(Icons.search_rounded, size: 40, color: SetflowColors.blue),
+          Icon(
+            Icons.search_rounded,
+            size: 40,
+            color: context.setflowColors.blue,
+          ),
           const SizedBox(height: SetflowSpacing.xxl),
           const Text(
             '서류 심사가\n진행 중입니다',
@@ -1187,9 +1196,9 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                               ),
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size(0, 54),
-                                foregroundColor: SetflowColors.red,
-                                side: const BorderSide(
-                                  color: SetflowColors.red,
+                                foregroundColor: context.setflowColors.error,
+                                side: BorderSide(
+                                  color: context.setflowColors.error,
                                 ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(
@@ -1229,7 +1238,11 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
       ),
       child: Column(
         children: [
-          Icon(Icons.error_outline_rounded, size: 38, color: SetflowColors.red),
+          Icon(
+            Icons.error_outline_rounded,
+            size: 38,
+            color: context.setflowColors.error,
+          ),
           const SizedBox(height: SetflowSpacing.xxl),
           const Text(
             '서류 심사 반려',
@@ -1249,10 +1262,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: SetflowColors.red.withValues(alpha: .06),
+              color: context.setflowColors.error.withValues(alpha: .06),
               borderRadius: BorderRadius.circular(SetflowRadii.md),
               border: Border.all(
-                color: SetflowColors.red.withValues(alpha: .2),
+                color: context.setflowColors.error.withValues(alpha: .2),
               ),
             ),
             child: const Text(
@@ -1423,9 +1436,9 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
             if (uploadedDocs.containsKey(index))
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.delete_outline_rounded,
-                  color: SetflowColors.red,
+                  color: context.setflowColors.error,
                 ),
                 title: const Text('선택한 파일 제거'),
                 onTap: () {

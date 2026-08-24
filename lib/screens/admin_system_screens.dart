@@ -7,29 +7,36 @@ import '../widgets/common.dart';
 class AdminSystemScreen extends StatelessWidget {
   const AdminSystemScreen({super.key});
 
-  static const _items = [
+  /// 아이콘·색·제목 묶음. `const` 였는데 색이 테마를 따라야 해서 함수가 됐다 —
+  /// const 리터럴은 BuildContext 를 읽을 수 없다.
+  List<(IconData, Color, String, String)> _items(BuildContext context) => [
     (
       Icons.leaderboard_outlined,
-      SetflowColors.blue,
+      context.setflowColors.blue,
       '랭킹 관리',
       '트렌딩 알고리즘 가중치 및 현재 순위',
     ),
     (
       Icons.document_scanner_outlined,
-      SetflowColors.teal,
+      context.setflowColors.teal,
       'OCR 검수',
       '자동 인식 결과 검수 대기열',
     ),
     (
       Icons.workspace_premium_outlined,
-      SetflowColors.purple,
+      context.setflowColors.purple,
       '요금제 관리',
       '구독 플랜 등록/수정/삭제',
     ),
-    (Icons.block_outlined, SetflowColors.red, '금칙어 관리', '자동 블라인드 키워드 목록'),
+    (
+      Icons.block_outlined,
+      context.setflowColors.error,
+      '금칙어 관리',
+      '자동 블라인드 키워드 목록',
+    ),
     (
       Icons.monitor_heart_outlined,
-      SetflowColors.orange,
+      context.setflowColors.orange,
       '시스템 로그',
       '서버 상태 및 에러 로그',
     ),
@@ -41,10 +48,10 @@ class AdminSystemScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('시스템 관리')),
       body: ListView.separated(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
-        itemCount: _items.length,
+        itemCount: _items(context).length,
         separatorBuilder: (_, _) => const SizedBox(height: SetflowSpacing.sm2),
         itemBuilder: (context, index) {
-          final item = _items[index];
+          final item = _items(context)[index];
           return SetflowCard(
             onTap: () => Navigator.of(
               context,
@@ -157,9 +164,9 @@ class _AdminSystemRankingScreenState extends State<AdminSystemRankingScreen> {
                     subtitle: Text(item.$3),
                     trailing: Text(
                       '${item.$4}점',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: SetflowColors.blue,
+                        color: context.setflowColors.blue,
                       ),
                     ),
                   ),
@@ -253,10 +260,10 @@ class _WeightSlider extends StatelessWidget {
             ),
             Text(
               value.toStringAsFixed(1),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: SetflowFontSize.label,
                 fontWeight: FontWeight.w900,
-                color: SetflowColors.blue,
+                color: context.setflowColors.blue,
               ),
             ),
           ],
@@ -297,15 +304,15 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                 value: '${_queue.length}',
                 suffix: '건',
                 icon: Icons.hourglass_empty,
-                tint: SetflowColors.orange,
+                tint: context.setflowColors.orange,
               ),
               const SizedBox(width: SetflowSpacing.sm2),
-              const MetricCard(
+              MetricCard(
                 label: '이번주 처리',
                 value: '132',
                 suffix: '건',
                 icon: Icons.task_alt,
-                tint: SetflowColors.green,
+                tint: context.setflowColors.success,
               ),
             ],
           ),
@@ -329,12 +336,14 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: SetflowColors.teal.withValues(alpha: .15),
+                          color: context.setflowColors.teal.withValues(
+                            alpha: .15,
+                          ),
                           borderRadius: BorderRadius.circular(SetflowRadii.md),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.image_search,
-                          color: SetflowColors.teal,
+                          color: context.setflowColors.teal,
                         ),
                       ),
                       const SizedBox(width: SetflowSpacing.md),
@@ -355,7 +364,7 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                                 fontSize: SetflowFontSize.small,
                                 fontWeight: FontWeight.w700,
                                 color: item.confidence < 60
-                                    ? SetflowColors.red
+                                    ? context.setflowColors.error
                                     : SetflowColors.secondaryText,
                               ),
                             ),
@@ -365,17 +374,17 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                       IconButton(
                         tooltip: '승인',
                         onPressed: () => _resolve(item.id, '승인'),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.check_circle_outline,
-                          color: SetflowColors.green,
+                          color: context.setflowColors.success,
                         ),
                       ),
                       IconButton(
                         tooltip: '반려',
                         onPressed: () => _resolve(item.id, '반려'),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.cancel_outlined,
-                          color: SetflowColors.red,
+                          color: context.setflowColors.error,
                         ),
                       ),
                     ],
@@ -462,9 +471,9 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
                     IconButton(
                       tooltip: '삭제',
                       onPressed: () => _confirmDelete(plan.id),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.delete_outline,
-                        color: SetflowColors.red,
+                        color: context.setflowColors.error,
                       ),
                     ),
                   ],
@@ -495,7 +504,10 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('삭제', style: TextStyle(color: SetflowColors.red)),
+            child: Text(
+              '삭제',
+              style: TextStyle(color: context.setflowColors.error),
+            ),
           ),
         ],
       ),
@@ -609,10 +621,10 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
         padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
         children: [
           SetflowCard(
-            color: SetflowColors.red.withValues(alpha: .06),
-            child: const Row(
+            color: context.setflowColors.error.withValues(alpha: .06),
+            child: Row(
               children: [
-                Icon(Icons.shield_outlined, color: SetflowColors.red),
+                Icon(Icons.shield_outlined, color: context.setflowColors.error),
                 SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Text(
@@ -683,9 +695,9 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
                       trailing: IconButton(
                         tooltip: '삭제',
                         onPressed: () => _remove(keyword),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.delete_outline,
-                          color: SetflowColors.red,
+                          color: context.setflowColors.error,
                         ),
                       ),
                     ),
@@ -746,14 +758,14 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
         children: [
-          const Row(
+          Row(
             children: [
               MetricCard(
                 label: '업타임',
                 value: '99.98',
                 suffix: '%',
                 icon: Icons.cloud_done_outlined,
-                tint: SetflowColors.green,
+                tint: context.setflowColors.success,
               ),
               SizedBox(width: SetflowSpacing.sm2),
               MetricCard(
@@ -761,7 +773,7 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                 value: '0.02',
                 suffix: '%',
                 icon: Icons.error_outline,
-                tint: SetflowColors.red,
+                tint: context.setflowColors.error,
               ),
             ],
           ),
@@ -848,8 +860,8 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
   }
 
   Color _logColor(String level) => switch (level) {
-    'ERROR' => SetflowColors.red,
-    'WARN' => SetflowColors.orange,
-    _ => SetflowColors.green,
+    'ERROR' => context.setflowColors.error,
+    'WARN' => context.setflowColors.orange,
+    _ => context.setflowColors.success,
   };
 }

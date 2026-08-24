@@ -137,9 +137,9 @@ if (!context.mounted) return;
   다르고 좌우는 전부 같다. `test/page_margin_test.dart`가 화면에서 실측한다.
 - **모서리 반경은 `SetflowRadii`에서 고른다.** 16과 14, 20과 18이 섞이면 카드마다 모서리가
   미묘하게 달라 보인다.
-- **다크 모드는 아직 색 부채가 있다.** `SetflowColors.*`는 **라이트 전용 값**이고 563곳이
-  다크에서 대비 미달이다. 새 코드에서는 처음부터 `context.setflowColors.*`를 쓸 것 —
-  부채를 늘리지 않는 게 최소한이다. 근거와 이관 순서: `docs/dark-mode-debt.md`
+- **상태색은 `context.setflowColors.*`로 쓴다.** `SetflowColors.*`는 **라이트 전용 값**이라
+  다크에서 대비가 무너진다(red 4.07, purple 3.45). 상태색 363곳 중 359곳을 옮겼다 —
+  남은 4곳과 이유는 `docs/dark-mode-debt.md`. 새 코드에서 상수로 되돌리지 말 것.
 - **화면에 hex를 박지 말 것.** `SetflowColors` / `SetflowNeutral`에서 고르고, 테마 따라
   뒤집히는 면 위에서는 `context.setflowColors`를 쓴다. 셋 다 아키텍처 규칙이 강제한다.
 - **화면 헤더는 `AppBar`다.** 뒤로가기·제목·액션을 직접 그리지 말 것 — 테마가 정한 타이포와

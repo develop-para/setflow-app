@@ -1219,9 +1219,9 @@ class AdminRoutineReviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.fact_check_outlined,
-                color: SetflowColors.orange,
+                color: context.setflowColors.orange,
               ),
               const SizedBox(width: SetflowSpacing.sm),
               Expanded(
@@ -1442,7 +1442,7 @@ class _InfoBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isError
         ? Theme.of(context).colorScheme.error
-        : SetflowColors.blue;
+        : context.setflowColors.blue;
     return Container(
       padding: const EdgeInsets.all(SetflowSpacing.md),
       decoration: BoxDecoration(

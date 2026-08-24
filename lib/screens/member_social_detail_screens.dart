@@ -200,13 +200,13 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
               onTap: () => Navigator.pop(sheetContext, PostMediaSource.gallery),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.delete_outline,
-                color: SetflowColors.red,
+                color: context.setflowColors.error,
               ),
-              title: const Text(
+              title: Text(
                 '사진 삭제',
-                style: TextStyle(color: SetflowColors.red),
+                style: TextStyle(color: context.setflowColors.error),
               ),
               onTap: () {
                 setState(() => selectedMedia = null);
@@ -345,7 +345,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
                   _ShareTarget(
                     icon: Icons.download_rounded,
                     label: '저장',
-                    color: SetflowColors.green,
+                    color: context.setflowColors.success,
                     onTap: () =>
                         AppSnackbar.info(context, '게시 후 이미지로 저장할 수 있어요.'),
                   ),
@@ -453,9 +453,9 @@ class _WorkoutVisualPreview extends StatelessWidget {
     }
 
     final color = switch (visualKey) {
-      'streak' => SetflowColors.teal,
+      'streak' => context.setflowColors.teal,
       'tip' => context.setflowColors.info,
-      _ => SetflowColors.orange,
+      _ => context.setflowColors.orange,
     };
     final icon = switch (visualKey) {
       'streak' => Icons.local_fire_department_rounded,
@@ -791,10 +791,10 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: SetflowSpacing.xs),
-                          const Icon(
+                          Icon(
                             Icons.verified_rounded,
                             size: 17,
-                            color: SetflowColors.blue,
+                            color: context.setflowColors.blue,
                           ),
                         ],
                       ),
@@ -843,13 +843,13 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           const SectionTitle('루틴 리스트'),
           const SizedBox(height: SetflowSpacing.sm),
           if (routine.isPaid && routine.exercises.isEmpty)
-            const SetflowCard(
+            SetflowCard(
               child: Column(
                 children: [
                   Icon(
                     Icons.lock_outline_rounded,
                     size: 38,
-                    color: SetflowColors.purple,
+                    color: context.setflowColors.purple,
                   ),
                   SizedBox(height: SetflowSpacing.sm),
                   Text(
@@ -977,10 +977,14 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
               },
             ),
           const SizedBox(height: SetflowSpacing.xl),
-          const Row(
+          Row(
             children: [
               Expanded(child: SectionTitle('생생한 후기')),
-              Icon(Icons.star_rounded, color: SetflowColors.orange, size: 18),
+              Icon(
+                Icons.star_rounded,
+                color: context.setflowColors.orange,
+                size: 18,
+              ),
               SizedBox(width: SetflowSpacing.xs),
               Text('4.9 (128)'),
             ],
@@ -1026,13 +1030,33 @@ class _RoutineReview extends StatelessWidget {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
-              Icon(Icons.star_rounded, size: 14, color: SetflowColors.orange),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
+              Icon(
+                Icons.star_rounded,
+                size: 14,
+                color: context.setflowColors.orange,
+              ),
             ],
           ),
           const SizedBox(height: SetflowSpacing.xs),
@@ -1228,7 +1252,9 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                               post.isLiked
                                   ? Icons.favorite_rounded
                                   : Icons.favorite_border_rounded,
-                              color: post.isLiked ? SetflowColors.red : null,
+                              color: post.isLiked
+                                  ? context.setflowColors.error
+                                  : null,
                             ),
                           ),
                           Text('${post.likes}'),
@@ -1606,9 +1632,12 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.health_and_safety_outlined, color: SetflowColors.teal),
+              Icon(
+                Icons.health_and_safety_outlined,
+                color: context.setflowColors.teal,
+              ),
               SizedBox(width: SetflowSpacing.sm2),
               Expanded(
                 child: Text(
@@ -2278,7 +2307,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                   onPressed: () => setDialogState(() => rating = index),
                   icon: Icon(
                     index <= rating ? Icons.star_rounded : Icons.star_border,
-                    color: SetflowColors.orange,
+                    color: context.setflowColors.orange,
                   ),
                 ),
             ],
@@ -2455,9 +2484,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.person_rounded,
-                        color: SetflowColors.blue,
+                        color: context.setflowColors.blue,
                       ),
                       const SizedBox(width: SetflowSpacing.sm),
                       Expanded(
@@ -2480,9 +2509,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.verified_rounded,
-                        color: SetflowColors.blue,
+                        color: context.setflowColors.blue,
                       ),
                     ],
                   ),
@@ -2543,14 +2572,14 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(SetflowSpacing.lg),
                 decoration: BoxDecoration(
-                  color: SetflowColors.green.withValues(alpha: .1),
+                  color: context.setflowColors.success.withValues(alpha: .1),
                   borderRadius: BorderRadius.circular(SetflowRadii.lg),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.verified_user_outlined,
-                      color: SetflowColors.green,
+                      color: context.setflowColors.success,
                     ),
                     const SizedBox(width: SetflowSpacing.sm),
                     Expanded(
@@ -2593,8 +2622,8 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      ConsultationStatus.waiting => ('답변 대기', SetflowColors.orange),
-      ConsultationStatus.answered => ('상담 완료', SetflowColors.green),
+      ConsultationStatus.waiting => ('답변 대기', context.setflowColors.orange),
+      ConsultationStatus.answered => ('상담 완료', context.setflowColors.success),
       ConsultationStatus.coaching => ('코칭 중', context.setflowColors.info),
     };
     return Container(

@@ -441,13 +441,16 @@ class _RecommendationProfileScreenState
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: SetflowColors.red.withValues(alpha: .09),
+                color: context.setflowColors.error.withValues(alpha: .09),
                 borderRadius: BorderRadius.circular(SetflowRadii.md),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: SetflowColors.red),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: context.setflowColors.error,
+                  ),
                   SizedBox(width: SetflowSpacing.sm2),
                   Expanded(
                     child: Text(
