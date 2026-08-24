@@ -175,10 +175,44 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
-    // 설정.
+    // 마이 하위 화면들.
+    for (final (label, name) in [('코칭', 'coaching'), ('운동 목표', 'goal')]) {
+      await tester.tap(find.text(label).first);
+      await tester.pumpAndSettle();
+      await _shot(tester, 'build/shots/my_$name.png');
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+
+    // 이용권은 게스트에게 화면이 아니라 로그인 게이트를 연다 — 그 시트도
+    // 사용자가 실제로 보는 화면이니 찍고, 시트의 닫기로 나온다.
+    await tester.tap(find.text('이용권').first);
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/auth_gate.png');
+    await tester.tap(find.byKey(const ValueKey('auth-gate-dismiss')));
+    await tester.pumpAndSettle();
+
+    // 설정과 그 하위.
     await tester.tap(find.text('설정'));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/settings.png');
+    for (final (label, name) in [
+      ('계정 & 프로필', 'account'),
+      ('알림 설정', 'notifications'),
+      ('데이터 & 개인정보', 'privacy'),
+      ('디스플레이', 'display'),
+      ('기본 휴식 타이머', 'rest'),
+    ]) {
+      await tester.tap(find.text(label).first);
+      await tester.pumpAndSettle();
+      await _shot(tester, 'build/shots/settings_$name.png');
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+
+    // 트레이너/헬스장 포털 전환("트레이너 화면 보기" 등)은 화면 push가 아니라
+    // 앱 전체의 role을 바꾸는 동작이라 뒤로가기가 없다 — 이 순차 워크과 성격이
+    // 달라 별도 캡처 경로로 다룬다. 설정에서 나가기만 한다.
     await tester.pageBack();
     await tester.pumpAndSettle();
 
@@ -227,6 +261,13 @@ void main() {
     await tester.tap(find.text('마이'));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/mypage_signed_in.png');
+
+    // 로그인 상태에서만 열리는 화면.
+    await tester.tap(find.text('이용권').first);
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/my_membership.png');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
     await tester.binding.setSurfaceSize(null);
   }, skip: !_enabled);
