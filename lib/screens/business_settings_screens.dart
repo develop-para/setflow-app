@@ -939,6 +939,7 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                     ),
                   ),
                   IconButton(
+                    tooltip: '첨부 파일 제거',
                     onPressed: () => setState(() => _fileAttached = false),
                     icon: const Icon(Icons.close),
                   ),

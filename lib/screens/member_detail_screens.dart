@@ -728,6 +728,7 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
             IconButton(
               onPressed: () =>
                   setState(() => month = DateTime(month.year, month.month - 1)),
+              tooltip: '이전',
               icon: const Icon(Icons.chevron_left),
             ),
             Expanded(
@@ -743,6 +744,7 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
             IconButton(
               onPressed: () =>
                   setState(() => month = DateTime(month.year, month.month + 1)),
+              tooltip: '다음',
               icon: const Icon(Icons.chevron_right),
             ),
           ],

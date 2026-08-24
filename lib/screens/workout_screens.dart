@@ -2645,6 +2645,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                               ),
                               subtitle: Text(subtitleParts.join(' · ')),
                               trailing: IconButton(
+                                tooltip: isSelected ? '선택 해제' : '선택',
                                 onPressed: () => setState(
                                   () => isSelected
                                       ? selected.remove(exercise.id)

@@ -540,6 +540,9 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
             children: [
               for (var i = 1; i <= 5; i++)
                 IconButton(
+                  // 별 하나하나가 버튼이라, 라벨이 없으면 스크린리더에는
+                  // 이름 없는 버튼 다섯 개가 나란히 놓인다.
+                  tooltip: '$i점',
                   onPressed: () => setDialogState(() => rating = i),
                   icon: Icon(
                     i <= rating ? Icons.star : Icons.star_border,

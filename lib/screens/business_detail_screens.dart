@@ -995,6 +995,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
               IconButton(
                 onPressed: () =>
                     showMessage(context, '${item.$1} 정책 편집을 열었습니다.'),
+                tooltip: '수정',
                 icon: const Icon(Icons.edit_outlined),
               ),
             ],
