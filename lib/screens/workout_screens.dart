@@ -449,7 +449,7 @@ class _WorkoutSummaryBar extends StatelessWidget {
                       Icons.auto_awesome_rounded,
                       size: 14,
                       color: recommendationEnabled
-                          ? context.setflowColors.orange
+                          ? Theme.of(context).colorScheme.onSurface
                           : SetflowColors.disabled,
                     ),
                     const SizedBox(width: SetflowSpacing.xs),
@@ -833,18 +833,14 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
                     children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: SetflowColors.primary.withValues(alpha: .15),
-                          borderRadius: BorderRadius.circular(SetflowRadii.md),
-                        ),
-                        child: Icon(
-                          exercise.template.icon,
-                          color: context.setflowColors.orange,
-                          size: 22,
-                        ),
+                      // 판도 없고 색도 없다. 라임 사각형 위의 주황 아이콘은
+                      // 이 화면에서 가장 먼저 눈에 들어오는 요소였는데, 정작
+                      // 아무 의미도 없는 장식이었다 — 봐야 할 것은 종목 이름과
+                      // 세트다.
+                      Icon(
+                        exercise.template.icon,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        size: 24,
                       ),
                       const SizedBox(width: SetflowSpacing.md),
                       Expanded(
@@ -1770,18 +1766,23 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                 ),
                 const SizedBox(width: SetflowSpacing.sm),
                 Expanded(
-                  child: Text(
-                    estimate == null
-                        ? 'e1RM 계산 제외'
-                        : 'e1RM ${estimate.value.toStringAsFixed(1)} · ${estimate.quality.label}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: SetflowFontSize.micro,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  // 추정치가 없을 때는 비운다. 갓 만든 기록에서는 모든 세트가
+                  // 계산 제외라, 여섯 줄이 전부 같은 전문 용어를 반복하면서
+                  // 정작 무게·횟수보다 먼저 읽혔다. 숫자가 생기면 그때 뜬다.
+                  child: estimate == null
+                      ? const SizedBox.shrink()
+                      : Text(
+                          'e1RM ${estimate.value.toStringAsFixed(1)} · ${estimate.quality.label}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: SetflowFontSize.micro,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                 ),
                 PopupMenuButton<String>(
                   tooltip: '세트 종류 변경',

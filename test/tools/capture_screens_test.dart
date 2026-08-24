@@ -105,6 +105,20 @@ void main() {
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/record_sheet.png');
 
+    // 세트 행이 이 앱의 본체다. 빈 화면만 찍으면 정작 사람이 제일 오래 보는
+    // 화면을 한 번도 안 보고 넘어간다.
+    // 시트를 닫고 찍는다 — 막 위로 찍으면 정작 볼 것이 흐려진다.
+    await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
+    await tester.pumpAndSettle();
+    final seedState = tester.widget<AppScope>(find.byType(AppScope)).notifier!;
+    final today = seedState.dateOnly(DateTime.now());
+    for (final template
+        in seedState.exercises.where((e) => !e.isCardio).take(2)) {
+      seedState.addExercise(today, template);
+    }
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/record_sets.png');
+
     await tester.tap(find.text('마이'));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/mypage.png');
