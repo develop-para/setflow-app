@@ -3022,8 +3022,11 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
         title: Text(exercise.template.name),
         actions: [
           IconButton(
-            onPressed: () => showMessage(context, '운동 기록 히스토리를 불러왔습니다.'),
-            icon: const Icon(Icons.history_rounded),
+            key: const ValueKey('exercise-history'),
+            tooltip: '지난 기록',
+            onPressed: () =>
+                _showExerciseHistory(context, state, exercise.template),
+            icon: const Icon(SetflowIcons.pastDays),
           ),
         ],
       ),
@@ -3575,6 +3578,93 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
         ) ??
         false;
   }
+}
+
+/// 이 종목을 지금까지 어떻게 해 왔는지.
+///
+/// 예전엔 이 버튼이 "히스토리를 불러왔습니다" 토스트만 띄우고 아무것도 안 했다.
+/// 기록은 이미 `state.sessions`에 다 있었다 — 보여 주기만 하면 되는 일이었다.
+void _showExerciseHistory(
+  BuildContext context,
+  AppState state,
+  ExerciseTemplate template,
+) {
+  final entries = <(DateTime, List<WorkoutSetEntry>)>[];
+  for (final entry in state.sessions.entries) {
+    for (final exercise in entry.value.exercises) {
+      if (exercise.template.id != template.id) continue;
+      final done = exercise.sets.where((set) => set.completed).toList();
+      if (done.isNotEmpty) entries.add((entry.key, done));
+    }
+  }
+  // 최근이 위로. 날짜가 곧 순서다.
+  entries.sort((a, b) => b.$1.compareTo(a.$1));
+
+  showSetflowSheet<void>(
+    context,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      final theme = Theme.of(sheetContext);
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          0,
+          SetflowSpacing.gutter,
+          SetflowSpacing.xxl,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(template.name, style: theme.textTheme.titleLarge),
+            const SizedBox(height: SetflowSpacing.xxs),
+            Text(
+              entries.isEmpty ? '아직 기록이 없어요' : '${entries.length}일치 기록',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            if (entries.isEmpty)
+              Text(
+                '이 종목의 세트를 완료하면 여기에 쌓입니다.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              for (final (date, sets) in entries.take(20))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: SetflowSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${date.month}월 ${date.day}일',
+                        style: theme.textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: SetflowSpacing.xs),
+                      Text(
+                        // 한 줄에 그날 한 세트를 전부 — 무게가 오른 날이 눈에 띈다.
+                        sets
+                            .map(
+                              (set) =>
+                                  '${_decimalText(set.weight)}${state.weightUnit}'
+                                  ' × ${set.reps}',
+                            )
+                            .join('   '),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 /// 이 동작을 어떻게 하는지. 글자로 된 종목명만 보고는 초보자가 알 수 없다.

@@ -709,13 +709,8 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('전문가 루틴 상세'),
-        actions: [
-          IconButton(
-            tooltip: '공유',
-            onPressed: () => AppSnackbar.info(context, '공유 메뉴를 준비했어요.'),
-            icon: const Icon(Icons.ios_share_rounded),
-          ),
-        ],
+        // 공유 버튼은 뺐다. 눌러도 "준비했어요" 토스트만 뜨고 아무것도 공유되지
+        // 않았다 — 있는 척하는 버튼은 없는 것보다 나쁘다. 만들어지면 그때 넣는다.
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 40),
@@ -1267,12 +1262,6 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                           const SizedBox(width: SetflowSpacing.xs2),
                           Text('${post.comments.length}'),
                           const Spacer(),
-                          IconButton(
-                            tooltip: '공유',
-                            onPressed: () =>
-                                AppSnackbar.info(context, '공유 메뉴를 준비했어요.'),
-                            icon: const Icon(Icons.ios_share_rounded),
-                          ),
                         ],
                       ),
                       const Divider(height: SetflowSpacing.xl),
