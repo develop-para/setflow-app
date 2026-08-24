@@ -381,4 +381,15 @@ grant execute on function public.start_training_party(uuid, integer) to authenti
 grant execute on function public.report_training_party_set(uuid, integer) to authenticated;
 grant execute on function public.offer_training_party_routine(uuid, text, jsonb, text) to authenticated;
 
+-- 함수는 만들 때 PUBLIC 실행권이 딸려 나온다. 이 프로젝트의 하드닝 규칙대로
+-- 익명 실행은 회수한다 — auth.uid() 검사로도 막히지만, 권한에서 막는 것이 먼저다.
+revoke execute on function public.get_training_party(uuid) from public, anon;
+revoke execute on function public.create_training_party(text, text) from public, anon;
+revoke execute on function public.join_training_party(text, text) from public, anon;
+revoke execute on function public.leave_training_party(uuid) from public, anon;
+revoke execute on function public.set_training_party_mode(uuid, text) from public, anon;
+revoke execute on function public.start_training_party(uuid, integer) from public, anon;
+revoke execute on function public.report_training_party_set(uuid, integer) from public, anon;
+revoke execute on function public.offer_training_party_routine(uuid, text, jsonb, text) from public, anon;
+
 commit;
