@@ -5559,9 +5559,9 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                                     item.$2,
                                     item.$3,
                                   ),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: SetflowColors.ink,
-                                  ),
+                                  // 잉크 배경을 덮어쓰면 기본 전경(onPrimary=잉크)과
+                                  // 겹쳐 '승인'이 검정 위 검정으로 사라진다 —
+                                  // 실제로 글자 없는 검은 버튼으로 보였다.
                                   child: const Text('승인'),
                                 ),
                               ),

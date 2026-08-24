@@ -659,7 +659,6 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
               FilledButton(
                 onPressed: _add,
                 style: FilledButton.styleFrom(
-                  backgroundColor: SetflowColors.ink,
                   minimumSize: const Size(0, 54),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(SetflowRadii.md),
