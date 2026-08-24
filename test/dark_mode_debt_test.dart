@@ -56,6 +56,32 @@ void main() {
     }
   });
 
+  test('no screen still reaches for a light-only text colour', () {
+    // secondaryText was 167 call sites and is now zero: it reads as
+    // onSurfaceVariant, which the colour scheme already flips. This is the
+    // guard against it creeping back one Text at a time.
+    final offenders = <String>[];
+    for (final entry in {
+      'secondaryText': SetflowColors.secondaryText,
+    }.entries) {
+      final light = SetflowTheme.light.colorScheme.onSurfaceVariant;
+      // 라이트에서 값이 같다는 것이 이관이 안전했던 이유다 — 화면은 그대로 보인다.
+      if (entry.value.toARGB32() != light.toARGB32()) {
+        offenders.add('${entry.key} no longer matches onSurfaceVariant');
+      }
+    }
+    expect(offenders, isEmpty);
+    // 그리고 다크에서는 컬러스킴 쪽이 읽힌다.
+    expect(
+      contrast(
+        SetflowTheme.dark.colorScheme.onSurfaceVariant,
+        SetflowTheme.dark.scaffoldBackgroundColor,
+      ),
+      greaterThanOrEqualTo(4.5),
+      reason: '다크의 보조 글자색이 안 읽힌다',
+    );
+  });
+
   test('the light constants are what failed, and why they had to move', () {
     // Kept after the migration, not before it: this is the evidence for why
     // 359 call sites moved, and the guard on the four that could not. If one

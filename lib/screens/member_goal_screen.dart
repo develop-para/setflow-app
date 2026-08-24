@@ -112,9 +112,12 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.sm),
-          const Text(
+          Text(
             '먼저 선택한 목표 하나를 추천 기준으로 사용하며, 최대 2개까지 프로필에 저장할 수 있습니다.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.45),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.45,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.xxl),
           for (final option in options)
@@ -172,9 +175,11 @@ class _MemberGoalScreenState extends State<MemberGoalScreen> {
                           const SizedBox(height: SetflowSpacing.xxs),
                           Text(
                             option.$3,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: SetflowFontSize.small,
-                              color: SetflowColors.secondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],

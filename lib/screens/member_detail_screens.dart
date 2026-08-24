@@ -646,9 +646,9 @@ class _MemberSummaryHeader extends StatelessWidget {
                   ),
                   Text(
                     '${member.goal ?? '목표 미등록'} · 마지막 기록 ${_relativeDate(member.lastActivityAt)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: SetflowFontSize.caption,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -793,9 +793,11 @@ class _MemberCalendarTabState extends State<_MemberCalendarTab> {
                             '${session.completedSets}/${session.totalSets}'
                             '${session.hasCardio ? '항목' : '세트'} · '
                             '${_workoutSessionActivityText(session)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: SetflowFontSize.caption,
-                              color: SetflowColors.secondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -916,9 +918,9 @@ class _MemberRoutineTab extends StatelessWidget {
                       const SizedBox(height: SetflowSpacing.xxs),
                       Text(
                         routine.description,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: SetflowFontSize.caption,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -980,18 +982,18 @@ class _MemberCommunityTab extends StatelessWidget {
                 const SizedBox(height: SetflowSpacing.xs),
                 Text(
                   post.$2,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: SetflowFontSize.caption,
-                    color: SetflowColors.secondaryText,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: SetflowSpacing.sm2),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.favorite_border,
                       size: 16,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: SetflowSpacing.xs),
                     Text(
@@ -999,10 +1001,10 @@ class _MemberCommunityTab extends StatelessWidget {
                       style: const TextStyle(fontSize: SetflowFontSize.caption),
                     ),
                     const SizedBox(width: SetflowSpacing.md2),
-                    const Icon(
+                    Icon(
                       Icons.mode_comment_outlined,
                       size: 16,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: SetflowSpacing.xs),
                     Text(
@@ -1060,9 +1062,9 @@ class _MemberLibraryTab extends StatelessWidget {
                     ),
                     Text(
                       exercise.muscle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: SetflowFontSize.tiny,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],

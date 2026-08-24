@@ -53,9 +53,9 @@ class RoutineStatsPage extends StatelessWidget {
                       ),
                       Text(
                         '${routine.author} · ${routine.level}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: SetflowFontSize.small,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -213,7 +213,7 @@ class TrainerPerformancePage extends StatelessWidget {
                         liveData ? '센터 운영 데이터' : '소속 코치 성과 리포트',
                         style: TextStyle(
                           fontSize: SetflowFontSize.small,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -360,9 +360,9 @@ class _TrendChart extends StatelessWidget {
                     const SizedBox(height: SetflowSpacing.xs2),
                     Text(
                       '${i + 1}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: SetflowFontSize.tiny,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],

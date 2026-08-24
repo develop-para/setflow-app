@@ -1923,8 +1923,10 @@ class _PeoplePageState extends State<PeoplePage> {
                             ),
                             Text(
                               person.$2,
-                              style: const TextStyle(
-                                color: SetflowColors.secondaryText,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -2535,10 +2537,10 @@ class _GymBusinessInviteSheetState extends State<_GymBusinessInviteSheet> {
             ),
           ],
           const SizedBox(height: SetflowSpacing.md),
-          const Text(
+          Text(
             '링크 유효기간 7일 · 링크는 한 계정만 사용할 수 있어요.',
             style: TextStyle(
-              color: SetflowColors.secondaryText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: SetflowFontSize.caption,
             ),
           ),
@@ -2715,7 +2717,7 @@ Color _routineShareStatusColor(
   RoutineShareStatus.pending => context.setflowColors.orange,
   RoutineShareStatus.declined ||
   RoutineShareStatus.revoked ||
-  RoutineShareStatus.expired => SetflowColors.secondaryText,
+  RoutineShareStatus.expired => Theme.of(context).colorScheme.onSurfaceVariant,
   RoutineShareStatus.unknown => context.setflowColors.error,
 };
 
@@ -2775,10 +2777,10 @@ class _RoutineShareStatusSummary extends StatelessWidget {
                   color: context.setflowColors.orange,
                 ),
               const SizedBox(width: SetflowSpacing.xs),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
                 size: 18,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -2900,7 +2902,9 @@ class _RoutineShareStatusSheet extends StatelessWidget {
                   const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     routine.title,
-                    style: const TextStyle(color: SetflowColors.secondaryText),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -2971,8 +2975,10 @@ class _RoutineShareStatusSheet extends StatelessWidget {
                               if (share.createdAt != null)
                                 Text(
                                   '${_relativeBusinessDate(share.createdAt)} 전송',
-                                  style: const TextStyle(
-                                    color: SetflowColors.secondaryText,
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontSize: SetflowFontSize.small,
                                   ),
                                 ),
@@ -3098,7 +3104,7 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                             ),
                           ),
                           const SizedBox(width: SetflowSpacing.md),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -3110,7 +3116,9 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                 Text(
                                   '변경한 무료·유료 설정은 회원 마켓에 바로 반영돼요.',
                                   style: TextStyle(
-                                    color: SetflowColors.secondaryText,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontSize: SetflowFontSize.caption,
                                   ),
                                 ),
@@ -5392,9 +5400,11 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                           entry.$4,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: SetflowFontSize.tiny,
-                            color: SetflowColors.secondaryText,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -5504,9 +5514,11 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                         const SizedBox(height: SetflowSpacing.xs),
                         Text(
                           item.$3,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: SetflowFontSize.caption,
-                            color: SetflowColors.secondaryText,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: SetflowSpacing.lg),
@@ -6000,9 +6012,11 @@ class _SettlementPageState extends State<SettlementPage> {
                             ),
                             Text(
                               item.$2,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: SetflowFontSize.small,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -6017,9 +6031,11 @@ class _SettlementPageState extends State<SettlementPage> {
                           ),
                           Text(
                             item.$4,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: SetflowFontSize.tiny,
-                              color: SetflowColors.secondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -6044,7 +6060,7 @@ class _SettlementPageState extends State<SettlementPage> {
                   color: context.setflowColors.error,
                 ),
                 const SizedBox(width: SetflowSpacing.md),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -6053,7 +6069,7 @@ class _SettlementPageState extends State<SettlementPage> {
                         '환불 요청 및 처리 이력 확인',
                         style: TextStyle(
                           fontSize: SetflowFontSize.small,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -6078,7 +6094,7 @@ class _SettlementPageState extends State<SettlementPage> {
                     color: context.setflowColors.blue,
                   ),
                   const SizedBox(width: SetflowSpacing.md),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -6090,7 +6106,9 @@ class _SettlementPageState extends State<SettlementPage> {
                           '소속 코치 매출·분배 내역',
                           style: TextStyle(
                             fontSize: SetflowFontSize.small,
-                            color: SetflowColors.secondaryText,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -6116,7 +6134,7 @@ class _SettlementPageState extends State<SettlementPage> {
                     color: context.setflowColors.purple,
                   ),
                   const SizedBox(width: SetflowSpacing.md),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -6128,7 +6146,9 @@ class _SettlementPageState extends State<SettlementPage> {
                           '사업자·트레이너별 수수료 산정 내역',
                           style: TextStyle(
                             fontSize: SetflowFontSize.small,
-                            color: SetflowColors.secondaryText,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -6152,7 +6172,7 @@ class _SettlementPageState extends State<SettlementPage> {
                     color: context.setflowColors.success,
                   ),
                   const SizedBox(width: SetflowSpacing.md),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -6164,7 +6184,9 @@ class _SettlementPageState extends State<SettlementPage> {
                           '지급 대상 확정 및 처리 상태 관리',
                           style: TextStyle(
                             fontSize: SetflowFontSize.small,
-                            color: SetflowColors.secondaryText,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -6424,9 +6446,9 @@ class _ActionTile extends StatelessWidget {
               Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
               Text(
                 subtitle,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: SetflowFontSize.small,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -6457,8 +6479,8 @@ class _PerformanceRow extends StatelessWidget {
       Expanded(
         child: Text(
           label,
-          style: const TextStyle(
-            color: SetflowColors.secondaryText,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -6510,9 +6532,9 @@ class _PersonRow extends StatelessWidget {
             Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
             Text(
               detail,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: SetflowFontSize.small,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -6612,9 +6634,9 @@ class _MiniMetric extends StatelessWidget {
       const SizedBox(height: SetflowSpacing.xs),
       Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: SetflowFontSize.tiny,
-          color: SetflowColors.secondaryText,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     ],

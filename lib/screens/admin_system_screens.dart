@@ -82,9 +82,9 @@ class AdminSystemScreen extends StatelessWidget {
                       const SizedBox(height: SetflowSpacing.xs),
                       Text(
                         item.$4,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: SetflowFontSize.caption,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -365,7 +365,9 @@ class _AdminSystemOcrScreenState extends State<AdminSystemOcrScreen> {
                                 fontWeight: FontWeight.w700,
                                 color: item.confidence < 60
                                     ? context.setflowColors.error
-                                    : SetflowColors.secondaryText,
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -455,9 +457,11 @@ class _AdminSystemPlansScreenState extends State<AdminSystemPlansScreen> {
                           const SizedBox(height: SetflowSpacing.xs),
                           Text(
                             '${plan.price} · ${plan.desc}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: SetflowFontSize.caption,
-                              color: SetflowColors.secondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -668,10 +672,10 @@ class _AdminSystemKeywordsScreenState extends State<AdminSystemKeywordsScreen> {
           const SizedBox(height: SetflowSpacing.lg),
           Text(
             '등록된 키워드 ${_keywords.length}개',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: SetflowFontSize.caption,
               fontWeight: SetflowWeight.medium,
-              color: SetflowColors.secondaryText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: SetflowSpacing.sm2),
@@ -829,18 +833,22 @@ class _AdminSystemLogsScreenState extends State<AdminSystemLogsScreen> {
                           const SizedBox(width: SetflowSpacing.sm),
                           Text(
                             log.$3,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: SetflowFontSize.small,
                               fontWeight: SetflowWeight.medium,
-                              color: SetflowColors.secondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                           const Spacer(),
                           Text(
                             log.$1,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: SetflowFontSize.tiny,
-                              color: SetflowColors.secondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],

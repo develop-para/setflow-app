@@ -46,7 +46,7 @@ class WorkspaceScreen extends StatelessWidget {
                     '주요 운영 지표를 한 화면에서 확인하세요.',
                     style: TextStyle(
                       fontSize: SetflowFontSize.caption,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   SizedBox(height: SetflowSpacing.xl),
@@ -176,7 +176,7 @@ class WorkspaceScreen extends StatelessWidget {
                   '이번 달 정산 예정',
                   style: TextStyle(
                     fontSize: SetflowFontSize.caption,
-                    color: SetflowColors.secondaryText,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 SizedBox(height: SetflowSpacing.xs),
@@ -417,7 +417,7 @@ class WorkspaceScreen extends StatelessWidget {
                   '이번 달 정산 예정',
                   style: TextStyle(
                     fontSize: SetflowFontSize.caption,
-                    color: SetflowColors.secondaryText,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 SizedBox(height: SetflowSpacing.xs),
@@ -538,8 +538,8 @@ class _StatTile extends StatelessWidget {
         const SizedBox(height: SetflowSpacing.md2),
         Text(
           label,
-          style: const TextStyle(
-            color: SetflowColors.secondaryText,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: SetflowFontSize.caption,
             fontWeight: FontWeight.w700,
           ),
@@ -559,10 +559,10 @@ class _StatTile extends StatelessWidget {
               if (suffix != null)
                 TextSpan(
                   text: ' $suffix',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: SetflowFontSize.caption,
                     fontWeight: FontWeight.w700,
-                    color: SetflowColors.secondaryText,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
             ],
@@ -606,9 +606,9 @@ class _EntryRow extends StatelessWidget {
             const SizedBox(height: SetflowSpacing.xxs),
             Text(
               subtitle,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: SetflowFontSize.small,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],

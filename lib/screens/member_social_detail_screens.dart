@@ -439,10 +439,10 @@ class _WorkoutVisualPreview extends StatelessWidget {
                   ],
                 ),
               const SizedBox(height: SetflowSpacing.lg),
-              const Text(
+              Text(
                 '운동 결과 사진을 올려보세요.',
                 style: TextStyle(
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -798,10 +798,10 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const Text(
+                      Text(
                         '전문 루틴 12개 · 코칭 340회',
                         style: TextStyle(
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: SetflowFontSize.small,
                         ),
                       ),
@@ -814,8 +814,8 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           const SizedBox(height: SetflowSpacing.lg),
           Text(
             routine.description,
-            style: const TextStyle(
-              color: SetflowColors.secondaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               height: 1.6,
             ),
           ),
@@ -862,7 +862,7 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                     '저항운동의 세트·중량·횟수와 유산소의 시간·거리·RPE는 플랜 인증 후 안전하게 불러옵니다.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: SetflowFontSize.caption,
                     ),
                   ),
@@ -953,8 +953,10 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                               ),
                               Text(
                                 exercise.muscle,
-                                style: const TextStyle(
-                                  color: SetflowColors.secondaryText,
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                   fontSize: SetflowFontSize.small,
                                 ),
                               ),
@@ -964,8 +966,10 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                         Text(
                           planLabel,
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            color: SetflowColors.secondaryText,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: SetflowFontSize.small,
                             height: 1.4,
                           ),
@@ -1237,8 +1241,8 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                       const SizedBox(height: SetflowSpacing.sm),
                       Text(
                         post.metric,
-                        style: const TextStyle(
-                          color: SetflowColors.secondaryText,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -2385,8 +2389,8 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
               const SizedBox(width: SetflowSpacing.sm),
               Text(
                 '${DateFormat('yyyy.MM.dd').format(consultation.createdAt)} 신청',
-                style: const TextStyle(
-                  color: SetflowColors.secondaryText,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -2439,19 +2443,21 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                   RecommendationProfileSummary(profile: profile, compact: true),
                   const SizedBox(height: SetflowSpacing.sm),
                   if (consultation.recommendationProfileShareRevokedAt != null)
-                    const Row(
+                    Row(
                       children: [
                         Icon(
                           Icons.visibility_off_outlined,
                           size: 18,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         SizedBox(width: SetflowSpacing.sm),
                         Expanded(
                           child: Text(
                             '공유 철회됨 · 트레이너 화면에서는 더 이상 보이지 않습니다.',
                             style: TextStyle(
-                              color: SetflowColors.secondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2501,8 +2507,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                             ),
                             Text(
                               consultation.specialty,
-                              style: const TextStyle(
-                                color: SetflowColors.secondaryText,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 fontSize: SetflowFontSize.caption,
                               ),
                             ),
@@ -2542,8 +2550,8 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       liveData
                           ? '실제 결제·에스크로 API 연동 후 이용할 수 있어요.'
                           : '맞춤 루틴 · 주 1회 피드백 · 72시간 응답 보장',
-                      style: const TextStyle(
-                        color: SetflowColors.secondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: SetflowSpacing.lg),
@@ -2664,8 +2672,8 @@ class _ConsultField extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: SetflowColors.secondaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: SetflowFontSize.small,
               fontWeight: FontWeight.w800,
             ),

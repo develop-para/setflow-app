@@ -475,9 +475,9 @@ class _SummaryValue extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: SetflowFontSize.micro,
-            color: SetflowColors.secondaryText,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -683,7 +683,7 @@ class _RoutinePickerSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(18, 0, 18, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -698,7 +698,9 @@ class _RoutinePickerSheet extends StatelessWidget {
                   SizedBox(height: SetflowSpacing.xs),
                   Text(
                     '선택한 루틴의 운동이 이 날짜에 바로 추가됩니다.',
-                    style: TextStyle(color: SetflowColors.secondaryText),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -744,9 +746,11 @@ class _RoutinePickerSheet extends StatelessWidget {
                                 '${routine.exercises.length}개 운동 · ${routine.exercises.map((item) => item.muscle).toSet().join(', ')}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: SetflowFontSize.caption,
-                                  color: SetflowColors.secondaryText,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -845,9 +849,11 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                   : '${exercise.template.muscle} · 상단을 길게 눌러 순서 이동',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: SetflowFontSize.tiny,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -861,9 +867,11 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                         icon: AnimatedRotation(
                           turns: collapsed ? 0 : .5,
                           duration: SetflowMotion.micro,
-                          child: const Icon(
+                          child: Icon(
                             Icons.keyboard_arrow_down_rounded,
-                            color: SetflowColors.secondaryText,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -1373,9 +1381,9 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                     _summary,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: SetflowFontSize.tiny,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1449,13 +1457,13 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
               ],
             ),
             const SizedBox(height: SetflowSpacing.xs2),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'RPE 3–4 중강도 · 7–9 고강도 · 1–2는 가벼운 활동',
                 style: TextStyle(
                   fontSize: SetflowFontSize.micro,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1467,12 +1475,14 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                       padding: const EdgeInsets.only(top: 6),
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               '길게 눌러 삭제 메뉴를 열었어요.',
                               style: TextStyle(
                                 fontSize: SetflowFontSize.micro,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -1748,9 +1758,9 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                         : 'e1RM ${estimate.value.toStringAsFixed(1)} · ${estimate.quality.label}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: SetflowFontSize.micro,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1867,12 +1877,14 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                       padding: const EdgeInsets.only(top: 6),
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
                               '길게 눌러 삭제 메뉴를 열었어요.',
                               style: TextStyle(
                                 fontSize: SetflowFontSize.micro,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -2262,10 +2274,10 @@ class _CompletedSetLine extends StatelessWidget {
                   summary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: SetflowFontSize.caption,
                     fontWeight: FontWeight.w800,
-                    color: SetflowColors.secondaryText,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -2346,9 +2358,9 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                   const SizedBox(height: SetflowSpacing.sm2),
                   Text(
                     recommendation.reason,
-                    style: const TextStyle(
+                    style: TextStyle(
                       height: 1.45,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -2361,10 +2373,10 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                   : cardio == null
                   ? '논문이 특정 다음 운동 하나를 최적이라고 정한 것은 아닙니다. 목표·주간 기록을 근거 원칙에 대입한 앱 규칙입니다.'
                   : '유산소는 시간·거리·RPE로 제안하며 첫 기록의 거리를 임의로 만들지 않습니다.',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: SetflowFontSize.tiny,
                 height: 1.4,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             if (recommendation.evidenceIds.isNotEmpty)
@@ -2539,9 +2551,11 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                             const Spacer(),
                             Text(
                               '${filtered.length}개 운동',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: SetflowFontSize.small,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -2619,7 +2633,9 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                               ),
                               leading: Icon(
                                 exercise.icon,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                               title: Text(
                                 exercise.name,
@@ -2788,9 +2804,9 @@ class _MuscleCategoryCard extends StatelessWidget {
                     ),
                     Text(
                       '$exerciseCount개 운동 보기',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: SetflowFontSize.tiny,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -2871,11 +2887,11 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
               ),
             ),
             const SizedBox(height: SetflowSpacing.xs2),
-            const Text(
+            Text(
               '만든 운동은 내 운동 목록에 저장되고 다른 기기에도 동기화됩니다.',
               style: TextStyle(
                 fontSize: SetflowFontSize.small,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -3036,11 +3052,11 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'PERFORMANCE',
                         style: TextStyle(
                           fontSize: SetflowFontSize.small,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -3065,9 +3081,9 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                   '${state.weightUnit} × '
                                   '${previous.latestSessionBest.set.reps}회 · '
                                   '추정 품질 ${previous.quality.label}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: SetflowFontSize.small,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -3089,7 +3105,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.xl),
-          const Row(
+          Row(
             children: [
               SizedBox(
                 width: 44,
@@ -3098,7 +3114,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                     '세트',
                     style: TextStyle(
                       fontSize: SetflowFontSize.small,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -3110,7 +3126,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                     '무게',
                     style: TextStyle(
                       fontSize: SetflowFontSize.small,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -3122,7 +3138,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                     '횟수',
                     style: TextStyle(
                       fontSize: SetflowFontSize.small,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -3135,7 +3151,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                     '완료',
                     style: TextStyle(
                       fontSize: SetflowFontSize.small,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -3327,18 +3343,22 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                 Text(
                                   'e1RM ${estimate.value.toStringAsFixed(1)} · '
                                   '${estimate.quality.label}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: SetflowFontSize.tiny,
-                                    color: SetflowColors.secondaryText,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 )
                               else
-                                const Text(
+                                Text(
                                   'e1RM 계산 제외',
                                   style: TextStyle(
                                     fontSize: SetflowFontSize.tiny,
-                                    color: SetflowColors.secondaryText,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -3372,7 +3392,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                   child: Text(
                     '완료 체크 한 번으로 기록 저장, 볼륨 계산, 휴식 타이머가 동시에 시작됩니다.',
                     style: TextStyle(
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: SetflowFontSize.caption,
                       height: 1.45,
                     ),
@@ -3415,7 +3435,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                   child: Text(
                     '유산소는 무게나 반복 횟수 대신 시간·거리·자각 강도(RPE)를 기록합니다. 거리 측정이 어울리지 않는 종목은 시간과 RPE만 표시해요.',
                     style: TextStyle(
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: SetflowFontSize.caption,
                       height: 1.45,
                       fontWeight: FontWeight.w700,
@@ -3734,11 +3754,11 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.xs),
-          const Text(
+          Text(
             '다이얼을 돌리거나 아래에 숫자를 직접 입력하세요.',
             style: TextStyle(
               fontSize: SetflowFontSize.small,
-              color: SetflowColors.secondaryText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -3854,9 +3874,9 @@ class _NumberStepper extends StatelessWidget {
                     ),
                     Text(
                       suffix,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: SetflowFontSize.micro,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],

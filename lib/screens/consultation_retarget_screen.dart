@@ -228,9 +228,11 @@ class _ConsultationRetargetScreenState
                             const SizedBox(height: SetflowSpacing.xs),
                             Text(
                               '상담 후 ${target.daysSince}일 경과',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: SetflowFontSize.caption,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -299,7 +301,9 @@ class _ConsultationRetargetScreenState
               recipients.map((t) => t.name).join(', '),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: SetflowColors.secondaryText),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: SetflowSpacing.xl),
             TextField(

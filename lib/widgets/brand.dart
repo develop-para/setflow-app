@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme.dart';
-
 /// The brand is the word, nothing else.
 ///
 /// There is deliberately no glyph, no drawn mark and no tinted tile behind it:
@@ -60,8 +58,13 @@ class SetflowMonogram extends StatelessWidget {
         textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'Pretendard',
+          // 배경이 없으면 글자가 화면 위에 바로 놓인다 — 그 화면은 테마를 따라
+          // 뒤집히므로 잉크 상수를 쓰면 다크에서 검정 위 검정이 된다.
           color:
-              color ?? (background == null ? SetflowColors.ink : Colors.white),
+              color ??
+              (background == null
+                  ? Theme.of(context).colorScheme.onSurface
+                  : Colors.white),
           fontSize: size * .62,
           fontWeight: FontWeight.w900,
           height: 1.0,

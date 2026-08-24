@@ -83,7 +83,9 @@ class EvidenceLibraryScreen extends StatelessWidget {
                             '예상 1RM, 목표별 세트 구성, 휴식시간과 다음 운동 순서에 참고한 자료입니다. '
                             '추천값은 연구의 집단 평균을 단순화한 보조 정보이며 의료 진단이나 개인 처방을 대신하지 않습니다.',
                             style: TextStyle(
-                              color: SetflowColors.secondaryText,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               height: 1.5,
                             ),
                           ),
@@ -116,11 +118,11 @@ class EvidenceLibraryScreen extends StatelessWidget {
                 ],
               ],
               const SizedBox(height: SetflowSpacing.sm),
-              const Text(
+              Text(
                 '최종 검토: 2026년 8월 17일 · 논문 내용과 앱 규칙이 바뀌면 이 목록도 함께 갱신합니다.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: SetflowFontSize.caption,
                   height: 1.5,
                 ),

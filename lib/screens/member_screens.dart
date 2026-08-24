@@ -787,11 +787,11 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const Spacer(),
-                const Text(
+                Text(
                   '읽기 전용',
                   style: TextStyle(
                     fontSize: SetflowFontSize.tiny,
-                    color: SetflowColors.secondaryText,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -853,9 +853,9 @@ class _MemberScheduleRow extends StatelessWidget {
               ),
               Text(
                 schedule.trainerName ?? schedule.gymName ?? '담당 트레이너',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: SetflowFontSize.small,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -868,7 +868,7 @@ class _MemberScheduleRow extends StatelessWidget {
           size: 18,
           color: schedule.isCompleted
               ? context.setflowColors.success
-              : SetflowColors.secondaryText,
+              : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ],
     );
@@ -1444,8 +1444,8 @@ class RoutinesScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   '저장된 루틴 ${state.routines.length}/4',
-                  style: const TextStyle(
-                    color: SetflowColors.secondaryText,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1494,9 +1494,11 @@ class RoutinesScreen extends StatelessWidget {
                               ),
                               Text(
                                 '${routine.exercises.length}개 운동 · ${routine.level}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: SetflowFontSize.caption,
-                                  color: SetflowColors.secondaryText,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -1599,8 +1601,8 @@ class RoutinesScreen extends StatelessWidget {
                     const SizedBox(height: SetflowSpacing.md2),
                     Text(
                       routine.description,
-                      style: const TextStyle(
-                        color: SetflowColors.secondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         height: 1.4,
                       ),
                     ),
@@ -1769,10 +1771,10 @@ class _IncomingRoutineSharesSection extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: SetflowSpacing.xs),
-                  const Text(
+                  Text(
                     '링크의 루틴을 확인하고 내 루틴으로 안전하게 가져옵니다.',
                     style: TextStyle(
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: SetflowFontSize.caption,
                     ),
                   ),
@@ -1853,8 +1855,8 @@ class _IncomingRoutineShareCard extends StatelessWidget {
                     ),
                     Text(
                       '${share.senderName} · ${share.routine?.exercises.length ?? 0}개 운동',
-                      style: const TextStyle(
-                        color: SetflowColors.secondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: SetflowFontSize.caption,
                       ),
                     ),
@@ -1890,8 +1892,8 @@ class _IncomingRoutineShareCard extends StatelessWidget {
             const SizedBox(height: SetflowSpacing.sm),
             Text(
               '${DateFormat('yyyy.MM.dd HH:mm').format(expiresAt.toLocal())}까지 수락 가능',
-              style: const TextStyle(
-                color: SetflowColors.secondaryText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: SetflowFontSize.small,
               ),
             ),
@@ -2082,9 +2084,11 @@ Future<void> _showRoutineShareCodeSheet(BuildContext context) async {
               style: Theme.of(sheetContext).textTheme.headlineSmall,
             ),
             const SizedBox(height: SetflowSpacing.sm),
-            const Text(
+            Text(
               '트레이너에게 받은 링크 또는 공유 코드를 붙여넣어 주세요.',
-              style: TextStyle(color: SetflowColors.secondaryText),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: SetflowSpacing.lg),
             TextField(
@@ -2302,8 +2306,10 @@ class _MarketScreenState extends State<MarketScreen> {
                           const SizedBox(height: SetflowSpacing.xs2),
                           Text(
                             routine.description,
-                            style: const TextStyle(
-                              color: SetflowColors.secondaryText,
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                               fontSize: SetflowFontSize.label,
                             ),
                           ),
@@ -2607,7 +2613,7 @@ class CoachingScreen extends StatelessWidget {
               color: SetflowColors.primary.withValues(alpha: .18),
               borderRadius: BorderRadius.circular(SetflowRadii.xl),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.support_agent_rounded, color: SetflowColors.ink),
                 SizedBox(width: SetflowSpacing.md2),
@@ -2627,7 +2633,7 @@ class CoachingScreen extends StatelessWidget {
                         '상담 답변을 확인하고 1:1 코칭까지 이어갈 수 있어요.',
                         style: TextStyle(
                           fontSize: SetflowFontSize.caption,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.4,
                         ),
                       ),
@@ -2708,9 +2714,11 @@ class CoachingScreen extends StatelessWidget {
                                 ),
                                 Text(
                                   entry.consultation.specialty,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: SetflowFontSize.caption,
-                                    color: SetflowColors.secondaryText,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -2825,7 +2833,7 @@ class CoachingScreen extends StatelessWidget {
                   child: Text(
                     '운동 일지 작성 후 72시간 안에 피드백을 받지 못하면 중도 해지 요청이 활성화됩니다.',
                     style: TextStyle(
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       height: 1.5,
                     ),
                   ),
@@ -3317,10 +3325,10 @@ class DashboardScreen extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ),
-                  const Text(
+                  Text(
                     '시간·거리·RPE 기록',
                     style: TextStyle(
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: SetflowFontSize.small,
                     ),
                   ),
@@ -3393,9 +3401,11 @@ class DashboardScreen extends StatelessWidget {
                             const SizedBox(height: SetflowSpacing.xs2),
                             Text(
                               ['월', '화', '수', '목', '금', '토', '일'][i],
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: SetflowFontSize.tiny,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -3410,12 +3420,12 @@ class DashboardScreen extends StatelessWidget {
           const SectionTitle('MY PERFORMANCE'),
           const SizedBox(height: SetflowSpacing.sm2),
           if (summary == null)
-            const SetflowCard(
+            SetflowCard(
               child: Text(
                 '완료한 근력 운동 세트가 쌓이면 e1RM과 PR 변화가 표시됩니다.',
                 style: TextStyle(
                   height: 1.5,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -3500,8 +3510,8 @@ class _PerformancePrRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: SetflowColors.secondaryText,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -3536,12 +3546,12 @@ class SettingsScreen extends StatelessWidget {
           28,
         ),
         children: [
-          const ListTile(
+          ListTile(
             title: Text(
               '계정 & 개인화',
               style: TextStyle(
                 fontSize: SetflowFontSize.label,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -3592,12 +3602,12 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const Divider(height: 30),
-          const ListTile(
+          ListTile(
             title: Text(
               '운동 기록',
               style: TextStyle(
                 fontSize: SetflowFontSize.label,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -3636,9 +3646,9 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             title: Text(
               state.usesLiveBusinessData ? '전문가 계정' : '데모 워크스페이스',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: SetflowFontSize.label,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -3706,12 +3716,12 @@ class SettingsScreen extends StatelessWidget {
               },
             ),
           const Divider(height: 30),
-          const ListTile(
+          ListTile(
             title: Text(
               '참고자료',
               style: TextStyle(
                 fontSize: SetflowFontSize.label,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w900,
               ),
             ),

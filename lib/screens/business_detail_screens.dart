@@ -311,9 +311,9 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                   const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     '${_scheduleTime(schedule.startMinutes)}–${_scheduleTime(schedule.endMinutes)} · $counterpart',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: SetflowFontSize.caption,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -345,7 +345,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     : Icons.lock_outline_rounded,
                 color: schedule.isCompleted
                     ? context.setflowColors.success
-                    : SetflowColors.secondaryText,
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
                 size: 20,
               ),
           ],
@@ -606,9 +606,9 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     ),
                     Text(
                       item.$2,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: SetflowFontSize.small,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -678,9 +678,9 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     ),
                     Text(
                       item.$3,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: SetflowFontSize.small,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -731,7 +731,10 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
           Expanded(
             child: Text(
               '탈퇴 요청 후 30일 동안 계정이 비활성화됩니다. 관리 회원에게 알림이 발송되고 미정산 수익은 영업일 10일 이내 최종 정산됩니다.',
-              style: TextStyle(height: 1.5, color: SetflowColors.secondaryText),
+              style: TextStyle(
+                height: 1.5,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -813,9 +816,9 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                   const Spacer(),
                   Text(
                     item.$3,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: SetflowFontSize.tiny,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -977,9 +980,9 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                     ),
                     Text(
                       item.$3,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: SetflowFontSize.small,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1099,16 +1102,20 @@ class _ScheduleMessageCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 20),
       child: Column(
         children: [
-          Icon(icon, size: 34, color: SetflowColors.secondaryText),
+          Icon(
+            icon,
+            size: 34,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(height: SetflowSpacing.sm2),
           Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: SetflowSpacing.xs),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: SetflowFontSize.caption,
-              color: SetflowColors.secondaryText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           if (actionLabel != null && onAction != null) ...[
@@ -1141,9 +1148,9 @@ class _Day extends StatelessWidget {
     children: [
       Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: SetflowFontSize.tiny,
-          color: SetflowColors.secondaryText,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
       const SizedBox(height: SetflowSpacing.sm),

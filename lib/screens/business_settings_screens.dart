@@ -26,12 +26,12 @@ class BusinessSettingsListScreen extends StatelessWidget {
             SetflowSpacing.xxl,
           ),
           children: [
-            const ListTile(
+            ListTile(
               title: Text(
                 '계정',
                 style: TextStyle(
                   fontSize: SetflowFontSize.label,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -100,12 +100,12 @@ class BusinessSettingsListScreen extends StatelessWidget {
                       ),
               ),
             const Divider(height: SetflowSpacing.section),
-            const ListTile(
+            ListTile(
               title: Text(
                 '화면',
                 style: TextStyle(
                   fontSize: SetflowFontSize.label,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -122,12 +122,12 @@ class BusinessSettingsListScreen extends StatelessWidget {
               onChanged: (_) => state.toggleTheme(),
             ),
             const Divider(height: 30),
-            const ListTile(
+            ListTile(
               title: Text(
                 '참고자료',
                 style: TextStyle(
                   fontSize: SetflowFontSize.label,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -149,14 +149,14 @@ class BusinessSettingsListScreen extends StatelessWidget {
               leading: Icon(
                 Icons.person_off_outlined,
                 color: state.usesLiveBusinessData
-                    ? SetflowColors.secondaryText
+                    ? Theme.of(context).colorScheme.onSurfaceVariant
                     : context.setflowColors.error,
               ),
               title: Text(
                 _isGym ? '헬스장 탈퇴' : '탈퇴',
                 style: TextStyle(
                   color: state.usesLiveBusinessData
-                      ? SetflowColors.secondaryText
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
                       : context.setflowColors.error,
                 ),
               ),
@@ -218,7 +218,7 @@ class _BusinessSettingsPlanScreenState
             id: 'basic',
             name: 'Basic',
             price: '55,000원 / 월',
-            tint: SetflowColors.secondaryText,
+            tint: Theme.of(context).colorScheme.onSurfaceVariant,
             perks: ['등록 회원 최대 50명', '기본 통계 대시보드'],
           ),
           (
@@ -248,7 +248,7 @@ class _BusinessSettingsPlanScreenState
             id: 'starter',
             name: '스타터',
             price: '무료',
-            tint: SetflowColors.secondaryText,
+            tint: Theme.of(context).colorScheme.onSurfaceVariant,
             perks: ['관리 회원 최대 10명', '기본 통계 대시보드'],
           ),
           (
@@ -320,10 +320,12 @@ class _BusinessSettingsPlanScreenState
                               ),
                               Text(
                                 plan.price,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: SetflowFontSize.label,
                                   fontWeight: FontWeight.w700,
-                                  color: SetflowColors.secondaryText,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -499,12 +501,12 @@ class _BusinessSettingsNotificationsScreenState
               ),
               const SizedBox(height: SetflowSpacing.md),
             ],
-            const ListTile(
+            ListTile(
               title: Text(
                 '활동 알림',
                 style: TextStyle(
                   fontSize: SetflowFontSize.label,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -537,12 +539,12 @@ class _BusinessSettingsNotificationsScreenState
                   : (value) => _setPreference('settlement', value),
             ),
             const Divider(height: 30),
-            const ListTile(
+            ListTile(
               title: Text(
                 '이벤트 및 혜택',
                 style: TextStyle(
                   fontSize: SetflowFontSize.label,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -763,9 +765,9 @@ class _WarningItem extends StatelessWidget {
                 const SizedBox(height: SetflowSpacing.xxs),
                 Text(
                   message,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: SetflowFontSize.caption,
-                    color: SetflowColors.secondaryText,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     height: 1.4,
                   ),
                 ),
@@ -901,11 +903,11 @@ class _BusinessBadgeRenewScreenState extends State<BusinessBadgeRenewScreen> {
                     ),
                   ),
                   const SizedBox(height: SetflowSpacing.xs),
-                  const Text(
+                  Text(
                     'JPG, PNG, PDF (최대 10MB) · 데모',
                     style: TextStyle(
                       fontSize: SetflowFontSize.caption,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -1164,11 +1166,11 @@ class _LiveIntegrationNotice extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: SetflowFontSize.caption,
                 height: 1.45,
                 fontWeight: FontWeight.w700,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),

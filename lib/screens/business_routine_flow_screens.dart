@@ -289,8 +289,8 @@ class _BusinessRoutineEditorScreenState
                     const Spacer(),
                     Text(
                       '${state.exercises.length}개',
-                      style: const TextStyle(
-                        color: SetflowColors.secondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -489,8 +489,8 @@ class _RoutineExerciseEditorCard extends StatelessWidget {
                     ),
                     Text(
                       exercise.targetMuscle,
-                      style: const TextStyle(
-                        color: SetflowColors.secondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: SetflowFontSize.small,
                       ),
                     ),
@@ -1035,7 +1035,7 @@ class _RoutineMemberShareSheetState extends State<_RoutineMemberShareSheet> {
     const SizedBox(height: SetflowSpacing.xs),
     Text(
       widget.routine.title,
-      style: const TextStyle(color: SetflowColors.secondaryText),
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
     ),
     const SizedBox(height: SetflowSpacing.md),
   ];
@@ -1237,8 +1237,8 @@ class AdminRoutineReviewCard extends StatelessWidget {
                     ),
                     Text(
                       '${routine.exercises.length}개 운동 · $setCount세트',
-                      style: const TextStyle(
-                        color: SetflowColors.secondaryText,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: SetflowFontSize.small,
                       ),
                     ),

@@ -71,11 +71,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 child: SetflowWordmark(fontSize: SetflowFontSize.display),
               ),
               const SizedBox(height: SetflowSpacing.md),
-              const Text(
+              Text(
                 '로그인하고 오늘의 운동을 시작하세요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                   height: 1.5,
                 ),
@@ -111,13 +111,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               // when a provider is enabled these show up on their own.
               ..._socialSection(context),
               const SizedBox(height: SetflowSpacing.lg),
-              const Text(
+              Text(
                 '가입하면 기록이 Supabase에 암호화 전송되며, 본인 계정만 접근할 수 있어요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: SetflowFontSize.caption,
                   height: 1.45,
-                  color: SetflowColors.secondaryText,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -148,13 +148,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       Row(
         children: [
           Expanded(child: Divider(color: Theme.of(context).dividerColor)),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
             child: Text(
               'SNS 계정으로 계속',
               style: TextStyle(
                 fontSize: SetflowFontSize.caption,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -448,9 +448,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ),
             ),
             const SizedBox(height: SetflowSpacing.sm),
-            const Text(
+            Text(
               '센터 운영과 회원 관리를 한곳에서 시작하세요.',
-              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: SetflowSpacing.section),
             AppTextField(
@@ -528,9 +531,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.sm2),
-          const Text(
+          Text(
             '원활한 정산과 안전한 센터 운영을 위해 필요해요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.xxl2),
           SetflowCard(
@@ -560,7 +566,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     fontWeight: FontWeight.w700,
                     color: gymDocUploaded
                         ? context.setflowColors.success
-                        : SetflowColors.secondaryText,
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -586,10 +592,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     live
                         ? '실제 파일 업로드가 연결되기 전에는 제출 완료 상태를 만들지 않아요.'
                         : '실제 파일 업로드 없이 데모로 진행됩니다. 카드를 눌러 제출 상태를 전환해보세요.',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: SetflowFontSize.caption,
                       height: 1.45,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -653,7 +659,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           const SizedBox(height: SetflowSpacing.sm),
           Text(
             live ? '국세청 사업자 상태 조회 서버 연동을 준비 중이에요.' : '국세청 홈택스 인증 흐름을 데모로 확인해요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.xxl2),
           SetflowCard(
@@ -668,12 +677,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         '사업자등록번호',
                         style: TextStyle(
                           fontSize: SetflowFontSize.small,
                           fontWeight: FontWeight.w700,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: SetflowSpacing.xxs),
@@ -710,10 +719,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                       live
                           ? '실제 사업자 조회가 연결되기 전에는 인증 완료 상태를 만들지 않아요.'
                           : '안전한 코칭 환경을 위해 실제 영업 중인 사업자만 인증됩니다. 데모에서는 버튼을 누르면 바로 인증됩니다.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: SetflowFontSize.caption,
                         height: 1.45,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -745,7 +754,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         fontSize: SetflowFontSize.caption,
                         height: 1.45,
                         fontWeight: FontWeight.w700,
-                        color: SetflowColors.secondaryText,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -798,7 +807,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 ? '신청서를 제출하면 관리자가 사업자 정보를 확인합니다.\n승인 후 센터 운영 화면이 자동으로 열려요.'
                 : '센터 인증이 성공적으로 완료되었습니다.\n지금 바로 회원과 트레이너 관리를 시작해보세요!',
             textAlign: TextAlign.center,
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.section),
           AppButton(
@@ -892,9 +904,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               ),
             ),
             const SizedBox(height: SetflowSpacing.sm),
-            const Text(
+            Text(
               '인증 배지로 신뢰받는 코칭을 시작하세요.',
-              style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: SetflowSpacing.section),
             AppTextField(
@@ -955,9 +970,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.sm2),
-          const Text(
+          Text(
             '신뢰할 수 있는 코칭 환경을 위해 최소 2종의 서류가 필요해요.',
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.xxl2),
           if (live) ...[
@@ -1025,9 +1043,11 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                               document.fileName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: SetflowFontSize.small,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                         ],
@@ -1039,7 +1059,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         fontWeight: FontWeight.w700,
                         color: uploaded
                             ? context.setflowColors.success
-                            : SetflowColors.secondaryText,
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1066,10 +1086,10 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     live
                         ? '카드를 눌러 카메라로 촬영하거나 갤러리 이미지를 선택하세요. 파일은 비공개 저장소에 업로드됩니다.'
                         : '데모에서는 카드를 눌러 서류 제출 상태를 전환할 수 있어요.',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: SetflowFontSize.caption,
                       height: 1.45,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -1126,10 +1146,13 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.md),
-          const Text(
+          Text(
             '제출해주신 서류를 확인하고 있어요.\n영업일 기준 3일 이내 완료될 예정입니다.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.section),
           Container(
@@ -1140,7 +1163,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               borderRadius: BorderRadius.circular(SetflowRadii.lg),
             ),
             child: live
-                ? const Column(
+                ? Column(
                     children: [
                       Icon(Icons.admin_panel_settings_outlined),
                       SizedBox(height: SetflowSpacing.sm),
@@ -1154,7 +1177,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: SetflowFontSize.caption,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -1166,11 +1189,11 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         style: TextStyle(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: SetflowSpacing.xs),
-                      const Text(
+                      Text(
                         '심사 결과를 직접 선택해보세요.',
                         style: TextStyle(
                           fontSize: SetflowFontSize.caption,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: SetflowSpacing.lg),
@@ -1252,10 +1275,13 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.md),
-          const Text(
+          Text(
             '제출해주신 서류에 보완이 필요한 부분이 있어\n부득이하게 심사가 반려되었습니다.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.xxl),
           Container(
@@ -1268,12 +1294,12 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                 color: context.setflowColors.error.withValues(alpha: .2),
               ),
             ),
-            child: const Text(
+            child: Text(
               '반려 사유: 제출된 서류의 이미지가 흐려 식별이 어렵습니다. 선명하게 재촬영하여 업로드해주세요.',
               style: TextStyle(
                 fontSize: SetflowFontSize.caption,
                 height: 1.5,
-                color: SetflowColors.secondaryText,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -1312,10 +1338,13 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             ),
           ),
           const SizedBox(height: SetflowSpacing.md),
-          const Text(
+          Text(
             '서류 심사가 성공적으로 완료되었습니다.\n공식 인증 배지와 함께 코칭을 시작해보세요!',
             textAlign: TextAlign.center,
-            style: TextStyle(color: SetflowColors.secondaryText, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: SetflowSpacing.section),
           AppButton(

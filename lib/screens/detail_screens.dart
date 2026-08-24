@@ -116,9 +116,11 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                             const SizedBox(height: SetflowSpacing.sm),
                             Text(
                               entries[i].date,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: SetflowFontSize.micro,
-                                color: SetflowColors.secondaryText,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -282,7 +284,7 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                 borderRadius: BorderRadius.circular(SetflowRadii.xl),
                 border: Border.all(color: Theme.of(context).dividerColor),
               ),
-              child: const Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
@@ -295,7 +297,7 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                     '운동 사진 추가',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -396,7 +398,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                         '응답 평균 2시간 · 평점 4.9',
                         style: TextStyle(
                           fontSize: SetflowFontSize.small,
-                          color: SetflowColors.secondaryText,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -428,11 +430,11 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: SetflowSpacing.xs2),
-                  const Text(
+                  Text(
                     '맞춤 루틴 · 주 1회 피드백 · 72시간 응답 보장',
                     style: TextStyle(
                       fontSize: SetflowFontSize.caption,
-                      color: SetflowColors.secondaryText,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: SetflowSpacing.lg),
@@ -673,9 +675,11 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
                         ),
                         Text(
                           '${state.hasPaidPlan ? '유료' : '무료'} 플랜 · 루틴 ${state.routines.length}/${state.hasPaidPlan ? '무제한' : '4'}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: SetflowFontSize.small,
-                            color: SetflowColors.secondaryText,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
