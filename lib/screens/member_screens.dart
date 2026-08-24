@@ -1169,11 +1169,15 @@ class _CalendarCell extends StatelessWidget {
                     : null,
               ),
               child: Material(
-                // 빈 날은 비워 둔다. 42칸을 전부 같은 회색 상자로 칠하면 달이
-                // 한 덩어리로 보여서, 운동한 날이 어디였는지가 사라진다.
+                // 이 달의 칸은 빈 날에도 옅은 상자를 깐다 — 상자가 있어야
+                // 격자가 격자로 보인다. 운동한 날이 묻히지 않는 것은 색이 아니라
+                // 위계가 지킨다: 기록 있는 날만 더 진한 채움 + 테두리 + 내용을
+                // 갖고, 앞뒤 달에서 넘어온 칸은 칠하지 않아 달의 모양이 남는다.
                 color: isDropTarget
                     ? theme.colorScheme.primaryContainer
                     : hasSession
+                    ? context.setflowColors.surfaceContainer
+                    : inMonth
                     ? context.setflowColors.surfaceContainerLow
                     : Colors.transparent,
                 shape: RoundedRectangleBorder(
@@ -1760,16 +1764,15 @@ class _WeeklySummary extends StatelessWidget {
       (sum, session) => sum + session.cardioDurationSeconds,
     );
     final theme = Theme.of(context);
-    // 아무것도 안 한 주는 빈칸이다. 날짜 칸에는 이미 적용된 규칙인데 합계 칸만
-    // 예외라, 기록이 없는 달은 오른쪽에 회색 상자 여섯 개가 세로로 서서 아직
-    // 안 불러온 화면처럼 보였다.
+    // 날짜 칸이 전부 상자를 갖게 되면서 합계 칸도 같은 격자의 일부다 —
+    // 빈 주는 옅은 채움만, 내용 있는 주만 테두리로 선다. 날짜 칸과 같은 위계다.
     final hasAnything = sets > 0 || cardioSeconds > 0 || volume > 0;
     return Container(
       margin: const EdgeInsets.fromLTRB(4, 2, 2, 2),
       decoration: BoxDecoration(
         color: hasAnything
             ? context.setflowColors.surfaceContainer
-            : Colors.transparent,
+            : context.setflowColors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(SetflowRadii.sm),
         border: Border.all(
           color: hasAnything

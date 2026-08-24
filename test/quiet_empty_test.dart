@@ -59,14 +59,15 @@ void main() {
     expect(painted, isEmpty, reason: '아이콘 뒤에 판이 깔려 있다');
   });
 
-  testWidgets('a month with no records says so once, not six times', (
+  testWidgets('an empty month is a quiet grid, not a stack of loud boxes', (
     tester,
   ) async {
     await pump(tester, const CalendarScreen());
 
-    // 합계 칸이 회색 상자로 남아 있으면, 기록 없는 달의 오른쪽에 아직
-    // 안 불러온 자리처럼 보이는 줄이 생긴다.
-    final filled = tester
+    // 빈 날에도 옅은 상자는 깐다(제품 결정). 하지만 기록이 있어야만 갖는
+    // 진한 채움(surfaceContainer)이 빈 달에 나타나면, 위계가 무너져 어느
+    // 날 운동했는지 상자만으로는 알 수 없게 된다.
+    final loud = tester
         .widgetList<Container>(find.byType(Container))
         .map((c) => c.decoration)
         .whereType<BoxDecoration>()
@@ -76,7 +77,7 @@ void main() {
               d.borderRadius != null,
         )
         .toList();
-    expect(filled, isEmpty, reason: '빈 주의 합계 칸이 아직 칠해져 있다');
+    expect(loud, isEmpty, reason: '기록 없는 달에 기록 있는 날의 채움이 나타났다');
 
     expect(find.textContaining('기록이 아직 없어요'), findsOneWidget);
   });
