@@ -127,12 +127,26 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
           ),
           PopupMenuButton<String>(
             tooltip: '기록 메뉴',
+            // 기본 위치는 버튼 '위'에 겹쳐 떠서, 앱바에서 열면 제목을 덮은 채
+            // 허공에 뜬 것처럼 보였다. 메뉴는 연 버튼 아래에 붙어야 한다.
+            position: PopupMenuPosition.under,
             onSelected: (value) {
               if (value == 'delete') _deleteWorkout(context);
+              if (value == 'set-defaults') _showSetDefaultsSheet(context);
             },
             // 메모와 공유는 눌러도 토스트만 뜨고 아무것도 저장·공유하지 않아서 뺐다.
             // 만들어지면 그때 다시 넣는다 — 있는 척하는 메뉴가 없는 것보다 나쁘다.
             itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'set-defaults',
+                child: Row(
+                  children: [
+                    Icon(Icons.tune_rounded),
+                    SizedBox(width: SetflowSpacing.sm2),
+                    Text('세트 기본값'),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -3691,6 +3705,138 @@ void _showExerciseHistory(
 ///
 /// 사진이 아니라 글인 이유: 이 문장들의 출처인 데이터셋은 텍스트만 MIT이고 GIF는
 /// Gym visual 소유라 우리가 쓸 권리가 없다. 자세히는 docs/exercise-guides.md.
+/// 운동을 추가할 때 만들어질 세트의 기본값.
+///
+/// 값은 처방보다 앞서고 이전 기록 추천보다는 뒤선다 — 직접 정한 것이
+/// 프로필 유추보다 명시적이지만, 지난번에 실제로 든 무게·횟수는 그보다도
+/// 정확하다. 숫자는 타이핑하지 않는다: 스텝퍼만 있다.
+void _showSetDefaultsSheet(BuildContext context) {
+  final state = AppScope.of(context);
+  var sets = state.defaultSetCount ?? 3;
+  var reps = state.defaultRepCount ?? 10;
+  var rest = state.restDefaultSeconds;
+  showSetflowSheet<void>(
+    context,
+    showDragHandle: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (sheetContext, setSheetState) {
+        final theme = Theme.of(sheetContext);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.gutter,
+            0,
+            SetflowSpacing.gutter,
+            SetflowSpacing.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('세트 기본값', style: theme.textTheme.titleLarge),
+              const SizedBox(height: SetflowSpacing.xs),
+              Text(
+                '운동을 추가할 때 이 값으로 세트가 만들어져요. '
+                '이전 기록이 있으면 그때의 무게·횟수를 따라가요.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
+              _DefaultStepperRow(
+                label: '세트 수',
+                value: '$sets세트',
+                onMinus: sets > 1 ? () => setSheetState(() => sets -= 1) : null,
+                onPlus: sets < 10 ? () => setSheetState(() => sets += 1) : null,
+              ),
+              _DefaultStepperRow(
+                label: '횟수',
+                value: '$reps회',
+                onMinus: reps > 1 ? () => setSheetState(() => reps -= 1) : null,
+                onPlus: reps < 50 ? () => setSheetState(() => reps += 1) : null,
+              ),
+              _DefaultStepperRow(
+                label: '휴식',
+                value: '$rest초',
+                onMinus: rest > 30
+                    ? () => setSheetState(() => rest -= 15)
+                    : null,
+                onPlus: rest < 600
+                    ? () => setSheetState(() => rest += 15)
+                    : null,
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
+              AppButton(
+                key: const ValueKey('set-defaults-apply'),
+                label: '적용',
+                onPressed: () {
+                  state.setDefaultSetPlan(sets: sets, reps: reps);
+                  state.setRestDefaultSeconds(rest);
+                  Navigator.of(sheetContext).pop();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _DefaultStepperRow extends StatelessWidget {
+  const _DefaultStepperRow({
+    required this.label,
+    required this.value,
+    required this.onMinus,
+    required this.onPlus,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback? onMinus;
+  final VoidCallback? onPlus;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: SetflowWeight.medium,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: '$label 줄이기',
+            onPressed: onMinus,
+            icon: const Icon(Icons.remove_circle_outline_rounded),
+          ),
+          SizedBox(
+            width: 64,
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: SetflowWeight.strong,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: '$label 늘리기',
+            onPressed: onPlus,
+            icon: const Icon(Icons.add_circle_outline_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 void _showExerciseGuide(BuildContext context, ExerciseTemplate template) {
   final steps = exerciseGuides[template.id];
   if (steps == null) return;

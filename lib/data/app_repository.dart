@@ -23,6 +23,8 @@ class AppSnapshot {
     this.gender,
     this.precisionRecommendationPrompted = false,
     this.hasSwipedSet = false,
+    this.defaultSetCount,
+    this.defaultRepCount,
     this.recommendationProfile,
     this.communityPosts = const [],
     this.consultations = const [],
@@ -53,6 +55,11 @@ class AppSnapshot {
 
   /// 세트를 밀어서 기록해 본 적이 있는가. 없으면 그 행에 살짝 미는 힌트를 보여준다.
   final bool hasSwipedSet;
+
+  /// 운동을 추가할 때의 세트 수·횟수 기본값. null이면 추천/처방을 따른다 —
+  /// 사용자가 정한 적 없는 값과 "3으로 정했다"를 구분해야 한다.
+  final int? defaultSetCount;
+  final int? defaultRepCount;
   final RecommendationProfile? recommendationProfile;
   final List<CommunityPost> communityPosts;
   final List<ConsultationData> consultations;

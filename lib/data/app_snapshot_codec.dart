@@ -34,6 +34,10 @@ abstract final class AppSnapshotCodec {
         'isDarkMode': snapshot.isDarkMode,
         'weightUnit': snapshot.weightUnit,
         'restDefaultSeconds': snapshot.restDefaultSeconds,
+        if (snapshot.defaultSetCount != null)
+          'defaultSetCount': snapshot.defaultSetCount,
+        if (snapshot.defaultRepCount != null)
+          'defaultRepCount': snapshot.defaultRepCount,
         'useRir': snapshot.useRir,
         'autoStartRestTimer': snapshot.autoStartRestTimer,
         'autoRecommendNextExercise': snapshot.autoRecommendNextExercise,
@@ -167,6 +171,8 @@ abstract final class AppSnapshotCodec {
         weightUnit: preferences['weightUnit'] as String? ?? 'kg',
         restDefaultSeconds:
             (preferences['restDefaultSeconds'] as num?)?.toInt() ?? 90,
+        defaultSetCount: (preferences['defaultSetCount'] as num?)?.toInt(),
+        defaultRepCount: (preferences['defaultRepCount'] as num?)?.toInt(),
         nickname: profile['nickname'] as String?,
         useRir: preferences['useRir'] as bool? ?? false,
         autoStartRestTimer: preferences['autoStartRestTimer'] as bool? ?? true,

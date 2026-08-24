@@ -142,6 +142,12 @@ class AppState extends ChangeNotifier {
   bool isDarkMode = false;
   String weightUnit = 'kg';
   int restDefaultSeconds = 90;
+
+  /// 운동을 추가할 때 만들 세트 수·횟수. null이면 정한 적 없음 — 이전 기록
+  /// 추천과 목표 처방이 하던 대로 정한다. 값이 있으면 처방보다 앞선다:
+  /// 사용자가 직접 정한 것이 프로필에서 유추한 것보다 명시적이다.
+  int? defaultSetCount;
+  int? defaultRepCount;
   String memberNickname = '';
   bool useRir = false;
   bool autoStartRestTimer = true;
@@ -810,6 +816,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setDefaultSetPlan({int? sets, int? reps}) {
+    defaultSetCount = sets?.clamp(1, 10);
+    defaultRepCount = reps?.clamp(1, 50);
+    _schedulePersist();
+    notifyListeners();
+  }
+
   bool updateMemberAccountProfile({required String nickname, double? weight}) {
     final normalizedNickname = nickname.trim();
     if (normalizedNickname.length < 2 || normalizedNickname.length > 30) {
@@ -1297,6 +1310,7 @@ class AppState extends ChangeNotifier {
     final suggestedReps =
         resistanceRecommendation?.minReps ??
         previousPerformance?.latestSessionBest.set.reps ??
+        defaultRepCount ??
         resistancePrescription?.minReps ??
         10;
     session.exercises.add(
@@ -1319,6 +1333,7 @@ class AppState extends ChangeNotifier {
               ]
             : List.generate(
                 resistanceRecommendation?.sets ??
+                    defaultSetCount ??
                     resistancePrescription?.sets ??
                     3,
                 (index) => WorkoutSetEntry(
@@ -5048,6 +5063,8 @@ class AppState extends ChangeNotifier {
     isDarkMode: isDarkMode,
     weightUnit: weightUnit,
     restDefaultSeconds: restDefaultSeconds,
+    defaultSetCount: defaultSetCount,
+    defaultRepCount: defaultRepCount,
     nickname: memberNickname.trim().isEmpty ? null : memberNickname.trim(),
     useRir: useRir,
     autoStartRestTimer: autoStartRestTimer,
@@ -5148,6 +5165,8 @@ class AppState extends ChangeNotifier {
     isDarkMode = snapshot.isDarkMode;
     weightUnit = snapshot.weightUnit;
     restDefaultSeconds = snapshot.restDefaultSeconds;
+    defaultSetCount = snapshot.defaultSetCount;
+    defaultRepCount = snapshot.defaultRepCount;
     memberNickname = snapshot.nickname?.trim() ?? '';
     useRir = snapshot.useRir;
     autoStartRestTimer = snapshot.autoStartRestTimer;
@@ -5211,6 +5230,8 @@ class AppState extends ChangeNotifier {
     isDarkMode = false;
     weightUnit = 'kg';
     restDefaultSeconds = 90;
+    defaultSetCount = null;
+    defaultRepCount = null;
     memberNickname = '';
     useRir = false;
     autoStartRestTimer = true;

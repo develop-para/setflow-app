@@ -535,6 +535,8 @@ class SupabaseAppRepository
       isDarkMode: source.isDarkMode,
       weightUnit: source.weightUnit,
       restDefaultSeconds: source.restDefaultSeconds,
+      defaultSetCount: source.defaultSetCount,
+      defaultRepCount: source.defaultRepCount,
       nickname: source.nickname,
       useRir: source.useRir,
       autoStartRestTimer: source.autoStartRestTimer,
