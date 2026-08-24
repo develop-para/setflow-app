@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
 
 const _enabled = bool.fromEnvironment('CAPTURE');
@@ -82,6 +83,13 @@ Future<void> _shot(WidgetTester tester, String out) async {
 
 void main() {
   testWidgets('capture', (tester) async {
+    // 딥링크 플러그인은 테스트 런타임에 구현이 없다. 앱이 시작하자마자
+    // 스트림을 열기 때문에, 막아 두지 않으면 첫 프레임에서 터진다.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+          const EventChannel('com.llfbandit.app_links/events'),
+          MockStreamHandler.inline(onListen: (_, _) {}),
+        );
     await tester.runAsync(_loadFonts);
     await tester.binding.setSurfaceSize(const Size(400, 860));
     await tester.pumpWidget(const SetflowApp());
@@ -101,10 +109,33 @@ void main() {
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/mypage.png');
 
-    await tester.tap(find.text('통계'));
+    await tester.tap(find.text('커뮤니티'));
     await tester.pumpAndSettle();
-    await _shot(tester, 'build/shots/stats.png');
+    await _shot(tester, 'build/shots/community.png');
 
+    await tester.tap(find.text('함께'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/together.png');
+
+    // 다크는 눈으로 보지 않으면 절대 안 보인다 — 라이트에서 멀쩡한 대비가 검은
+    // 판 위에서 무너지는 것이 이 앱이 반복해서 겪은 일이다. 설정 화면을 거치는
+    // 대신 상태를 직접 뒤집는다: 캡처는 QA 도구지 흐름 테스트가 아니다.
+    // 위젯에서 바로 꺼낸다. AppScope.of는 build 중에 부르는 API고, 여기는
+    // 테스트 본문이라 의존성 등록 경로를 타지 않는다.
+    final state = tester.widget<AppScope>(find.byType(AppScope)).notifier!;
+    state.toggleTheme();
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/dark_together.png');
+
+    await tester.tap(find.text('홈'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/dark_home.png');
+
+    await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/dark_record.png');
+
+    state.toggleTheme();
     await tester.binding.setSurfaceSize(null);
   }, skip: !_enabled);
 }

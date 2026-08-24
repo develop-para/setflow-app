@@ -618,6 +618,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   onPressed: _toggleExpanded,
                                 ),
                                 const SizedBox(height: SetflowSpacing.md),
+                                _MonthSummary(month: month, weeks: weeks),
+                                const SizedBox(height: SetflowSpacing.md),
                                 _MemberCoachingScheduleSection(
                                   schedules: state.coachingSchedules,
                                   memberUserId: state.businessAccess?.userId,
@@ -1321,6 +1323,160 @@ class _CalendarCell extends StatelessWidget {
   }
 }
 
+/// What the month came to, under the grid that drew it.
+///
+/// The calendar ends about two thirds of the way down the phone and nothing
+/// followed it, so home was a grid floating over an empty half-screen. The
+/// honest thing to put there is the total the grid already implies — it reads
+/// as the answer to "how did this month go", which is the question someone
+/// opens a training calendar with.
+///
+/// The empty month says so in one line rather than showing three zeros. A zero
+/// is a result; no records at all is not.
+class _MonthSummary extends StatelessWidget {
+  const _MonthSummary({required this.month, required this.weeks});
+
+  final DateTime month;
+  final List<List<DateTime>> weeks;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = AppScope.of(context);
+    final sessions = [
+      for (final week in weeks)
+        for (final day in week)
+          // 앞뒤 달에서 넘어온 칸은 이 달의 합계가 아니다.
+          if (day.month == month.month && day.year == month.year)
+            state.sessions[state.dateOnly(day)],
+    ].whereType<WorkoutSession>().where((s) => s.totalSets > 0).toList();
+
+    final volume = sessions.fold<double>(0, (sum, s) => sum + s.volume);
+    final cardioMinutes = sessions.fold<int>(
+      0,
+      (sum, s) => sum + s.cardioDurationSeconds,
+    );
+
+    if (sessions.isEmpty) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            SetflowIcons.home,
+            size: 16,
+            color: context.setflowColors.disabled,
+          ),
+          const SizedBox(width: SetflowSpacing.sm),
+          Flexible(
+            child: Text(
+              '${month.month}월 기록이 아직 없어요',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return SetflowCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SetflowSpacing.lg,
+        vertical: SetflowSpacing.md,
+      ),
+      child: Row(
+        children: [
+          _MonthSummaryStat(
+            value: '${sessions.length}',
+            unit: '일',
+            label: '${month.month}월 운동',
+          ),
+          _MonthSummaryDivider(),
+          _MonthSummaryStat(
+            value: volume > 1000
+                ? (volume / 1000).toStringAsFixed(1)
+                : volume.toStringAsFixed(0),
+            unit: volume > 1000 ? 't' : state.weightUnit,
+            label: '총 볼륨',
+          ),
+          _MonthSummaryDivider(),
+          _MonthSummaryStat(
+            value: _formatMinuteValue(cardioMinutes / 60),
+            unit: '분',
+            label: '유산소',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthSummaryDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 26,
+      color: Theme.of(context).colorScheme.outlineVariant,
+    );
+  }
+}
+
+class _MonthSummaryStat extends StatelessWidget {
+  const _MonthSummaryStat({
+    required this.value,
+    required this.unit,
+    required this.label,
+  });
+
+  final String value;
+  final String unit;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Column(
+        children: [
+          RichText(
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: value,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: SetflowWeight.display,
+                    // 숫자가 세로로 안 흔들리게 — 달을 넘길 때 자릿수가 바뀐다.
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                TextSpan(
+                  text: unit,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: SetflowWeight.strong,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _WeeklySummary extends StatelessWidget {
   const _WeeklySummary({required this.week});
   final List<DateTime> week;
@@ -1349,12 +1505,22 @@ class _WeeklySummary extends StatelessWidget {
       (sum, session) => sum + session.cardioDurationSeconds,
     );
     final theme = Theme.of(context);
+    // 아무것도 안 한 주는 빈칸이다. 날짜 칸에는 이미 적용된 규칙인데 합계 칸만
+    // 예외라, 기록이 없는 달은 오른쪽에 회색 상자 여섯 개가 세로로 서서 아직
+    // 안 불러온 화면처럼 보였다.
+    final hasAnything = sets > 0 || cardioSeconds > 0 || volume > 0;
     return Container(
       margin: const EdgeInsets.fromLTRB(4, 2, 2, 2),
       decoration: BoxDecoration(
-        color: context.setflowColors.surfaceContainer,
+        color: hasAnything
+            ? context.setflowColors.surfaceContainer
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(SetflowRadii.sm),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        border: Border.all(
+          color: hasAnything
+              ? theme.colorScheme.outlineVariant
+              : Colors.transparent,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -2436,7 +2602,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('동기부여'),
+        title: const Text('커뮤니티'),
         actions: [
           PopupMenuButton<String>(
             tooltip: '게시물 정렬',
@@ -2471,7 +2637,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   button: true,
                   label: '${post.author}의 게시물, ${post.content}',
                   child: Material(
-                    color: post.color.withValues(alpha: .18),
+                    // 사진이 없는 칸은 회색 판이다. 게시물마다 다른 파스텔을
+                    // 깔면 격자가 색상표가 되고, 정작 봐야 할 사진들이 그 사이에
+                    // 끼어 든 것처럼 보인다. 색은 의미가 있을 때만 쓴다.
+                    color: context.setflowColors.surfaceContainer,
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       onTap: () => Navigator.of(context).push(
@@ -2486,8 +2655,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
                             Center(
                               child: Icon(
                                 post.icon,
-                                size: 50,
-                                color: post.color,
+                                size: 34,
+                                color: context.setflowColors.disabled,
                               ),
                             )
                           else
@@ -2503,8 +2672,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
                               errorBuilder: (_, _, _) => Center(
                                 child: Icon(
                                   Icons.broken_image_outlined,
-                                  size: 42,
-                                  color: post.color,
+                                  size: 30,
+                                  color: context.setflowColors.disabled,
                                 ),
                               ),
                             ),
@@ -2542,13 +2711,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
                             ),
                           ),
                           if (post.isMine)
-                            const Positioned(
+                            Positioned(
                               top: 6,
                               right: 6,
                               child: Icon(
                                 Icons.person_rounded,
                                 size: 15,
-                                color: SetflowColors.ink,
+                                // 라이트 전용 잉크였다 — 다크에서 검정 칸 위
+                                // 검정 아이콘이라 내 게시물 표시가 사라졌다.
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                         ],
@@ -2561,8 +2732,16 @@ class _CommunityScreenState extends State<CommunityScreen> {
       floatingActionButton: FloatingActionButton(
         key: const ValueKey('community-compose'),
         onPressed: _compose,
-        backgroundColor: SetflowColors.ink,
-        foregroundColor: Colors.white,
+        // 라임은 바텀바 가운데 원 하나가 갖는다. 그 옆에 라임 원을 하나 더
+        // 놓으면 어느 쪽이 이 화면의 동작인지 알 수 없다. 그래서 여기는
+        // 테두리만 있는 2차 동작이다 — 검정 블록도 아니고, 라임도 아니다.
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        elevation: 0,
+        highlightElevation: 0,
+        shape: CircleBorder(
+          side: BorderSide(color: Theme.of(context).colorScheme.onSurface),
+        ),
         child: const Icon(SetflowIcons.addExercise),
       ),
     );

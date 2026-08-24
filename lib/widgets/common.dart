@@ -540,19 +540,10 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: context.setflowColors.surfaceContainer,
-                borderRadius: BorderRadius.circular(SetflowRadii.lg),
-              ),
-              child: Icon(
-                icon,
-                size: 34,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+            // 아이콘 뒤에 판을 깔지 않는다. 회색 사각형 안의 회색 아이콘은
+            // 아직 안 불러온 자리처럼 보이고, 빈 화면에서 제일 먼저 눈에 띄는
+            // 것이 "없다"는 사실이 아니라 그 상자가 된다.
+            Icon(icon, size: 40, color: context.setflowColors.disabled),
             const SizedBox(height: SetflowSpacing.lg),
             Text(
               title,
