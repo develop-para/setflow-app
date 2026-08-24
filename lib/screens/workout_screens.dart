@@ -406,18 +406,27 @@ class _WorkoutSummaryBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _SummaryValue(label: isCardioOnly ? '시간' : '볼륨', value: volume),
+          // 글자 크기를 키운 사용자에게 이 줄이 가장 먼저 넘쳤다. 토글은 눌러야
+          // 하므로 크기를 지키고, 두 수치가 남는 폭을 나눠 갖는다.
+          Flexible(
+            child: _SummaryValue(
+              label: isCardioOnly ? '시간' : '볼륨',
+              value: volume,
+            ),
+          ),
           Container(
             width: 1,
             height: 22,
             margin: const EdgeInsets.symmetric(horizontal: 10),
             color: Theme.of(context).colorScheme.outlineVariant,
           ),
-          _SummaryValue(
-            label: '완료 세트',
-            value: '${session.completedSets}/${session.totalSets}',
+          Flexible(
+            child: _SummaryValue(
+              label: '완료 세트',
+              value: '${session.completedSets}/${session.totalSets}',
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: SetflowSpacing.sm),
           Semantics(
             label: '다음 운동 자동 추천',
             toggled: recommendationEnabled,
@@ -473,20 +482,29 @@ class _SummaryValue extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: SetflowFontSize.micro,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w800,
+        // 라벨이 먼저 줄어든다 — '볼륨'은 문맥으로 알 수 있지만 숫자는 아니다.
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: SetflowFontSize.micro,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontWeight: SetflowWeight.strong,
+            ),
           ),
         ),
         const SizedBox(width: SetflowSpacing.xs),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: SetflowFontSize.caption,
-            fontWeight: SetflowWeight.medium,
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: SetflowFontSize.caption,
+              fontWeight: SetflowWeight.medium,
+            ),
           ),
         ),
       ],

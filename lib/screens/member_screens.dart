@@ -1172,101 +1172,108 @@ class _CalendarCell extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: onTap,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 4),
-                    child: Column(
-                      children: [
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              constraints: const BoxConstraints(
-                                minWidth: 24,
-                                minHeight: 24,
-                              ),
-                              alignment: Alignment.center,
-                              decoration: isToday
-                                  ? BoxDecoration(
-                                      color: theme.colorScheme.primary,
-                                      shape: BoxShape.circle,
-                                    )
-                                  : null,
-                              child: Text(
-                                '${date.day}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: SetflowWeight.medium,
-                                  color: isToday
-                                      ? theme.colorScheme.onPrimary
-                                      : isRestDay(date)
-                                      ? context.setflowColors.error
-                                      : date.weekday == DateTime.saturday
-                                      ? context.setflowColors.blue
-                                      : theme.colorScheme.onSurface,
+                  child: MediaQuery.withClampedTextScaling(
+                    // 달력 칸의 높이는 격자가 정한다 — 한 달이 한 화면에 들어와야
+                    // 달력이다. 그래서 이 안의 글자만 배율을 1.2배로 묶는다.
+                    // 나머지 화면은 시스템 설정을 그대로 따른다.
+                    maxScaleFactor: 1.2,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 6, 4, 4),
+                      child: Column(
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                constraints: const BoxConstraints(
+                                  minWidth: 24,
+                                  minHeight: 24,
                                 ),
-                              ),
-                            ),
-                            if (feedbackCount > 0)
-                              Positioned(
-                                right: 0,
-                                child: Icon(
-                                  Icons.mark_chat_unread_rounded,
-                                  key: ValueKey(
-                                    'calendar-feedback-${date.year}-'
-                                    '${date.month}-${date.day}',
+                                alignment: Alignment.center,
+                                decoration: isToday
+                                    ? BoxDecoration(
+                                        color: theme.colorScheme.primary,
+                                        shape: BoxShape.circle,
+                                      )
+                                    : null,
+                                child: Text(
+                                  '${date.day}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: SetflowWeight.medium,
+                                    color: isToday
+                                        ? theme.colorScheme.onPrimary
+                                        : isRestDay(date)
+                                        ? context.setflowColors.error
+                                        : date.weekday == DateTime.saturday
+                                        ? context.setflowColors.blue
+                                        : theme.colorScheme.onSurface,
                                   ),
-                                  size: 13,
-                                  color: theme.colorScheme.primary,
                                 ),
                               ),
-                          ],
-                        ),
-                        const Spacer(),
-                        if (hasSession) ...[
-                          // 부위와 볼륨은 글자로만. 예전엔 완료율에 따라 teal/orange
-                          // 틴트를 깔았는데, 바로 위 오늘 표시가 라임이라 한 칸에
-                          // 색이 셋이었고 어느 것도 의미로 읽히지 않았다.
-                          Text(
-                            muscles,
-                            maxLines: 1,
-                            overflow: TextOverflow.fade,
-                            style: TextStyle(
-                              color: theme.colorScheme.onSurface,
-                              fontSize: SetflowFontSize.micro,
-                              height: 1.1,
-                              fontWeight: SetflowWeight.medium,
-                            ),
+                              if (feedbackCount > 0)
+                                Positioned(
+                                  right: 0,
+                                  child: Icon(
+                                    Icons.mark_chat_unread_rounded,
+                                    key: ValueKey(
+                                      'calendar-feedback-${date.year}-'
+                                      '${date.month}-${date.day}',
+                                    ),
+                                    size: 13,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                            ],
                           ),
-                          Text(
-                            activityLabel,
-                            maxLines: 1,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontSize: SetflowFontSize.micro,
-                              height: 1.2,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: SetflowSpacing.xs),
-                          // 한 칸에서 색을 쓰는 곳은 여기 하나다. 다 끝낸 날은
-                          // 성공색으로 꽉 차고, 하다 만 날은 브랜드가 그만큼만 찬다.
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                              SetflowRadii.xs,
-                            ),
-                            child: LinearProgressIndicator(
-                              value: completion.clamp(0, 1).toDouble(),
-                              minHeight: 3,
-                              backgroundColor: theme.colorScheme.outlineVariant,
-                              valueColor: AlwaysStoppedAnimation(
-                                completion >= 1
-                                    ? context.setflowColors.success
-                                    : theme.colorScheme.primary,
+                          const Spacer(),
+                          if (hasSession) ...[
+                            // 부위와 볼륨은 글자로만. 예전엔 완료율에 따라 teal/orange
+                            // 틴트를 깔았는데, 바로 위 오늘 표시가 라임이라 한 칸에
+                            // 색이 셋이었고 어느 것도 의미로 읽히지 않았다.
+                            Text(
+                              muscles,
+                              maxLines: 1,
+                              overflow: TextOverflow.fade,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                                fontSize: SetflowFontSize.micro,
+                                height: 1.1,
+                                fontWeight: SetflowWeight.medium,
                               ),
                             ),
-                          ),
-                        ] else
-                          const SizedBox(height: SetflowSpacing.xl),
-                      ],
+                            Text(
+                              activityLabel,
+                              maxLines: 1,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontSize: SetflowFontSize.micro,
+                                height: 1.2,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: SetflowSpacing.xs),
+                            // 한 칸에서 색을 쓰는 곳은 여기 하나다. 다 끝낸 날은
+                            // 성공색으로 꽉 차고, 하다 만 날은 브랜드가 그만큼만 찬다.
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                SetflowRadii.xs,
+                              ),
+                              child: LinearProgressIndicator(
+                                value: completion.clamp(0, 1).toDouble(),
+                                minHeight: 3,
+                                backgroundColor:
+                                    theme.colorScheme.outlineVariant,
+                                valueColor: AlwaysStoppedAnimation(
+                                  completion >= 1
+                                      ? context.setflowColors.success
+                                      : theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          ] else
+                            const SizedBox(height: SetflowSpacing.xl),
+                        ],
+                      ),
                     ),
                   ),
                 ),

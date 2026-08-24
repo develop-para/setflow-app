@@ -81,7 +81,10 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
           const SizedBox(height: SetflowSpacing.sm2),
           SetflowCard(
             child: SizedBox(
-              height: 170,
+              // 막대 위에 숫자가 붙어 있어서, 글자를 키우면 고정 높이를 넘는다.
+              // 막대 길이는 그대로 두고 차트가 글자만큼 자란다.
+              height:
+                  170 + (MediaQuery.textScalerOf(context).scale(11) - 11) * 3,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
