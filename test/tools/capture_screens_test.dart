@@ -141,6 +141,13 @@ void main() {
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/record_sets.png');
 
+    // 오늘 기록이 생긴 상태의 홈 — 달력 칸에 종목 이름이 들어간 모습.
+    await tester.tap(find.text('홈'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/home_with_session.png');
+    await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
+    await tester.pumpAndSettle();
+
     // 푸시로 열리는 화면들 — 탭 루트만 찍으면 이쪽은 영영 안 보인다.
     await tester.tap(find.text('마이'));
     await tester.pumpAndSettle();

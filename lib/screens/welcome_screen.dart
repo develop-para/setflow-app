@@ -34,6 +34,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         unawaited(_completeAuthentication());
       }
     });
+    // 이미 로그인된 사람에게 회원가입 화면을 보여주지 않는다. 세션 복원이
+    // 화면보다 늦게 끝나면 로그인된 상태로 이 화면에 도착할 수 있는데,
+    // 그때는 가입을 권할 게 아니라 동기화를 마치고 비켜주는 것이 맞다.
+    if (authService.hasAuthenticatedUser) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_completeAuthentication());
+      });
+    }
   }
 
   @override
@@ -110,16 +118,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               // A disabled button teaches nothing and invites a tap that fails;
               // when a provider is enabled these show up on their own.
               ..._socialSection(context),
-              const SizedBox(height: SetflowSpacing.lg),
-              Text(
-                '가입하면 기록이 계정에 안전하게 백업되고, 본인만 접근할 수 있어요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: SetflowFontSize.caption,
-                  height: 1.45,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
             ],
           ),
         ),
@@ -224,7 +222,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     });
     final state = AppScope.of(context);
     try {
-      await state.syncAfterAuthentication();
+      // 타임아웃이 없으면 네트워크가 멈춘 채로 스피너가 영원히 돈다 —
+      // 기기에서 실제로 그랬다. 실패로 떨어뜨려야 다시 시도할 수 있다.
+      await state.syncAfterAuthentication().timeout(
+        const Duration(seconds: 15),
+      );
       if (!mounted) return;
       AppSnackbar.success(context, '로그인됐어요. 기록을 안전하게 동기화합니다.');
       // The server-resolved role drives the shell. Without a live business

@@ -104,7 +104,8 @@ class _MemberShellState extends State<MemberShell> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final pages = [
-      const CalendarScreen(),
+      // 함께 운동 섹션이 탭을 바꿀 수 있도록 셸이 전환을 넘겨준다.
+      CalendarScreen(onOpenTogether: () => setState(() => index = 1)),
       // 통계(DashboardScreen)가 있던 자리. 화면은 지우지 않고 메뉴에서만 내렸다 —
       // 지표는 나중에 다시 올릴 것이고, 그때 되살릴 코드가 남아 있어야 한다.
       const TogetherScreen(),
@@ -347,7 +348,11 @@ class _RecordActionTile extends StatelessWidget {
 }
 
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key});
+  const CalendarScreen({this.onOpenTogether, super.key});
+
+  /// 홈의 함께 운동 섹션이 탭을 바꾸는 통로. 함께는 셸의 탭이라 push하면
+  /// 바텀바 없는 사본이 열린다 — 셸이 이 콜백으로 탭 전환을 넘겨준다.
+  final VoidCallback? onOpenTogether;
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -357,8 +362,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime? dragSource;
 
-  /// 월간이 기본이다. 접으면 [anchor]가 든 한 주만 남는다.
-  bool expanded = true;
+  /// 이번 주가 기본이다. 홈에서 매일 보는 것은 "이번 주에 뭘 했나"지 달력
+  /// 전체가 아니고, 접혀 있어야 그 아래 이번 달 요약·전문가 루틴·함께 운동이
+  /// 첫 화면에 들어온다. 펼치면 [anchor]가 든 달 전체가 나온다.
+  bool expanded = false;
 
   /// 접었을 때 남는 주를 정하는 날짜. 달을 바꿀 때마다 같이 옮겨서
   /// **항상 현재 격자 안에 있다** — 그래야 접는 순간 보여줄 주가 확실하다.
@@ -523,7 +530,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 final contentWidth = constraints.maxWidth.clamp(0.0, 640.0);
                 final dayWidth =
                     (contentWidth - horizontalPadding * 2 - summaryWidth) / 7;
-                final rowHeight = (dayWidth * 1.38).clamp(66.0, 80.0);
+                // 칸이 커진 것은 장식이 아니라 내용 때문이다: 한 날에 어떤
+                // 종목을 했는지까지 칸 안에 적는다. 접힌 주간이 기본이라
+                // 세로 여유는 충분하다.
+                final rowHeight = (dayWidth * 1.9).clamp(92.0, 116.0);
                 return GestureDetector(
                   onHorizontalDragEnd: (details) {
                     final velocity = details.primaryVelocity ?? 0;
@@ -633,6 +643,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     }
                                   },
                                 ),
+                                const SizedBox(height: SetflowSpacing.xl),
+                                const _ExpertRoutinePreviewSection(),
+                                const SizedBox(height: SetflowSpacing.xl),
+                                _TogetherPreviewSection(
+                                  onOpen: widget.onOpenTogether,
+                                ),
                                 if (dragSource != null)
                                   Container(
                                     margin: const EdgeInsets.only(top: 10),
@@ -713,7 +729,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   List<DateTime> _calendarDays(DateTime target) {
     final first = DateTime(target.year, target.month, 1);
-    final start = first.subtract(Duration(days: first.weekday - 1));
+    // 한국 달력은 일요일에서 시작한다 — 벽에 걸린 달력이 전부 그렇다.
+    // weekday는 월=1..일=7이라, 일요일부터 세려면 7로 나눈 나머지가 밀어낼 칸 수다.
+    final start = first.subtract(Duration(days: first.weekday % 7));
     return List.generate(42, (index) => start.add(Duration(days: index)));
   }
 }
@@ -1010,14 +1028,14 @@ class _CalendarWeekdayHeader extends StatelessWidget {
             Expanded(
               child: Center(
                 child: Text(
-                  ['월', '화', '수', '목', '금', '토', '일'][index],
+                  ['일', '월', '화', '수', '목', '금', '토'][index],
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: SetflowWeight.medium,
                     // 달력은 한국 사람이 평생 봐 온 규칙이 있다 — 일요일과 공휴일은
                     // 빨강, 토요일은 파랑. 농도로 대신하면 그냥 흐린 글자일 뿐이다.
                     color: switch (index) {
-                      6 => context.setflowColors.error,
-                      5 => context.setflowColors.blue,
+                      0 => context.setflowColors.error,
+                      6 => context.setflowColors.blue,
                       _ => theme.colorScheme.onSurface,
                     },
                   ),
@@ -1071,13 +1089,11 @@ class _CalendarCell extends StatelessWidget {
     final theme = Theme.of(context);
     final completion = session?.completion ?? 0;
     final hasSession = (session?.totalSets ?? 0) > 0;
-    final muscles =
-        session?.exercises
-            .map((item) => item.template.muscle.characters.first)
-            .toSet()
-            .take(2)
-            .join() ??
-        '';
+    // 부위 첫 글자("가등")가 아니라 종목 이름을 적는다 — 달력을 보는 이유가
+    // "그날 뭘 했나"이고, 칸을 키운 것도 이걸 넣기 위해서다.
+    final exerciseNames =
+        session?.exercises.map((item) => item.template.name).take(2).toList() ??
+        const <String>[];
     final resistanceVolumeLabel = session == null || session!.volume <= 0
         ? ''
         : session!.volume > 1000
@@ -1232,17 +1248,18 @@ class _CalendarCell extends StatelessWidget {
                             // 부위와 볼륨은 글자로만. 예전엔 완료율에 따라 teal/orange
                             // 틴트를 깔았는데, 바로 위 오늘 표시가 라임이라 한 칸에
                             // 색이 셋이었고 어느 것도 의미로 읽히지 않았다.
-                            Text(
-                              muscles,
-                              maxLines: 1,
-                              overflow: TextOverflow.fade,
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontSize: SetflowFontSize.micro,
-                                height: 1.1,
-                                fontWeight: SetflowWeight.medium,
+                            for (final name in exerciseNames)
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                  fontSize: SetflowFontSize.micro,
+                                  height: 1.25,
+                                  fontWeight: SetflowWeight.medium,
+                                ),
                               ),
-                            ),
                             Text(
                               activityLabel,
                               maxLines: 1,
@@ -1333,6 +1350,244 @@ class _CalendarCell extends StatelessWidget {
 ///
 /// The empty month says so in one line rather than showing three zeros. A zero
 /// is a result; no records at all is not.
+/// 홈에 얹는 전문가 루틴 미리보기.
+///
+/// 마이·설정과 같은 "행" 모양이면 콘텐츠가 아니라 메뉴처럼 읽힌다. 그래서
+/// 여기는 가로로 넘기는 카드다 — 폭을 고정하고 높이는 내용이 정한다
+/// (Row는 가장 큰 자식만큼 자라서 글자 배율이 커져도 잘리지 않는다).
+class _ExpertRoutinePreviewSection extends StatelessWidget {
+  const _ExpertRoutinePreviewSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final routines = state.marketRoutines.take(4).toList();
+    if (routines.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionTitle(
+          '전문가 루틴',
+          action: '더 보기',
+          onAction: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const MarketScreen())),
+        ),
+        const SizedBox(height: SetflowSpacing.sm),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (index, routine) in routines.indexed) ...[
+                if (index > 0) const SizedBox(width: SetflowSpacing.sm2),
+                _ExpertRoutineHomeCard(routine: routine),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExpertRoutineHomeCard extends StatelessWidget {
+  const _ExpertRoutineHomeCard({required this.routine});
+
+  final RoutineData routine;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 250,
+      child: SetflowCard(
+        padding: const EdgeInsets.all(SetflowSpacing.lg),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ExpertRoutineDetailScreen(routine: routine),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: SetflowSpacing.sm2,
+                    vertical: SetflowSpacing.xxs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: context.setflowColors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(SetflowRadii.full),
+                  ),
+                  child: Text(
+                    routine.level,
+                    style: const TextStyle(
+                      fontSize: SetflowFontSize.small,
+                      fontWeight: SetflowWeight.medium,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  routine.accessTier.label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: routine.accessTier == RoutineAccessTier.paid
+                        ? context.setflowColors.purple
+                        : context.setflowColors.success,
+                    fontWeight: SetflowWeight.strong,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            Text(
+              routine.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: SetflowFontSize.title,
+                fontWeight: FontWeight.w900,
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(
+              routine.description,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            Row(
+              children: [
+                Icon(
+                  Icons.verified_rounded,
+                  size: 15,
+                  color: context.setflowColors.blue,
+                ),
+                const SizedBox(width: SetflowSpacing.xs),
+                Expanded(
+                  child: Text(
+                    routine.author,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: SetflowWeight.strong,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 함께 운동 입구 — 메뉴 행이 아니라 잉크 블록 피처 카드다. 홈에서 유일하게
+/// 어두운 판이라 눈에 걸리고, 그만큼 하나만 둔다. 함께는 셸의 탭이라 화면을
+/// push하지 않고 탭을 바꾼다.
+class _TogetherPreviewSection extends StatelessWidget {
+  const _TogetherPreviewSection({required this.onOpen});
+
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onOpen == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionTitle('함께 운동'),
+        const SizedBox(height: SetflowSpacing.sm),
+        Semantics(
+          button: true,
+          label: '함께 운동 열기. 친구와 같은 타이머로 같은 순간에 쉬어요',
+          child: Material(
+            key: const ValueKey('home-together-entry'),
+            clipBehavior: Clip.antiAlias,
+            borderRadius: BorderRadius.circular(SetflowRadii.lg),
+            child: Ink(
+              decoration: const BoxDecoration(
+                // 잉크 블록은 일부러 어두운 판이다 — 테마를 따라 뒤집지 않는다.
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    SetflowColors.inkBlockTop,
+                    SetflowColors.inkBlockBottom,
+                  ],
+                ),
+              ),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onOpen?.call();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(SetflowSpacing.xl),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '친구와 같이 운동하기',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: SetflowFontSize.titleLarge,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: SetflowSpacing.xs),
+                            Text(
+                              '같은 타이머로 같은 순간에 쉬어요',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: .68),
+                                fontSize: SetflowFontSize.label,
+                                fontWeight: SetflowWeight.medium,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: SetflowSpacing.md),
+                      // 브랜드는 채우는 색: 잉크 판 위 라임 원이 입구를 가리킨다.
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: SetflowColors.brand,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 22,
+                          color: SetflowColors.onBrand,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _MonthSummary extends StatelessWidget {
   const _MonthSummary({required this.month, required this.weeks});
 

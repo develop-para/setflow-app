@@ -25,6 +25,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // 이 테스트는 달 전체의 색을 재므로, 접힌 기본에서 먼저 펼친다.
+    await tester.ensureVisible(find.byKey(const Key('calendar-fold-handle')));
+    await tester.tap(find.byKey(const Key('calendar-fold-handle')));
+    await tester.pumpAndSettle();
     // 250ms 저장 디바운스를 흘려보낸다 — 남아 있으면 바인딩이 테스트를 실패시킨다.
     await tester.pump(const Duration(milliseconds: 400));
   }

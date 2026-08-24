@@ -536,19 +536,28 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('이전 달'), findsOneWidget);
-    expect(find.byTooltip('다음 달'), findsOneWidget);
+    expect(find.byTooltip('이전 주'), findsOneWidget);
+    expect(find.byTooltip('다음 주'), findsOneWidget);
     expect(find.text('합계'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byTooltip('이전 달'));
+    await tester.tap(find.byTooltip('이전 주'));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    // 펼친 월간도 이 폭에서 넘치면 안 된다.
+    await tester.ensureVisible(find.byKey(const Key('calendar-fold-handle')));
+    await tester.tap(find.byKey(const Key('calendar-fold-handle')));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('이전 달'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     state.dispose();
   });
 
-  testWidgets('calendar week runs 월 to 일 with Sundays visible', (tester) async {
+  testWidgets('calendar week runs 일 to 토, the way a wall calendar does', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(432, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final state = AppState();
@@ -565,17 +574,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    const labels = ['월', '화', '수', '목', '금', '토', '일'];
+    const labels = ['일', '월', '화', '수', '목', '금', '토'];
     final headerX = [
       for (final label in labels) tester.getCenter(find.text(label)).dx,
     ];
     expect(
       headerX,
       orderedEquals(List<double>.from(headerX)..sort()),
-      reason: '요일 헤더는 월요일부터 일요일까지 왼쪽에서 오른쪽으로 놓인다',
+      reason: '요일 헤더는 일요일부터 토요일까지 왼쪽에서 오른쪽으로 놓인다',
     );
 
     // 일요일 칸이 일요일 열 아래에 있어야 한다. 예전에는 한 칸 밀려서 첫 열이 비어 보였다.
+    // 이번 주(접힘)가 기본이라, 달의 첫 일요일을 보려면 먼저 펼친다.
+    await tester.ensureVisible(find.byKey(const Key('calendar-fold-handle')));
+    await tester.tap(find.byKey(const Key('calendar-fold-handle')));
+    await tester.pumpAndSettle();
     final now = DateTime.now();
     final firstSunday = DateTime(now.year, now.month, 1).add(
       Duration(
@@ -617,21 +630,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 펼친 월간이 기본이다.
-    expect(find.byType(DragTarget<DateTime>), findsNWidgets(42));
-    expect(find.byTooltip('이전 달'), findsOneWidget);
+    // 접힌 이번 주가 기본이다 — 홈에서 매일 보는 것은 이번 주고, 그 아래
+    // 요약과 섹션들이 첫 화면에 들어와야 한다.
+    expect(find.byType(DragTarget<DateTime>), findsNWidgets(7));
+    expect(find.byTooltip('이전 주'), findsOneWidget);
 
     // 접기 손잡이는 격자 바로 아래 하나뿐이다 — 헤더에 있던 사본은 걷어냈다.
     expect(find.byKey(const Key('calendar-fold-handle')), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const Key('calendar-fold-handle')));
-    await tester.tap(find.byKey(const Key('calendar-fold-handle')));
-    await tester.pump();
-    await tester.pump(SetflowMotion.standard);
-    await tester.pump(SetflowMotion.standard);
-
-    // 접으면 오늘이 든 한 주만 남고, 화살표도 주 단위로 바뀐다.
-    expect(find.byType(DragTarget<DateTime>), findsNWidgets(7));
-    expect(find.byTooltip('이전 주'), findsOneWidget);
     final today = DateTime.now();
     expect(
       find.bySemanticsLabel(
@@ -654,12 +659,22 @@ void main() {
       findsOneWidget,
     );
 
-    // 접힌 상태에선 격자 아래 손잡이도 화면 안에 들어온다.
+    // 펼치면 달 전체가 나오고 화살표도 달 단위로 바뀐다.
+    await tester.ensureVisible(find.byKey(const Key('calendar-fold-handle')));
     await tester.tap(find.byKey(const Key('calendar-fold-handle')));
     await tester.pump();
     await tester.pump(SetflowMotion.standard);
     await tester.pump(SetflowMotion.standard);
     expect(find.byType(DragTarget<DateTime>), findsNWidgets(42));
+    expect(find.byTooltip('이전 달'), findsOneWidget);
+
+    // 다시 접으면 이번 주로 돌아온다.
+    await tester.ensureVisible(find.byKey(const Key('calendar-fold-handle')));
+    await tester.tap(find.byKey(const Key('calendar-fold-handle')));
+    await tester.pump();
+    await tester.pump(SetflowMotion.standard);
+    await tester.pump(SetflowMotion.standard);
+    expect(find.byType(DragTarget<DateTime>), findsNWidgets(7));
     expect(tester.takeException(), isNull);
 
     state.dispose();
@@ -1020,6 +1035,11 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+
+    // 드래그 복사는 달 격자에서의 동작이다 — 접힌 기본에서 먼저 펼친다.
+    await tester.ensureVisible(find.byKey(const Key('calendar-fold-handle')));
+    await tester.tap(find.byKey(const Key('calendar-fold-handle')));
     await tester.pumpAndSettle();
 
     final sourceFinder = find.text('7');

@@ -54,7 +54,9 @@ class MyPageScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: SetflowSpacing.xxs),
                       Text(
-                        signedIn ? '클라우드 동기화 중' : '로그인하면 기록이 백업돼요',
+                        // "동기화 중"은 영원히 안 끝나는 작업처럼 읽힌다 — 상태가 아니라
+                        // 사실을 적는다.
+                        signedIn ? '기록이 계정에 백업돼요' : '로그인하면 기록이 백업돼요',
                         style: TextStyle(
                           fontSize: SetflowFontSize.caption,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,

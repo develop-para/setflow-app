@@ -666,9 +666,13 @@ class RestFocusOverlay extends StatelessWidget {
     return Semantics(
       label: '휴식 중 $_clock 남음. $_whereYouAre',
       liveRegion: true,
-      child: ColoredBox(
-        // 아래를 완전히 덮는다 — 반투명이면 뒤가 보여서 누르고 싶어진다.
-        color: SetflowColors.ink.withValues(alpha: .94),
+      // Material이어야 한다: 이 오버레이는 내비게이터 위 Stack에 살아서
+      // Material 조상이 없고, 그러면 모든 Text에 노란 이중 밑줄이 붙는다
+      // (기기에서 실제로 그렇게 보였다).
+      child: Material(
+        // 아래를 완전히 덮는다 — 94% 투명도로는 뒤 화면의 라임 버튼이
+        // 비쳐 보였다. 반쯤 보이는 화면은 누르고 싶어질 뿐이다.
+        color: SetflowColors.ink,
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(SetflowSpacing.section),
