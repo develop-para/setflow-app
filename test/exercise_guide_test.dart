@@ -29,13 +29,21 @@ void main() {
     }
   });
 
-  test('most of the catalog is covered', () {
-    final covered = exerciseCatalog
-        .where((e) => exerciseGuides.containsKey(e.id))
-        .length;
-    // 6종은 데이터셋에 대응 항목이 없다. 비슷한 종목으로 억지로 잇지 않았다 —
-    // 틀린 동작을 가르치느니 비워 두는 쪽이 낫다.
-    expect(covered, greaterThanOrEqualTo(60));
+  test('every gap in coverage is a decision, not an accident', () {
+    // 데이터셋에 정확한 대응 항목이 없어 일부러 비워 둔 네 종목이다. 비슷한
+    // 종목으로 억지로 이으면 초보자에게 틀린 동작을 가르치게 된다 — 근거는
+    // docs/exercise-guides.md. 여기 없는 종목이 비면 매핑이 깨진 것이다.
+    const deliberatelyBlank = {
+      'face_pull',
+      'hip_thrust',
+      'bird_dog',
+      'rowing_machine',
+    };
+    final uncovered = exerciseCatalog
+        .map((e) => e.id)
+        .where((id) => !exerciseGuides.containsKey(id))
+        .toSet();
+    expect(uncovered, deliberatelyBlank, reason: '비어 있는 종목이 문서의 결정 목록과 다르다');
   });
 
   testWidgets('the steps are reachable from the exercise being done', (
