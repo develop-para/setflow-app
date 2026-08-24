@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -389,7 +390,7 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
   }
 }
 
-class _WorkoutSummaryBar extends StatelessWidget {
+class _WorkoutSummaryBar extends StatefulWidget {
   const _WorkoutSummaryBar({
     required this.session,
     required this.unit,
@@ -403,13 +404,66 @@ class _WorkoutSummaryBar extends StatelessWidget {
   final ValueChanged<bool> onRecommendationChanged;
 
   @override
+  State<_WorkoutSummaryBar> createState() => _WorkoutSummaryBarState();
+}
+
+class _WorkoutSummaryBarState extends State<_WorkoutSummaryBar> {
+  /// 경과 시간을 분 단위로 갱신하는 시계. 첫 세트가 완료된 뒤에만 돌고,
+  /// 다 끝나면 멈춘다 — 그때부터는 숫자가 변하지 않는다.
+  Timer? _ticker;
+
+  WorkoutSession get session => widget.session;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTicker();
+  }
+
+  @override
+  void didUpdateWidget(covariant _WorkoutSummaryBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncTicker();
+  }
+
+  void _syncTicker() {
+    final running =
+        session.startedAt != null &&
+        session.totalSets > 0 &&
+        session.completedSets < session.totalSets;
+    if (running && _ticker == null) {
+      _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!running) {
+      _ticker?.cancel();
+      _ticker = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  String? get _elapsedLabel {
+    final elapsed = session.elapsedUntil(DateTime.now());
+    if (elapsed == null) return null;
+    final hours = elapsed.inHours;
+    final minutes = elapsed.inMinutes % 60;
+    return hours > 0 ? '$hours시간 $minutes분' : '$minutes분';
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isCardioOnly = !session.hasResistance && session.hasCardio;
     final volume = isCardioOnly
         ? '${(session.cardioDurationSeconds / 60).round()}분'
         : session.volume >= 1000
         ? '${(session.volume / 1000).toStringAsFixed(1)}t'
-        : '${session.volume.toStringAsFixed(0)}$unit';
+        : '${session.volume.toStringAsFixed(0)}${widget.unit}';
+    final elapsedLabel = _elapsedLabel;
     return Container(
       constraints: const BoxConstraints(minHeight: 46),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -440,18 +494,36 @@ class _WorkoutSummaryBar extends StatelessWidget {
               value: '${session.completedSets}/${session.totalSets}',
             ),
           ),
+          // 첫 세트를 완료한 순간부터의 시간. 시작 전에는 자리도 없다 —
+          // "0분"은 정보가 아니다.
+          if (elapsedLabel != null) ...[
+            Container(
+              width: 1,
+              height: 22,
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+            Flexible(
+              child: _SummaryValue(
+                key: const ValueKey('workout-elapsed'),
+                label: '시간',
+                value: elapsedLabel,
+              ),
+            ),
+          ],
           const SizedBox(width: SetflowSpacing.sm),
           Semantics(
             label: '다음 운동 자동 추천',
-            toggled: recommendationEnabled,
+            toggled: widget.recommendationEnabled,
             child: InkWell(
               key: const Key('auto-recommend-toggle'),
               borderRadius: BorderRadius.circular(SetflowRadii.full),
-              onTap: () => onRecommendationChanged(!recommendationEnabled),
+              onTap: () =>
+                  widget.onRecommendationChanged(!widget.recommendationEnabled),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
                 decoration: BoxDecoration(
-                  color: recommendationEnabled
+                  color: widget.recommendationEnabled
                       ? SetflowColors.primary.withValues(alpha: .2)
                       : Theme.of(context).colorScheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(SetflowRadii.full),
@@ -462,13 +534,13 @@ class _WorkoutSummaryBar extends StatelessWidget {
                     Icon(
                       Icons.auto_awesome_rounded,
                       size: 14,
-                      color: recommendationEnabled
+                      color: widget.recommendationEnabled
                           ? Theme.of(context).colorScheme.onSurface
                           : SetflowColors.disabled,
                     ),
                     const SizedBox(width: SetflowSpacing.xs),
                     Text(
-                      '추천 ${recommendationEnabled ? 'ON' : 'OFF'}',
+                      '추천 ${widget.recommendationEnabled ? 'ON' : 'OFF'}',
                       style: const TextStyle(
                         fontSize: SetflowFontSize.tiny,
                         fontWeight: SetflowWeight.medium,
@@ -486,7 +558,7 @@ class _WorkoutSummaryBar extends StatelessWidget {
 }
 
 class _SummaryValue extends StatelessWidget {
-  const _SummaryValue({required this.label, required this.value});
+  const _SummaryValue({required this.label, required this.value, super.key});
 
   final String label;
   final String value;
@@ -2063,34 +2135,54 @@ class _SwipeableSetState extends State<_SwipeableSet>
   bool towardsEnd = false;
 
   /// A swipe has no handle, so before anyone has done one there is nothing on
-  /// screen that says the row moves. The live row nudges itself a few pixels
-  /// and settles back — enough to read as "this slides", not enough to look
-  /// like a glitch. It runs twice and never again once a set has been logged
-  /// this way.
+  /// screen that says the row moves. The live row **rests slightly pushed
+  /// aside**, and on the strip it uncovers two chevrons pulse in sequence —
+  /// the way a navigation arrow marches along a route. A nudge that returns
+  /// to flat taught nothing once it stopped; a row that visibly is not in its
+  /// closed position keeps saying "this slides" until the first real swipe.
+  /// 두 사이클(총 2.4초)만 돌고 멈춘다. 무한 반복이면 pumpAndSettle이 영원히
+  /// 안 끝나고(테스트 규칙 9), 토스트 표시 시간(3초)보다 길게 돌면 settle이
+  /// 그 시간을 통째로 흘려보내 '되돌리기'를 누를 새가 없어진다. 모션이 멈춰도
+  /// 밀린 자세와 화살표는 남는다 — 가르치는 것은 움직임이 아니라 상태다.
+  static const _cycles = 2;
   late final AnimationController _hint = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: const Duration(milliseconds: 1200 * _cycles),
   );
+
+  /// 0..1 위상 — 사이클 하나 안에서의 위치.
+  double get _phase => (_hint.value * _cycles) % 1;
+
+  bool get _reduceMotion =>
+      MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  /// The hint is for the row whose turn it is, until the first swipe lands.
+  bool get _hinting => widget.showHint && widget.enabled;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeHint());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncHint());
   }
 
   @override
   void didUpdateWidget(covariant _SwipeableSet oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // The turn moves down the list as sets are logged; the new live row gets
-    // the hint if the lesson still has not landed.
-    if (!oldWidget.enabled && widget.enabled) _maybeHint();
+    // The turn moves down the list as sets are logged; the new live row picks
+    // the hint up if the lesson still has not landed.
+    _syncHint();
   }
 
-  void _maybeHint() {
-    if (!mounted || !widget.showHint) return;
-    // Someone who turned animations off is not being taught with motion.
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return;
-    _hint.forward(from: 0);
+  void _syncHint() {
+    if (!mounted) return;
+    if (_hinting && !_reduceMotion) {
+      if (!_hint.isAnimating && !_hint.isCompleted) _hint.forward(from: 0);
+    } else if (!_hinting) {
+      _hint.stop();
+    }
+    // 모션을 꺼도 밀려 있는 자세와 화살표는 남는다 — 움직임이 아니라 상태가
+    // 가르치게 한다.
+    setState(() {});
   }
 
   @override
@@ -2099,15 +2191,23 @@ class _SwipeableSetState extends State<_SwipeableSet>
     super.dispose();
   }
 
-  /// Two soft pushes to the right, each returning to rest.
-  double get _nudge {
-    final t = _hint.value;
-    if (t >= 1) return 0;
-    final cycle = (t * 2) % 1;
-    final wave = Curves.easeInOut.transform(
-      cycle < .5 ? cycle * 2 : (1 - cycle) * 2,
-    );
-    return wave * 14;
+  /// How far the resting row sits open. Breathes a few pixels with the
+  /// chevron cycle, and collapses the moment a real drag takes over.
+  double get _hintShift {
+    if (!_hinting) return 0;
+    final drag = (1 - progress * 8).clamp(0.0, 1.0);
+    final breath = _reduceMotion || _hint.isCompleted
+        ? 0.0
+        : math.sin(_phase * 2 * math.pi) * 3;
+    return (30 + breath) * drag;
+  }
+
+  /// The chevrons light up one after the other, front first — a route arrow.
+  double _chevronOpacity(int index) {
+    if (_reduceMotion || _hint.isCompleted) return .9;
+    final t = (_phase - index * .22) % 1;
+    final wave = t < .5 ? t * 2 : (1 - t) * 2;
+    return .25 + .75 * Curves.easeInOut.transform(wave);
   }
 
   @override
@@ -2142,8 +2242,39 @@ class _SwipeableSetState extends State<_SwipeableSet>
         },
         child: AnimatedBuilder(
           animation: _hint,
-          builder: (context, child) =>
-              Transform.translate(offset: Offset(_nudge, 0), child: child),
+          builder: (context, child) => Stack(
+            children: [
+              // 밀린 행이 드러내는 트랙. 실제 스와이프가 여는 것과 같은 면이라,
+              // 힌트가 곧 예고편이다.
+              if (_hintShift > 0)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: theme.colorScheme.primary.withValues(alpha: .16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < 2; i++)
+                              Opacity(
+                                opacity: _chevronOpacity(i),
+                                child: Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 18,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Transform.translate(offset: Offset(_hintShift, 0), child: child),
+            ],
+          ),
           child: Dismissible(
             key: ObjectKey(widget.set),
             direction: widget.enabled
@@ -2280,9 +2411,11 @@ class _CompletedSetLine extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: context.setflowColors.surfaceContainerLow,
+            // 완료는 회색이 아니라 브랜드다. primaryContainer는 라이트에선
+            // 라임 틴트, 다크에선 어두운 라임 컨테이너라 양쪽에서 "우리 색으로
+            // 끝냈다"로 읽힌다.
+            color: theme.colorScheme.primaryContainer,
             borderRadius: BorderRadius.circular(SetflowRadii.md),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
           child: Row(
             children: [
@@ -2296,9 +2429,10 @@ class _CompletedSetLine extends StatelessWidget {
               const SizedBox(width: SetflowSpacing.sm2),
               Text(
                 '$number$label',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: SetflowFontSize.caption,
                   fontWeight: SetflowWeight.medium,
+                  color: theme.colorScheme.onPrimaryContainer,
                 ),
               ),
               const SizedBox(width: SetflowSpacing.sm2),
@@ -2310,7 +2444,7 @@ class _CompletedSetLine extends StatelessWidget {
                   style: TextStyle(
                     fontSize: SetflowFontSize.caption,
                     fontWeight: FontWeight.w800,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: theme.colorScheme.onPrimaryContainer,
                   ),
                 ),
               ),

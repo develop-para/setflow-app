@@ -215,6 +215,10 @@ abstract final class AppSnapshotCodec {
   static Map<String, dynamic> _sessionToJson(WorkoutSession session) {
     return {
       'date': session.date.toIso8601String(),
+      if (session.startedAt != null)
+        'startedAt': session.startedAt!.toIso8601String(),
+      if (session.endedAt != null)
+        'endedAt': session.endedAt!.toIso8601String(),
       'exercises': session.exercises.map(_workoutExerciseToJson).toList(),
     };
   }
@@ -236,6 +240,8 @@ abstract final class AppSnapshotCodec {
     return WorkoutSession(
       date: DateTime(date.year, date.month, date.day),
       exercises: exercises,
+      startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
+      endedAt: DateTime.tryParse(json['endedAt'] as String? ?? ''),
     );
   }
 

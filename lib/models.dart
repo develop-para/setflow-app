@@ -445,10 +445,30 @@ class WorkoutExercise {
 }
 
 class WorkoutSession {
-  WorkoutSession({required this.date, required this.exercises});
+  WorkoutSession({
+    required this.date,
+    required this.exercises,
+    this.startedAt,
+    this.endedAt,
+  });
 
   final DateTime date;
   final List<WorkoutExercise> exercises;
+
+  /// 첫 세트를 완료한 순간과 마지막 세트를 완료한 순간. "몇 시간 몇 분
+  /// 운동했나"는 계획이 아니라 이 두 도장 사이의 시간이다. 세트를 되돌려도
+  /// [startedAt]은 남는다 — 운동을 시작했다는 사실은 취소되지 않는다.
+  DateTime? startedAt;
+  DateTime? endedAt;
+
+  Duration? elapsedUntil(DateTime now) {
+    final start = startedAt;
+    if (start == null) return null;
+    final allDone = totalSets > 0 && completedSets == totalSets;
+    final end = allDone ? (endedAt ?? now) : now;
+    final elapsed = end.difference(start);
+    return elapsed.isNegative ? Duration.zero : elapsed;
+  }
 
   int get totalSets => exercises.fold(0, (sum, item) => sum + item.sets.length);
   int get completedSets => exercises.fold(

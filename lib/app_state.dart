@@ -1432,6 +1432,17 @@ class AppState extends ChangeNotifier {
   /// immediately afterwards.
   Future<void> toggleSet(WorkoutSetEntry set, {bool startRest = true}) async {
     set.completed = !set.completed;
+    if (set.completed) {
+      // 세트는 자기가 속한 세션을 모른다 — 도장을 찍으려면 찾아야 한다.
+      for (final session in sessions.values) {
+        if (session.exercises.any((e) => e.sets.contains(set))) {
+          final now = DateTime.now();
+          session.startedAt ??= now;
+          session.endedAt = now;
+          break;
+        }
+      }
+    }
     if (set.completed &&
         startRest &&
         autoStartRestTimer &&
