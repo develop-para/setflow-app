@@ -715,19 +715,9 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 40),
         children: [
-          Container(
-            height: 210,
-            decoration: BoxDecoration(
-              color: routine.color.withValues(alpha: .16),
-              borderRadius: BorderRadius.circular(SetflowRadii.xl),
-            ),
-            child: Icon(
-              Icons.fitness_center_rounded,
-              size: 108,
-              color: routine.color,
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.xl),
+          // 히어로 판은 뺐다. 목록 카드에서 뺀 것과 같은 이유다 — 210px짜리
+          // 파스텔 사각형과 초대형 덤벨은 아무것도 알려주지 않으면서 화면의
+          // 첫 삼분의 일을 차지했다. 이 화면의 히어로는 루틴 이름이다.
           Wrap(
             spacing: SetflowSpacing.sm,
             runSpacing: SetflowSpacing.sm,
@@ -768,7 +758,10 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
           SetflowCard(
             child: Row(
               children: [
-                Icon(Icons.person_rounded, color: routine.color),
+                Icon(
+                  Icons.person_rounded,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 const SizedBox(width: SetflowSpacing.md),
                 Expanded(
                   child: Column(
@@ -925,14 +918,16 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                           height: 36,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: routine.color.withValues(alpha: .12),
+                            color: context.setflowColors.surfaceContainerHigh,
                             borderRadius: BorderRadius.circular(
                               SetflowRadii.sm,
                             ),
                           ),
                           child: Text(
                             '${index + 1}',
-                            style: const TextStyle(fontWeight: FontWeight.w900),
+                            style: const TextStyle(
+                              fontWeight: SetflowWeight.strong,
+                            ),
                           ),
                         ),
                         const SizedBox(width: SetflowSpacing.md),

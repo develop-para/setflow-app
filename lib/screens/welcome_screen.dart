@@ -112,7 +112,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ..._socialSection(context),
               const SizedBox(height: SetflowSpacing.lg),
               Text(
-                '가입하면 기록이 Supabase에 암호화 전송되며, 본인 계정만 접근할 수 있어요.',
+                '가입하면 기록이 계정에 안전하게 백업되고, 본인만 접근할 수 있어요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: SetflowFontSize.caption,

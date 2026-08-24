@@ -194,6 +194,9 @@ abstract final class SetflowTheme {
         ),
       ),
       chipTheme: ChipThemeData(
+        // M3는 칩의 앞 아이콘을 primary로 칠한다 — 우리 primary는 라임이라
+        // 밝은 칩 위에서 사라진다(1.2:1). 아이콘도 글자와 같은 색으로 간다.
+        iconTheme: IconThemeData(color: scheme.onSurfaceVariant, size: 18),
         backgroundColor: semantic.surfaceContainerLow,
         selectedColor: scheme.primaryContainer,
         disabledColor: semantic.surfaceContainerHigh,

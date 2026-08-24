@@ -1394,7 +1394,7 @@ class AdminHome extends StatelessWidget {
               const SizedBox(width: SetflowSpacing.md),
               MetricCard(
                 label: '데이터 연결',
-                value: 'Supabase',
+                value: '정상',
                 icon: Icons.cloud_done_outlined,
                 tint: context.setflowColors.success,
               ),
@@ -3635,7 +3635,7 @@ Future<void> _showRoutineCreate(BuildContext context, UserRole role) async {
                   const SizedBox(height: SetflowSpacing.sm),
                   Text(
                     state.usesLiveBusinessData
-                        ? '운동과 목표 세트를 선택하면 Supabase에 초안으로 저장됩니다.'
+                        ? '운동과 목표 세트를 선택하면 초안으로 저장됩니다.'
                         : '저장 후 루틴 관리 목록에서 구성과 통계를 계속 편집할 수 있어요.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -6257,7 +6257,7 @@ class _SettlementPageState extends State<SettlementPage> {
                   ),
                   const SizedBox(height: SetflowSpacing.sm),
                   const Text(
-                    'Supabase 정산 원장 기준',
+                    '서버 정산 원장 기준',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: SetflowFontSize.small,

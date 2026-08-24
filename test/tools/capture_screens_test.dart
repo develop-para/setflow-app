@@ -10,8 +10,37 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/services/auth_service.dart';
 
 const _enabled = bool.fromEnvironment('CAPTURE');
+
+/// 로그인 상태의 화면도 찍어야 한다 — 게스트만 찍으면 "회원" 카드, 계정 설정,
+/// 소유자 있는 데이터 화면이 전부 사각이 된다.
+class _SignedInAuth implements AuthService {
+  const _SignedInAuth();
+
+  @override
+  AuthUser? get currentUser => const AuthUser(
+    id: 'capture-user',
+    email: 'qa@setflow.app',
+    displayName: '김세트',
+  );
+
+  @override
+  bool get hasAuthenticatedUser => true;
+
+  @override
+  String get currentDisplayName => '김세트';
+
+  @override
+  Stream<AuthChange> get authChanges => const Stream<AuthChange>.empty();
+
+  @override
+  bool isConfigured(SocialLoginProvider provider) => false;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 Future<void> _loadFonts() async {
   final loader = FontLoader('Pretendard');
@@ -60,20 +89,13 @@ Future<void> _loadFonts() async {
 }
 
 Future<void> _shot(WidgetTester tester, String out) async {
-  final boundary = tester.binding.rootElement!.findRenderObject()!;
-  RenderRepaintBoundary? repaint;
-  void visit(RenderObject node) {
-    if (repaint != null) return;
-    if (node is RenderRepaintBoundary) {
-      repaint = node;
-      return;
-    }
-    node.visitChildren(visit);
-  }
-
-  visit(boundary);
+  // 루트 레이어에서 장면 전체를 찍는다. 첫 RepaintBoundary를 찍는 방식은
+  // 푸시된 화면에서 흰 이미지를 냈다 — 불투명한 라우트가 위에 있으면 아래
+  // 라우트는 그리기가 꺼지는데, DFS의 첫 경계가 바로 그 꺼진 쪽이었다.
+  final renderView = tester.binding.renderViews.first;
+  final layer = renderView.debugLayer! as OffsetLayer;
   await tester.runAsync(() async {
-    final image = await repaint!.toImage(pixelRatio: 2);
+    final image = await layer.toImage(renderView.paintBounds, pixelRatio: 2);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     final file = File(out);
     file.parent.createSync(recursive: true);
@@ -119,9 +141,54 @@ void main() {
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/record_sets.png');
 
+    // 푸시로 열리는 화면들 — 탭 루트만 찍으면 이쪽은 영영 안 보인다.
     await tester.tap(find.text('마이'));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/mypage.png');
+
+    await tester.tap(find.text('내 루틴'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/routines.png');
+
+    await tester.tap(find.byKey(const ValueKey('routines-open-market')));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/market.png');
+
+    // 전문가 루틴 상세 — 첫 카드를 연다.
+    final marketCard = find.byKey(const ValueKey('market-card-0'));
+    if (marketCard.evaluate().isNotEmpty) {
+      await tester.tap(marketCard);
+      await tester.pumpAndSettle();
+      await _shot(tester, 'build/shots/market_detail.png');
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // 루틴 편집기 — 카드의 편집 버튼이 여는 실제 편집 화면.
+    await tester.tap(find.text('루틴 편집').first);
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/routine_editor.png');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // 설정.
+    await tester.tap(find.text('설정'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/settings.png');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // 로그인 화면 — 게스트의 "로그인" 버튼이 여는 곳.
+    await tester.tap(find.text('로그인').first);
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/signin.png');
+    // 로그인 화면의 뒤로가기는 표준 back이 아니라 '닫기'다.
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('커뮤니티'));
     await tester.pumpAndSettle();
@@ -150,6 +217,17 @@ void main() {
     await _shot(tester, 'build/shots/dark_record.png');
 
     state.toggleTheme();
+    await tester.pumpAndSettle();
+
+    // 로그인 상태의 마이 — 회원 카드가 계정으로 바뀌는 화면.
+    Auth.use(const _SignedInAuth());
+    addTearDown(Auth.reset);
+    state.notifyListeners();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('마이'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/mypage_signed_in.png');
+
     await tester.binding.setSurfaceSize(null);
   }, skip: !_enabled);
 }

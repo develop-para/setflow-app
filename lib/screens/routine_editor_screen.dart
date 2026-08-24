@@ -121,7 +121,9 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
                         child: ListTile(
                           leading: Icon(
                             exercise.icon,
-                            color: widget.routine.color,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                           title: Text(
                             exercise.name,

@@ -1628,7 +1628,9 @@ class RoutinesScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: SetflowFontSize.small,
                   fontWeight: SetflowWeight.medium,
-                  color: context.setflowColors.orange,
+                  // 플랜 이름은 정보지 경고가 아니다. 주황을 쓰면 한도에
+                  // 걸린 것처럼 읽힌다.
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -1643,13 +1645,16 @@ class RoutinesScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        // 루틴 식별색은 남긴다 — 모델에 실려 공유 카드에도
+                        // 나오는 정체성이다. 다만 카드에서 제일 큰 색 덩어리일
+                        // 이유는 없어서, 굵은 알약에서 가는 선으로 줄였다.
                         Container(
-                          width: 12,
-                          height: 42,
+                          width: 4,
+                          height: 36,
                           decoration: BoxDecoration(
                             color: routine.color,
                             borderRadius: BorderRadius.circular(
-                              SetflowRadii.xs,
+                              SetflowRadii.full,
                             ),
                           ),
                         ),
@@ -2401,10 +2406,11 @@ class _MarketScreenState extends State<MarketScreen> {
                 filter = '전체';
               }),
             ),
-          for (final routine in routines)
+          for (final (index, routine) in routines.indexed)
             Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: SetflowCard(
+                key: ValueKey('market-card-$index'),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => ExpertRoutineDetailScreen(routine: routine),
@@ -2414,61 +2420,41 @@ class _MarketScreenState extends State<MarketScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      height: 118,
-                      decoration: BoxDecoration(
-                        color: routine.color.withValues(alpha: .14),
-                      ),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            right: 18,
-                            bottom: 12,
-                            child: Icon(
-                              Icons.fitness_center_rounded,
-                              size: 72,
-                              color: routine.color.withValues(alpha: .38),
-                            ),
-                          ),
-                          Positioned(
-                            left: 16,
-                            top: 14,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: routine.color,
-                                borderRadius: BorderRadius.circular(
-                                  SetflowRadii.xs,
-                                ),
-                              ),
-                              child: Text(
-                                routine.level,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: SetflowFontSize.small,
-                                  fontWeight: SetflowWeight.medium,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            right: 16,
-                            top: 14,
-                            child: _RoutineAccessBadge(
-                              accessTier: routine.accessTier,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: context
+                                      .setflowColors
+                                      .surfaceContainerHigh,
+                                  borderRadius: BorderRadius.circular(
+                                    SetflowRadii.full,
+                                  ),
+                                ),
+                                child: Text(
+                                  routine.level,
+                                  style: const TextStyle(
+                                    fontSize: SetflowFontSize.small,
+                                    fontWeight: SetflowWeight.medium,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              _RoutineAccessBadge(
+                                accessTier: routine.accessTier,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: SetflowSpacing.md),
                           Text(
                             routine.name,
                             style: const TextStyle(
