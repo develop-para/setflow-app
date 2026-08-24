@@ -28,63 +28,91 @@ abstract final class SetflowColors {
   static const primary = brand;
 
   /// What goes *on* [brand]. Ink at 16:1 — white would be 1.18:1 and vanish.
-  static const onBrand = Color(0xFF111113);
+  static const onBrand = Color(0xFF111111);
 
-  /// Primary text. Pure-ish black, no warm cast.
-  static const ink = Color(0xFF111113);
+  /// The brand where it has to be **read** rather than filled: a lime-olive
+  /// deep enough to carry text and icons on white (4.9:1).
+  ///
+  /// Without this the brand could only ever appear as a block, so anything that
+  /// wanted to look like ours *and* be legible reached for an unrelated hue.
+  /// That is where the palette started saying nothing.
+  static const brandDeep = Color(0xFF627A01);
+
+  /// The brand as a *tint* — a selected row, the container behind a primary
+  /// action. Pale enough to carry [ink] at 18:1, so selection can belong to the
+  /// brand without a neon block on the page.
+  static const brandSoft = Color(0xFFF5FEDA);
+
+  /// Primary text. Pure neutral black — no cast in either direction.
+  static const ink = Color(0xFF111111);
 
   /// Structural black for inverted blocks and hero fields.
-  static const inkBlock = Color(0xFF18181B);
+  static const inkBlock = Color(0xFF191919);
 
   /// Strong secondary — data labels that still need to read as text.
-  static const steel = Color(0xFF52525B);
+  static const steel = Color(0xFF535353);
 
-  static const secondaryText = Color(0xFF71717A);
-  static const disabled = Color(0xFFA1A1AA);
+  static const secondaryText = Color(0xFF696969);
+  static const disabled = Color(0xFFA2A2A2);
   static const surface = Color(0xFFFFFFFF);
-  static const soft = Color(0xFFF7F7F8);
-  static const elevated = Color(0xFFF1F1F2);
+  static const soft = Color(0xFFF7F7F7);
+  static const elevated = Color(0xFFF1F1F1);
 
   /// Hairline.
-  static const divider = Color(0xFFE4E4E7);
+  static const divider = Color(0xFFE4E4E4);
 
   // --- meaning, not decoration ----------------------------------------------
   // Every one of these clears 4.5:1 on white; the dark counterparts are in
   // SetflowSemanticColors.dark. Checked by test/theme_contrast_test.dart, which
   // is what keeps a hand-picked hex from quietly failing to be readable.
   /// 잉크 블록의 그라디언트 양 끝. 통짜 검정이면 판이 죽어 보여서 아주 얕게 기울인다.
-  static const inkBlockTop = Color(0xFF1C1C1F);
-  static const inkBlockBottom = Color(0xFF0B0B0C);
+  static const inkBlockTop = Color(0xFF1D1D1D);
+  static const inkBlockBottom = Color(0xFF0B0B0B);
 
   /// 시트나 오버레이 뒤를 덮는 막. 아래 화면이 비쳐야 하므로 완전 불투명이 아니다.
   static const scrim = Color(0x59000000);
 
-  static const green = Color(0xFF15803D);
-  static const red = Color(0xFFDC2626);
-  static const warning = Color(0xFFB45309);
-  static const info = Color(0xFF2563EB);
+  // Every hue below is tuned to land on the **same rung of contrast** against
+  // white (5.6:1, give or take) — which also leaves it readable on the grey
+  // containers these actually sit on, not just on the page. Equal contrast is
+  // equal luminance, and that is
+  // what makes eight unrelated hues read as one family instead of eight
+  // borrowed swatches. The chip row was the tell: a bright red sat next to a
+  // nearly-black teal and neither looked chosen.
+  static const green = Color(0xFF0F773E);
+  static const red = Color(0xFFC23020);
+  static const warning = Color(0xFF905D06);
+  static const info = Color(0xFF0C6E9F);
 
   // Workout categories and chart series. Distinct hues, same contrast floor.
-  static const teal = Color(0xFF0F766E);
-  static const blue = Color(0xFF2563EB);
-  static const purple = Color(0xFF7C3AED);
-  static const orange = Color(0xFFC2410C);
+  static const teal = Color(0xFF0D756A);
+  static const blue = Color(0xFF365DDC);
+  static const purple = Color(0xFF9535D6);
+  static const orange = Color(0xFFB34414);
 }
 
-/// The single grey ramp. True neutrals (zero chroma) — the old warm/stone tint
-/// is gone along with the yellow it was harmonising with.
+/// The single grey ramp — **actually** neutral: R = G = B on every rung.
+///
+/// It used to be zinc, which is cool: `#71717A` carries more blue than red.
+/// Next to a yellow-green brand a cool grey reads as faintly violet, and the
+/// page looks like two palettes that met by accident. That was the "colours are
+/// a bit off" complaint, and it lived in the greys — the part nobody thinks of
+/// as colour.
+///
+/// Each rung keeps the luminance of the zinc value it replaced, so every
+/// contrast ratio ever measured against this ramp still holds.
 abstract final class SetflowNeutral {
   static const n0 = Color(0xFFFFFFFF); // pure surface
-  static const n50 = Color(0xFFF7F7F8); // low container
-  static const n100 = Color(0xFFF1F1F2); // container
-  static const n200 = Color(0xFFE4E4E7); // hairline / high container
-  static const n300 = Color(0xFFD4D4D8); // strong border
-  static const n400 = Color(0xFFA1A1AA); // disabled / hint
-  static const n500 = Color(0xFF8A8A93); // muted label
-  static const n600 = Color(0xFF71717A); // secondary text
-  static const n700 = Color(0xFF52525B); // strong secondary
-  static const n800 = Color(0xFF27272A); // dark elevated
-  static const n900 = Color(0xFF111113); // ink block
+  static const n50 = Color(0xFFF7F7F7); // low container
+  static const n100 = Color(0xFFF1F1F1); // container
+  static const n200 = Color(0xFFE4E4E4); // hairline / high container
+  static const n300 = Color(0xFFD4D4D4); // strong border
+  static const n400 = Color(0xFFA2A2A2); // disabled / hint
+  static const n500 = Color(0xFF8B8B8B); // muted label
+  static const n600 = Color(0xFF696969); // secondary text
+  static const n700 = Color(0xFF535353); // strong secondary
+  static const n800 = Color(0xFF272727); // dark elevated
+  static const n900 = Color(0xFF111111); // ink block
 }
 
 @immutable
@@ -106,36 +134,41 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
 
   // Neutral surface ramp (light).
   static const light = SetflowSemanticColors(
-    surfaceContainerLow: Color(0xFFF7F7F8),
-    surfaceContainer: Color(0xFFF1F1F2),
-    surfaceContainerHigh: Color(0xFFE9E9EC),
-    disabled: Color(0xFFA1A1AA),
-    success: Color(0xFF15803D),
-    error: Color(0xFFDC2626),
-    warning: Color(0xFFB45309),
-    info: Color(0xFF2563EB),
-    teal: Color(0xFF0F766E),
-    blue: Color(0xFF2563EB),
-    purple: Color(0xFF7C3AED),
-    orange: Color(0xFFC2410C),
+    surfaceContainerLow: Color(0xFFF7F7F7),
+    surfaceContainer: Color(0xFFF1F1F1),
+    surfaceContainerHigh: Color(0xFFE9E9E9),
+    disabled: Color(0xFFA2A2A2),
+    success: Color(0xFF0F773E),
+    error: Color(0xFFC23020),
+    warning: Color(0xFF905D06),
+    // info used to *be* blue — the same hex under two names, which is a palette
+    // with a hole in it: an informational chip and a chart series could not be
+    // told apart. It is its own cyan-leaning blue now.
+    info: Color(0xFF0C6E9F),
+    teal: Color(0xFF0D756A),
+    blue: Color(0xFF365DDC),
+    purple: Color(0xFF9535D6),
+    orange: Color(0xFFB34414),
   );
 
   // Neutral near-black ramp (dark).
   static const dark = SetflowSemanticColors(
-    surfaceContainerLow: Color(0xFF161618),
-    surfaceContainer: Color(0xFF1C1C1F),
-    surfaceContainerHigh: Color(0xFF27272A),
-    disabled: Color(0xFF5C5C63),
+    surfaceContainerLow: Color(0xFF161616),
+    surfaceContainer: Color(0xFF1D1D1D),
+    surfaceContainerHigh: Color(0xFF272727),
+    disabled: Color(0xFF5D5D5D),
     // Lifted, not the light values: a hue dark enough to read on white is too
     // dark to read on near-black, and the other way round.
-    success: Color(0xFF22C55E),
-    error: Color(0xFFF87171),
-    warning: Color(0xFFF59E0B),
-    info: Color(0xFF60A5FA),
-    teal: Color(0xFF2DD4BF),
-    blue: Color(0xFF60A5FA),
-    purple: Color(0xFFA78BFA),
-    orange: Color(0xFFFB923C),
+    // Same idea as light, one rung higher: all eight land near 6.8:1 on the
+    // dark scaffold, so the set holds together there too.
+    success: Color(0xFF21AE60),
+    error: Color(0xFFE7776B),
+    warning: Color(0xFFCD8A17),
+    info: Color(0xFF1DA1E3),
+    teal: Color(0xFF1FAD9F),
+    blue: Color(0xFF7C95E4),
+    purple: Color(0xFFBC7EE5),
+    orange: Color(0xFFE57B4E),
   );
 
   final Color surfaceContainerLow;

@@ -14,9 +14,9 @@ abstract final class SetflowTheme {
     final semantic = isDark
         ? SetflowSemanticColors.dark
         : SetflowSemanticColors.light;
-    final surface = isDark ? const Color(0xFF0B0B0C) : SetflowColors.surface;
-    final onSurface = isDark ? const Color(0xFFF4F4F5) : SetflowColors.ink;
-    final outline = isDark ? const Color(0xFF2A2A2E) : SetflowColors.divider;
+    final surface = isDark ? const Color(0xFF0B0B0B) : SetflowColors.surface;
+    final onSurface = isDark ? const Color(0xFFF4F4F4) : SetflowColors.ink;
+    final outline = isDark ? const Color(0xFF2A2A2A) : SetflowColors.divider;
 
     // The brand does not invert. Lime is bright enough to sit on either
     // surface, and a brand that changes colour with the theme is not a brand.
@@ -32,28 +32,39 @@ abstract final class SetflowTheme {
         ).copyWith(
           primary: accent,
           onPrimary: onAccent,
+          // The container behind a primary action belongs to the brand, not to
+          // the grey ramp. A neutral container made every "primary" surface
+          // look like every other surface.
           primaryContainer: isDark
-              ? const Color(0xFF27272A)
-              : const Color(0xFFE4E4E7),
+              ? const Color(0xFF232A05)
+              : SetflowColors.brandSoft,
           onPrimaryContainer: isDark
-              ? const Color(0xFFF4F4F5)
-              : const Color(0xFF18181B),
-          secondary: semantic.teal,
-          onSecondary: Colors.white,
+              ? const Color(0xFFE9F5B8)
+              : SetflowColors.ink,
+          // Secondary is the brand where it has to be read. It used to be teal,
+          // which meant the app's second-most-used accent had nothing to do
+          // with the brand.
+          secondary: isDark ? const Color(0xFFBFD53A) : SetflowColors.brandDeep,
+          onSecondary: isDark ? SetflowColors.onBrand : Colors.white,
           surface: surface,
           surfaceContainerLow: semantic.surfaceContainerLow,
           surfaceContainer: semantic.surfaceContainer,
           surfaceContainerHigh: semantic.surfaceContainerHigh,
           onSurface: onSurface,
           onSurfaceVariant: isDark
-              ? const Color(0xFF9C968C)
+              // Was a warm grey left over from the old stone ramp, sitting on a
+              // neutral dark surface. Neutral now, like everything else.
+              ? const Color(0xFFA3A3A3)
               : SetflowColors.secondaryText,
           outline: outline,
           outlineVariant: isDark
-              ? const Color(0xFF1F1F22)
-              : const Color(0xFFEDEDF0),
-          error: SetflowColors.red,
-          onError: Colors.white,
+              ? const Color(0xFF1F1F1F)
+              : const Color(0xFFEDEDED),
+          // The scheme's error has to follow the theme like every other state
+          // colour. It was pinned to the light-only constant, so dark surfaces
+          // drew errors in a red that does not read there.
+          error: semantic.error,
+          onError: isDark ? SetflowColors.onBrand : Colors.white,
         );
 
     final textTheme = _textTheme(onSurface);

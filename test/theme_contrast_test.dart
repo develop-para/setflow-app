@@ -68,14 +68,126 @@ void main() {
   test('a state colour is not repeated for a different meaning', () {
     for (final theme in [SetflowTheme.light, SetflowTheme.dark]) {
       final roles = rolesOf(theme);
-      // blue and info share a hue on purpose — info *is* the blue one. The rest
-      // must stay apart, or the palette is back to saying nothing.
-      final meanings = Map.of(roles)..remove('blue');
-      final distinct = meanings.values.map((c) => c.toARGB32()).toSet();
+      // info and blue used to be the same hex under two names, so an
+      // informational chip and a chart series were the same colour. Every role
+      // now has its own, or the palette is back to saying nothing.
+      final distinct = roles.values.map((c) => c.toARGB32()).toSet();
       expect(
         distinct.length,
-        meanings.length,
-        reason: '서로 다른 의미가 같은 색을 쓰고 있다: $meanings',
+        roles.length,
+        reason: '서로 다른 의미가 같은 색을 쓰고 있다: $roles',
+      );
+    }
+  });
+
+  test('a state colour reads on the container it sits on, not just the page', () {
+    // Where this last broke: a dialog is a raised grey panel, so a label that
+    // clears 4.5:1 against the white page can still fail by the time it is
+    // drawn inside one. The floor has to be measured against the surface the
+    // colour actually lands on.
+    final failures = <String>[];
+    for (final entry in {
+      'light': SetflowTheme.light,
+      'dark': SetflowTheme.dark,
+    }.entries) {
+      final c = entry.value.extension<SetflowSemanticColors>()!;
+      final containers = {
+        'containerLow': c.surfaceContainerLow,
+        'container': c.surfaceContainer,
+        'containerHigh': c.surfaceContainerHigh,
+      };
+      rolesOf(entry.value).forEach((role, color) {
+        containers.forEach((name, bg) {
+          final ratio = contrast(color, bg);
+          if (ratio < floor) {
+            failures.add(
+              '${entry.key}.$role on $name ${ratio.toStringAsFixed(2)}:1',
+            );
+          }
+        });
+      });
+      // 보조 글자색도 같은 판 위에 놓인다.
+      containers.forEach((name, bg) {
+        final ratio = contrast(entry.value.colorScheme.onSurfaceVariant, bg);
+        if (ratio < floor) {
+          failures.add(
+            '${entry.key}.onSurfaceVariant on $name ${ratio.toStringAsFixed(2)}:1',
+          );
+        }
+      });
+    }
+    expect(failures, isEmpty, reason: '이 색들이 자기가 놓이는 판 위에서 안 읽힌다');
+  });
+
+  test('the state colours sit on one rung, so they read as a set', () {
+    // Readable is the floor; *belonging together* is the part that makes the
+    // palette look chosen. Equal contrast is equal luminance, which is why
+    // eight different hues can share a weight on the page. When they drifted —
+    // a bright red beside a near-black teal — every chip row looked like
+    // swatches borrowed from different apps.
+    for (final entry in {
+      'light': SetflowTheme.light,
+      'dark': SetflowTheme.dark,
+    }.entries) {
+      final surface = entry.value.scaffoldBackgroundColor;
+      final ratios = rolesOf(
+        entry.value,
+      ).map((role, c) => MapEntry(role, contrast(c, surface)));
+      final spread =
+          ratios.values.reduce(math.max) - ratios.values.reduce(math.min);
+      expect(
+        spread,
+        lessThan(1.0),
+        reason: '${entry.key}의 상태색 대비가 흩어져 있다 — 같은 세트로 안 보인다: $ratios',
+      );
+    }
+  });
+
+  test('the grey ramp is grey, not a cool one pretending', () {
+    // A zinc ramp (#71717A — more blue than red) beside a yellow-green brand
+    // reads faintly violet, and the page looks like two palettes that met by
+    // accident. Neutral means R = G = B, on every rung.
+    final offenders = <String>[];
+    for (final entry in {
+      'n50': SetflowNeutral.n50,
+      'n100': SetflowNeutral.n100,
+      'n200': SetflowNeutral.n200,
+      'n300': SetflowNeutral.n300,
+      'n400': SetflowNeutral.n400,
+      'n500': SetflowNeutral.n500,
+      'n600': SetflowNeutral.n600,
+      'n700': SetflowNeutral.n700,
+      'n800': SetflowNeutral.n800,
+      'n900': SetflowNeutral.n900,
+    }.entries) {
+      final c = entry.value;
+      if (c.r != c.g || c.g != c.b) offenders.add(entry.key);
+    }
+    expect(offenders, isEmpty, reason: '이 회색들이 색을 띠고 있다');
+  });
+
+  test('the brand can be read as well as filled', () {
+    // Lime is a fill and only a fill. Without a readable counterpart the brand
+    // simply could not appear as text or an icon, so anything that wanted to
+    // look like ours reached for an unrelated hue — which is how the palette
+    // spread in the first place.
+    expect(
+      contrast(SetflowColors.brandDeep, Colors.white),
+      greaterThanOrEqualTo(floor),
+      reason: '브랜드를 밝은 면 위 글자색으로 쓸 수 없다',
+    );
+    // And the pale tint has to carry ink, or "selected" becomes unreadable.
+    expect(
+      contrast(SetflowColors.brandSoft, SetflowColors.ink),
+      greaterThanOrEqualTo(floor),
+    );
+    // All three have to be recognisably the same hue family.
+    double hueOf(Color c) => HSLColor.fromColor(c).hue;
+    for (final c in [SetflowColors.brandDeep, SetflowColors.brandSoft]) {
+      expect(
+        (hueOf(c) - hueOf(SetflowColors.brand)).abs(),
+        lessThan(20),
+        reason: '브랜드 계열이 아니다',
       );
     }
   });
