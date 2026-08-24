@@ -450,4 +450,46 @@ void main() {
     }
     expect(broken, isEmpty, reason: '320px 폰에서 이 화면들이 넘친다');
   });
+
+  testWidgets('every screen renders in dark without breaking', (tester) async {
+    // 다크는 설정에서 켜지는 기능인데, 여태 스윕은 라이트로만 돌았다.
+    // 색이 안 읽히는 건 대비 테스트가 보고, 여기서는 레이아웃이 깨지는지를 본다.
+    final screens = <String, Widget>{
+      'CalendarScreen': const Scaffold(body: CalendarScreen()),
+      'MyPageScreen': const MyPageScreen(),
+      'MemberMembershipScreen': const MemberMembershipScreen(),
+      'BodyCompositionScreen': const BodyCompositionScreen(),
+      'CoachingDetailScreen': const CoachingDetailScreen(),
+      'EvidenceLibraryScreen': const EvidenceLibraryScreen(),
+      'WorkspaceScreen': const WorkspaceScreen(role: UserRole.trainer),
+      'AdminSystemScreen': const AdminSystemScreen(),
+      'AdminContentRoutinesScreen': const AdminContentRoutinesScreen(),
+      'BusinessSettingsListScreen': const BusinessSettingsListScreen(
+        role: UserRole.trainer,
+      ),
+      'SettlementRefundsPage': const SettlementRefundsPage(role: UserRole.gym),
+      'WelcomeScreen': const WelcomeScreen(),
+      'EmailAuthScreen': const EmailAuthScreen(),
+      'BusinessShell': const BusinessShell(role: UserRole.trainer),
+    };
+
+    final broken = <String>[];
+    for (final entry in screens.entries) {
+      applySystemBars(tester);
+      final state = AppState();
+      await state.initialize();
+      addTearDown(state.dispose);
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(theme: SetflowTheme.dark, home: entry.value),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 400));
+      final error = tester.takeException();
+      if (error != null) broken.add('${entry.key}: $error');
+    }
+    expect(broken, isEmpty, reason: '다크 모드에서 이 화면들이 깨진다');
+  });
 }
