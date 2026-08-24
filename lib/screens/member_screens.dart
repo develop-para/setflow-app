@@ -522,6 +522,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             ),
           ),
+          // 이 달의 스코어보드는 달력 위에 있다 — 격자를 보기 전에 "이 달이
+          // 어땠나"부터 읽힌다. 스크롤 본문이 아니라 여기 붙어야 달을 넘길 때
+          // 같이 따라온다.
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.gutter,
+                  0,
+                  SetflowSpacing.gutter,
+                  SetflowSpacing.sm2,
+                ),
+                child: _MonthSummary(month: month),
+              ),
+            ),
+          ),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -627,8 +644,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   expanded: expanded,
                                   onPressed: _toggleExpanded,
                                 ),
-                                const SizedBox(height: SetflowSpacing.md),
-                                _MonthSummary(month: month, weeks: weeks),
                                 const SizedBox(height: SetflowSpacing.md),
                                 _MemberCoachingScheduleSection(
                                   schedules: state.coachingSchedules,
@@ -1593,27 +1608,32 @@ class _TogetherPreviewSection extends StatelessWidget {
 }
 
 class _MonthSummary extends StatelessWidget {
-  const _MonthSummary({required this.month, required this.weeks});
+  const _MonthSummary({required this.month});
 
   final DateTime month;
-  final List<List<DateTime>> weeks;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = AppScope.of(context);
+    final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
     final sessions = [
-      for (final week in weeks)
-        for (final day in week)
-          // 앞뒤 달에서 넘어온 칸은 이 달의 합계가 아니다.
-          if (day.month == month.month && day.year == month.year)
-            state.sessions[state.dateOnly(day)],
+      for (var day = 1; day <= daysInMonth; day++)
+        state.sessions[state.dateOnly(DateTime(month.year, month.month, day))],
     ].whereType<WorkoutSession>().where((s) => s.totalSets > 0).toList();
 
     final volume = sessions.fold<double>(0, (sum, s) => sum + s.volume);
-    final cardioMinutes = sessions.fold<int>(
+    // 셋째 지표는 유산소 분에서 완료 세트로 바꿨다. 유산소를 안 하는 달은
+    // 0분이 자리만 차지했고, 세트 수는 근력·유산소 어느 쪽이든 "실제로 몸을
+    // 움직인 횟수"라 일수·볼륨과 같은 축에서 읽힌다.
+    final completedSets = sessions.fold<int>(
       0,
-      (sum, s) => sum + s.cardioDurationSeconds,
+      (sum, s) =>
+          sum +
+          s.exercises.fold<int>(
+            0,
+            (a, e) => a + e.sets.where((set) => set.completed).length,
+          ),
     );
 
     if (sessions.isEmpty) {
@@ -1660,9 +1680,9 @@ class _MonthSummary extends StatelessWidget {
           ),
           _MonthSummaryDivider(),
           _MonthSummaryStat(
-            value: _formatMinuteValue(cardioMinutes / 60),
-            unit: '분',
-            label: '유산소',
+            value: '$completedSets',
+            unit: '세트',
+            label: '완료 세트',
           ),
         ],
       ),
