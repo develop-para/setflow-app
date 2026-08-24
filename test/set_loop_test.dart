@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
@@ -9,6 +12,19 @@ import 'package:setflow/theme.dart';
 /// Every set used to cost the same trip — open a dial for the reps that came out
 /// different, tap the circle, scroll past the cards already done. These three
 /// behaviours are what make the second and third set cheaper than the first.
+double contrastOf(Color a, Color b) {
+  double lum(Color c) {
+    double ch(double v) => v <= 0.03928
+        ? v / 12.92
+        : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+    return 0.2126 * ch(c.r) + 0.7152 * ch(c.g) + 0.0722 * ch(c.b);
+  }
+
+  final la = lum(a);
+  final lb = lum(b);
+  return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+}
+
 void main() {
   final date = DateTime(2026, 11, 5);
 
@@ -224,6 +240,44 @@ void main() {
     expect(sets[2].reps, 8, reason: '3세트가 계획값 10에 머물렀다');
     expect(sets[1].completed, isFalse, reason: '전파가 완료 상태까지 건드렸다');
     await settle(tester, state);
+  });
+
+  test('the track chips pair their fills with on-colours', () {
+    // 회귀의 실체: 삭제 칩이 fill도 전경도 error라서 빨강 위 빨강 —
+    // 글자 없는 알약으로 보였다. 칩 전경은 반드시 칩과 짝지어진 on색이다.
+    // 미드-드래그 위젯 검사는 테스트 하네스에서 불안정해서, 계약을 두 층으로
+    // 고정한다: 소스가 on색을 쓰는지, 그리고 그 on색이 실제로 읽히는지.
+    final source = File('lib/screens/workout_screens.dart').readAsStringSync();
+    expect(
+      RegExp(
+        r'secondaryBackground: _track\([^)]*onError',
+        dotAll: true,
+      ).hasMatch(source),
+      isTrue,
+      reason: '삭제 트랙의 전경이 onError가 아니다',
+    );
+    expect(
+      source.contains('accent: context.setflowColors.error'),
+      isFalse,
+      reason: '트랙 전경에 채움과 같은 error를 쓰고 있다',
+    );
+
+    for (final theme in [SetflowTheme.light, SetflowTheme.dark]) {
+      final scheme = theme.colorScheme;
+      expect(
+        contrastOf(
+          scheme.onError,
+          theme.extension<SetflowSemanticColors>()!.error,
+        ),
+        greaterThanOrEqualTo(4.5),
+        reason: '${theme.brightness}: onError가 error 채움 위에서 안 읽힌다',
+      );
+      expect(
+        contrastOf(scheme.onPrimary, scheme.primary),
+        greaterThanOrEqualTo(4.5),
+        reason: '${theme.brightness}: onPrimary가 라임 칩 위에서 안 읽힌다',
+      );
+    }
   });
 
   testWidgets('the propagation can be handed straight back', (tester) async {

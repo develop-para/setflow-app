@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/app_repository.dart';
 import 'package:setflow/data/app_snapshot_codec.dart';
-import 'package:setflow/models.dart';
 import 'package:setflow/screens/workout_screens.dart';
 import 'package:setflow/theme.dart';
 

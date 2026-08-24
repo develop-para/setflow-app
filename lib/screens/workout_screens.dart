@@ -824,13 +824,16 @@ class _RoutinePickerSheet extends StatelessWidget {
                         : () => Navigator.of(context).pop(routine),
                     child: Row(
                       children: [
+                        // 내 루틴 카드와 같은 문법: 식별색은 가는 선이다.
+                        // 여기만 10px 알약이면 같은 루틴이 화면마다 다른
+                        // 옷을 입는다.
                         Container(
-                          width: 10,
-                          height: 48,
+                          width: 4,
+                          height: 36,
                           decoration: BoxDecoration(
                             color: routine.color,
                             borderRadius: BorderRadius.circular(
-                              SetflowRadii.xs,
+                              SetflowRadii.full,
                             ),
                           ),
                         ),
@@ -860,7 +863,10 @@ class _RoutinePickerSheet extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const Icon(Icons.add_circle_rounded),
+                        Icon(
+                          Icons.add_circle_outline_rounded,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ],
                     ),
                   );
@@ -2140,10 +2146,14 @@ class _SwipeableSetState extends State<_SwipeableSet>
   /// the way a navigation arrow marches along a route. A nudge that returns
   /// to flat taught nothing once it stopped; a row that visibly is not in its
   /// closed position keeps saying "this slides" until the first real swipe.
-  /// 두 사이클(총 2.4초)만 돌고 멈춘다. 무한 반복이면 pumpAndSettle이 영원히
-  /// 안 끝나고(테스트 규칙 9), 토스트 표시 시간(3초)보다 길게 돌면 settle이
-  /// 그 시간을 통째로 흘려보내 '되돌리기'를 누를 새가 없어진다. 모션이 멈춰도
-  /// 밀린 자세와 화살표는 남는다 — 가르치는 것은 움직임이 아니라 상태다.
+  /// 기기에서는 첫 스와이프가 올 때까지 계속 돈다 — 멈춘 힌트는 힌트가
+  /// 아니라는 것이 실사용 피드백이었다. 테스트에서만 두 사이클로 유한하다:
+  /// 무한 repeat는 pumpAndSettle을 영원히 돌리고, 토스트 3초보다 길게 돌면
+  /// settle이 '되돌리기'를 누를 새를 통째로 삼킨다.
+  // dart-define이 아니라 바인딩으로 판별한다 — FLUTTER_TEST define은 flutter
+  // test가 항상 넣어 주지 않는다. 테스트 바인딩은 WidgetsFlutterBinding이
+  // 아니므로 이 검사면 충분하고, 웹 빌드에서도 안전하다.
+  static final _isTest = WidgetsBinding.instance is! WidgetsFlutterBinding;
   static const _cycles = 2;
   late final AnimationController _hint = AnimationController(
     vsync: this,
@@ -2176,7 +2186,11 @@ class _SwipeableSetState extends State<_SwipeableSet>
   void _syncHint() {
     if (!mounted) return;
     if (_hinting && !_reduceMotion) {
-      if (!_hint.isAnimating && !_hint.isCompleted) _hint.forward(from: 0);
+      if (_isTest) {
+        if (!_hint.isAnimating && !_hint.isCompleted) _hint.forward(from: 0);
+      } else if (!_hint.isAnimating) {
+        _hint.repeat();
+      }
     } else if (!_hinting) {
       _hint.stop();
     }
@@ -2198,30 +2212,32 @@ class _SwipeableSetState extends State<_SwipeableSet>
     final drag = (1 - progress * 8).clamp(0.0, 1.0);
     final breath = _reduceMotion || _hint.isCompleted
         ? 0.0
-        : math.sin(_phase * 2 * math.pi) * 3;
-    return (30 + breath) * drag;
+        : math.sin(_phase * 2 * math.pi) * 4;
+    return (12 + breath) * drag;
   }
 
   /// The chevrons light up one after the other, front first — a route arrow.
+  /// 홀로그램은 은은해야 한다: 행 내용 위에 뜨므로 진하면 가독을 해친다.
   double _chevronOpacity(int index) {
-    if (_reduceMotion || _hint.isCompleted) return .9;
+    if (_reduceMotion || _hint.isCompleted) return .35;
     final t = (_phase - index * .22) % 1;
     final wave = t < .5 ? t * 2 : (1 - t) * 2;
-    return .25 + .75 * Curves.easeInOut.transform(wave);
+    return .10 + .45 * Curves.easeInOut.transform(wave);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final logging = !towardsEnd;
-    // The wash is the brand; the glyph on top of it is not. Lime on a lime
-    // wash disappears, which is the same 1.18:1 trap the rule warns about.
+    // 칩 위 전경은 칩과 짝지어진 on색이어야 한다. onSurface를 쓰면 다크에서
+    // 라임 칩 위 흰색(1.18:1)이 되고, error를 그대로 쓰면 빨강 칩 위 빨강이
+    // 된다 — 실제로 삭제 칩이 글자 없는 빨간 알약으로 보였다.
     final fill = logging
         ? theme.colorScheme.primary
         : context.setflowColors.error;
     final accent = logging
-        ? theme.colorScheme.onSurface
-        : context.setflowColors.error;
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onError;
     final radius = BorderRadius.circular(SetflowRadii.md);
 
     return ClipRRect(
@@ -2244,16 +2260,24 @@ class _SwipeableSetState extends State<_SwipeableSet>
           animation: _hint,
           builder: (context, child) => Stack(
             children: [
-              // 밀린 행이 드러내는 트랙. 실제 스와이프가 여는 것과 같은 면이라,
-              // 힌트가 곧 예고편이다.
+              // 밀린 행이 드러내는 트랙 — 실제 스와이프가 여는 것과 같은 면.
               if (_hintShift > 0)
                 Positioned.fill(
                   child: ColoredBox(
                     color: theme.colorScheme.primary.withValues(alpha: .16),
+                  ),
+                ),
+              Transform.translate(offset: Offset(_hintShift, 0), child: child),
+              // 화살표는 틈 안이 아니라 행 **위에** 홀로그램처럼 떠서 진행
+              // 방향으로 순차로 깜빡인다. 틈에 넣으면 12px 안에서 잘리고,
+              // 위에 띄우면 틈이 얼마나 열렸는지와 무관하다.
+              if (_hintShift > 0)
+                Positioned.fill(
+                  child: IgnorePointer(
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Padding(
-                        padding: const EdgeInsets.only(left: 2),
+                        padding: const EdgeInsets.only(left: SetflowSpacing.lg),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -2262,7 +2286,7 @@ class _SwipeableSetState extends State<_SwipeableSet>
                                 opacity: _chevronOpacity(i),
                                 child: Icon(
                                   Icons.chevron_right_rounded,
-                                  size: 18,
+                                  size: 26,
                                   color: theme.colorScheme.onSurface,
                                 ),
                               ),
@@ -2272,7 +2296,6 @@ class _SwipeableSetState extends State<_SwipeableSet>
                     ),
                   ),
                 ),
-              Transform.translate(offset: Offset(_hintShift, 0), child: child),
             ],
           ),
           child: Dismissible(
@@ -2298,7 +2321,7 @@ class _SwipeableSetState extends State<_SwipeableSet>
             background: _track(fill: fill, accent: accent, logging: true),
             secondaryBackground: _track(
               fill: context.setflowColors.error,
-              accent: context.setflowColors.error,
+              accent: theme.colorScheme.onError,
               logging: false,
             ),
             confirmDismiss: (direction) async {
