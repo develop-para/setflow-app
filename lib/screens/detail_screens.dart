@@ -440,14 +440,23 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                   const SizedBox(height: SetflowSpacing.lg),
                   Row(
                     children: [
-                      const Text(
-                        '149,000원',
-                        style: TextStyle(
-                          fontSize: SetflowFontSize.headline,
-                          fontWeight: FontWeight.w900,
+                      // 320px 폰에서 가격과 버튼이 같이 안 들어갔다. 줄어드는 쪽은
+                      // 가격이다 — 버튼은 눌러야 하므로 크기를 지킨다.
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            '149,000원',
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: SetflowFontSize.headline,
+                              fontWeight: SetflowWeight.display,
+                            ),
+                          ),
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: SetflowSpacing.md),
                       PrimaryButton(
                         expanded: false,
                         label: '코칭 구매',

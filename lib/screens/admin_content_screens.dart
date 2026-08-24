@@ -161,12 +161,19 @@ class _AdminContentRoutinesScreenState
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    '작성자: ${item.author}',
-                                    style: text.labelMedium?.copyWith(
-                                      color: colors.onSurfaceVariant,
+                                  // 320px에서 작성자와 시각이 같이 안 들어간다.
+                                  // 시각은 길이가 고정이라 이름 쪽이 줄어든다.
+                                  Flexible(
+                                    child: Text(
+                                      '작성자: ${item.author}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: text.labelMedium?.copyWith(
+                                        color: colors.onSurfaceVariant,
+                                      ),
                                     ),
                                   ),
+                                  const SizedBox(width: SetflowSpacing.sm),
                                   Text(
                                     item.createdAt,
                                     style: text.bodySmall?.copyWith(
@@ -377,16 +384,25 @@ class _AdminContentReportsScreenState extends State<AdminContentReportsScreen> {
                         count: _queue.length,
                         unit: '건',
                       ),
-                      const Spacer(),
-                      Wrap(
-                        spacing: SetflowSpacing.xs,
-                        children: [
-                          for (final grade in const ['Red', 'Orange', 'Yellow'])
-                            StatusChip(
-                              label: grade,
-                              color: _gradeColor(context, grade),
-                            ),
-                        ],
+                      const SizedBox(width: SetflowSpacing.md),
+                      // 좁은 폰에서는 칩들이 남은 폭 안에서 접힌다.
+                      Expanded(
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: SetflowSpacing.xs,
+                          runSpacing: SetflowSpacing.xs,
+                          children: [
+                            for (final grade in const [
+                              'Red',
+                              'Orange',
+                              'Yellow',
+                            ])
+                              StatusChip(
+                                label: grade,
+                                color: _gradeColor(context, grade),
+                              ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -436,16 +452,22 @@ class _AdminContentReportsScreenState extends State<AdminContentReportsScreen> {
                                     ),
                                   ],
                                   const Spacer(),
-                                  Text(
-                                    item.slaHoursLeft < 0
-                                        ? 'SLA 초과 (H+${item.slaHoursLeft.abs()})'
-                                        : 'SLA H-${item.slaHoursLeft}',
-                                    style: text.labelMedium?.copyWith(
-                                      color: item.slaHoursLeft < 0
-                                          ? colors.error
-                                          : item.slaHoursLeft <= 2
-                                          ? context.setflowColors.orange
-                                          : context.setflowColors.blue,
+                                  // 320px에서 칩들과 SLA 표기가 같이 안 들어간다.
+                                  // 칩은 상태라 지킬 것, SLA 문구가 줄어든다.
+                                  Flexible(
+                                    child: Text(
+                                      item.slaHoursLeft < 0
+                                          ? 'SLA 초과 (H+${item.slaHoursLeft.abs()})'
+                                          : 'SLA H-${item.slaHoursLeft}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: text.labelMedium?.copyWith(
+                                        color: item.slaHoursLeft < 0
+                                            ? colors.error
+                                            : item.slaHoursLeft <= 2
+                                            ? context.setflowColors.orange
+                                            : context.setflowColors.blue,
+                                      ),
                                     ),
                                   ),
                                 ],

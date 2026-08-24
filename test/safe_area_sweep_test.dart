@@ -40,6 +40,8 @@ void main() {
   const notch = 48.0;
   const navBar = 48.0;
   const screen = Size(393, 852);
+  // 320은 아직 팔리는 폰의 폭이다. 여기서 넘치면 그 화면은 그 폰에서 못 쓴다.
+  const narrow = Size(320, 568);
 
   void applySystemBars(WidgetTester tester) {
     tester.view.devicePixelRatio = 1.0;
@@ -385,5 +387,67 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expectAllReachable(tester, where: '이 화면');
+  });
+
+  testWidgets('pushed screens survive a 320px phone', (tester) async {
+    // 오버플로는 "보여줄 수 없는 콘텐츠"라서 안 눌리는 버튼과 같은 등급의 실패다.
+    final screens = <String, Widget>{
+      'MyPageScreen': const MyPageScreen(),
+      'MemberMembershipScreen': const MemberMembershipScreen(),
+      'MemberGoalScreen': const MemberGoalScreen(),
+      'EvidenceLibraryScreen': const EvidenceLibraryScreen(),
+      'BodyCompositionScreen': const BodyCompositionScreen(),
+      'CoachingDetailScreen': const CoachingDetailScreen(),
+      'WorkspaceScreen': const WorkspaceScreen(role: UserRole.trainer),
+      'AdminSystemScreen': const AdminSystemScreen(),
+      'AdminContentRoutinesScreen': const AdminContentRoutinesScreen(),
+      'AdminContentReportsScreen': const AdminContentReportsScreen(),
+      'AdminUserSanctionHistoryScreen': const AdminUserSanctionHistoryScreen(),
+      'AdminContentMinorAlertsScreen': const AdminContentMinorAlertsScreen(),
+      'BusinessSettingsListScreen': const BusinessSettingsListScreen(
+        role: UserRole.trainer,
+      ),
+      'BusinessSettingsPlanScreen': const BusinessSettingsPlanScreen(
+        role: UserRole.trainer,
+      ),
+      'SettlementRefundsPage': const SettlementRefundsPage(role: UserRole.gym),
+      'SettlementCommissionPage': const SettlementCommissionPage(
+        role: UserRole.gym,
+      ),
+      'SettlementFinalConfirmPage': const SettlementFinalConfirmPage(
+        role: UserRole.gym,
+      ),
+      'TrainerSettlementBreakdownPage': const TrainerSettlementBreakdownPage(
+        role: UserRole.trainer,
+      ),
+      'WelcomeScreen': const WelcomeScreen(),
+      'EmailAuthScreen': const EmailAuthScreen(),
+      'RecommendationProfileScreen': const RecommendationProfileScreen(),
+    };
+
+    final broken = <String>[];
+    for (final entry in screens.entries) {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = narrow;
+      tester.view.viewPadding = const FakeViewPadding(bottom: navBar);
+      tester.view.padding = const FakeViewPadding(bottom: navBar);
+      addTearDown(tester.view.reset);
+
+      final state = AppState();
+      await state.initialize();
+      addTearDown(state.dispose);
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(theme: SetflowTheme.light, home: entry.value),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final error = tester.takeException();
+      if (error != null) broken.add('${entry.key}: $error');
+    }
+    expect(broken, isEmpty, reason: '320px 폰에서 이 화면들이 넘친다');
   });
 }
