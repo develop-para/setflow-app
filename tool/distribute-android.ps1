@@ -248,7 +248,11 @@ if (-not $NoTag) {
     else {
         Invoke-Git @('tag', '-a', $tag, '-m', "Setflow $versionName+$buildNumber distributed to testers") | Out-Null
         Write-Host "Tagged $tag"
-        & git -C $repoRoot push origin $tag 2>&1 | Out-Null
+        # PS 5.1에서 네이티브 명령에 2>&1을 걸면 git이 stderr로 쓰는 성공
+        # 메시지("To https://...")까지 ErrorRecord로 감싸 스크립트가 exit 1로
+        # 끝난다 — 배포가 다 되고도 실패로 보고된 원인. stderr는 건드리지
+        # 않고 $LASTEXITCODE만 본다.
+        & git -C $repoRoot push origin $tag | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Could not push $tag to origin. Push it manually so the next build's notes start from here: git push origin $tag" -ForegroundColor Yellow
         }
