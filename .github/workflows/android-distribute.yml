@@ -91,6 +91,14 @@ jobs:
               echo "::error::Build number $BUILD_NUMBER is not greater than the last distributed build $LAST_NUMBER. History was probably rewritten; testers could not install this build."
               exit 1
             fi
+
+            # versionName rule (docs/versioning.md): every distribution bumps
+            # x.y.z. Same gate as tool/distribute-android.ps1.
+            LAST_VERSION_NAME=$(git show "$LAST_TAG:pubspec.yaml" 2>/dev/null | grep -oP '(?m)^version:[ \t]*\K[0-9]+\.[0-9]+\.[0-9]+' || true)
+            if [ -n "$LAST_VERSION_NAME" ] && [ "$LAST_VERSION_NAME" = "$VERSION_NAME" ]; then
+              echo "::error::versionName $VERSION_NAME is unchanged since $LAST_TAG. Bump pubspec's x.y.z (MINOR for features, PATCH for fixes) before distributing - docs/versioning.md."
+              exit 1
+            fi
           fi
 
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"

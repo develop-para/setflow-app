@@ -150,6 +150,20 @@ if (-not $Force -and -not [string]::IsNullOrWhiteSpace($lastTag)) {
     if ($buildNumber -le $lastNumber) {
         throw "Build $buildNumber was already distributed as $lastTag. Android refuses to install a build whose versionCode is not higher, so testers would never receive this one. Commit your work first (the build number is the commit count), or pass -Force to re-upload anyway."
     }
+
+    # versionName rule (docs/versioning.md): every distribution bumps x.y.z —
+    # feat in the batch means MINOR+, otherwise PATCH. Without this gate the
+    # name sat at 1.0.0 for a hundred builds and meant nothing to testers.
+    $lastPubspec = & git -C $repoRoot show "${lastTag}:pubspec.yaml" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $lastPubspec) {
+        $lastVersionLine = @($lastPubspec) | Where-Object { $_ -match '^version:' } | Select-Object -First 1
+        if ($lastVersionLine -match 'version:\s*([0-9]+\.[0-9]+\.[0-9]+)') {
+            $lastVersionName = $Matches[1]
+            if ($lastVersionName -eq $versionName) {
+                throw "versionName $versionName is unchanged since $lastTag. Rule: every distribution bumps pubspec's x.y.z - MINOR for feature batches, PATCH for fix-only ones (docs/versioning.md). Bump it, commit, and rerun; or pass -Force if you really mean to reship the same name."
+            }
+        }
+    }
 }
 
 Write-Host "Distributing Setflow $versionName+$buildNumber (previous: $(if ($lastTag) { $lastTag } else { 'none' }))" -ForegroundColor Green
