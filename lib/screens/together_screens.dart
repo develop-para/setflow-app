@@ -227,17 +227,32 @@ class _TogetherScreenState extends State<TogetherScreen> {
     final state = AppScope.of(context);
     final live = _liveSetOfToday(state);
     var rest = state.restDefaultSeconds;
+    String? exerciseName;
+    int? setNumber;
+    int? setTotal;
     if (live != null) {
       final (exercise, set) = live;
       rest = set.restSeconds > 0 ? set.restSeconds : rest;
+      exerciseName = exercise.template.name;
+      setNumber = set.number;
+      setTotal = exercise.sets.length;
       // 휴식은 방이 정한 공유 시각으로 시작해야 한다 — 여기서 로컬 타이머를
       // 켜면 서버 echo와 두 개가 돈다.
       await state.toggleSet(set, startRest: false);
       state.adoptActualIntoPendingSets(exercise, set);
       if (!mounted) return;
     }
+    // 전광판 볼륨은 완료 반영 후의 오늘 합계다.
+    final volume = state.sessions[state.dateOnly(DateTime.now())]?.volume ?? 0;
     await _run(
-      () => _repository!.reportSetDone(partyId: _party!.id, restSeconds: rest),
+      () => _repository!.reportSetDone(
+        partyId: _party!.id,
+        restSeconds: rest,
+        exerciseName: exerciseName,
+        setNumber: setNumber,
+        setTotal: setTotal,
+        totalVolume: volume,
+      ),
     );
   }
 
@@ -611,14 +626,7 @@ class _PartyRoom extends StatelessWidget {
           onChanged: onModeChanged,
         ),
         const SizedBox(height: SetflowSpacing.lg),
-        for (final member in party.members) ...[
-          _MemberCard(
-            member: member,
-            isMe: member.userId == userId,
-            hasTurn: party.currentTurnUserId == member.userId,
-          ),
-          const SizedBox(height: SetflowSpacing.sm),
-        ],
+        _Scoreboard(party: party, userId: userId),
         _LiveSetCard(
           liveSet: liveSet,
           onOpenRecord: onOpenRecord,
@@ -1169,64 +1177,253 @@ class _Countdown extends StatelessWidget {
   }
 }
 
-class _MemberCard extends StatelessWidget {
-  const _MemberCard({
+/// 전광판. "친구가 어디까지 했나"가 한눈에 — 세트 수로 순위를 매기고,
+/// 각자 지금 무슨 종목의 몇 세트째인지와 오늘 볼륨을 같이 적는다.
+///
+/// 경쟁은 세트 수 하나로만 잰다. 볼륨은 체급 따라 다르니 참고 숫자로 두고,
+/// 순위 배지는 실제로 앞선 사람(동률 제외)에게만 붙는다.
+class _Scoreboard extends StatelessWidget {
+  const _Scoreboard({required this.party, required this.userId});
+
+  final TrainingParty party;
+  final String? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ranked = party.members.toList()
+      ..sort((a, b) {
+        final bySets = b.completedSets.compareTo(a.completedSets);
+        return bySets != 0 ? bySets : a.turnOrder.compareTo(b.turnOrder);
+      });
+    final maxSets = ranked.isEmpty ? 0 : ranked.first.completedSets;
+    final race = party.members.length > 1 && maxSets > 0;
+
+    return Column(
+      children: [
+        for (final (index, member) in ranked.indexed) ...[
+          _ScoreboardRow(
+            member: member,
+            isMe: member.userId == userId,
+            hasTurn:
+                party.mode == PartyMode.alternating &&
+                party.currentTurnUserId == member.userId,
+            rank: race ? index + 1 : null,
+            leading:
+                race &&
+                index == 0 &&
+                (ranked.length < 2 ||
+                    ranked[1].completedSets < member.completedSets),
+            maxSets: maxSets,
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+        ],
+        if (race)
+          Padding(
+            padding: const EdgeInsets.only(top: SetflowSpacing.xxs),
+            child: Text(
+              _raceLine(ranked),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 전광판 아래 한 줄 — 격차가 곧 응원이다.
+  String _raceLine(List<PartyMember> ranked) {
+    if (ranked.length < 2) return '';
+    final gap = ranked[0].completedSets - ranked[1].completedSets;
+    if (gap == 0) return '동률이에요 — 다음 세트가 승부처';
+    final chasing = ranked[1].userId == userId;
+    return chasing
+        ? '${ranked[0].displayName}님이 $gap세트 앞서요 — 따라잡아요!'
+        : '${ranked[0].displayName}님이 $gap세트 앞서는 중';
+  }
+}
+
+class _ScoreboardRow extends StatelessWidget {
+  const _ScoreboardRow({
     required this.member,
     required this.isMe,
     required this.hasTurn,
+    required this.rank,
+    required this.leading,
+    required this.maxSets,
   });
 
   final PartyMember member;
   final bool isMe;
   final bool hasTurn;
 
+  /// 경쟁이 시작된 뒤(2명 이상, 1세트 이상)에만 순위가 있다.
+  final int? rank;
+  final bool leading;
+  final int maxSets;
+
+  String get _statusLabel {
+    if (member.state == PartyMemberState.resting) {
+      final left = member.restRemainingSeconds;
+      if (left > 0) {
+        return '휴식 ${(left ~/ 60).toString().padLeft(2, '0')}:'
+            '${(left % 60).toString().padLeft(2, '0')}';
+      }
+    }
+    if (member.state == PartyMemberState.lifting) return '세트 중';
+    if (hasTurn) return '차례';
+    return '대기';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = context.setflowColors;
-    final (label, tone) = switch (member.state) {
-      PartyMemberState.lifting => ('운동 중', colors.success),
-      PartyMemberState.resting => (
-        '휴식 ${member.restRemainingSeconds}초',
-        colors.info,
-      ),
-      PartyMemberState.waiting => ('대기 중', theme.colorScheme.onSurfaceVariant),
-    };
+    final lifting = member.state == PartyMemberState.lifting;
+    final doing = member.currentExercise;
+    final progress = maxSets <= 0
+        ? 0.0
+        : (member.completedSets / maxSets).clamp(0.0, 1.0);
 
-    return SetflowCard(
-      child: Row(
+    return Container(
+      key: ValueKey('scoreboard-${member.userId}'),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.lg,
+        SetflowSpacing.md2,
+        SetflowSpacing.lg,
+        SetflowSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: context.setflowColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(SetflowRadii.md),
+        // 지금 들고 있는 사람이 전광판에서 빛난다.
+        border: Border.all(
+          color: lifting
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outlineVariant,
+          width: lifting ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isMe ? '${member.displayName} (나)' : member.displayName,
-                  style: theme.textTheme.titleMedium,
+          Row(
+            children: [
+              if (leading) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: SetflowSpacing.sm,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(SetflowRadii.full),
+                  ),
+                  child: Text(
+                    '1위',
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimary,
+                      fontSize: SetflowFontSize.small,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: SetflowSpacing.xxs),
+                const SizedBox(width: SetflowSpacing.sm),
+              ] else if (rank != null) ...[
                 Text(
-                  '${member.completedSets}세트 완료',
+                  '$rank위',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: SetflowWeight.strong,
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+              ],
+              Expanded(
+                child: Text(
+                  isMe ? '${member.displayName} (나)' : member.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              Text(
+                _statusLabel,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: lifting
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.onSurfaceVariant,
+                  fontWeight: SetflowWeight.strong,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(
+                  doing == null
+                      ? '아직 세트 전이에요'
+                      : '$doing · ${member.currentSetNumber ?? '-'}'
+                            '/${member.currentSetTotal ?? '-'}세트',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${member.completedSets}',
+                      style: const TextStyle(
+                        fontSize: SetflowFontSize.title,
+                        fontWeight: SetflowWeight.display,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    TextSpan(
+                      text: '세트',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: SetflowWeight.strong,
+                      ),
+                    ),
+                    if (member.totalVolume > 0)
+                      TextSpan(
+                        text:
+                            '  ${member.totalVolume >= 1000 ? '${(member.totalVolume / 1000).toStringAsFixed(1)}t' : '${member.totalVolume.toStringAsFixed(0)}kg'}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          if (hasTurn)
-            Padding(
-              padding: const EdgeInsets.only(right: SetflowSpacing.sm),
-              child: Icon(
-                SetflowIcons.partyStart,
-                size: SetflowSpacing.xl,
-                color: theme.colorScheme.onSurface,
+          if (maxSets > 0) ...[
+            const SizedBox(height: SetflowSpacing.sm),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(SetflowRadii.xs),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 3,
+                backgroundColor: theme.colorScheme.outlineVariant,
+                valueColor: AlwaysStoppedAnimation(
+                  isMe
+                      ? theme.colorScheme.primary
+                      : context.setflowColors.disabled,
+                ),
               ),
             ),
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(color: tone),
-          ),
+          ],
         ],
       ),
     );

@@ -118,9 +118,17 @@ class SupabaseTogetherRepository implements TogetherRepository {
   Future<TrainingParty> reportSetDone({
     required String partyId,
     required int restSeconds,
+    String? exerciseName,
+    int? setNumber,
+    int? setTotal,
+    double? totalVolume,
   }) => _rpc('report_training_party_set', {
     'p_party_id': partyId,
     'p_rest_seconds': restSeconds,
+    'p_exercise': ?exerciseName,
+    'p_set_number': ?setNumber,
+    'p_set_total': ?setTotal,
+    'p_volume': ?totalVolume,
   });
 
   @override
@@ -250,6 +258,10 @@ class SupabaseTogetherRepository implements TogetherRepository {
     restEndsAt: _time(json['rest_ends_at']),
     completedSets: (json['completed_sets'] as num?)?.toInt() ?? 0,
     turnOrder: (json['turn_order'] as num?)?.toInt() ?? 0,
+    currentExercise: json['current_exercise'] as String?,
+    currentSetNumber: (json['current_set_number'] as num?)?.toInt(),
+    currentSetTotal: (json['current_set_total'] as num?)?.toInt(),
+    totalVolume: (json['total_volume'] as num?)?.toDouble() ?? 0,
   );
 
   OfferedRoutine? _offerFrom(Map<String, dynamic> json) {

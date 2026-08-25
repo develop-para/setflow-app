@@ -59,6 +59,10 @@ class PartyMember {
     this.restEndsAt,
     this.completedSets = 0,
     this.turnOrder = 0,
+    this.currentExercise,
+    this.currentSetNumber,
+    this.currentSetTotal,
+    this.totalVolume = 0,
   });
 
   final String userId;
@@ -73,6 +77,14 @@ class PartyMember {
   /// the order does not reshuffle when someone's row is rewritten.
   final int turnOrder;
 
+  /// 전광판 정보 — 지금 무슨 종목의 몇 세트째인지, 오늘 볼륨이 얼마인지.
+  /// 세트를 보고할 때 각자 자기 기록에서 실어 보낸다. 표시용 수치이지
+  /// 장부가 아니다 — 진실은 각자의 오늘 기록에 있다.
+  final String? currentExercise;
+  final int? currentSetNumber;
+  final int? currentSetTotal;
+  final double totalVolume;
+
   int get restRemainingSeconds {
     final endsAt = restEndsAt;
     if (endsAt == null) return 0;
@@ -85,6 +97,10 @@ class PartyMember {
     Object? restEndsAt = _unset,
     int? completedSets,
     int? turnOrder,
+    String? currentExercise,
+    int? currentSetNumber,
+    int? currentSetTotal,
+    double? totalVolume,
   }) => PartyMember(
     userId: userId,
     displayName: displayName,
@@ -94,6 +110,10 @@ class PartyMember {
         : restEndsAt as DateTime?,
     completedSets: completedSets ?? this.completedSets,
     turnOrder: turnOrder ?? this.turnOrder,
+    currentExercise: currentExercise ?? this.currentExercise,
+    currentSetNumber: currentSetNumber ?? this.currentSetNumber,
+    currentSetTotal: currentSetTotal ?? this.currentSetTotal,
+    totalVolume: totalVolume ?? this.totalVolume,
   );
 }
 
@@ -228,6 +248,10 @@ abstract interface class TogetherRepository {
   Future<TrainingParty> reportSetDone({
     required String partyId,
     required int restSeconds,
+    String? exerciseName,
+    int? setNumber,
+    int? setTotal,
+    double? totalVolume,
   });
 
   Future<TrainingParty> offerRoutine({
@@ -392,6 +416,10 @@ class MemoryTogetherBackend {
     required String partyId,
     required String userId,
     required int restSeconds,
+    String? exerciseName,
+    int? setNumber,
+    int? setTotal,
+    double? totalVolume,
     DateTime? now,
   }) {
     final party = _require(partyId);
@@ -411,6 +439,12 @@ class MemoryTogetherBackend {
                   completedSets: member.userId == userId
                       ? member.completedSets + 1
                       : member.completedSets,
+                  currentExercise: member.userId == userId
+                      ? exerciseName
+                      : null,
+                  currentSetNumber: member.userId == userId ? setNumber : null,
+                  currentSetTotal: member.userId == userId ? setTotal : null,
+                  totalVolume: member.userId == userId ? totalVolume : null,
                 ),
               )
               .toList(),
@@ -435,6 +469,10 @@ class MemoryTogetherBackend {
               state: PartyMemberState.resting,
               restEndsAt: at,
               completedSets: member.completedSets + 1,
+              currentExercise: exerciseName,
+              currentSetNumber: setNumber,
+              currentSetTotal: setTotal,
+              totalVolume: totalVolume,
             );
           }
           if (member.userId == next?.userId) {
@@ -561,10 +599,18 @@ class MemoryTogetherRepository implements TogetherRepository {
   Future<TrainingParty> reportSetDone({
     required String partyId,
     required int restSeconds,
+    String? exerciseName,
+    int? setNumber,
+    int? setTotal,
+    double? totalVolume,
   }) async => backend.reportSetDone(
     partyId: partyId,
     userId: _requireUser,
     restSeconds: restSeconds,
+    exerciseName: exerciseName,
+    setNumber: setNumber,
+    setTotal: setTotal,
+    totalVolume: totalVolume,
   );
 
   @override
