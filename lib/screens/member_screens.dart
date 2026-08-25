@@ -420,7 +420,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+                // 홈도 페이지 여백은 gutter다 — 헤더만 16/8이면 아래 카드들과
+                // 양끝이 어긋나 보인다.
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.gutter,
+                  10,
+                  SetflowSpacing.gutter,
+                  10,
+                ),
                 child: LayoutBuilder(
                   builder: (context, headerConstraints) {
                     final compactHeader = headerConstraints.maxWidth < 360;
@@ -542,7 +549,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                const horizontalPadding = 12.0;
+                // 격자·요일 헤더·아래 섹션 전부 이 값 — 페이지 여백(gutter)과
+                // 같아야 요약 카드와 양끝이 맞는다.
+                const horizontalPadding = SetflowSpacing.gutter;
                 const summaryWidth = 54.0;
                 final contentWidth = constraints.maxWidth.clamp(0.0, 640.0);
                 final dayWidth =

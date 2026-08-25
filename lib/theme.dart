@@ -103,9 +103,9 @@ abstract final class SetflowTheme {
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: textTheme.headlineLarge,
-        // 24px 제목에 64px 바는 제목 위아래로 공기가 20px씩이었다 — 화면마다
-        // "헤더 여백이 크다"로 읽힌 주범. 52면 위아래 14px로 여전히 넉넉하다.
-        toolbarHeight: 52,
+        // 24px 제목에 64px 바는 위아래 공기 20px씩이라 "헤더가 비었다"로
+        // 읽혔고, 52는 반대로 "너무 붙었다"는 피드백을 받았다. 58이 그 사이다.
+        toolbarHeight: 58,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

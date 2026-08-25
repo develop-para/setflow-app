@@ -201,8 +201,8 @@ class PortalHeaderBar extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: SizedBox(
-        // 40px 알약에 52는 위아래 6px씩 — 44로 줄여도 터치 타깃(40)은 그대로다.
-        height: 44,
+        // 40px 알약. 52(위아래 6px)는 비어 보였고 44는 붙어 보였다 — 48.
+        height: 48,
         child: Stack(
           alignment: Alignment.center,
           children: [
