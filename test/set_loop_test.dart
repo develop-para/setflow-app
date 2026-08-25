@@ -242,6 +242,33 @@ void main() {
     await settle(tester, state);
   });
 
+  testWidgets('a finger-paced swipe works while the hint is showing', (
+    tester,
+  ) async {
+    // 실기기에서 좌우 스와이프가 전부 안 먹히던 버그의 회귀 잠금. 원인은
+    // 힌트 오버레이가 조건부 Stack 자식이라, 드래그 시작과 동시에 힌트가
+    // 접히며 자식 슬롯이 밀려 Dismissible이 재생성되던 것 — tester.drag는
+    // 한 프레임에 끝나 이걸 못 보고, 프레임을 나눈 이 드래그만 잡아낸다.
+    final state = await pumpDay(tester);
+    final sets = exerciseOf(state).sets;
+    expect(state.hasSwipedSet, isFalse, reason: '힌트가 살아 있는 상태여야 한다');
+
+    final row = find.byKey(const ValueKey('inline-set-weight-1'));
+    final gesture = await tester.startGesture(tester.getCenter(row));
+    for (var i = 0; i < 10; i++) {
+      await gesture.moveBy(const Offset(24, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    // 오른쪽 트랙이 열려 있어야 한다 — 여기서 0이면 제스처가 중간에 죽은 것.
+    expect(find.text('완료'), findsOneWidget, reason: '스와이프 중 트랙이 안 열렸다');
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(sets.first.completed, isTrue, reason: '손가락 속도의 스와이프가 세트를 못 끝냈다');
+    state.cancelRestTimer();
+    await settle(tester, state);
+  });
+
   test('the track chips pair their fills with on-colours', () {
     // 회귀의 실체: 삭제 칩이 fill도 전경도 error라서 빨강 위 빨강 —
     // 글자 없는 알약으로 보였다. 칩 전경은 반드시 칩과 짝지어진 on색이다.

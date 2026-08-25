@@ -2258,22 +2258,30 @@ class _SwipeableSetState extends State<_SwipeableSet>
         },
         child: AnimatedBuilder(
           animation: _hint,
+          // 오버레이 두 개를 조건부(`if`)로 넣으면 안 된다: 드래그가 시작돼
+          // 힌트가 접히는 순간 Stack 자식 개수가 바뀌고, Transform이 다른
+          // 슬롯으로 밀리며 Dismissible이 통째로 재생성된다 — 제스처가 그
+          // 자리에서 죽어 **스와이프 자체가 불가능**했다(실기기 버그).
+          // 항상 트리에 두고 투명도로만 숨긴다.
           builder: (context, child) => Stack(
             children: [
               // 밀린 행이 드러내는 트랙 — 실제 스와이프가 여는 것과 같은 면.
-              if (_hintShift > 0)
-                Positioned.fill(
+              Positioned.fill(
+                child: Opacity(
+                  opacity: _hintShift > 0 ? 1 : 0,
                   child: ColoredBox(
                     color: theme.colorScheme.primary.withValues(alpha: .16),
                   ),
                 ),
+              ),
               Transform.translate(offset: Offset(_hintShift, 0), child: child),
               // 화살표는 틈 안이 아니라 행 **위에** 홀로그램처럼 떠서 진행
               // 방향으로 순차로 깜빡인다. 틈에 넣으면 12px 안에서 잘리고,
               // 위에 띄우면 틈이 얼마나 열렸는지와 무관하다.
-              if (_hintShift > 0)
-                Positioned.fill(
-                  child: IgnorePointer(
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: _hintShift > 0 ? 1 : 0,
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Padding(
@@ -2296,6 +2304,7 @@ class _SwipeableSetState extends State<_SwipeableSet>
                     ),
                   ),
                 ),
+              ),
             ],
           ),
           child: Dismissible(
