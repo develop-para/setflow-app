@@ -9,6 +9,7 @@ import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
+import 'workout_screens.dart';
 
 /// 함께 — training with someone who is not in the room with you.
 ///
@@ -166,6 +167,19 @@ class _TogetherScreenState extends State<TogetherScreen> {
                 busy: _busy,
                 liveSet: _liveSetOfToday(AppScope.of(context)),
                 onOpenRecord: widget.onOpenRecord,
+                unit: AppScope.of(context).weightUnit,
+                onSetEdited: ({weight, reps, restSeconds}) {
+                  final live = _liveSetOfToday(AppScope.of(context));
+                  if (live == null) return;
+                  // updateSet이 클램프·저장·알림까지 맡는 정식 경로다.
+                  AppScope.of(context).updateSet(
+                    live.$2,
+                    weight: weight,
+                    reps: reps,
+                    restSeconds: restSeconds,
+                  );
+                  setState(() {});
+                },
                 onStart: () =>
                     _run(() => _repository!.startTogether(_party!.id)),
                 onSetDone: _reportSetDone,
@@ -449,6 +463,8 @@ class _PartyRoom extends StatelessWidget {
     required this.busy,
     required this.liveSet,
     required this.onOpenRecord,
+    required this.unit,
+    required this.onSetEdited,
     required this.onStart,
     required this.onSetDone,
     required this.onModeChanged,
@@ -465,6 +481,9 @@ class _PartyRoom extends StatelessWidget {
   /// 읽는다 — 여기 없는 별도 장부를 만들지 않는다.
   final (WorkoutExercise, WorkoutSetEntry)? liveSet;
   final VoidCallback? onOpenRecord;
+  final String unit;
+  final void Function({double? weight, int? reps, int? restSeconds})
+  onSetEdited;
   final VoidCallback onStart;
   final VoidCallback onSetDone;
   final ValueChanged<PartyMode> onModeChanged;
@@ -519,7 +538,12 @@ class _PartyRoom extends StatelessWidget {
           ),
           const SizedBox(height: SetflowSpacing.lg),
         ],
-        _LiveSetCard(liveSet: liveSet, onOpenRecord: onOpenRecord),
+        _LiveSetCard(
+          liveSet: liveSet,
+          onOpenRecord: onOpenRecord,
+          unit: unit,
+          onEdited: onSetEdited,
+        ),
         const SizedBox(height: SetflowSpacing.lg),
         // In 교대 the button is only live on your turn: a set logged out of
         // turn would move the rotation past someone who never lifted.
@@ -597,10 +621,20 @@ class _PartyRoom extends StatelessWidget {
 /// 없으면 버튼이 무엇을 끝내는지 화면 어디에도 없다 — 실기기 피드백 그대로
 /// "뭘 해야 할지 모르겠는" 방이 된다.
 class _LiveSetCard extends StatelessWidget {
-  const _LiveSetCard({required this.liveSet, required this.onOpenRecord});
+  const _LiveSetCard({
+    required this.liveSet,
+    required this.onOpenRecord,
+    required this.unit,
+    required this.onEdited,
+  });
 
   final (WorkoutExercise, WorkoutSetEntry)? liveSet;
   final VoidCallback? onOpenRecord;
+  final String unit;
+
+  /// 다이얼 적용을 상태의 정식 경로(updateSet)로 넘긴다 — 카드가 세트에
+  /// 직접 쓰면 저장·클램프·알림이 다 빠진다.
+  final void Function({double? weight, int? reps, int? restSeconds}) onEdited;
 
   @override
   Widget build(BuildContext context) {
@@ -647,39 +681,185 @@ class _LiveSetCard extends StatelessWidget {
 
     final (exercise, set) = live;
     final total = exercise.sets.length;
-    final plan = exercise.template.isCardio
-        ? '${(set.durationSeconds / 60).round()}분'
-        : '${set.weight.toStringAsFixed(set.weight % 1 == 0 ? 0 : 1)}kg × ${set.reps}회';
     return SetflowCard(
       key: const ValueKey('together-live-set'),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            exercise.template.icon,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: SetflowSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            children: [
+              Icon(
+                exercise.template.icon,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              Expanded(
+                child: Text(
                   exercise.template.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: SetflowWeight.strong),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '${set.number}세트 / $total세트 · $plan',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+              ),
+              Text(
+                '${set.number}세트 / $total세트',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: SetflowWeight.medium,
+                ),
+              ),
+            ],
+          ),
+          if (!exercise.template.isCardio) ...[
+            const SizedBox(height: SetflowSpacing.md),
+            // 방에서 세트 루프가 다 돌아야 한다 — 무게를 고치러 기록 탭에
+            // 갔다 오는 순간 "함께"가 끊긴다. 같은 다이얼, 같은 문법이다.
+            Row(
+              children: [
+                Expanded(
+                  child: _RoomDialChip(
+                    key: const ValueKey('together-dial-weight'),
+                    label: '무게',
+                    value: _decimal(set.weight),
+                    suffix: unit,
+                    onTap: () async {
+                      final result = await showNumberDial(
+                        context,
+                        title: '무게',
+                        suffix: unit,
+                        initialValue: set.weight,
+                        min: 0,
+                        max: 999,
+                        step: .5,
+                      );
+                      if (result == null) return;
+                      onEdited(weight: result);
+                    },
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.xs2),
+                Expanded(
+                  child: _RoomDialChip(
+                    key: const ValueKey('together-dial-reps'),
+                    label: '횟수',
+                    value: '${set.reps}',
+                    suffix: '회',
+                    onTap: () async {
+                      final result = await showNumberDial(
+                        context,
+                        title: '횟수',
+                        suffix: '회',
+                        initialValue: set.reps.toDouble(),
+                        min: 0,
+                        max: 100,
+                        step: 1,
+                      );
+                      if (result == null) return;
+                      onEdited(reps: result.round());
+                    },
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.xs2),
+                Expanded(
+                  child: _RoomDialChip(
+                    key: const ValueKey('together-dial-rest'),
+                    label: '휴식',
+                    value: '${set.restSeconds}',
+                    suffix: '초',
+                    onTap: () async {
+                      final result = await showNumberDial(
+                        context,
+                        title: '휴식 시간',
+                        suffix: '초',
+                        initialValue: set.restSeconds.toDouble(),
+                        min: 15,
+                        max: 600,
+                        step: 5,
+                      );
+                      if (result == null) return;
+                      onEdited(restSeconds: result.round());
+                    },
                   ),
                 ),
               ],
             ),
-          ),
+          ],
         ],
+      ),
+    );
+  }
+
+  static String _decimal(double value) =>
+      value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+}
+
+/// 기록 화면의 숫자 상자와 같은 성격: 상자가 곧 버튼이고, 다이얼의 적용이
+/// 유일한 저장 지점이다.
+class _RoomDialChip extends StatelessWidget {
+  const _RoomDialChip({
+    required this.label,
+    required this.value,
+    required this.suffix,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final String value;
+  final String suffix;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      label: '$label $value$suffix',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(SetflowRadii.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: SetflowSpacing.sm,
+            vertical: SetflowSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: context.setflowColors.surfaceContainer,
+            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+          ),
+          child: Column(
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: value,
+                      style: const TextStyle(
+                        fontSize: SetflowFontSize.body,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    TextSpan(
+                      text: suffix,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

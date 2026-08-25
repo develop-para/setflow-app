@@ -237,6 +237,32 @@ void main() {
       state.cancelRestTimer();
     });
 
+    testWidgets('the room edits the set through the same dial as the record', (
+      tester,
+    ) async {
+      // 방에서 무게를 고치러 기록 탭으로 왔다 갔다 하는 것이 실기기 불만이었다.
+      // 방의 숫자 상자가 기록과 같은 다이얼 시트를 열고, 적용이 오늘 기록의
+      // 그 세트에 저장돼야 한다.
+      final state = await pumpTogether(tester, repository: client('u-me', '나'));
+      final today = state.dateOnly(DateTime.now());
+      state.addExercise(today, state.exercises.firstWhere((e) => !e.isCardio));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('together-dial-weight')));
+      await tester.pumpAndSettle();
+      // 기록과 같은 시트: 숫자를 입력하고 적용이 유일한 저장 지점이다.
+      await tester.enterText(find.byType(TextField).last, '80');
+      await tester.tap(find.text('적용'));
+      await tester.pumpAndSettle();
+
+      final set = state.sessions[today]!.exercises.first.sets.first;
+      expect(set.weight, 80, reason: '방의 다이얼 적용이 오늘 기록의 세트에 저장되지 않았다');
+      // 칩은 값+단위를 한 Text.rich("80kg")로 그린다.
+      expect(find.text('80kg', findRichText: true), findsWidgets);
+    });
+
     testWidgets(
       'an empty day points at the record tab instead of a bare button',
       (tester) async {

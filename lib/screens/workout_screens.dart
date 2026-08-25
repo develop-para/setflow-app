@@ -1626,7 +1626,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
     required TextEditingController controller,
     required ValueChanged<double> onChanged,
   }) async {
-    final result = await _showNumberDial(
+    final result = await showNumberDial(
       context,
       title: title,
       suffix: suffix,
@@ -1660,7 +1660,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
 
 /// A number the user picks, never types in place.
 ///
-/// The box *is* the button: tapping it opens [_showNumberDial], where the value
+/// The box *is* the button: tapping it opens [showNumberDial], where the value
 /// is dialled or typed and then applied. It used to be an editable field with a
 /// tune icon hanging off its right edge — two hit targets for one number, and
 /// the icon ate the width the number needed.
@@ -2033,7 +2033,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     required TextEditingController controller,
     required ValueChanged<double> onChanged,
   }) async {
-    final result = await _showNumberDial(
+    final result = await showNumberDial(
       context,
       title: title,
       suffix: suffix,
@@ -3724,7 +3724,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
     WorkoutSetEntry set, {
     required bool editsWeight,
   }) async {
-    final result = await _showNumberDial(
+    final result = await showNumberDial(
       context,
       title: editsWeight ? '무게' : '횟수',
       suffix: editsWeight ? state.weightUnit : '회',
@@ -4051,7 +4051,9 @@ void _showExerciseGuide(BuildContext context, ExerciseTemplate template) {
   );
 }
 
-Future<double?> _showNumberDial(
+/// 숫자를 고치는 유일한 길(AGENTS.md 5). 기록 화면과 함께 방이 같은 시트를
+/// 쓴다 — 방이 자체 편집기를 갖는 순간 "적용이 유일한 저장 지점"이 둘이 된다.
+Future<double?> showNumberDial(
   BuildContext context, {
   required String title,
   required String suffix,
