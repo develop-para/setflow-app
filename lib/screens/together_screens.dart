@@ -644,7 +644,9 @@ class _Lobby extends StatelessWidget {
               ),
               const SizedBox(height: SetflowSpacing.lg),
               // 문장이 아니라 그림: 두 사람이 타이머 하나를 같이 쓰는 모습이
-              // 이 기능의 전부다.
+              // 이 기능의 전부다. 단, **예시임이 한눈에 보여야 한다** —
+              // 실기기에서 "처음 들어왔는데 왜 이 상태지?"로 읽혔다.
+              // 있는 척하는 UI 금지 규칙(AGENTS 8) 그대로: 데모에는 데모 표기.
               Container(
                 padding: const EdgeInsets.all(SetflowSpacing.md2),
                 decoration: BoxDecoration(
@@ -656,7 +658,17 @@ class _Lobby extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        for (final name in const ['나', '지훈']) ...[
+                        Text(
+                          '예시',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: .45),
+                            fontSize: SetflowFontSize.small,
+                            fontWeight: SetflowWeight.strong,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(width: SetflowSpacing.sm),
+                        for (final name in const ['나', '친구']) ...[
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: SetflowSpacing.sm2,
