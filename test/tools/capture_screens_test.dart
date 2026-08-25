@@ -283,6 +283,29 @@ void main() {
     await tester.binding.setSurfaceSize(null);
   }, skip: !_enabled);
 
+  // 폴드/태블릿 폭. 432 프레임을 걷어낸 뒤라, 넓은 화면이 섬이 아니라
+  // 풀폭으로 그려지는지 눈으로 확인한다.
+  testWidgets('capture fold width', (tester) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+          const EventChannel('com.llfbandit.app_links/events'),
+          MockStreamHandler.inline(onListen: (_, _) {}),
+        );
+    await tester.runAsync(_loadFonts);
+    await tester.binding.setSurfaceSize(const Size(840, 900));
+    await tester.pumpWidget(const SetflowApp());
+    await tester.pump(const Duration(milliseconds: 1900));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/fold_home.png');
+
+    await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/fold_record.png');
+
+    await tester.binding.setSurfaceSize(null);
+    await tester.pump(const Duration(milliseconds: 400));
+  }, skip: !_enabled);
+
   // 함께는 리포지토리가 있어야 로비/방이 열린다 — 메모리 백엔드를 물려서
   // 디자인 QA가 진짜 화면을 본다.
   testWidgets('capture together', (tester) async {

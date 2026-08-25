@@ -542,29 +542,15 @@ class _RootScreenState extends State<RootScreen> {
 class _AppFrame extends StatelessWidget {
   const _AppFrame({required this.child});
 
-  static const maxWidth = 432.0;
-
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ColoredBox(
-      color: theme.colorScheme.surfaceContainerLowest,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: maxWidth),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor,
-              boxShadow: const [
-                BoxShadow(color: Color(0x18000000), blurRadius: 32),
-              ],
-            ),
-            child: child,
-          ),
-        ),
-      ),
-    );
+    // 한때 432px 폰 프레임으로 가운데에 세웠던 자리다(웹 폭 대응). 폴드·
+    // 태블릿에서 콘텐츠가 좌우 여백에 뜬 섬으로 보인다는 실기기 피드백으로
+    // 걷어냈다 — 어떤 기기든 화면 폭을 그대로 쓰고, 여백은 각 페이지의
+    // gutter가 책임진다. builder 자리는 유지한다: 모든 라우트에 공통으로
+    // 씌울 것이 생기면 다시 이곳이다.
+    return child;
   }
 }

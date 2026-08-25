@@ -416,135 +416,119 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return SafeArea(
       child: Column(
         children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: Padding(
-                // 홈도 페이지 여백은 gutter다 — 헤더만 16/8이면 아래 카드들과
-                // 양끝이 어긋나 보인다.
-                padding: const EdgeInsets.fromLTRB(
-                  SetflowSpacing.gutter,
-                  10,
-                  SetflowSpacing.gutter,
-                  10,
-                ),
-                child: LayoutBuilder(
-                  builder: (context, headerConstraints) {
-                    final compactHeader = headerConstraints.maxWidth < 360;
-                    return Row(
-                      children: [
-                        // 제목이 남는 폭을 다 먹고 필요하면 스스로 줄어든다 —
-                        // 고정 폭 + Spacer 조합은 버튼이 하나만 늘어도 넘친다.
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: SizedBox(
-                              width: compactHeader ? 104 : null,
-                              child: PopupMenuButton<int>(
-                                tooltip: '월 선택',
-                                onSelected: (value) => setState(
-                                  () => _goToMonth(DateTime(month.year, value)),
+          Padding(
+            // 홈도 페이지 여백은 gutter다 — 헤더만 16/8이면 아래 카드들과
+            // 양끝이 어긋나 보인다.
+            padding: const EdgeInsets.fromLTRB(
+              SetflowSpacing.gutter,
+              10,
+              SetflowSpacing.gutter,
+              10,
+            ),
+            child: LayoutBuilder(
+              builder: (context, headerConstraints) {
+                final compactHeader = headerConstraints.maxWidth < 360;
+                return Row(
+                  children: [
+                    // 제목이 남는 폭을 다 먹고 필요하면 스스로 줄어든다 —
+                    // 고정 폭 + Spacer 조합은 버튼이 하나만 늘어도 넘친다.
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: compactHeader ? 104 : null,
+                          child: PopupMenuButton<int>(
+                            tooltip: '월 선택',
+                            onSelected: (value) => setState(
+                              () => _goToMonth(DateTime(month.year, value)),
+                            ),
+                            itemBuilder: (_) => List.generate(
+                              12,
+                              (i) => PopupMenuItem(
+                                value: i + 1,
+                                child: Text('${i + 1}월'),
+                              ),
+                            ),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                  vertical: 8,
                                 ),
-                                itemBuilder: (_) => List.generate(
-                                  12,
-                                  (i) => PopupMenuItem(
-                                    value: i + 1,
-                                    child: Text('${i + 1}월'),
-                                  ),
-                                ),
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerLeft,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 2,
-                                      vertical: 8,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      DateFormat('yyyy.MM').format(month),
+                                      style: theme.textTheme.headlineMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w900,
+                                          ),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          DateFormat('yyyy.MM').format(month),
-                                          style: theme.textTheme.headlineMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                        ),
-                                        const SizedBox(
-                                          width: SetflowSpacing.xxs,
-                                        ),
-                                        Icon(
-                                          Icons.keyboard_arrow_down_rounded,
-                                          size: 20,
-                                          color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
-                                      ],
+                                    const SizedBox(width: SetflowSpacing.xxs),
+                                    Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      size: 20,
+                                      color: theme.colorScheme.onSurfaceVariant,
                                     ),
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
                         ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: context.setflowColors.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(
-                              SetflowRadii.full,
-                            ),
-                            border: Border.all(
-                              color: theme.colorScheme.outlineVariant,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _MonthArrowButton(
-                                tooltip: expanded ? '이전 달' : '이전 주',
-                                icon: Icons.chevron_left_rounded,
-                                onPressed: () => _step(-1),
-                              ),
-                              Container(
-                                width: 1,
-                                height: 18,
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                              _MonthArrowButton(
-                                tooltip: expanded ? '다음 달' : '다음 주',
-                                icon: Icons.chevron_right_rounded,
-                                onPressed: () => _step(1),
-                              ),
-                            ],
-                          ),
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: context.setflowColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(SetflowRadii.full),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
                         ),
-                        // 통계와 설정은 여기 없다. 통계는 바텀바의 "통계" 탭이고
-                        // 설정은 "마이"에 있다 — 여기서 push하면 셸 위에 바텀바 없는
-                        // 사본이 하나 더 열려서 돌아갈 길이 사라진다.
-                      ],
-                    );
-                  },
-                ),
-              ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _MonthArrowButton(
+                            tooltip: expanded ? '이전 달' : '이전 주',
+                            icon: Icons.chevron_left_rounded,
+                            onPressed: () => _step(-1),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 18,
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                          _MonthArrowButton(
+                            tooltip: expanded ? '다음 달' : '다음 주',
+                            icon: Icons.chevron_right_rounded,
+                            onPressed: () => _step(1),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // 통계와 설정은 여기 없다. 통계는 바텀바의 "통계" 탭이고
+                    // 설정은 "마이"에 있다 — 여기서 push하면 셸 위에 바텀바 없는
+                    // 사본이 하나 더 열려서 돌아갈 길이 사라진다.
+                  ],
+                );
+              },
             ),
           ),
           // 이 달의 스코어보드는 달력 위에 있다 — 격자를 보기 전에 "이 달이
           // 어땠나"부터 읽힌다. 스크롤 본문이 아니라 여기 붙어야 달을 넘길 때
           // 같이 따라온다.
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  SetflowSpacing.gutter,
-                  0,
-                  SetflowSpacing.gutter,
-                  SetflowSpacing.sm2,
-                ),
-                child: _MonthSummary(month: month),
-              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              SetflowSpacing.gutter,
+              0,
+              SetflowSpacing.gutter,
+              SetflowSpacing.sm2,
             ),
+            child: _MonthSummary(month: month),
           ),
           Expanded(
             child: LayoutBuilder(
@@ -553,7 +537,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 // 같아야 요약 카드와 양끝이 맞는다.
                 const horizontalPadding = SetflowSpacing.gutter;
                 const summaryWidth = 54.0;
-                final contentWidth = constraints.maxWidth.clamp(0.0, 640.0);
+                // 폴드·태블릿에서도 화면 폭을 그대로 쓴다 — 640 클램프는 폰 프레임
+                // 시절의 유물이다.
+                final contentWidth = constraints.maxWidth;
                 final dayWidth =
                     (contentWidth - horizontalPadding * 2 - summaryWidth) / 7;
                 // 칸이 커진 것은 장식이 아니라 내용 때문이다: 한 날에 어떤
@@ -569,151 +555,138 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   child: SingleChildScrollView(
                     physics: const ClampingScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 640),
-                        child: AnimatedSwitcher(
-                          duration: SetflowMotion.standard,
-                          switchInCurve: SetflowMotion.standardCurve,
-                          switchOutCurve: SetflowMotion.standardCurve,
-                          child: Padding(
-                            key: ValueKey('${month.year}-${month.month}'),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                            ),
-                            child: Column(
-                              children: [
-                                _CalendarWeekdayHeader(
-                                  summaryWidth: summaryWidth,
-                                ),
-                                const SizedBox(height: SetflowSpacing.xs2),
-                                for (final week in weeks)
-                                  _CollapsibleWeek(
-                                    visible:
-                                        expanded || identical(week, foldedWeek),
-                                    height: rowHeight,
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        for (final day in week)
-                                          Expanded(
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(2),
-                                              child: _CalendarCell(
-                                                date: day,
-                                                session:
-                                                    state.sessions[state
-                                                        .dateOnly(day)],
-                                                unit: state.weightUnit,
-                                                feedbackCount: state
-                                                    .memberSessionFeedbackForDate(
-                                                      day,
-                                                    )
-                                                    .length,
-                                                inMonth:
-                                                    day.month == month.month,
-                                                isToday: DateUtils.isSameDay(
+                    child: AnimatedSwitcher(
+                      duration: SetflowMotion.standard,
+                      switchInCurve: SetflowMotion.standardCurve,
+                      switchOutCurve: SetflowMotion.standardCurve,
+                      child: Padding(
+                        key: ValueKey('${month.year}-${month.month}'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: horizontalPadding,
+                        ),
+                        child: Column(
+                          children: [
+                            _CalendarWeekdayHeader(summaryWidth: summaryWidth),
+                            const SizedBox(height: SetflowSpacing.xs2),
+                            for (final week in weeks)
+                              _CollapsibleWeek(
+                                visible:
+                                    expanded || identical(week, foldedWeek),
+                                height: rowHeight,
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (final day in week)
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(2),
+                                          child: _CalendarCell(
+                                            date: day,
+                                            session: state
+                                                .sessions[state.dateOnly(day)],
+                                            unit: state.weightUnit,
+                                            feedbackCount: state
+                                                .memberSessionFeedbackForDate(
                                                   day,
-                                                  DateTime.now(),
-                                                ),
-                                                onTap: () =>
-                                                    _handleDayTap(context, day),
-                                                onWorkoutDropped: (source) =>
-                                                    _handleWorkoutDrop(
-                                                      context,
-                                                      source,
-                                                      day,
-                                                    ),
-                                                onDragStarted: () {
-                                                  HapticFeedback.mediumImpact();
-                                                  setState(
-                                                    () => dragSource = day,
-                                                  );
-                                                },
-                                                onDragEnded: () {
-                                                  if (mounted) {
-                                                    setState(
-                                                      () => dragSource = null,
-                                                    );
-                                                  }
-                                                },
-                                              ),
+                                                )
+                                                .length,
+                                            inMonth: day.month == month.month,
+                                            isToday: DateUtils.isSameDay(
+                                              day,
+                                              DateTime.now(),
                                             ),
+                                            onTap: () =>
+                                                _handleDayTap(context, day),
+                                            onWorkoutDropped: (source) =>
+                                                _handleWorkoutDrop(
+                                                  context,
+                                                  source,
+                                                  day,
+                                                ),
+                                            onDragStarted: () {
+                                              HapticFeedback.mediumImpact();
+                                              setState(() => dragSource = day);
+                                            },
+                                            onDragEnded: () {
+                                              if (mounted) {
+                                                setState(
+                                                  () => dragSource = null,
+                                                );
+                                              }
+                                            },
                                           ),
-                                        SizedBox(
-                                          width: summaryWidth,
-                                          child: _WeeklySummary(week: week),
                                         ),
-                                      ],
+                                      ),
+                                    SizedBox(
+                                      width: summaryWidth,
+                                      child: _WeeklySummary(week: week),
                                     ),
+                                  ],
+                                ),
+                              ),
+                            _CalendarFoldHandle(
+                              key: const Key('calendar-fold-handle'),
+                              expanded: expanded,
+                              onPressed: _toggleExpanded,
+                            ),
+                            const SizedBox(height: SetflowSpacing.md),
+                            _MemberCoachingScheduleSection(
+                              schedules: state.coachingSchedules,
+                              memberUserId: state.businessAccess?.userId,
+                              loading: state.coachingSchedulesLoading,
+                              error: state.coachingSchedulesError,
+                              onRetry: () async {
+                                try {
+                                  await state.refreshCoachingSchedules();
+                                } catch (_) {
+                                  // The compact section keeps the retry state visible.
+                                }
+                              },
+                            ),
+                            const SizedBox(height: SetflowSpacing.xl),
+                            const _ExpertRoutinePreviewSection(),
+                            const SizedBox(height: SetflowSpacing.xl),
+                            _TogetherPreviewSection(
+                              onOpen: widget.onOpenTogether,
+                            ),
+                            if (dragSource != null)
+                              Container(
+                                margin: const EdgeInsets.only(top: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: dark
+                                      ? Colors.white12
+                                      : SetflowColors.ink,
+                                  borderRadius: BorderRadius.circular(
+                                    SetflowRadii.md,
                                   ),
-                                _CalendarFoldHandle(
-                                  key: const Key('calendar-fold-handle'),
-                                  expanded: expanded,
-                                  onPressed: _toggleExpanded,
                                 ),
-                                const SizedBox(height: SetflowSpacing.md),
-                                _MemberCoachingScheduleSection(
-                                  schedules: state.coachingSchedules,
-                                  memberUserId: state.businessAccess?.userId,
-                                  loading: state.coachingSchedulesLoading,
-                                  error: state.coachingSchedulesError,
-                                  onRetry: () async {
-                                    try {
-                                      await state.refreshCoachingSchedules();
-                                    } catch (_) {
-                                      // The compact section keeps the retry state visible.
-                                    }
-                                  },
-                                ),
-                                const SizedBox(height: SetflowSpacing.xl),
-                                const _ExpertRoutinePreviewSection(),
-                                const SizedBox(height: SetflowSpacing.xl),
-                                _TogetherPreviewSection(
-                                  onOpen: widget.onOpenTogether,
-                                ),
-                                if (dragSource != null)
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 10),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.drag_indicator_rounded,
+                                      color: SetflowColors.primary,
+                                      size: 18,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: dark
-                                          ? Colors.white12
-                                          : SetflowColors.ink,
-                                      borderRadius: BorderRadius.circular(
-                                        SetflowRadii.md,
+                                    const SizedBox(width: SetflowSpacing.sm),
+                                    Expanded(
+                                      child: Text(
+                                        '${dragSource!.month}월 ${dragSource!.day}일 운동을 다른 날짜 위에 놓아주세요',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: SetflowFontSize.caption,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.drag_indicator_rounded,
-                                          color: SetflowColors.primary,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(
-                                          width: SetflowSpacing.sm,
-                                        ),
-                                        Expanded(
-                                          child: Text(
-                                            '${dragSource!.month}월 ${dragSource!.day}일 운동을 다른 날짜 위에 놓아주세요',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: SetflowFontSize.caption,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),

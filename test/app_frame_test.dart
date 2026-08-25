@@ -3,16 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/main.dart';
 import 'package:setflow/screens/member_screens.dart';
 
-/// The app ships as a phone app *and* as a web bundle, so on a desktop browser
-/// something has to decide how wide it is. That decision has to be made once,
-/// above the Navigator — when it lived inside the home screen instead, pushed
-/// routes (the routine editor, settings, every detail screen) rendered above
-/// the frame and stretched to the full browser width. The home shell was 432px
-/// and the routine editor was 1400px, which is what a reader sees as "the width
-/// keeps changing".
+/// 폭에 대한 계약은 하나다: **셸과 그 위에 밀린 라우트의 폭이 같아야 한다.**
+/// 이 테스트가 태어난 버그가 그 폭 점프였다 — 셸은 432, 루틴 편집기는 1400.
+///
+/// 한때는 432px 폰 프레임으로 고정해 그 계약을 지켰지만, 폴드·태블릿에서
+/// 콘텐츠가 좌우 여백에 뜬 섬으로 보인다는 실기기 피드백으로 프레임을
+/// 걷어냈다. 지금의 계약: 어떤 기기든 **화면 폭을 그대로** 쓰고, 밀린
+/// 라우트도 같은 폭이다.
 void main() {
   const desktop = Size(1400, 900);
-  const frameWidth = 432.0;
 
   Future<void> launch(WidgetTester tester) async {
     await tester.binding.setSurfaceSize(desktop);
@@ -29,7 +28,7 @@ void main() {
     await launch(tester);
 
     final home = tester.getSize(find.byType(MemberShell)).width;
-    expect(home, frameWidth, reason: 'the shell itself must be framed');
+    expect(home, desktop.width, reason: '셸이 화면 폭을 다 쓰지 않는다');
 
     // Push the way every real screen does — onto the root navigator, above
     // `home:`. This is the exact mechanism that used to escape the frame.
