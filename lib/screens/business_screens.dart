@@ -199,10 +199,13 @@ class _BusinessHeader extends StatelessWidget {
         ? accent
         : Color.lerp(accent, SetflowColors.ink, .35)!;
     return Padding(
+      // 좌측은 페이지 여백(18). 우측 6은 아이콘 버튼의 내부 패딩(12)을 빼서
+      // 아이콘 글리프가 카드 오른끝(18)과 같은 선에 앉게 하는 값이다 —
+      // AppBar가 액션을 다루는 방식과 같다.
       padding: const EdgeInsets.fromLTRB(
-        SetflowSpacing.xxl,
+        SetflowSpacing.gutter,
         SetflowSpacing.lg,
-        SetflowSpacing.md,
+        SetflowSpacing.xs2,
         SetflowSpacing.md,
       ),
       child: Row(

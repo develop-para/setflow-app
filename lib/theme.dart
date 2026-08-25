@@ -106,6 +106,8 @@ abstract final class SetflowTheme {
         // 24px 제목에 64px 바는 위아래 공기 20px씩이라 "헤더가 비었다"로
         // 읽혔고, 52는 반대로 "너무 붙었다"는 피드백을 받았다. 58이 그 사이다.
         toolbarHeight: 58,
+        // 제목 시작선 = 페이지 여백. 기본 16이라 본문(18)과 2px 어긋났다.
+        titleSpacing: SetflowSpacing.gutter,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
