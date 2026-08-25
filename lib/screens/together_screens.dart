@@ -390,27 +390,109 @@ class _Lobby extends StatelessWidget {
         SetflowSpacing.xxl2,
       ),
       children: [
-        const SizedBox(height: SetflowSpacing.xxl),
-        Icon(
-          SetflowIcons.togetherActive,
-          size: SetflowSpacing.huge,
-          color: theme.colorScheme.onSurface,
-        ),
-        const SizedBox(height: SetflowSpacing.lg),
-        Text(
-          '떨어져 있어도 같이 해요',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.headlineSmall,
-        ),
-        const SizedBox(height: SetflowSpacing.sm),
-        Text(
-          '방을 만들고 코드를 알려주면 같은 신호에 시작하고,\n한 명이 세트를 끝내면 상대의 휴식도 같이 끝나요.',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        // 홈의 함께 카드와 같은 언어의 잉크 히어로 — 탭에 들어와도 같은
+        // 이야기가 이어진다.
+        Container(
+          padding: const EdgeInsets.all(SetflowSpacing.xl),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [SetflowColors.inkBlockTop, SetflowColors.inkBlockBottom],
+            ),
+            borderRadius: BorderRadius.circular(SetflowRadii.lg),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                SetflowIcons.togetherActive,
+                color: SetflowColors.brand,
+                size: 28,
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+              const Text(
+                '떨어져 있어도\n같이 운동해요',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: SetflowFontSize.headline,
+                  fontWeight: FontWeight.w900,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              Text(
+                '한 명이 세트를 끝내면 상대의 휴식도 같은 순간에 끝나요.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: .68),
+                  fontSize: SetflowFontSize.label,
+                  fontWeight: SetflowWeight.medium,
+                  height: 1.5,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: SetflowSpacing.section),
+        const SizedBox(height: SetflowSpacing.xl),
+        // 순서가 곧 정보다: 이 셋이 사용 흐름 전부다.
+        for (final (step, icon, title, detail) in const [
+          (
+            1,
+            SetflowIcons.partyCreate,
+            '방을 만들고 코드를 공유해요',
+            '전화로 불러줄 수 있는 여섯 글자예요',
+          ),
+          (2, SetflowIcons.partyStart, '준비되면 같이 시작', '두 폰이 같은 카운트다운을 세요'),
+          (
+            3,
+            SetflowIcons.setComplete,
+            '세트 끝!을 누르면',
+            '기록에 저장되고, 상대 휴식이 그 순간 끝나요',
+          ),
+        ]) ...[
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: context.setflowColors.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                ),
+                child: Text(
+                  '$step',
+                  style: const TextStyle(fontWeight: SetflowWeight.strong),
+                ),
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: SetflowSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: SetflowWeight.strong,
+                        fontSize: SetflowFontSize.label,
+                      ),
+                    ),
+                    Text(
+                      detail,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.md2),
+        ],
+        const SizedBox(height: SetflowSpacing.sm),
         if (error != null) ...[
           _Notice(message: error!),
           const SizedBox(height: SetflowSpacing.lg),
@@ -431,10 +513,14 @@ class _Lobby extends StatelessWidget {
           onPressed: busy ? null : onJoin,
         ),
         const SizedBox(height: SetflowSpacing.section),
+        // 두 방식은 방 안에서도 바꿀 수 있다 — 여기서는 소개만.
         for (final mode in PartyMode.values) ...[
           SetflowCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SetflowSpacing.lg,
+              vertical: SetflowSpacing.md2,
+            ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(mode.label, style: theme.textTheme.titleMedium),
                 const SizedBox(width: SetflowSpacing.md),
@@ -508,6 +594,15 @@ class _PartyRoom extends StatelessWidget {
         SetflowSpacing.xxl2,
       ),
       children: [
+        // 맨 위는 언제나 "지금 할 일" 하나다 — 방의 상태가 곧 다음 행동이고,
+        // 그게 안 보이면 기능이 있어도 뭘 해야 할지 모르는 방이 된다.
+        _RoomStatusHero(
+          party: party,
+          userId: userId,
+          countdown: countdown,
+          myTurn: myTurn,
+        ),
+        const SizedBox(height: SetflowSpacing.lg),
         _CodeCard(code: party.code),
         const SizedBox(height: SetflowSpacing.lg),
         _ModePicker(
@@ -516,10 +611,6 @@ class _PartyRoom extends StatelessWidget {
           onChanged: onModeChanged,
         ),
         const SizedBox(height: SetflowSpacing.lg),
-        if (countdown > 0) ...[
-          _Countdown(seconds: countdown),
-          const SizedBox(height: SetflowSpacing.lg),
-        ],
         for (final member in party.members) ...[
           _MemberCard(
             member: member,
@@ -527,16 +618,6 @@ class _PartyRoom extends StatelessWidget {
             hasTurn: party.currentTurnUserId == member.userId,
           ),
           const SizedBox(height: SetflowSpacing.sm),
-        ],
-        if (party.members.length == 1) ...[
-          Text(
-            '코드를 공유하고 친구를 기다리고 있어요. 들어오면 같이 시작을 누르세요.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.lg),
         ],
         _LiveSetCard(
           liveSet: liveSet,
@@ -860,6 +941,106 @@ class _RoomDialChip extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 방의 상태를 한 문장으로 — "지금 뭘 해야 하나"의 단 하나의 답.
+///
+/// 카운트다운이 있으면 그 숫자가 히어로다. 나머지 상태는 전부 문장으로
+/// 갈린다: 혼자면 초대, 모두 대기면 시작, 교대면 누구 차례인지.
+class _RoomStatusHero extends StatelessWidget {
+  const _RoomStatusHero({
+    required this.party,
+    required this.userId,
+    required this.countdown,
+    required this.myTurn,
+  });
+
+  final TrainingParty party;
+  final String? userId;
+  final int countdown;
+  final bool myTurn;
+
+  (String, String) _copyOf() {
+    if (party.members.length == 1) {
+      return ('친구를 초대하세요', '아래 코드를 알려주면 같은 방에 들어와요');
+    }
+    final me = userId == null ? null : party.memberOf(userId!);
+    final resting = me?.state == PartyMemberState.resting;
+    if (resting && (me?.restRemainingSeconds ?? 0) > 0) {
+      final left = me!.restRemainingSeconds;
+      final clock =
+          '${(left ~/ 60).toString().padLeft(2, '0')}:'
+          '${(left % 60).toString().padLeft(2, '0')}';
+      return (
+        '휴식 $clock',
+        party.mode == PartyMode.alternating
+            ? '상대가 세트를 끝내면 바로 내 차례예요'
+            : '휴식이 끝나면 같이 다음 세트로',
+      );
+    }
+    if (party.mode == PartyMode.alternating) {
+      if (myTurn) {
+        return ('내 차례예요', '세트를 마치면 아래 버튼으로 넘겨주세요');
+      }
+      final turnName = party.currentTurnUserId == null
+          ? null
+          : party.memberOf(party.currentTurnUserId!)?.displayName;
+      if (turnName != null) {
+        return ('$turnName님 차례', '기다리는 동안 다음 세트 무게를 맞춰두세요');
+      }
+    }
+    if (me?.state == PartyMemberState.lifting) {
+      return ('세트 중', '끝나면 아래 버튼을 눌러 같이 쉬어요');
+    }
+    return ('준비되면 같이 시작', '모두 모였어요 — 같이 시작을 누르세요');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (countdown > 0) {
+      return _Countdown(seconds: countdown);
+    }
+    final (headline, detail) = _copyOf();
+    return Container(
+      key: const ValueKey('together-status-hero'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: SetflowSpacing.xl,
+        vertical: SetflowSpacing.lg,
+      ),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [SetflowColors.inkBlockTop, SetflowColors.inkBlockBottom],
+        ),
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            headline,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: SetflowFontSize.titleLarge,
+              fontWeight: FontWeight.w900,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.xxs),
+          Text(
+            detail,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: .68),
+              fontSize: SetflowFontSize.label,
+              fontWeight: SetflowWeight.medium,
+            ),
+          ),
+        ],
       ),
     );
   }

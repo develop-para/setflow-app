@@ -278,6 +278,31 @@ void main() {
       },
     );
 
+    testWidgets('the hero always answers "what do I do now"', (tester) async {
+      // "기능은 있는데 뭘 해야 할지 모르겠다"던 피드백의 잠금 — 방 맨 위에는
+      // 언제나 지금 할 일 한 문장이 있어야 한다.
+      final state = await pumpTogether(tester, repository: client('u-me', '나'));
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+
+      // 혼자: 초대가 할 일이다.
+      expect(
+        find.byKey(const ValueKey('together-status-hero')),
+        findsOneWidget,
+      );
+      expect(find.text('친구를 초대하세요'), findsOneWidget);
+
+      // 친구가 들어오면: 시작이 할 일이다. 코드는 화면의 코드 카드에서 읽는다.
+      final codeText = tester.widget<Text>(
+        find.byKey(const ValueKey('together-code')),
+      );
+      await client('u-friend', '친구').joinParty(codeText.data!);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      expect(find.text('준비되면 같이 시작'), findsOneWidget);
+      state.cancelRestTimer();
+    });
+
     testWidgets('leaving puts me back in the lobby', (tester) async {
       await pumpTogether(tester, repository: client('u-me', '나'));
       await tester.tap(find.byKey(const ValueKey('together-create')));
