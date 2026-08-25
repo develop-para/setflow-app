@@ -339,6 +339,29 @@ void main() {
       state.cancelRestTimer();
     });
 
+    test('a seventh member is refused — the room caps at six', () async {
+      final host = client('u-1', '1번');
+      final party = await host.createParty(mode: PartyMode.together);
+      for (var i = 2; i <= 6; i++) {
+        await client('u-$i', '$i번').joinParty(party.code);
+      }
+      expect(backend.partyById(party.id)!.members, hasLength(6));
+
+      await expectLater(
+        client('u-7', '7번').joinParty(party.code),
+        throwsA(
+          isA<TogetherFailure>().having(
+            (f) => f.message,
+            'message',
+            contains('최대 6명'),
+          ),
+        ),
+      );
+      // 이미 들어와 있는 사람의 재입장은 정원과 무관하다.
+      final rejoined = await client('u-3', '3번').joinParty(party.code);
+      expect(rejoined.members, hasLength(6));
+    });
+
     testWidgets('leaving puts me back in the lobby', (tester) async {
       await pumpTogether(tester, repository: client('u-me', '나'));
       await tester.tap(find.byKey(const ValueKey('together-create')));

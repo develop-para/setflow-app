@@ -71,6 +71,9 @@ class SupabaseTogetherRepository implements TogetherRepository {
     if (message.contains('party not found')) {
       return '그런 코드의 방이 없어요. 다시 확인해주세요.';
     }
+    if (message.contains('party full')) {
+      return '방이 가득 찼어요. 한 방에는 최대 6명까지예요.';
+    }
     if (message.contains('not a member')) return '이 방에서 나간 상태예요.';
     if (message.contains('auth required')) return '함께 운동하려면 로그인이 필요해요.';
     return '지금은 연결이 어려워요. 잠시 후 다시 시도해주세요.';

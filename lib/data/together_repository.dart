@@ -24,6 +24,11 @@ import 'dart:math';
 
 import '../models.dart';
 
+/// 방 정원. 서버(join_training_party)와 메모리 백엔드가 같은 값을 강제한다 —
+/// 화면이 명단이 되는 것, 교대 대기가 늘어지는 것, 유출된 코드로 무한정
+/// 들어오는 것을 막는 한 숫자다.
+const int maxPartyMembers = 6;
+
 /// How the room decides who lifts when.
 enum PartyMode {
   /// Everyone starts on the same countdown and rests on the same clock. The
@@ -324,6 +329,10 @@ class MemoryTogetherBackend {
     final party = partyByCode(code);
     if (party == null) {
       throw const TogetherFailure('그런 코드의 방이 없어요. 다시 확인해주세요.');
+    }
+    if (!party.members.any((m) => m.userId == userId) &&
+        party.members.length >= maxPartyMembers) {
+      throw const TogetherFailure('방이 가득 찼어요. 한 방에는 최대 6명까지예요.');
     }
     if (party.memberOf(userId) != null) return party;
     final members = [
