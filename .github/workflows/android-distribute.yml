@@ -85,9 +85,15 @@ jobs:
           # Guard against a rewritten history producing a versionCode that
           # Android would refuse to install over the previous release.
           LAST_TAG=$(git tag -l 'dist/*' --sort=-version:refname | head -n 1)
+          ALREADY=false
           if [ -n "$LAST_TAG" ]; then
             LAST_NUMBER=${LAST_TAG#dist/}
-            if [ "$BUILD_NUMBER" -le "$LAST_NUMBER" ]; then
+            # 같은 번호의 태그가 이 커밋을 가리키면 로컬 스크립트가 먼저 배포한
+            # 것이다 — 같은 빌드를 또 올리지 않고 성공으로 건너뛴다.
+            if [ "$BUILD_NUMBER" -eq "$LAST_NUMBER" ]               && [ "$(git rev-parse "$LAST_TAG^{commit}" 2>/dev/null)" = "$(git rev-parse HEAD)" ]; then
+              echo "Build $BUILD_NUMBER was already distributed from this commit ($LAST_TAG). Skipping."
+              ALREADY=true
+            elif [ "$BUILD_NUMBER" -le "$LAST_NUMBER" ]; then
               echo "::error::Build number $BUILD_NUMBER is not greater than the last distributed build $LAST_NUMBER. History was probably rewritten; testers could not install this build."
               exit 1
             fi
@@ -95,7 +101,7 @@ jobs:
             # versionName rule (docs/versioning.md): every distribution bumps
             # x.y.z. Same gate as tool/distribute-android.ps1.
             LAST_VERSION_NAME=$(git show "$LAST_TAG:pubspec.yaml" 2>/dev/null | grep -oP '(?m)^version:[ \t]*\K[0-9]+\.[0-9]+\.[0-9]+' || true)
-            if [ -n "$LAST_VERSION_NAME" ] && [ "$LAST_VERSION_NAME" = "$VERSION_NAME" ]; then
+            if [ "$ALREADY" != "true" ] && [ -n "$LAST_VERSION_NAME" ] && [ "$LAST_VERSION_NAME" = "$VERSION_NAME" ]; then
               echo "::error::versionName $VERSION_NAME is unchanged since $LAST_TAG. Bump pubspec's x.y.z (MINOR for features, PATCH for fixes) before distributing - docs/versioning.md."
               exit 1
             fi
@@ -104,9 +110,11 @@ jobs:
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
           echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+          echo "already=$ALREADY" >> "$GITHUB_OUTPUT"
           echo "Version $VERSION_NAME+$BUILD_NUMBER (previous: ${LAST_TAG:-none})"
 
       - name: Build release notes
+        if: steps.version.outputs.already != 'true'
         id: notes
         env:
           OVERRIDE: ${{ inputs.notes }}
@@ -140,6 +148,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Restore signing keystore
+        if: steps.version.outputs.already != 'true'
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -162,6 +171,7 @@ jobs:
           EOF
 
       - name: Build release APK
+        if: steps.version.outputs.already != 'true'
         env:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
@@ -171,6 +181,7 @@ jobs:
             --build-number="$BUILD_NUMBER"
 
       - name: Verify signing
+        if: steps.version.outputs.already != 'true'
         run: |
           set -euo pipefail
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
@@ -182,9 +193,11 @@ jobs:
           fi
 
       - name: Install Firebase CLI
+        if: steps.version.outputs.already != 'true'
         run: npm install -g firebase-tools@15
 
       - name: Authenticate to Google Cloud
+        if: steps.version.outputs.already != 'true'
         # Writes a credential file and exports GOOGLE_APPLICATION_CREDENTIALS,
         # which the Firebase CLI picks up automatically.
         uses: google-github-actions/auth@v2
@@ -193,6 +206,7 @@ jobs:
           service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
 
       - name: Distribute to testers
+        if: steps.version.outputs.already != 'true'
         env:
           # Passed as an environment variable rather than interpolated into the
           # script: a commit subject containing a quote would otherwise close
@@ -265,6 +279,7 @@ jobs:
           exit $STATUS
 
       - name: Tag distributed build
+        if: steps.version.outputs.already != 'true'
         env:
           BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
