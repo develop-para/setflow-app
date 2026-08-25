@@ -832,21 +832,30 @@ class _PartyRoom extends StatelessWidget {
         const SizedBox(height: SetflowSpacing.lg),
         // In 교대 the button is only live on your turn: a set logged out of
         // turn would move the rotation past someone who never lifted.
-        AppButton(
-          key: const ValueKey('together-set-done'),
-          label: party.mode == PartyMode.alternating && !myTurn
-              ? '상대 차례예요'
-              : liveSet == null
-              ? '세트 끝냈어요'
-              : '${liveSet!.$2.number}세트 끝냈어요',
-          icon: SetflowIcons.setComplete,
-          isLoading: busy,
-          onPressed:
-              busy ||
-                  me == null ||
-                  (party.mode == PartyMode.alternating && !myTurn)
-              ? null
-              : onSetDone,
+        // 단, 라벨은 상태를 **정직하게** 말해야 한다 — 시작 전(차례 미정)에
+        // "상대 차례예요"는 거짓말이고, 혼자 있는 방에는 상대가 없다.
+        Builder(
+          builder: (context) {
+            final solo = party.members.length == 1;
+            final turnDecided = party.currentTurnUserId != null;
+            final gated =
+                party.mode == PartyMode.alternating && !solo && !myTurn;
+            final turnName = party.currentTurnUserId == null
+                ? null
+                : party.memberOf(party.currentTurnUserId!)?.displayName;
+            final label = !gated
+                ? (liveSet == null ? '세트 끝냈어요' : '${liveSet!.$2.number}세트 끝냈어요')
+                : turnDecided
+                ? '${turnName ?? '상대'}님 차례예요'
+                : '같이 시작으로 순서를 정해요';
+            return AppButton(
+              key: const ValueKey('together-set-done'),
+              label: label,
+              icon: SetflowIcons.setComplete,
+              isLoading: busy,
+              onPressed: busy || me == null || gated ? null : onSetDone,
+            );
+          },
         ),
         // 각자 모드에는 같이 출발할 신호가 없다 — 락스텝 모드에서만 보인다.
         if (party.mode != PartyMode.free) ...[

@@ -309,7 +309,8 @@ void main() {
         find.byKey(const ValueKey('together-set-done')),
       );
       expect(button.onPressed, isNull);
-      expect(find.text('상대 차례예요'), findsOneWidget);
+      // 누구 차례인지 이름으로 말한다 — "상대"는 익명이라 애매했다.
+      expect(find.text('나님 차례예요'), findsOneWidget);
     });
 
     testWidgets("세트 끝냈어요 logs the set in today's record, not just the room", (
