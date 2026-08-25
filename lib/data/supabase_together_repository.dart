@@ -15,20 +15,29 @@ import 'together_repository.dart';
 /// That is what makes "the turn is decided once, on the server" a property of
 /// the system rather than a convention the app agrees to follow.
 ///
-/// **[watchParty] polls, and that is an implementation detail.** The port
-/// promises a stream of rooms, not a subscription, so this can move to Realtime
-/// later without a single screen changing. Polling is survivable here only
-/// because the payload carries *instants*: a poll that arrives 1.5s late still
-/// shows a rest ending at the same wall-clock moment as everyone else's, so the
-/// lag costs you awareness, never synchrony. See `docs/backend-portability.md`.
+/// **[watchParty] rides Realtime, with a keepalive poll underneath.** The port
+/// promises a stream of rooms, not a subscription — which is exactly why this
+/// could move from 2s polling to a websocket without a single screen changing.
+/// Every mutating RPC broadcasts the whole room to the private `party:<id>`
+/// channel (`realtime.send`, authorised by an RLS policy on
+/// realtime.messages), so a partner's set shows up the moment it lands.
+///
+/// The poll did not disappear; it slowed down into a safety net. A dropped
+/// websocket, a missed message, or a cold Realtime service (its first-ever
+/// connection is what creates the messages partitions) all self-heal within
+/// one keepalive tick — and because the payload carries *instants*, a late
+/// arrival still counts down to the same wall-clock moment as everyone else.
+/// See `docs/backend-portability.md`.
 class SupabaseTogetherRepository implements TogetherRepository {
   SupabaseTogetherRepository(
     this._client, {
     required this.exerciseCatalog,
-    this.pollInterval = const Duration(seconds: 2),
+    this.pollInterval = const Duration(seconds: 10),
   });
 
   final SupabaseClient _client;
+
+  /// Keepalive cadence, not the update path — broadcasts carry the updates.
   final Duration pollInterval;
 
   /// Needed to turn an offered routine back into templates this device knows.
@@ -126,25 +135,81 @@ class SupabaseTogetherRepository implements TogetherRepository {
   });
 
   @override
-  Stream<TrainingParty> watchParty(String partyId) async* {
-    while (true) {
+  Stream<TrainingParty> watchParty(String partyId) {
+    final controller = StreamController<TrainingParty>();
+    RealtimeChannel? channel;
+    Timer? keepalive;
+    var closed = false;
+
+    void close() {
+      if (closed) return;
+      closed = true;
+      keepalive?.cancel();
+      final open = channel;
+      channel = null;
+      if (open != null) unawaited(_client.removeChannel(open));
+      unawaited(controller.close());
+    }
+
+    Future<void> fetch() async {
+      if (closed) return;
       try {
         final result = await _client.rpc<Object?>(
           'get_training_party',
           params: {'p_party_id': partyId},
         );
+        if (closed) return;
         final party = _partyFrom(result);
         // A null room means it closed or we were removed. Ending the stream
-        // lets the screen fall back to the lobby instead of polling a room
+        // lets the screen fall back to the lobby instead of watching a room
         // that no longer exists.
-        if (party == null) return;
-        yield party;
+        if (party == null) {
+          close();
+        } else {
+          controller.add(party);
+        }
       } catch (_) {
-        // A dropped poll is not a dropped room. Keep the last state on screen
-        // and try again — a transient 500 must not eject someone mid-workout.
+        // A dropped fetch is not a dropped room. Keep the last state on screen
+        // — a transient 500 must not eject someone mid-workout.
       }
-      await Future<void>.delayed(pollInterval);
     }
+
+    controller.onListen = () {
+      channel =
+          _client.channel(
+              'party:$partyId',
+              opts: const RealtimeChannelConfig(private: true),
+            )
+            ..onBroadcast(
+              event: 'party',
+              callback: (payload) {
+                if (closed) return;
+                // realtime.send 페이로드는 그대로 오지만, 클라이언트 발신 형태로
+                // 한 겹 싸여 올 가능성도 방어한다.
+                final body = payload.containsKey('party')
+                    ? payload
+                    : (payload['payload'] is Map
+                          ? Map<String, dynamic>.from(payload['payload'] as Map)
+                          : const <String, dynamic>{});
+                if (!body.containsKey('party')) return;
+                final raw = body['party'];
+                if (raw == null) {
+                  // 방이 닫혔다는 서버의 마지막 인사.
+                  close();
+                  return;
+                }
+                final party = _partyFrom(raw);
+                if (party != null) controller.add(party);
+              },
+            )
+            ..subscribe();
+      // The port promises the current state immediately on listen, and the
+      // keepalive heals anything the socket missed.
+      unawaited(fetch());
+      keepalive = Timer.periodic(pollInterval, (_) => fetch());
+    };
+    controller.onCancel = close;
+    return controller.stream;
   }
 
   TrainingParty? _partyFrom(Object? raw) {
