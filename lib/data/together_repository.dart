@@ -233,6 +233,10 @@ abstract interface class TogetherRepository {
   /// a screen never has to render an empty frame first.
   Stream<TrainingParty> watchParty(String partyId);
 
+  /// 방 하나를 한 번 읽는다. 없거나 내가 멤버가 아니면 null — 앱을 다시 켠
+  /// 사람이 저장해 둔 방으로 돌아갈 수 있는지 묻는 용도다.
+  Future<TrainingParty?> fetchParty(String partyId);
+
   Future<TrainingParty> setMode({
     required String partyId,
     required PartyMode mode,
@@ -603,6 +607,13 @@ class MemoryTogetherRepository implements TogetherRepository {
     String partyId, {
     Duration lead = const Duration(seconds: 5),
   }) async => backend.start(partyId: partyId, lead: lead);
+
+  @override
+  Future<TrainingParty?> fetchParty(String partyId) async {
+    final party = backend.partyById(partyId);
+    if (party == null || party.memberOf(_requireUser) == null) return null;
+    return party;
+  }
 
   @override
   Future<TrainingParty> reportSetDone({

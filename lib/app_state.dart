@@ -148,6 +148,10 @@ class AppState extends ChangeNotifier {
   /// 사용자가 직접 정한 것이 프로필에서 유추한 것보다 명시적이다.
   int? defaultSetCount;
   int? defaultRepCount;
+
+  /// 지금 들어가 있는 함께 방. 앱을 껐다 켜도 방으로 돌아가기 위한 기억이고,
+  /// 방이 사라졌으면 화면이 지운다.
+  String? activeTrainingPartyId;
   String memberNickname = '';
   bool useRir = false;
   bool autoStartRestTimer = true;
@@ -812,6 +816,13 @@ class AppState extends ChangeNotifier {
 
   void setRestDefaultSeconds(int seconds) {
     restDefaultSeconds = seconds.clamp(30, 600);
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setActiveTrainingParty(String? partyId) {
+    if (activeTrainingPartyId == partyId) return;
+    activeTrainingPartyId = partyId;
     _schedulePersist();
     notifyListeners();
   }
@@ -5076,6 +5087,7 @@ class AppState extends ChangeNotifier {
     restDefaultSeconds: restDefaultSeconds,
     defaultSetCount: defaultSetCount,
     defaultRepCount: defaultRepCount,
+    activeTrainingPartyId: activeTrainingPartyId,
     nickname: memberNickname.trim().isEmpty ? null : memberNickname.trim(),
     useRir: useRir,
     autoStartRestTimer: autoStartRestTimer,
@@ -5178,6 +5190,7 @@ class AppState extends ChangeNotifier {
     restDefaultSeconds = snapshot.restDefaultSeconds;
     defaultSetCount = snapshot.defaultSetCount;
     defaultRepCount = snapshot.defaultRepCount;
+    activeTrainingPartyId = snapshot.activeTrainingPartyId;
     memberNickname = snapshot.nickname?.trim() ?? '';
     useRir = snapshot.useRir;
     autoStartRestTimer = snapshot.autoStartRestTimer;
@@ -5243,6 +5256,7 @@ class AppState extends ChangeNotifier {
     restDefaultSeconds = 90;
     defaultSetCount = null;
     defaultRepCount = null;
+    activeTrainingPartyId = null;
     memberNickname = '';
     useRir = false;
     autoStartRestTimer = true;

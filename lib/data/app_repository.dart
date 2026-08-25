@@ -25,6 +25,7 @@ class AppSnapshot {
     this.hasSwipedSet = false,
     this.defaultSetCount,
     this.defaultRepCount,
+    this.activeTrainingPartyId,
     this.recommendationProfile,
     this.communityPosts = const [],
     this.consultations = const [],
@@ -60,6 +61,7 @@ class AppSnapshot {
   /// 사용자가 정한 적 없는 값과 "3으로 정했다"를 구분해야 한다.
   final int? defaultSetCount;
   final int? defaultRepCount;
+  final String? activeTrainingPartyId;
   final RecommendationProfile? recommendationProfile;
   final List<CommunityPost> communityPosts;
   final List<ConsultationData> consultations;

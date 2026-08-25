@@ -119,6 +119,7 @@ void main() {
       );
       expect(code.data, hasLength(6));
       expect(find.text('나 (나)'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
     });
 
     testWidgets('a bad code reports back instead of opening a room', (
@@ -154,6 +155,61 @@ void main() {
       expect(find.text('함께 운동 사용법'), findsOneWidget);
       expect(find.text('방을 만들고 코드를 공유해요'), findsOneWidget);
       expect(find.textContaining('최대 6명'), findsOneWidget);
+    });
+  });
+
+  group('the room comes back', () {
+    testWidgets('reopening the tab returns to the remembered room', (
+      tester,
+    ) async {
+      // "방을 만들고 같이 쓰는 중인데 로비의 방 만들기가 보인다" — 복원이
+      // 없어서 앱을 껐다 켜면 방을 잃던 문제의 잠금.
+      final repo = client('u-me', '나');
+      final state = await pumpTogether(tester, repository: repo);
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      expect(state.activeTrainingPartyId, isNotNull);
+
+      // 화면을 통째로 버리고(앱 재시작에 해당) 같은 상태로 다시 띄운다.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: const TogetherScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 로비의 방 만들기가 아니라 방이 보인다.
+      expect(find.byKey(const ValueKey('together-create')), findsNothing);
+      expect(find.byKey(const ValueKey('together-code')), findsOneWidget);
+      state.cancelRestTimer();
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('a dead room is forgotten instead of restored', (tester) async {
+      final repo = client('u-me', '나');
+      final state = await pumpTogether(tester, repository: repo);
+      state.setActiveTrainingParty('no-such-party');
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: const TogetherScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
+      expect(state.activeTrainingPartyId, isNull);
+      await tester.pump(const Duration(milliseconds: 400));
     });
   });
 
@@ -292,6 +348,7 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('오늘 기록에 운동이 없어요'), findsOneWidget);
+        await tester.pump(const Duration(milliseconds: 400));
       },
     );
 
@@ -389,6 +446,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
     });
   });
 }

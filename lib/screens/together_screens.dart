@@ -56,11 +56,56 @@ class _TogetherScreenState extends State<TogetherScreen> {
   void _watch(TrainingParty party) {
     unawaited(_subscription?.cancel());
     setState(() => _party = party);
-    _subscription = _repository?.watchParty(party.id).listen((next) {
-      if (!mounted) return;
-      _handleIncoming(next);
-    });
+    AppScope.of(context).setActiveTrainingParty(party.id);
+    _subscription = _repository
+        ?.watchParty(party.id)
+        .listen(
+          (next) {
+            if (!mounted) return;
+            _handleIncoming(next);
+          },
+          // 스트림이 끝났다 = 방이 사라졌거나 내가 빠졌다. 이 처리가 없으면
+          // 유령 방이 화면에 남는다 — 로비로 내려가고 기억도 지운다.
+          onDone: () {
+            if (!mounted) return;
+            AppScope.of(context).setActiveTrainingParty(null);
+            setState(() => _party = null);
+            _tick?.cancel();
+            _tick = null;
+          },
+        );
     _syncTicker(party);
+  }
+
+  /// 앱을 껐다 켜도 방은 이어진다 — 저장해 둔 방이 아직 살아 있고 내가
+  /// 멤버면 그대로 돌아가고, 아니면 기억을 지우고 로비를 보여준다.
+  Future<void> _resumeRemembered() async {
+    final state = AppScope.of(context);
+    final remembered = state.activeTrainingPartyId;
+    final repository = _repository;
+    if (remembered == null || repository == null || _party != null) return;
+    setState(() => _busy = true);
+    try {
+      final party = await repository.fetchParty(remembered);
+      if (!mounted) return;
+      if (party == null) {
+        state.setActiveTrainingParty(null);
+      } else {
+        _watch(party);
+      }
+    } catch (_) {
+      // 복원 실패는 로비로 두면 된다 — 코드로 다시 들어올 길이 있다.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_resumeRemembered());
+    });
   }
 
   bool _isCounting(TrainingParty party) =>
@@ -303,6 +348,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
     _subscription = null;
     _tick?.cancel();
     _tick = null;
+    AppScope.of(context).setActiveTrainingParty(null);
     try {
       await _repository!.leaveParty(party.id);
     } catch (_) {
@@ -361,11 +407,26 @@ class _CodeSheetState extends State<_CodeSheet> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: SetflowSpacing.lg),
-          AppTextField(
+          // 코드는 코드처럼 보여야 한다: 크고, 가운데, 글자 사이가 벌어진
+          // 모노스페이스 느낌. 여섯 글자가 차면 그대로 참여한다 — 버튼은
+          // 붙여넣기한 사람 몫이다.
+          TextField(
             key: const ValueKey('together-code-input'),
             controller: _controller,
-            label: '코드 6자리',
             autofocus: true,
+            textAlign: TextAlign.center,
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(
+              fontSize: SetflowFontSize.headline,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 8,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+            decoration: const InputDecoration(
+              hintText: 'ABC123',
+              counterText: '',
+            ),
+            maxLength: 6,
             textInputAction: TextInputAction.done,
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
@@ -376,14 +437,42 @@ class _CodeSheetState extends State<_CodeSheet> {
                 (_, next) => next.copyWith(text: next.text.toUpperCase()),
               ),
             ],
+            onChanged: (value) {
+              if (value.length == 6) _submit();
+            },
             onSubmitted: (_) => _submit(),
           ),
-          const SizedBox(height: SetflowSpacing.xl),
-          AppButton(
-            key: const ValueKey('together-code-submit'),
-            label: '참여하기',
-            icon: SetflowIcons.partyJoin,
-            onPressed: _submit,
+          const SizedBox(height: SetflowSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  key: const ValueKey('together-code-paste'),
+                  label: '붙여넣기',
+                  icon: Icons.content_paste_rounded,
+                  variant: AppButtonVariant.outlined,
+                  onPressed: () async {
+                    final data = await Clipboard.getData('text/plain');
+                    final text = data?.text?.trim().toUpperCase() ?? '';
+                    final code = RegExp(
+                      '[A-Z0-9]{6}',
+                    ).firstMatch(text)?.group(0);
+                    if (code == null || !mounted) return;
+                    _controller.text = code;
+                    _submit();
+                  },
+                ),
+              ),
+              const SizedBox(width: SetflowSpacing.sm),
+              Expanded(
+                child: AppButton(
+                  key: const ValueKey('together-code-submit'),
+                  label: '참여하기',
+                  icon: SetflowIcons.partyJoin,
+                  onPressed: _submit,
+                ),
+              ),
+            ],
           ),
         ],
       ),

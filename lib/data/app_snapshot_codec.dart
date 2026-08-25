@@ -38,6 +38,8 @@ abstract final class AppSnapshotCodec {
           'defaultSetCount': snapshot.defaultSetCount,
         if (snapshot.defaultRepCount != null)
           'defaultRepCount': snapshot.defaultRepCount,
+        if (snapshot.activeTrainingPartyId != null)
+          'activeTrainingPartyId': snapshot.activeTrainingPartyId,
         'useRir': snapshot.useRir,
         'autoStartRestTimer': snapshot.autoStartRestTimer,
         'autoRecommendNextExercise': snapshot.autoRecommendNextExercise,
@@ -173,6 +175,7 @@ abstract final class AppSnapshotCodec {
             (preferences['restDefaultSeconds'] as num?)?.toInt() ?? 90,
         defaultSetCount: (preferences['defaultSetCount'] as num?)?.toInt(),
         defaultRepCount: (preferences['defaultRepCount'] as num?)?.toInt(),
+        activeTrainingPartyId: preferences['activeTrainingPartyId'] as String?,
         nickname: profile['nickname'] as String?,
         useRir: preferences['useRir'] as bool? ?? false,
         autoStartRestTimer: preferences['autoStartRestTimer'] as bool? ?? true,

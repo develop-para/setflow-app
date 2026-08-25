@@ -146,6 +146,19 @@ class SupabaseTogetherRepository implements TogetherRepository {
   });
 
   @override
+  Future<TrainingParty?> fetchParty(String partyId) async {
+    try {
+      final result = await _client.rpc<Object?>(
+        'get_training_party',
+        params: {'p_party_id': partyId},
+      );
+      return _partyFrom(result);
+    } on PostgrestException {
+      return null;
+    }
+  }
+
+  @override
   Stream<TrainingParty> watchParty(String partyId) {
     final controller = StreamController<TrainingParty>();
     RealtimeChannel? channel;

@@ -537,6 +537,7 @@ class SupabaseAppRepository
       restDefaultSeconds: source.restDefaultSeconds,
       defaultSetCount: source.defaultSetCount,
       defaultRepCount: source.defaultRepCount,
+      activeTrainingPartyId: source.activeTrainingPartyId,
       nickname: source.nickname,
       useRir: source.useRir,
       autoStartRestTimer: source.autoStartRestTimer,
