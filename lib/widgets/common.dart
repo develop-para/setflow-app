@@ -1305,7 +1305,10 @@ Future<T?> showSetflowSheet<T>(
     isDismissible: isDismissible,
     enableDrag: enableDrag,
     backgroundColor: backgroundColor,
-    constraints: constraints,
+    // 머티리얼3는 넓은 화면에서 시트를 640px 가운데 섬으로 만든다 — 앱이
+    // 폴드/태블릿에서 풀폭으로 가기로 한 결정(432 프레임 제거)과 어긋난다.
+    // 시트도 화면 폭을 그대로 쓴다.
+    constraints: constraints ?? const BoxConstraints(maxWidth: double.infinity),
     // Keeps the sheet clear of the status bar; the bottom half is ours below.
     useSafeArea: true,
     builder: (sheetContext) =>

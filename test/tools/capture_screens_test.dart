@@ -302,6 +302,13 @@ void main() {
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/fold_record.png');
 
+    // 모달 바텀시트도 섬이 아니라 풀폭인지 — M3 기본은 640 가운데다.
+    await tester.tap(find.byKey(const Key('daily-load-routine')));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/fold_sheet.png');
+    await tester.tapAt(const Offset(420, 80));
+    await tester.pumpAndSettle();
+
     await tester.binding.setSurfaceSize(null);
     await tester.pump(const Duration(milliseconds: 400));
   }, skip: !_enabled);
