@@ -35,6 +35,8 @@ class MainActivity : FlutterActivity() {
                         seconds,
                         call.argument<Boolean>("showCompletionNotification") ?: true,
                         call.argument<Boolean>("vibrate") ?: true,
+                        call.argument<Boolean>("sound") ?: true,
+                        call.argument<Number>("countdownSeconds")?.toInt() ?: 30,
                     )
                     result.success(null)
                 }

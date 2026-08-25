@@ -45,6 +45,8 @@ abstract final class AppSnapshotCodec {
         'autoRecommendNextExercise': snapshot.autoRecommendNextExercise,
         'restTimerNotifications': snapshot.restTimerNotifications,
         'timerVibration': snapshot.timerVibration,
+        'timerSound': snapshot.timerSound,
+        'timerCountdownSeconds': snapshot.timerCountdownSeconds,
         'pushCoachingFeedback': snapshot.pushCoachingFeedback,
         'communityReactionNotifications':
             snapshot.communityReactionNotifications,
@@ -67,6 +69,7 @@ abstract final class AppSnapshotCodec {
               'id': exercise.id,
               'name': exercise.name,
               'muscle': exercise.muscle,
+              'measurement': exercise.measurement.name,
             },
           )
           .toList(),
@@ -114,12 +117,17 @@ abstract final class AppSnapshotCodec {
             !knownIds.add(id)) {
           continue;
         }
+        final measurement = ExerciseMeasurement.values.firstWhere(
+          (candidate) => candidate.name == value['measurement'],
+          orElse: () => ExerciseMeasurement.weightReps,
+        );
         customExercises.add(
           ExerciseTemplate(
             id: id,
             name: name,
             muscle: muscle,
             icon: exerciseIconForMuscle(muscle),
+            measurement: measurement,
           ),
         );
       }
@@ -184,6 +192,10 @@ abstract final class AppSnapshotCodec {
         restTimerNotifications:
             preferences['restTimerNotifications'] as bool? ?? true,
         timerVibration: preferences['timerVibration'] as bool? ?? true,
+        timerSound: preferences['timerSound'] as bool? ?? true,
+        timerCountdownSeconds:
+            ((preferences['timerCountdownSeconds'] as num?)?.toInt() ?? 30)
+                .clamp(0, 120),
         pushCoachingFeedback:
             preferences['pushCoachingFeedback'] as bool? ?? true,
         communityReactionNotifications:

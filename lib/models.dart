@@ -312,20 +312,43 @@ class RecommendationProfile {
   }
 }
 
+/// 세트 하나를 무엇으로 재는가. 근력은 무게×횟수지만, 맨몸운동은 무게가
+/// 없고(푸시업은 횟수만), 플랭크류는 횟수조차 없다(버티는 시간이 기록이다).
+/// 가짜 0kg을 타이핑하게 두는 대신 종목이 자기 측정 방식을 선언한다.
+enum ExerciseMeasurement {
+  /// 무게 × 횟수 — 바벨·덤벨·머신.
+  weightReps,
+
+  /// 횟수만 — 푸시업·풀업처럼 몸이 곧 중량인 운동.
+  repsOnly,
+
+  /// 시간만 — 플랭크·월싯처럼 버티는 운동.
+  duration,
+}
+
 class ExerciseTemplate {
   const ExerciseTemplate({
     required this.id,
     required this.name,
     required this.muscle,
     required this.icon,
+    this.measurement = ExerciseMeasurement.weightReps,
   });
 
   final String id;
   final String name;
   final String muscle;
   final IconData icon;
+  final ExerciseMeasurement measurement;
 
   bool get isCardio => muscle == '유산소';
+
+  /// 세트 편집에 무게 다이얼이 있는가.
+  bool get usesWeight =>
+      !isCardio && measurement == ExerciseMeasurement.weightReps;
+
+  bool get isRepsOnly => measurement == ExerciseMeasurement.repsOnly;
+  bool get isDurationHold => measurement == ExerciseMeasurement.duration;
 }
 
 IconData exerciseIconForMuscle(String muscle) => switch (muscle) {

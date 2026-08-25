@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'theme/tokens.dart';
 
@@ -108,6 +109,18 @@ abstract final class SetflowTheme {
         toolbarHeight: 58,
         // 제목 시작선 = 페이지 여백. 기본 16이라 본문(18)과 2px 어긋났다.
         titleSpacing: SetflowSpacing.gutter,
+        // 상태바는 앱의 일부다. 투명하게 두고 아이콘만 테마에 맞춰 뒤집어서,
+        // 헤더와 상태바가 한 면으로 이어지게 한다. 내비게이션 바도 같은 면.
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: brightness,
+          systemNavigationBarColor: surface,
+          systemNavigationBarIconBrightness: isDark
+              ? Brightness.light
+              : Brightness.dark,
+          systemNavigationBarDividerColor: Colors.transparent,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

@@ -1074,6 +1074,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                 : _InlineSetRow(
                                     set: set,
                                     unit: state.weightUnit,
+                                    measurement: exercise.template.measurement,
                                     onToggle: _isSetLive(exercise, set)
                                         ? () => _toggleSet(state, set)
                                         : null,
@@ -1083,6 +1084,11 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                         state.updateSet(set, weight: weight),
                                     onRepsChanged: (reps) =>
                                         state.updateSet(set, reps: reps),
+                                    onDurationChanged: (seconds) =>
+                                        state.updateSet(
+                                          set,
+                                          durationSeconds: seconds,
+                                        ),
                                     onRestChanged: (seconds) => state.updateSet(
                                       set,
                                       restSeconds: seconds,
@@ -1738,8 +1744,10 @@ class _InlineSetRow extends StatefulWidget {
     required this.onTypeChanged,
     required this.onWeightChanged,
     required this.onRepsChanged,
+    required this.onDurationChanged,
     required this.onRestChanged,
     required this.onDelete,
+    this.measurement = ExerciseMeasurement.weightReps,
   });
 
   final WorkoutSetEntry set;
@@ -1748,8 +1756,13 @@ class _InlineSetRow extends StatefulWidget {
   final ValueChanged<String> onTypeChanged;
   final ValueChanged<double> onWeightChanged;
   final ValueChanged<int> onRepsChanged;
+  final ValueChanged<int> onDurationChanged;
   final ValueChanged<int> onRestChanged;
   final VoidCallback onDelete;
+
+  /// 이 종목이 세트를 무엇으로 재는가 — 무게 다이얼을 그릴지 말지가 여기서
+  /// 갈린다. 푸시업에 무게 박스를 주면 0을 타이핑하는 일만 남는다.
+  final ExerciseMeasurement measurement;
 
   @override
   State<_InlineSetRow> createState() => _InlineSetRowState();
@@ -1758,6 +1771,7 @@ class _InlineSetRow extends StatefulWidget {
 class _InlineSetRowState extends State<_InlineSetRow> {
   late final TextEditingController weightController;
   late final TextEditingController repsController;
+  late final TextEditingController durationController;
   late final TextEditingController restController;
   bool deleteRevealed = false;
 
@@ -1769,6 +1783,9 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     super.initState();
     weightController = TextEditingController(text: _weightText());
     repsController = TextEditingController(text: '${widget.set.reps}');
+    durationController = TextEditingController(
+      text: '${widget.set.durationSeconds}',
+    );
     restController = TextEditingController(text: '${widget.set.restSeconds}');
   }
 
@@ -1784,6 +1801,9 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     if (oldWidget.set.reps != widget.set.reps) {
       repsController.text = '${widget.set.reps}';
     }
+    if (oldWidget.set.durationSeconds != widget.set.durationSeconds) {
+      durationController.text = '${widget.set.durationSeconds}';
+    }
     if (oldWidget.set.restSeconds != widget.set.restSeconds) {
       restController.text = '${widget.set.restSeconds}';
     }
@@ -1793,12 +1813,22 @@ class _InlineSetRowState extends State<_InlineSetRow> {
   void dispose() {
     weightController.dispose();
     repsController.dispose();
+    durationController.dispose();
     restController.dispose();
     super.dispose();
   }
 
   String _weightText() =>
       widget.set.weight.toStringAsFixed(widget.set.weight % 1 == 0 ? 0 : 1);
+
+  /// 95초보다 "1분 35초"가 읽힌다.
+  static String _holdText(int seconds) {
+    if (seconds < 60) return '$seconds초';
+    final remainder = seconds % 60;
+    return remainder == 0
+        ? '${seconds ~/ 60}분'
+        : '${seconds ~/ 60}분 $remainder초';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1807,14 +1837,19 @@ class _InlineSetRowState extends State<_InlineSetRow> {
         key: ValueKey('inline-set-done-${widget.set.number}'),
         number: widget.set.number,
         label: '세트',
-        summary: '${_weightText()}${widget.unit} × ${widget.set.reps}회',
+        summary: switch (widget.measurement) {
+          ExerciseMeasurement.weightReps =>
+            '${_weightText()}${widget.unit} × ${widget.set.reps}회',
+          ExerciseMeasurement.repsOnly => '${widget.set.reps}회',
+          ExerciseMeasurement.duration => _holdText(widget.set.durationSeconds),
+        },
         onExpand: () => setState(() => reopened = true),
       );
     }
-    final estimate = PerformanceEngine.estimate(
-      widget.set.weight,
-      widget.set.reps,
-    );
+    // 1RM은 무게가 있어야 성립한다 — 맨몸 세트에는 계산할 것이 없다.
+    final estimate = widget.measurement == ExerciseMeasurement.weightReps
+        ? PerformanceEngine.estimate(widget.set.weight, widget.set.reps)
+        : null;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onLongPress: () {
@@ -1923,43 +1958,69 @@ class _InlineSetRowState extends State<_InlineSetRow> {
             const SizedBox(height: SetflowSpacing.sm),
             Row(
               children: [
-                Expanded(
-                  child: _numberField(
-                    key: ValueKey('inline-set-weight-${widget.set.number}'),
-                    label: '무게',
-                    suffix: widget.unit,
-                    controller: weightController,
-                    onDial: () => _pickSetValue(
-                      title: '무게',
+                if (widget.measurement == ExerciseMeasurement.weightReps) ...[
+                  Expanded(
+                    child: _numberField(
+                      key: ValueKey('inline-set-weight-${widget.set.number}'),
+                      label: '무게',
                       suffix: widget.unit,
-                      initialValue: widget.set.weight,
-                      min: 0,
-                      max: 999,
-                      step: .5,
                       controller: weightController,
-                      onChanged: widget.onWeightChanged,
+                      onDial: () => _pickSetValue(
+                        title: '무게',
+                        suffix: widget.unit,
+                        initialValue: widget.set.weight,
+                        min: 0,
+                        max: 999,
+                        step: .5,
+                        controller: weightController,
+                        onChanged: widget.onWeightChanged,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: SetflowSpacing.xs2),
-                Expanded(
-                  child: _numberField(
-                    key: ValueKey('inline-set-reps-${widget.set.number}'),
-                    label: '횟수',
-                    suffix: '회',
-                    controller: repsController,
-                    onDial: () => _pickSetValue(
-                      title: '횟수',
+                  const SizedBox(width: SetflowSpacing.xs2),
+                ],
+                if (widget.measurement == ExerciseMeasurement.duration)
+                  Expanded(
+                    child: _numberField(
+                      key: ValueKey('inline-set-duration-${widget.set.number}'),
+                      label: '시간',
+                      suffix: '초',
+                      controller: durationController,
+                      onDial: () => _pickSetValue(
+                        title: '버티는 시간',
+                        suffix: '초',
+                        initialValue: widget.set.durationSeconds <= 0
+                            ? 60
+                            : widget.set.durationSeconds.toDouble(),
+                        min: 5,
+                        max: 600,
+                        step: 5,
+                        controller: durationController,
+                        onChanged: (value) =>
+                            widget.onDurationChanged(value.round()),
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: _numberField(
+                      key: ValueKey('inline-set-reps-${widget.set.number}'),
+                      label: '횟수',
                       suffix: '회',
-                      initialValue: widget.set.reps.toDouble(),
-                      min: 0,
-                      max: 100,
-                      step: 1,
                       controller: repsController,
-                      onChanged: (value) => widget.onRepsChanged(value.round()),
+                      onDial: () => _pickSetValue(
+                        title: '횟수',
+                        suffix: '회',
+                        initialValue: widget.set.reps.toDouble(),
+                        min: 0,
+                        max: 100,
+                        step: 1,
+                        controller: repsController,
+                        onChanged: (value) =>
+                            widget.onRepsChanged(value.round()),
+                      ),
                     ),
                   ),
-                ),
                 const SizedBox(width: SetflowSpacing.xs2),
                 Expanded(
                   child: _numberField(
@@ -2891,9 +2952,11 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       builder: (_) => _CreateExerciseSheet(initialMuscle: muscle),
     );
     if (draft == null || !context.mounted) return;
-    final created = AppScope.of(
-      context,
-    ).createCustomExercise(name: draft.name, muscle: draft.muscle);
+    final created = AppScope.of(context).createCustomExercise(
+      name: draft.name,
+      muscle: draft.muscle,
+      measurement: draft.measurement,
+    );
     if (created == null) {
       AppSnackbar.error(context, '같은 이름의 운동이 있거나 입력값을 확인해주세요.');
       return;
@@ -3022,10 +3085,15 @@ class _MuscleCategoryCard extends StatelessWidget {
 }
 
 class _CustomExerciseDraft {
-  const _CustomExerciseDraft({required this.name, required this.muscle});
+  const _CustomExerciseDraft({
+    required this.name,
+    required this.muscle,
+    required this.measurement,
+  });
 
   final String name;
   final String muscle;
+  final ExerciseMeasurement measurement;
 }
 
 class _CreateExerciseSheet extends StatefulWidget {
@@ -3041,6 +3109,7 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
   late String muscle;
+  ExerciseMeasurement measurement = ExerciseMeasurement.weightReps;
 
   @override
   void initState() {
@@ -3060,7 +3129,11 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
     if (!(formKey.currentState?.validate() ?? false)) return;
     Navigator.pop(
       context,
-      _CustomExerciseDraft(name: nameController.text.trim(), muscle: muscle),
+      _CustomExerciseDraft(
+        name: nameController.text.trim(),
+        muscle: muscle,
+        measurement: measurement,
+      ),
     );
   }
 
@@ -3131,6 +3204,35 @@ class _CreateExerciseSheetState extends State<_CreateExerciseSheet> {
                 if (value != null) setState(() => muscle = value);
               },
             ),
+            // 유산소는 자체 구간 기록이라 측정 방식을 고를 것이 없다.
+            if (muscle != '유산소') ...[
+              const SizedBox(height: SetflowSpacing.md),
+              Text(
+                '기록 방식',
+                style: TextStyle(
+                  fontSize: SetflowFontSize.small,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              Wrap(
+                spacing: SetflowSpacing.sm,
+                children: [
+                  for (final (label, value) in const [
+                    ('무게 × 횟수', ExerciseMeasurement.weightReps),
+                    ('횟수만', ExerciseMeasurement.repsOnly),
+                    ('시간 버티기', ExerciseMeasurement.duration),
+                  ])
+                    ChoiceChip(
+                      key: ValueKey('measurement-${value.name}'),
+                      label: Text(label),
+                      selected: measurement == value,
+                      onSelected: (_) => setState(() => measurement = value),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: SetflowSpacing.xl),
             SizedBox(
               width: double.infinity,
@@ -3213,10 +3315,19 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
     if (exercise.template.isCardio) {
       return _buildCardioScreen(context, state, exercise);
     }
-    final previous = state.performanceFor(
-      exercise.template,
-      before: state.dateOnly(widget.date),
-    );
+    final measurement = exercise.template.measurement;
+    final usesWeight = measurement == ExerciseMeasurement.weightReps;
+    final holds = measurement == ExerciseMeasurement.duration;
+    final previous = usesWeight
+        ? state.performanceFor(
+            exercise.template,
+            before: state.dateOnly(widget.date),
+          )
+        : null;
+    // 맨몸 세트에는 1RM이 없다. 지난 기록의 최고치가 그 자리의 기준선이다.
+    final bodyweightBest = usesWeight
+        ? null
+        : _bodyweightBest(state, exercise.template, holds: holds);
     return Scaffold(
       appBar: AppBar(
         title: Text(exercise.template.name),
@@ -3265,7 +3376,11 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                       ),
                       const SizedBox(height: SetflowSpacing.xs),
                       Text(
-                        previous == null
+                        !usesWeight
+                            ? (bodyweightBest == null
+                                  ? '첫 기록을 시작해보세요'
+                                  : '최고 기록 $bodyweightBest')
+                            : previous == null
                             ? '첫 기록을 시작해보세요'
                             : '예상 1RM '
                                   '${previous.currentE1rm.toStringAsFixed(1)} '
@@ -3277,7 +3392,13 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                       ),
                       const SizedBox(height: SetflowSpacing.xs),
                       Text(
-                        previous == null
+                        !usesWeight
+                            ? (bodyweightBest == null
+                                  ? (holds
+                                        ? '완료한 세트부터 최고 시간을 추적해요.'
+                                        : '완료한 세트부터 최고 횟수를 추적해요.')
+                                  : '완료한 세트에서 계산한 지난 최고치예요.')
+                            : previous == null
                             ? '완료한 세트부터 PR과 추천 중량을 계산해요.'
                             : '최근 최고 '
                                   '${PerformanceEngine.formatWeight(previous.latestSessionBest.set.weight)}'
@@ -3323,22 +3444,23 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                   ),
                 ),
               ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    '무게',
-                    style: TextStyle(
-                      fontSize: SetflowFontSize.small,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w800,
+              if (usesWeight)
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '무게',
+                      style: TextStyle(
+                        fontSize: SetflowFontSize.small,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ),
-              ),
               Expanded(
                 child: Center(
                   child: Text(
-                    '횟수',
+                    holds ? '시간' : '횟수',
                     style: TextStyle(
                       fontSize: SetflowFontSize.small,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -3420,44 +3542,72 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                 ),
                               ),
                             ),
-                            Expanded(
-                              child: _NumberStepper(
-                                value: set.weight.toStringAsFixed(
-                                  set.weight % 1 == 0 ? 0 : 1,
-                                ),
-                                suffix: state.weightUnit,
-                                onMinus: () => state.updateSet(
-                                  set,
-                                  weight: set.weight - 2.5,
-                                ),
-                                onPlus: () => state.updateSet(
-                                  set,
-                                  weight: set.weight + 2.5,
-                                ),
-                                onValueTap: () => _editSetValue(
-                                  context,
-                                  state,
-                                  set,
-                                  editsWeight: true,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: SetflowSpacing.sm),
-                            Expanded(
-                              child: _NumberStepper(
-                                value: '${set.reps}',
-                                suffix: '회',
-                                onMinus: () =>
-                                    state.updateSet(set, reps: set.reps - 1),
-                                onPlus: () =>
-                                    state.updateSet(set, reps: set.reps + 1),
-                                onValueTap: () => _editSetValue(
-                                  context,
-                                  state,
-                                  set,
-                                  editsWeight: false,
+                            if (usesWeight) ...[
+                              Expanded(
+                                child: _NumberStepper(
+                                  value: set.weight.toStringAsFixed(
+                                    set.weight % 1 == 0 ? 0 : 1,
+                                  ),
+                                  suffix: state.weightUnit,
+                                  onMinus: () => state.updateSet(
+                                    set,
+                                    weight: set.weight - 2.5,
+                                  ),
+                                  onPlus: () => state.updateSet(
+                                    set,
+                                    weight: set.weight + 2.5,
+                                  ),
+                                  onValueTap: () => _editSetValue(
+                                    context,
+                                    state,
+                                    set,
+                                    editsWeight: true,
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: SetflowSpacing.sm),
+                            ],
+                            Expanded(
+                              child: holds
+                                  ? _NumberStepper(
+                                      value: '${set.durationSeconds}',
+                                      suffix: '초',
+                                      onMinus: () => state.updateSet(
+                                        set,
+                                        durationSeconds:
+                                            set.durationSeconds - 15,
+                                      ),
+                                      onPlus: () => state.updateSet(
+                                        set,
+                                        durationSeconds:
+                                            set.durationSeconds + 15,
+                                      ),
+                                      onValueTap: () => _editSetValue(
+                                        context,
+                                        state,
+                                        set,
+                                        editsWeight: false,
+                                        editsDuration: true,
+                                      ),
+                                    )
+                                  : _NumberStepper(
+                                      value: '${set.reps}',
+                                      suffix: '회',
+                                      onMinus: () => state.updateSet(
+                                        set,
+                                        reps: set.reps - 1,
+                                      ),
+                                      onPlus: () => state.updateSet(
+                                        set,
+                                        reps: set.reps + 1,
+                                      ),
+                                      onValueTap: () => _editSetValue(
+                                        context,
+                                        state,
+                                        set,
+                                        editsWeight: false,
+                                      ),
+                                    ),
                             ),
                             SizedBox(
                               width: 50,
@@ -3727,23 +3877,72 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
         false;
   }
 
+  /// 이 종목의 지난 완료 세트 중 최고치 — 횟수 또는 버틴 시간.
+  String? _bodyweightBest(
+    AppState state,
+    ExerciseTemplate template, {
+    required bool holds,
+  }) {
+    final today = state.dateOnly(widget.date);
+    var best = 0;
+    for (final entry in state.sessions.entries) {
+      if (!entry.key.isBefore(today)) continue;
+      for (final exercise in entry.value.exercises) {
+        if (exercise.template.id != template.id) continue;
+        for (final set in exercise.sets) {
+          if (!set.completed) continue;
+          final value = holds ? set.durationSeconds : set.reps;
+          if (value > best) best = value;
+        }
+      }
+    }
+    if (best <= 0) return null;
+    if (!holds) return '$best회';
+    final remainder = best % 60;
+    if (best < 60) return '$best초';
+    return remainder == 0 ? '${best ~/ 60}분' : '${best ~/ 60}분 $remainder초';
+  }
+
   Future<void> _editSetValue(
     BuildContext context,
     AppState state,
     WorkoutSetEntry set, {
     required bool editsWeight,
+    bool editsDuration = false,
   }) async {
     final result = await showNumberDial(
       context,
-      title: editsWeight ? '무게' : '횟수',
-      suffix: editsWeight ? state.weightUnit : '회',
-      initialValue: editsWeight ? set.weight : set.reps.toDouble(),
-      min: 0,
-      max: editsWeight ? 999 : 100,
-      step: editsWeight ? .5 : 1,
+      title: editsDuration
+          ? '버티는 시간'
+          : editsWeight
+          ? '무게'
+          : '횟수',
+      suffix: editsDuration
+          ? '초'
+          : editsWeight
+          ? state.weightUnit
+          : '회',
+      initialValue: editsDuration
+          ? (set.durationSeconds <= 0 ? 60 : set.durationSeconds.toDouble())
+          : editsWeight
+          ? set.weight
+          : set.reps.toDouble(),
+      min: editsDuration ? 5 : 0,
+      max: editsDuration
+          ? 600
+          : editsWeight
+          ? 999
+          : 100,
+      step: editsDuration
+          ? 5
+          : editsWeight
+          ? .5
+          : 1,
     );
     if (result == null || !context.mounted) return;
-    if (editsWeight) {
+    if (editsDuration) {
+      state.updateSet(set, durationSeconds: result.round());
+    } else if (editsWeight) {
       state.updateSet(set, weight: result);
     } else {
       state.updateSet(set, reps: result.round());

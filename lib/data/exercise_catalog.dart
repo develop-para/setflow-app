@@ -60,6 +60,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '플랭크',
     muscle: '복근',
     icon: Icons.timer_outlined,
+    measurement: ExerciseMeasurement.duration,
   ),
   ExerciseTemplate(
     id: 'run',
@@ -110,6 +111,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '푸시업',
     muscle: '가슴',
     icon: Icons.sports_gymnastics,
+    measurement: ExerciseMeasurement.repsOnly,
   ),
   ExerciseTemplate(
     id: 'dips',
@@ -384,6 +386,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '크런치',
     muscle: '복근',
     icon: Icons.self_improvement,
+    measurement: ExerciseMeasurement.repsOnly,
   ),
   ExerciseTemplate(
     id: 'cable_crunch',
@@ -396,18 +399,21 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '행잉 레그 레이즈',
     muscle: '복근',
     icon: Icons.vertical_align_top,
+    measurement: ExerciseMeasurement.repsOnly,
   ),
   ExerciseTemplate(
     id: 'leg_raise',
     name: '라잉 레그 레이즈',
     muscle: '복근',
     icon: Icons.self_improvement,
+    measurement: ExerciseMeasurement.repsOnly,
   ),
   ExerciseTemplate(
     id: 'ab_wheel',
     name: 'AB 롤아웃',
     muscle: '복근',
     icon: Icons.radio_button_unchecked,
+    measurement: ExerciseMeasurement.repsOnly,
   ),
   ExerciseTemplate(
     id: 'russian_twist',
@@ -464,5 +470,41 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '줄넘기',
     muscle: '유산소',
     icon: Icons.sports_gymnastics,
+  ),
+  // Bodyweight — 기구 없이 하는 운동. 무게 다이얼이 없어야 하는 종목들이다.
+  ExerciseTemplate(
+    id: 'bodyweight_squat',
+    name: '맨몸 스쿼트',
+    muscle: '하체',
+    icon: Icons.accessibility_new,
+    measurement: ExerciseMeasurement.repsOnly,
+  ),
+  ExerciseTemplate(
+    id: 'burpee',
+    name: '버피',
+    muscle: '하체',
+    icon: Icons.sports_gymnastics,
+    measurement: ExerciseMeasurement.repsOnly,
+  ),
+  ExerciseTemplate(
+    id: 'side_plank',
+    name: '사이드 플랭크',
+    muscle: '복근',
+    icon: Icons.timer_outlined,
+    measurement: ExerciseMeasurement.duration,
+  ),
+  ExerciseTemplate(
+    id: 'mountain_climber',
+    name: '마운틴 클라이머',
+    muscle: '복근',
+    icon: Icons.directions_run,
+    measurement: ExerciseMeasurement.duration,
+  ),
+  ExerciseTemplate(
+    id: 'wall_sit',
+    name: '월싯',
+    muscle: '하체',
+    icon: Icons.timer_outlined,
+    measurement: ExerciseMeasurement.duration,
   ),
 ];

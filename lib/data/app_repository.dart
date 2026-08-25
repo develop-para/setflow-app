@@ -14,6 +14,8 @@ class AppSnapshot {
     this.autoRecommendNextExercise = true,
     this.restTimerNotifications = true,
     this.timerVibration = true,
+    this.timerSound = true,
+    this.timerCountdownSeconds = 30,
     this.pushCoachingFeedback = true,
     this.communityReactionNotifications = false,
     this.goals = const [],
@@ -43,6 +45,12 @@ class AppSnapshot {
   final bool autoRecommendNextExercise;
   final bool restTimerNotifications;
   final bool timerVibration;
+
+  /// 휴식 카운트다운 소리. [timerCountdownSeconds]초 남은 순간 알림음이 울리고
+  /// 마지막 3초는 초마다 짧게 삑, 0초에 끝 소리가 난다. 0이면 시작음 없이
+  /// 마지막 3초와 끝 소리만 남는다.
+  final bool timerSound;
+  final int timerCountdownSeconds;
   final bool pushCoachingFeedback;
   final bool communityReactionNotifications;
   final Map<DateTime, WorkoutSession> sessions;

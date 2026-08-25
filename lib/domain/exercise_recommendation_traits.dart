@@ -73,6 +73,29 @@ const exerciseRecommendationTraits = <String, ExerciseRecommendationTraits>{
     requiredEquipment: {TrainingEquipment.bodyweight},
     movements: {},
   ),
+  'bodyweight_squat': ExerciseRecommendationTraits(
+    requiredEquipment: {TrainingEquipment.bodyweight},
+    movements: {TrainingMovementRestriction.squatLunge},
+  ),
+  'burpee': ExerciseRecommendationTraits(
+    requiredEquipment: {TrainingEquipment.bodyweight},
+    movements: {
+      TrainingMovementRestriction.squatLunge,
+      TrainingMovementRestriction.horizontalPress,
+    },
+  ),
+  'side_plank': ExerciseRecommendationTraits(
+    requiredEquipment: {TrainingEquipment.bodyweight},
+    movements: {},
+  ),
+  'mountain_climber': ExerciseRecommendationTraits(
+    requiredEquipment: {TrainingEquipment.bodyweight},
+    movements: {},
+  ),
+  'wall_sit': ExerciseRecommendationTraits(
+    requiredEquipment: {TrainingEquipment.bodyweight},
+    movements: {TrainingMovementRestriction.squatLunge},
+  ),
   'run': ExerciseRecommendationTraits(
     requiredEquipment: {TrainingEquipment.treadmill},
     movements: {TrainingMovementRestriction.impact},

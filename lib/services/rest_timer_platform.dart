@@ -16,12 +16,16 @@ abstract final class RestTimerPlatform {
     required int seconds,
     required bool showCompletionNotification,
     required bool vibrate,
+    bool sound = true,
+    int countdownSeconds = 30,
   }) async {
     try {
       await _channel.invokeMethod<void>('start', {
         'seconds': seconds,
         'showCompletionNotification': showCompletionNotification,
         'vibrate': vibrate,
+        'sound': sound,
+        'countdownSeconds': countdownSeconds,
       });
     } on MissingPluginException {
       // Supported only by the Android host.

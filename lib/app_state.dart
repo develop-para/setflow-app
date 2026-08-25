@@ -158,6 +158,10 @@ class AppState extends ChangeNotifier {
   bool autoRecommendNextExercise = true;
   bool restTimerNotifications = true;
   bool timerVibration = true;
+  bool timerSound = true;
+
+  /// 카운트다운 알림이 시작되는 남은 시간(초). 0이면 시작음 없이 끝 소리만.
+  int timerCountdownSeconds = 30;
   bool pushCoachingFeedback = true;
   bool communityReactionNotifications = false;
   String get memberDisplayName {
@@ -877,6 +881,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setTimerSound(bool value) {
+    timerSound = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setTimerCountdownSeconds(int value) {
+    timerCountdownSeconds = value.clamp(0, 120);
+    _schedulePersist();
+    notifyListeners();
+  }
+
   void setPushCoachingFeedback(bool value) {
     pushCoachingFeedback = value;
     _schedulePersist();
@@ -908,6 +924,7 @@ class AppState extends ChangeNotifier {
   ExerciseTemplate? createCustomExercise({
     required String name,
     required String muscle,
+    ExerciseMeasurement measurement = ExerciseMeasurement.weightReps,
   }) {
     final normalizedName = name.trim();
     final normalizedMuscle = muscle.trim();
@@ -927,6 +944,10 @@ class AppState extends ChangeNotifier {
       name: normalizedName,
       muscle: normalizedMuscle,
       icon: exerciseIconForMuscle(normalizedMuscle),
+      // 유산소는 자체 구간 UI가 measurement보다 우선한다 — 섞이면 혼란만 남는다.
+      measurement: normalizedMuscle == '유산소'
+          ? ExerciseMeasurement.weightReps
+          : measurement,
     );
     customExercises.add(exercise);
     exercises.add(exercise);
@@ -1349,8 +1370,9 @@ class AppState extends ChangeNotifier {
                     3,
                 (index) => WorkoutSetEntry(
                   number: index + 1,
-                  weight: suggestedWeight,
-                  reps: suggestedReps,
+                  weight: template.usesWeight ? suggestedWeight : 0,
+                  reps: template.isDurationHold ? 0 : suggestedReps,
+                  durationSeconds: template.isDurationHold ? 60 : 0,
                   restSeconds:
                       resistanceRecommendation?.restSeconds ??
                       resistancePrescription?.restSeconds ??
@@ -1365,16 +1387,24 @@ class AppState extends ChangeNotifier {
 
   void addSet(WorkoutExercise exercise) {
     final previous = exercise.sets.lastOrNull;
+    final template = exercise.template;
     exercise.sets.add(
       WorkoutSetEntry(
         number: exercise.sets.length + 1,
-        weight: exercise.template.isCardio ? 0 : previous?.weight ?? 20,
-        reps: exercise.template.isCardio ? 0 : previous?.reps ?? 10,
-        restSeconds: exercise.template.isCardio
+        // 몸이 곧 중량인 운동에 가짜 20kg을 남기지 않는다.
+        weight: template.isCardio || !template.usesWeight
+            ? 0
+            : previous?.weight ?? 20,
+        reps: template.isCardio || template.isDurationHold
+            ? 0
+            : previous?.reps ?? 10,
+        restSeconds: template.isCardio
             ? 0
             : previous?.restSeconds ?? restDefaultSeconds,
-        durationSeconds: exercise.template.isCardio
+        durationSeconds: template.isCardio
             ? previous?.durationSeconds ?? 600
+            : template.isDurationHold
+            ? previous?.durationSeconds ?? 60
             : 0,
         distanceKm: exercise.template.isCardio ? previous?.distanceKm ?? 0 : 0,
         intensityRpe: exercise.template.isCardio
@@ -1501,6 +1531,7 @@ class AppState extends ChangeNotifier {
     final index = exercise.sets.indexOf(from);
     if (index < 0) return 0;
     final cardio = exercise.template.isCardio;
+    final hold = !cardio && exercise.template.isDurationHold;
     var changed = 0;
     for (final set in exercise.sets.skip(index + 1)) {
       if (set.completed) continue;
@@ -1508,12 +1539,17 @@ class AppState extends ChangeNotifier {
           ? set.durationSeconds != from.durationSeconds ||
                 set.distanceKm != from.distanceKm ||
                 set.intensityRpe != from.intensityRpe
+          : hold
+          ? set.durationSeconds != from.durationSeconds
           : set.weight != from.weight || set.reps != from.reps;
       if (!differs) continue;
       if (cardio) {
         set.durationSeconds = from.durationSeconds;
         set.distanceKm = from.distanceKm;
         set.intensityRpe = from.intensityRpe;
+      } else if (hold) {
+        // 플랭크류는 버틴 시간이 기록의 전부다.
+        set.durationSeconds = from.durationSeconds;
       } else {
         set.weight = from.weight;
         set.reps = from.reps;
@@ -1623,7 +1659,10 @@ class AppState extends ChangeNotifier {
                   (index) => WorkoutSetEntry(
                     number: index + 1,
                     weight: 0,
-                    reps: resistancePrescription?.minReps ?? 10,
+                    reps: template.isDurationHold
+                        ? 0
+                        : resistancePrescription?.minReps ?? 10,
+                    durationSeconds: template.isDurationHold ? 60 : 0,
                     restSeconds:
                         resistancePrescription?.restSeconds ??
                         restDefaultSeconds,
@@ -5094,6 +5133,8 @@ class AppState extends ChangeNotifier {
     autoRecommendNextExercise: autoRecommendNextExercise,
     restTimerNotifications: restTimerNotifications,
     timerVibration: timerVibration,
+    timerSound: timerSound,
+    timerCountdownSeconds: timerCountdownSeconds,
     pushCoachingFeedback: pushCoachingFeedback,
     communityReactionNotifications: communityReactionNotifications,
     sessions: Map<DateTime, WorkoutSession>.unmodifiable(sessions),
@@ -5128,6 +5169,8 @@ class AppState extends ChangeNotifier {
         seconds: safeSeconds,
         showCompletionNotification: restTimerNotifications,
         vibrate: timerVibration,
+        sound: timerSound,
+        countdownSeconds: timerCountdownSeconds,
       ),
     );
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -5197,6 +5240,8 @@ class AppState extends ChangeNotifier {
     autoRecommendNextExercise = snapshot.autoRecommendNextExercise;
     restTimerNotifications = snapshot.restTimerNotifications;
     timerVibration = snapshot.timerVibration;
+    timerSound = snapshot.timerSound;
+    timerCountdownSeconds = snapshot.timerCountdownSeconds.clamp(0, 120);
     pushCoachingFeedback = snapshot.pushCoachingFeedback;
     communityReactionNotifications = snapshot.communityReactionNotifications;
     goals = List.of(snapshot.goals);
@@ -5263,6 +5308,8 @@ class AppState extends ChangeNotifier {
     autoRecommendNextExercise = true;
     restTimerNotifications = true;
     timerVibration = true;
+    timerSound = true;
+    timerCountdownSeconds = 30;
     pushCoachingFeedback = true;
     communityReactionNotifications = false;
     goals = [];

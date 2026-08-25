@@ -812,6 +812,41 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
               },
             ),
             SwitchListTile(
+              key: const ValueKey('setting-timer-sound'),
+              title: const Text('타이머 소리'),
+              subtitle: const Text('마지막 3초는 초마다, 끝나는 순간 한 번 울려요.'),
+              value: state.timerSound,
+              onChanged: state.setTimerSound,
+            ),
+            if (state.timerSound) ...[
+              const ListTile(
+                title: Text('카운트다운 예고'),
+                subtitle: Text('휴식이 이만큼 남으면 미리 소리로 알려드려요.'),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+                child: Wrap(
+                  spacing: SetflowSpacing.sm,
+                  children: [
+                    for (final (label, seconds) in const [
+                      ('끄기', 0),
+                      ('10초', 10),
+                      ('20초', 20),
+                      ('30초', 30),
+                      ('60초', 60),
+                    ])
+                      ChoiceChip(
+                        key: ValueKey('countdown-$seconds'),
+                        label: Text(label),
+                        selected: state.timerCountdownSeconds == seconds,
+                        onSelected: (_) =>
+                            state.setTimerCountdownSeconds(seconds),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            SwitchListTile(
               title: const Text('코칭 피드백 알림'),
               value: state.pushCoachingFeedback,
               onChanged: state.setPushCoachingFeedback,

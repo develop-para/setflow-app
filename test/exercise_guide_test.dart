@@ -38,6 +38,12 @@ void main() {
       'hip_thrust',
       'bird_dog',
       'rowing_machine',
+      // 맨몸운동 추가분 — 데이터셋에 정확한 대응 항목이 없다.
+      'bodyweight_squat',
+      'burpee',
+      'side_plank',
+      'mountain_climber',
+      'wall_sit',
     };
     final uncovered = exerciseCatalog
         .map((e) => e.id)

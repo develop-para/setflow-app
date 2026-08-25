@@ -8,6 +8,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -17,6 +19,8 @@ import kotlin.math.ceil
 class RestTimerService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var finishRunnable: Runnable? = null
+    private val beepRunnables = mutableListOf<Runnable>()
+    private var toneGenerator: ToneGenerator? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -43,6 +47,11 @@ class RestTimerService : Service() {
                         intent.getBooleanExtra(EXTRA_SHOW_COMPLETION, true),
                     )
                     .putBoolean(KEY_VIBRATE, intent.getBooleanExtra(EXTRA_VIBRATE, true))
+                    .putBoolean(KEY_SOUND, intent.getBooleanExtra(EXTRA_SOUND, true))
+                    .putInt(
+                        KEY_COUNTDOWN_SECONDS,
+                        intent.getIntExtra(EXTRA_COUNTDOWN_SECONDS, 30).coerceIn(0, 120),
+                    )
                     .apply()
                 runTimer(endsAt)
             }
@@ -54,6 +63,9 @@ class RestTimerService : Service() {
     override fun onDestroy() {
         finishRunnable?.let(handler::removeCallbacks)
         finishRunnable = null
+        clearBeeps()
+        toneGenerator?.release()
+        toneGenerator = null
         super.onDestroy()
     }
 
@@ -77,6 +89,50 @@ class RestTimerService : Service() {
         finishRunnable = Runnable(::finishTimer).also {
             handler.postDelayed(it, remaining)
         }
+        scheduleBeeps(endsAt)
+    }
+
+    // Lets the lifter hear the rest ending without watching the screen: one
+    // alert tone when the configured countdown begins, a short tick on each of
+    // the last three seconds, and a longer tone at zero (in finishTimer).
+    private fun scheduleBeeps(endsAt: Long) {
+        clearBeeps()
+        if (!preferences.getBoolean(KEY_SOUND, true)) return
+        val now = System.currentTimeMillis()
+        val countdown = preferences.getInt(KEY_COUNTDOWN_SECONDS, 30)
+        if (countdown > 0) {
+            val alertAt = endsAt - countdown * 1_000L
+            if (alertAt > now) {
+                postBeep(alertAt - now) { playTone(ToneGenerator.TONE_PROP_BEEP2, 220) }
+            }
+        }
+        for (second in 3 downTo 1) {
+            val tickAt = endsAt - second * 1_000L
+            if (tickAt > now) {
+                postBeep(tickAt - now) { playTone(ToneGenerator.TONE_PROP_BEEP, 140) }
+            }
+        }
+    }
+
+    private fun postBeep(delayMillis: Long, action: () -> Unit) {
+        val runnable = Runnable(action)
+        beepRunnables.add(runnable)
+        handler.postDelayed(runnable, delayMillis)
+    }
+
+    private fun clearBeeps() {
+        beepRunnables.forEach(handler::removeCallbacks)
+        beepRunnables.clear()
+    }
+
+    private fun playTone(tone: Int, durationMillis: Int) {
+        val generator = toneGenerator ?: try {
+            ToneGenerator(AudioManager.STREAM_MUSIC, 80).also { toneGenerator = it }
+        } catch (_: RuntimeException) {
+            // No audio resources: stay silent. The timer matters more than the beep.
+            return
+        }
+        generator.startTone(tone, durationMillis)
     }
 
     private fun startTimerForeground(notification: Notification) {
@@ -94,6 +150,7 @@ class RestTimerService : Service() {
     private fun cancelTimer() {
         finishRunnable?.let(handler::removeCallbacks)
         finishRunnable = null
+        clearBeeps()
         preferences.edit().clear().apply()
         RestTimerWidgetProvider.updateAll(this)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -103,6 +160,10 @@ class RestTimerService : Service() {
     private fun finishTimer() {
         finishRunnable?.let(handler::removeCallbacks)
         finishRunnable = null
+        clearBeeps()
+        if (preferences.getBoolean(KEY_SOUND, true)) {
+            playTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 500)
+        }
         val showCompletion = preferences.getBoolean(KEY_SHOW_COMPLETION, true)
         val vibrate = preferences.getBoolean(KEY_VIBRATE, true)
         preferences.edit()
@@ -222,11 +283,15 @@ class RestTimerService : Service() {
         const val KEY_ACTIVE = "active"
         private const val KEY_SHOW_COMPLETION = "show_completion"
         private const val KEY_VIBRATE = "vibrate"
+        private const val KEY_SOUND = "sound"
+        private const val KEY_COUNTDOWN_SECONDS = "countdown_seconds"
         private const val ACTION_START = "com.teampara.setflow.action.START_REST_TIMER"
         private const val ACTION_CANCEL = "com.teampara.setflow.action.CANCEL_REST_TIMER"
         private const val EXTRA_SECONDS = "seconds"
         private const val EXTRA_SHOW_COMPLETION = "show_completion"
         private const val EXTRA_VIBRATE = "vibrate"
+        private const val EXTRA_SOUND = "sound"
+        private const val EXTRA_COUNTDOWN_SECONDS = "countdown_seconds"
         private const val ONGOING_CHANNEL_ID = "rest_timer_running"
         private const val COMPLETE_CHANNEL_ID = "rest_timer_complete"
         private const val COMPLETE_SILENT_CHANNEL_ID = "rest_timer_complete_silent"
@@ -238,12 +303,16 @@ class RestTimerService : Service() {
             seconds: Int,
             showCompletionNotification: Boolean,
             vibrate: Boolean,
+            sound: Boolean = true,
+            countdownSeconds: Int = 30,
         ) {
             val intent = Intent(context, RestTimerService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_SECONDS, seconds.coerceIn(1, 3_600))
                 .putExtra(EXTRA_SHOW_COMPLETION, showCompletionNotification)
                 .putExtra(EXTRA_VIBRATE, vibrate)
+                .putExtra(EXTRA_SOUND, sound)
+                .putExtra(EXTRA_COUNTDOWN_SECONDS, countdownSeconds.coerceIn(0, 120))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
