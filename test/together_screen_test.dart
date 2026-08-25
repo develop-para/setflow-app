@@ -140,6 +140,23 @@ void main() {
     });
   });
 
+  group('the lobby', () {
+    testWidgets('the how-to lives behind the question mark, not on the page', (
+      tester,
+    ) async {
+      await pumpTogether(tester, repository: client('u-me', '나'));
+
+      // 페이지에는 설명이 늘어서 있지 않다 — 행동 둘과 그림 하나뿐.
+      expect(find.text('방을 만들고 코드를 공유해요'), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('together-help')));
+      await tester.pumpAndSettle();
+      expect(find.text('함께 운동 사용법'), findsOneWidget);
+      expect(find.text('방을 만들고 코드를 공유해요'), findsOneWidget);
+      expect(find.textContaining('최대 6명'), findsOneWidget);
+    });
+  });
+
   group('the room', () {
     Future<TrainingParty> seatTwo(PartyMode mode) async {
       final host = client('u-me', '나');

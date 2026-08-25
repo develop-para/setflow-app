@@ -10,7 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/data/together_repository.dart';
 import 'package:setflow/screens/business_screens.dart';
+import 'package:setflow/screens/together_screens.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/services/auth_service.dart';
 
@@ -279,6 +281,74 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.binding.setSurfaceSize(null);
+  }, skip: !_enabled);
+
+  // 함께는 리포지토리가 있어야 로비/방이 열린다 — 메모리 백엔드를 물려서
+  // 디자인 QA가 진짜 화면을 본다.
+  testWidgets('capture together', (tester) async {
+    await tester.runAsync(_loadFonts);
+    await tester.binding.setSurfaceSize(const Size(400, 860));
+    Auth.use(const _SignedInAuth());
+    addTearDown(Auth.reset);
+    final backend = MemoryTogetherBackend();
+    addTearDown(backend.dispose);
+    final repo = MemoryTogetherRepository(
+      backend: backend,
+      userId: 'capture-user',
+      displayName: '나',
+    );
+    final state = AppState(togetherRepository: repo);
+    await state.initialize();
+    addTearDown(state.dispose);
+    state.addExercise(
+      state.dateOnly(DateTime.now()),
+      state.exercises.firstWhere((e) => !e.isCardio),
+    );
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: SetflowTheme.light,
+          home: const Scaffold(body: TogetherScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/together_lobby.png');
+
+    await tester.tap(find.byKey(const ValueKey('together-create')));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/together_room_solo.png');
+
+    // 친구 참가 + 세트 몇 개로 전광판 상태.
+    final codeText = tester.widget<Text>(
+      find.byKey(const ValueKey('together-code')),
+    );
+    final friend = MemoryTogetherRepository(
+      backend: backend,
+      userId: 'u-friend',
+      displayName: '지훈',
+    );
+    await friend.joinParty(codeText.data!);
+    await friend.reportSetDone(
+      partyId: backend.partyByCode(codeText.data!)!.id,
+      restSeconds: 90,
+      exerciseName: '데드리프트',
+      setNumber: 3,
+      setTotal: 5,
+      totalVolume: 540,
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pump();
+    await _shot(tester, 'build/shots/together_room_race.png');
+
+    state.cancelRestTimer();
+    await tester.pumpAndSettle();
+    await tester.binding.setSurfaceSize(null);
+    await tester.pump(const Duration(milliseconds: 400));
   }, skip: !_enabled);
 
   // 트레이너/헬스장/관리자 포털. role 전환은 셸 교체라 pageBack 워크과 성격이

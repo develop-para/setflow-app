@@ -144,7 +144,17 @@ class _TogetherScreenState extends State<TogetherScreen> {
   Widget build(BuildContext context) {
     final repository = _repository;
     return Scaffold(
-      appBar: AppBar(title: const Text('함께')),
+      appBar: AppBar(
+        title: const Text('함께'),
+        actions: [
+          IconButton(
+            key: const ValueKey('together-help'),
+            tooltip: '함께 운동 사용법',
+            onPressed: () => _showTogetherHelp(context),
+            icon: const Icon(Icons.help_outline_rounded),
+          ),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: repository == null
@@ -381,6 +391,121 @@ class _CodeSheetState extends State<_CodeSheet> {
   }
 }
 
+/// 사용법 시트 — 설명은 페이지에 늘어놓지 않고 물음표 뒤에 둔다.
+/// 처음 온 사람은 히어로의 그림으로 감을 잡고, 더 궁금하면 여기로 온다.
+void _showTogetherHelp(BuildContext context) {
+  showSetflowSheet<void>(
+    context,
+    showDragHandle: true,
+    builder: (sheetContext) {
+      final theme = Theme.of(sheetContext);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          0,
+          SetflowSpacing.gutter,
+          SetflowSpacing.xl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('함께 운동 사용법', style: theme.textTheme.titleLarge),
+            const SizedBox(height: SetflowSpacing.lg),
+            for (final (step, icon, title, detail) in const [
+              (
+                1,
+                SetflowIcons.partyCreate,
+                '방을 만들고 코드를 공유해요',
+                '전화로 불러줄 수 있는 여섯 글자예요. 한 방에 최대 6명.',
+              ),
+              (2, SetflowIcons.partyStart, '준비되면 같이 시작', '모든 폰이 같은 카운트다운을 세요'),
+              (
+                3,
+                SetflowIcons.setComplete,
+                '세트 끝!을 누르면',
+                '내 기록에 저장되고, 상대 휴식이 그 순간 끝나요',
+              ),
+            ]) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: sheetContext.setflowColors.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                    ),
+                    child: Text(
+                      '$step',
+                      style: const TextStyle(fontWeight: SetflowWeight.strong),
+                    ),
+                  ),
+                  const SizedBox(width: SetflowSpacing.md),
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: SetflowSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: SetflowWeight.strong,
+                            fontSize: SetflowFontSize.label,
+                          ),
+                        ),
+                        Text(
+                          detail,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: SetflowSpacing.md2),
+            ],
+            const SizedBox(height: SetflowSpacing.xs),
+            Text('두 가지 방식', style: theme.textTheme.titleMedium),
+            const SizedBox(height: SetflowSpacing.sm),
+            for (final mode in PartyMode.values) ...[
+              Row(
+                children: [
+                  SizedBox(
+                    width: 44,
+                    child: Text(
+                      mode.label,
+                      style: const TextStyle(fontWeight: SetflowWeight.strong),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      mode.detail,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+            ],
+          ],
+        ),
+      );
+    },
+  );
+}
+
 class _Lobby extends StatelessWidget {
   const _Lobby({
     required this.busy,
@@ -396,7 +521,6 @@ class _Lobby extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         SetflowSpacing.gutter,
@@ -405,8 +529,8 @@ class _Lobby extends StatelessWidget {
         SetflowSpacing.xxl2,
       ),
       children: [
-        // 홈의 함께 카드와 같은 언어의 잉크 히어로 — 탭에 들어와도 같은
-        // 이야기가 이어진다.
+        // 설명은 물음표 뒤로 갔다. 페이지가 하는 일은 둘뿐이다: 그림 한 장으로
+        // "두 사람, 타이머 하나"를 보여주고, 방을 만들거나 참여하게 한다.
         Container(
           padding: const EdgeInsets.all(SetflowSpacing.xl),
           decoration: BoxDecoration(
@@ -420,12 +544,6 @@ class _Lobby extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                SetflowIcons.togetherActive,
-                color: SetflowColors.brand,
-                size: 28,
-              ),
-              const SizedBox(height: SetflowSpacing.md),
               const Text(
                 '떨어져 있어도\n같이 운동해요',
                 style: TextStyle(
@@ -435,79 +553,81 @@ class _Lobby extends StatelessWidget {
                   height: 1.25,
                 ),
               ),
+              const SizedBox(height: SetflowSpacing.lg),
+              // 문장이 아니라 그림: 두 사람이 타이머 하나를 같이 쓰는 모습이
+              // 이 기능의 전부다.
+              Container(
+                padding: const EdgeInsets.all(SetflowSpacing.md2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .08),
+                  borderRadius: BorderRadius.circular(SetflowRadii.md),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        for (final name in const ['나', '지훈']) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: SetflowSpacing.sm2,
+                              vertical: SetflowSpacing.xxs,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: .14),
+                              borderRadius: BorderRadius.circular(
+                                SetflowRadii.full,
+                              ),
+                            ),
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: SetflowFontSize.small,
+                                fontWeight: SetflowWeight.strong,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: SetflowSpacing.xs2),
+                        ],
+                        const Spacer(),
+                        const Text(
+                          '같이 휴식 00:42',
+                          style: TextStyle(
+                            color: SetflowColors.brand,
+                            fontSize: SetflowFontSize.label,
+                            fontWeight: FontWeight.w900,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: SetflowSpacing.sm2),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(SetflowRadii.full),
+                      child: const LinearProgressIndicator(
+                        value: .65,
+                        minHeight: 5,
+                        backgroundColor: Colors.white12,
+                        valueColor: AlwaysStoppedAnimation(SetflowColors.brand),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: SetflowSpacing.sm),
               Text(
-                '한 명이 세트를 끝내면 상대의 휴식도 같은 순간에 끝나요.',
+                '두 사람, 타이머 하나 — 세트가 끝나면 같이 쉬어요.',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: .68),
                   fontSize: SetflowFontSize.label,
                   fontWeight: SetflowWeight.medium,
-                  height: 1.5,
                 ),
               ),
             ],
           ),
         ),
         const SizedBox(height: SetflowSpacing.xl),
-        // 순서가 곧 정보다: 이 셋이 사용 흐름 전부다.
-        for (final (step, icon, title, detail) in const [
-          (
-            1,
-            SetflowIcons.partyCreate,
-            '방을 만들고 코드를 공유해요',
-            '전화로 불러줄 수 있는 여섯 글자예요',
-          ),
-          (2, SetflowIcons.partyStart, '준비되면 같이 시작', '두 폰이 같은 카운트다운을 세요'),
-          (
-            3,
-            SetflowIcons.setComplete,
-            '세트 끝!을 누르면',
-            '기록에 저장되고, 상대 휴식이 그 순간 끝나요',
-          ),
-        ]) ...[
-          Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: context.setflowColors.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(SetflowRadii.sm),
-                ),
-                child: Text(
-                  '$step',
-                  style: const TextStyle(fontWeight: SetflowWeight.strong),
-                ),
-              ),
-              const SizedBox(width: SetflowSpacing.md),
-              Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
-              const SizedBox(width: SetflowSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: SetflowWeight.strong,
-                        fontSize: SetflowFontSize.label,
-                      ),
-                    ),
-                    Text(
-                      detail,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: SetflowSpacing.md2),
-        ],
-        const SizedBox(height: SetflowSpacing.sm),
         if (error != null) ...[
           _Notice(message: error!),
           const SizedBox(height: SetflowSpacing.lg),
@@ -527,31 +647,6 @@ class _Lobby extends StatelessWidget {
           variant: AppButtonVariant.outlined,
           onPressed: busy ? null : onJoin,
         ),
-        const SizedBox(height: SetflowSpacing.section),
-        // 두 방식은 방 안에서도 바꿀 수 있다 — 여기서는 소개만.
-        for (final mode in PartyMode.values) ...[
-          SetflowCard(
-            padding: const EdgeInsets.symmetric(
-              horizontal: SetflowSpacing.lg,
-              vertical: SetflowSpacing.md2,
-            ),
-            child: Row(
-              children: [
-                Text(mode.label, style: theme.textTheme.titleMedium),
-                const SizedBox(width: SetflowSpacing.md),
-                Expanded(
-                  child: Text(
-                    mode.detail,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.sm),
-        ],
       ],
     );
   }
