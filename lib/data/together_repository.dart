@@ -37,7 +37,12 @@ enum PartyMode {
 
   /// One person lifts while the others rest, then it passes on. The feeling is
   /// a spotter: your rest ends exactly when their set does.
-  alternating('교대', '한 명이 세트를 하는 동안 나머지는 쉬어요');
+  alternating('교대', '한 명이 세트를 하는 동안 나머지는 쉬어요'),
+
+  /// 각자 페이스. 떨어져서 각자 헬스장에 있으면 기구 대기·다른 종목 때문에
+  /// 같은 시계로 묶을 수 없다 — 그때의 "함께"는 타이머가 아니라 전광판이다.
+  /// 휴식은 자기 것만 돌고, 세트 수로만 겨룬다.
+  free('각자', '각자 페이스로 하고, 전광판으로 겨뤄요');
 
   const PartyMode(this.label, this.detail);
 
@@ -439,6 +444,29 @@ class MemoryTogetherBackend {
     final at = (now ?? DateTime.now()).add(Duration(seconds: restSeconds));
     final ordered = party.members.toList()
       ..sort((a, b) => a.turnOrder.compareTo(b.turnOrder));
+
+    if (party.mode == PartyMode.free) {
+      // 각자: 보고자만 휴식에 들어간다. 남의 시계는 남의 것이다.
+      return _publish(
+        party.copyWith(
+          members: party.members
+              .map(
+                (member) => member.userId == userId
+                    ? member.copyWith(
+                        state: PartyMemberState.resting,
+                        restEndsAt: at,
+                        completedSets: member.completedSets + 1,
+                        currentExercise: exerciseName,
+                        currentSetNumber: setNumber,
+                        currentSetTotal: setTotal,
+                        totalVolume: totalVolume,
+                      )
+                    : member,
+              )
+              .toList(),
+        ),
+      );
+    }
 
     if (party.mode == PartyMode.together) {
       return _publish(

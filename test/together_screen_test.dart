@@ -252,6 +252,43 @@ void main() {
       state.cancelRestTimer();
     });
 
+    testWidgets("각자 mode: a partner's set never starts my rest", (
+      tester,
+    ) async {
+      // 떨어져서 각자 헬스장에 있을 때의 모드 — 기구 대기·다른 종목 때문에
+      // 같은 시계로 묶을 수 없다는 피드백에서 나왔다. 상대의 세트는 전광판만
+      // 움직이고, 내 타이머는 내 것이다.
+      final room = await seatTwo(PartyMode.free);
+      final state = await pumpTogether(tester, repository: client('u-me', '나'));
+      await tester.tap(find.byKey(const ValueKey('together-join')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('together-code-input')),
+        room.code,
+      );
+      await tester.tap(find.byKey(const ValueKey('together-code-submit')));
+      await tester.pumpAndSettle();
+
+      // 각자 모드에는 같이 시작 신호가 없다.
+      expect(find.byKey(const ValueKey('together-start')), findsNothing);
+
+      await client('u-friend', '친구').reportSetDone(
+        partyId: room.id,
+        restSeconds: 60,
+        exerciseName: '스쿼트',
+        setNumber: 1,
+        setTotal: 5,
+        totalVolume: 100,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+
+      expect(state.restRemaining, 0, reason: '각자 모드에서 상대 세트가 내 휴식을 시작시켰다');
+      // 전광판에는 올라간다.
+      expect(find.text('스쿼트 · 1/5세트'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
     testWidgets('교대 refuses a set that is not my turn', (tester) async {
       final room = await seatTwo(PartyMode.alternating);
       // The friend created nothing; the host is 'u-me', so after starting it

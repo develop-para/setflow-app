@@ -836,14 +836,17 @@ class _PartyRoom extends StatelessWidget {
               ? null
               : onSetDone,
         ),
-        const SizedBox(height: SetflowSpacing.sm2),
-        AppButton(
-          key: const ValueKey('together-start'),
-          label: '같이 시작',
-          icon: SetflowIcons.partyStart,
-          variant: AppButtonVariant.outlined,
-          onPressed: busy ? null : onStart,
-        ),
+        // 각자 모드에는 같이 출발할 신호가 없다 — 락스텝 모드에서만 보인다.
+        if (party.mode != PartyMode.free) ...[
+          const SizedBox(height: SetflowSpacing.sm2),
+          AppButton(
+            key: const ValueKey('together-start'),
+            label: '같이 시작',
+            icon: SetflowIcons.partyStart,
+            variant: AppButtonVariant.outlined,
+            onPressed: busy ? null : onStart,
+          ),
+        ],
         const SizedBox(height: SetflowSpacing.section),
         Row(
           children: [
@@ -1168,10 +1171,15 @@ class _RoomStatusHero extends StatelessWidget {
           '${(left % 60).toString().padLeft(2, '0')}';
       return (
         '휴식 $clock',
-        party.mode == PartyMode.alternating
-            ? '상대가 세트를 끝내면 바로 내 차례예요'
-            : '휴식이 끝나면 같이 다음 세트로',
+        switch (party.mode) {
+          PartyMode.alternating => '상대가 세트를 끝내면 바로 내 차례예요',
+          PartyMode.free => '내 휴식이에요 — 끝나면 다음 세트로',
+          PartyMode.together => '휴식이 끝나면 같이 다음 세트로',
+        },
       );
+    }
+    if (party.mode == PartyMode.free) {
+      return ('각자 페이스로 가요', '세트를 끝내면 전광판에 올라가요 — 준비되면 바로 시작');
     }
     if (party.mode == PartyMode.alternating) {
       if (myTurn) {
