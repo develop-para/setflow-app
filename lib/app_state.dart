@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
@@ -15,6 +16,7 @@ import 'models.dart';
 import 'services/cardio_prescription_engine.dart';
 import 'services/exercise_recommendation_engine.dart';
 import 'services/performance_engine.dart';
+import 'services/push_service.dart';
 import 'services/rest_timer_platform.dart';
 import 'services/auth_service.dart';
 
@@ -554,6 +556,11 @@ class AppState extends ChangeNotifier {
           // The account-scoped local outbox remains available after sign-out.
         }
       }
+      // 세션이 죽기 **전에** 떼야 서버에서 지울 수 있다. 남겨 두면 이 기기를
+      // 다음에 쓰는 사람에게 남의 알림이 간다. 여기서 하는 이유는 하나 더
+      // 있다 — logout() 첫 줄에 두면 화면 초기화가 await 뒤로 밀려,
+      // 로그아웃을 누른 뒤에도 한 틱 동안 이전 역할의 셸이 남는다.
+      await _releasePushToken();
       await _authSignOut();
     })();
     _signOutInFlight = signOut;
@@ -609,6 +616,61 @@ class AppState extends ChangeNotifier {
 
   void clearStagedMemberProfileForAuthentication() {
     _stagedMemberProfileDraft = null;
+  }
+
+  StreamSubscription<String>? _pushTokenSubscription;
+
+  /// 이 기기를 계정에 붙인다. 로그인 직후와 앱 시작 시 부른다.
+  ///
+  /// 실패해도 아무것도 막지 않는다 — 알림을 못 받는 것이지 앱을 못 쓰는 것이
+  /// 아니다. 토큰은 재설치·복원·주기적 회전으로 바뀌므로 갱신도 구독한다.
+  /// 한 번 등록하고 끝내면 언젠가 조용히 배달이 멈춘다.
+  Future<void> syncPushRegistration() async {
+    final registry = _repository;
+    if (registry is! PushTokenRegistry) return;
+    if (!Auth.instance.hasAuthenticatedUser) return;
+    final push = Push.instance;
+    if (!push.isAvailable) return;
+
+    if (!await push.requestPermission()) return;
+    _pushTokenSubscription ??= push.tokenChanges.listen((token) {
+      unawaited(_registerPushToken(token));
+    });
+    final token = await push.currentToken();
+    if (token != null) await _registerPushToken(token);
+  }
+
+  Future<void> _registerPushToken(String token) async {
+    final registry = _repository;
+    if (registry is! PushTokenRegistry) return;
+    try {
+      await (registry as PushTokenRegistry).registerPushToken(
+        token: token,
+        platform: defaultTargetPlatform == TargetPlatform.iOS
+            ? 'ios'
+            : 'android',
+      );
+    } catch (_) {
+      // 다음 실행이나 다음 토큰 갱신에 다시 시도된다.
+    }
+  }
+
+  /// 로그아웃 **전에** 부른다. 세션이 죽은 뒤에는 서버에서 지울 수 없고,
+  /// 남겨 두면 이 기기를 다음에 쓰는 사람에게 남의 알림이 간다.
+  Future<void> _releasePushToken() async {
+    final registry = _repository;
+    final push = Push.instance;
+    await _pushTokenSubscription?.cancel();
+    _pushTokenSubscription = null;
+    if (registry is! PushTokenRegistry || !push.isAvailable) return;
+    final token = await push.currentToken();
+    if (token == null) return;
+    try {
+      await (registry as PushTokenRegistry).unregisterPushToken(token);
+    } catch (_) {
+      // 서버에서 못 지웠어도 기기 토큰은 아래에서 버린다.
+    }
+    await push.deleteToken();
   }
 
   Future<void> syncAfterAuthentication() {

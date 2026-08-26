@@ -218,6 +218,22 @@ abstract interface class AccountDeletion {
   Future<AccountDeletionRequest?> pendingAccountDeletion();
 }
 
+/// 이 기기로 알림을 받겠다고 서버에 알리는 경로.
+///
+/// 토큰이 어디에 저장되는지, 어떤 RPC 이름인지는 어댑터만 안다. AppState는
+/// "이 기기를 등록해 / 지워"만 말한다.
+abstract interface class PushTokenRegistry {
+  /// 지금 로그인한 계정에 이 기기의 토큰을 붙인다. 같은 토큰이 다른 계정에
+  /// 붙어 있었다면 이쪽으로 옮겨 온다 — 기기의 현재 사용자가 진실이다.
+  Future<void> registerPushToken({
+    required String token,
+    required String platform,
+  });
+
+  /// 이 기기의 토큰을 뗀다. 로그아웃할 때 부른다.
+  Future<void> unregisterPushToken(String token);
+}
+
 abstract interface class AppRepository {
   Future<AppSnapshot?> load(List<ExerciseTemplate> exerciseCatalog);
 

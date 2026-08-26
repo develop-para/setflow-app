@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../services/push_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'account_deletion_screen.dart';
@@ -855,16 +856,31 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
                 ),
               ),
             ],
-            SwitchListTile(
-              title: const Text('코칭 피드백 알림'),
-              value: state.pushCoachingFeedback,
-              onChanged: state.setPushCoachingFeedback,
-            ),
-            SwitchListTile(
-              title: const Text('커뮤니티 반응 알림'),
-              value: state.communityReactionNotifications,
-              onChanged: state.setCommunityReactionNotifications,
-            ),
+            // 이 둘만 서버가 보내는 알림이다. 기기가 푸시를 받을 수 없으면
+            // 켤 수 있다고 말하지 않는다 — 켜 놓고 안 오는 것이 가장 나쁘다.
+            if (!Push.instance.isAvailable)
+              ListTile(
+                key: const ValueKey('setting-push-unavailable'),
+                leading: const Icon(Icons.notifications_off_outlined),
+                title: const Text('푸시 알림을 쓸 수 없는 기기예요'),
+                subtitle: const Text('알림 권한을 껐거나 이 기기가 푸시를 지원하지 않아요.'),
+              )
+            else ...[
+              SwitchListTile(
+                key: const ValueKey('setting-push-coaching'),
+                title: const Text('코칭 피드백 알림'),
+                subtitle: const Text('트레이너가 상담에 답하면 알려드려요.'),
+                value: state.pushCoachingFeedback,
+                onChanged: state.setPushCoachingFeedback,
+              ),
+              SwitchListTile(
+                key: const ValueKey('setting-push-community'),
+                title: const Text('커뮤니티 반응 알림'),
+                subtitle: const Text('내 기록에 좋아요·댓글이 달리면 알려드려요.'),
+                value: state.communityReactionNotifications,
+                onChanged: state.setCommunityReactionNotifications,
+              ),
+            ],
           ],
           SettingSection.privacy => [
             SwitchListTile(

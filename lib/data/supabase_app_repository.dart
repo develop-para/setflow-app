@@ -44,6 +44,10 @@ abstract interface class SupabaseAppRemoteGateway {
   Future<bool> cancelAccountDeletion();
 
   Future<Map<String, dynamic>?> pendingAccountDeletion(String userId);
+
+  Future<void> registerPushToken(String token, String platform);
+
+  Future<void> unregisterPushToken(String token);
 }
 
 class _SupabaseClientAppRemoteGateway implements SupabaseAppRemoteGateway {
@@ -144,6 +148,17 @@ class _SupabaseClientAppRemoteGateway implements SupabaseAppRemoteGateway {
   }
 
   @override
+  Future<void> registerPushToken(String token, String platform) =>
+      _client.rpc<void>(
+        'register_push_token',
+        params: {'p_token': token, 'p_platform': platform},
+      );
+
+  @override
+  Future<void> unregisterPushToken(String token) =>
+      _client.rpc<void>('unregister_push_token', params: {'p_token': token});
+
+  @override
   Future<Map<String, dynamic>?> pendingAccountDeletion(String userId) async {
     final rows = await _client
         .from('account_deletion_requests')
@@ -167,7 +182,8 @@ class SupabaseAppRepository
         PendingSaveAwareRepository,
         DeferredSyncAppRepository,
         GuestDataAdoption,
-        AccountDeletion {
+        AccountDeletion,
+        PushTokenRegistry {
   factory SupabaseAppRepository(
     SupabaseClient client, {
     AppRepository? migrationSource,
@@ -238,6 +254,16 @@ class SupabaseAppRepository
 
   @override
   Future<bool> cancelAccountDeletion() => _gateway.cancelAccountDeletion();
+
+  @override
+  Future<void> registerPushToken({
+    required String token,
+    required String platform,
+  }) => _gateway.registerPushToken(token, platform);
+
+  @override
+  Future<void> unregisterPushToken(String token) =>
+      _gateway.unregisterPushToken(token);
 
   @override
   Future<AccountDeletionRequest?> pendingAccountDeletion() async {

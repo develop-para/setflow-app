@@ -876,6 +876,19 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
   final Map<String, Map<String, dynamic>> deletionRequests = {};
 
   @override
+  Future<void> registerPushToken(String token, String platform) async {
+    pushTokens[token] = platform;
+  }
+
+  @override
+  Future<void> unregisterPushToken(String token) async {
+    pushTokens.remove(token);
+  }
+
+  /// 기기 토큰 대역 — 서버 device_tokens 자리.
+  final Map<String, String> pushTokens = {};
+
+  @override
   Future<DateTime?> latestWorkoutUpdatedAt(String userId) async => null;
 
   @override

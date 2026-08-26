@@ -57,10 +57,22 @@ final architectureRules = <ArchitectureRule>[
         '포트(AuthService / *Repository)를 통해 접근하고, 벤더 타입은 어댑터 안에서 앱 타입으로 변환할 것.',
   ),
   ArchitectureRule(
+    name: 'Firebase도 어댑터 밖으로 나가지 않는다',
+    pattern: RegExp(r'''import\s+['"]package:firebase'''),
+    searchIn: const ['lib'],
+    allow: const [
+      'lib/main.dart', // composition root: binds the adapter
+      'lib/services/firebase_push_service.dart',
+    ],
+    why: '푸시 배달부는 언제든 바뀐다(FCM -> 자체 서버). 아는 파일이 늘수록 그 비용이 는다.',
+    instead: 'Push.instance(PushService 포트)를 쓰고, 토큰은 문자열로만 다룰 것.',
+  ),
+  ArchitectureRule(
     name: '화면은 벤더 클래스 이름을 몰라야 한다',
     pattern: RegExp(
       r'\b(SupabaseClient|SupabaseAuthService|RealtimeChannel|'
-      r'PostgresChangeEvent|PostgrestException|AuthResponse|GoTrue)\b',
+      r'PostgresChangeEvent|PostgrestException|AuthResponse|GoTrue|'
+      r'FirebaseMessaging|RemoteMessage|AuthorizationStatus)\b',
     ),
     searchIn: const ['lib/screens', 'lib/widgets', 'lib/app_state.dart'],
     allow: const [],

@@ -53,6 +53,11 @@ final signedIn = Auth.instance.hasAuthenticatedUser;
   사용자 핵심 동작(로그인·기록 저장 등)의 경로에 두지 말 것. 과거에 회원가입을 엣지 펑션 뒤에
   뒀다가 통째로 막힌 적이 있다.
 
+**푸시는 트리거가 직접 보내지 않는다.** DB 트리거는 `push_outbox`에 줄만 넣고 끝나고, FCM 전송은
+크론이 깨우는 엣지 펑션이 한다 — 알림은 부수효과지 본 동작이 아니라서, 남의 서비스가 느릴 때
+댓글 쓰기가 같이 느려지면 안 된다. 앱에서 Firebase를 아는 파일은 `lib/services/firebase_push_service.dart`
+하나뿐이고 화면은 `Push.instance`(`PushService` 포트)만 안다. 배경: `docs/push-notifications.md`
+
 **실시간은 포트에 도메인 스트림으로 낸다.** `Stream<TrainingParty> watchParty(id)`처럼 선언하고
 폴링이냐 Realtime이냐는 어댑터가 정한다 — 화면에 `RealtimeChannel`이 나오면 위반이다.
 같이 보내는 값은 **기간이 아니라 시각**으로(`restEndsAt`), 그래야 늦게 받은 기기도 같은 순간에

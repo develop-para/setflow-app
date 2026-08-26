@@ -25,6 +25,8 @@ import 'services/auth_service.dart';
 import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
+import 'services/firebase_push_service.dart';
+import 'services/push_service.dart';
 import 'widgets/common.dart';
 import 'widgets/guest_data_prompt.dart';
 import 'widgets/portal.dart';
@@ -42,6 +44,9 @@ Future<void> main() async {
   // later is a change here plus one more AuthService implementation.
   SupabaseAuthService.instance.configure(Supabase.instance.client);
   Auth.use(SupabaseAuthService.instance);
+  // 배달부를 고르는 유일한 자리. 설정 파일이 없는 플랫폼에서는 조용히 꺼진
+  // 구현이 돌아온다 — 알림이 없는 것과 앱이 안 켜지는 것은 등급이 다르다.
+  Push.bind(await FirebasePushService.create());
 
   AppRepository? migrationSource;
   try {
@@ -142,6 +147,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   Future<void> _initializeState() async {
     await state.initialize();
     await state.syncRestTimerFromPlatform();
+    // 세션이 복원된 채로 시작하면 signedIn 이벤트가 안 올 수 있다. 등록은
+    // upsert라 두 번 불려도 같은 결과다.
+    unawaited(state.syncPushRegistration());
   }
 
   void _handleAuthState(AuthChange change) {
@@ -178,6 +186,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     } catch (_) {
       // AppState surfaces the failure through persistenceError.
     }
+    // 계정이 정해진 뒤에 등록해야 토큰이 맞는 사람에게 붙는다. 실패해도
+    // 로그인을 막지 않는다.
+    unawaited(state.syncPushRegistration());
   }
 
   Future<void> _maybeAdoptGuestData(String userId) async {

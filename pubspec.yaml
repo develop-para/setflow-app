@@ -49,6 +49,8 @@ dependencies:
   app_links: 7.2.1
   share_plus: 10.1.4
   url_launcher: 6.3.2
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
