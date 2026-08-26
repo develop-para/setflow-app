@@ -47,6 +47,7 @@ abstract final class AppSnapshotCodec {
         'timerVibration': snapshot.timerVibration,
         'timerSound': snapshot.timerSound,
         'timerCountdownSeconds': snapshot.timerCountdownSeconds,
+        'oneRepMaxFormula': snapshot.oneRepMaxFormula.storageKey,
         'pushCoachingFeedback': snapshot.pushCoachingFeedback,
         'communityReactionNotifications':
             snapshot.communityReactionNotifications,
@@ -196,6 +197,9 @@ abstract final class AppSnapshotCodec {
         timerCountdownSeconds:
             ((preferences['timerCountdownSeconds'] as num?)?.toInt() ?? 30)
                 .clamp(0, 120),
+        oneRepMaxFormula: oneRepMaxFormulaFromStorage(
+          preferences['oneRepMaxFormula'] as String?,
+        ),
         pushCoachingFeedback:
             preferences['pushCoachingFeedback'] as bool? ?? true,
         communityReactionNotifications:
@@ -276,6 +280,9 @@ abstract final class AppSnapshotCodec {
               'durationSeconds': set.durationSeconds,
               'distanceKm': set.distanceKm,
               'intensityRpe': set.intensityRpe,
+              // 적지 않은 세트는 키 자체를 남기지 않는다 — 0(실패 직전)과
+              // 구별되어야 한다.
+              if (set.rir != null) 'rir': set.rir,
             },
           )
           .toList(),
@@ -302,6 +309,7 @@ abstract final class AppSnapshotCodec {
           durationSeconds: (set['durationSeconds'] as num?)?.toInt() ?? 0,
           distanceKm: (set['distanceKm'] as num?)?.toDouble() ?? 0,
           intensityRpe: (set['intensityRpe'] as num?)?.toDouble() ?? 0,
+          rir: (set['rir'] as num?)?.toInt(),
         ),
       );
     }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'account_deletion_screen.dart';
 import 'evidence_library_screen.dart';
 
 /// 사업자(트레이너/헬스장) 설정 목록 화면.
@@ -146,34 +147,36 @@ class BusinessSettingsListScreen extends StatelessWidget {
             ),
             const Divider(height: 30),
             ListTile(
+              key: const ValueKey('business-settings-withdraw'),
               leading: Icon(
                 Icons.person_off_outlined,
-                color: state.usesLiveBusinessData
-                    ? Theme.of(context).colorScheme.onSurfaceVariant
-                    : context.setflowColors.error,
+                color: state.supportsAccountDeletion
+                    ? context.setflowColors.error
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               title: Text(
-                _isGym ? '헬스장 탈퇴' : '탈퇴',
+                _isGym ? '헬스장 탈퇴' : '계정 탈퇴',
                 style: TextStyle(
-                  color: state.usesLiveBusinessData
-                      ? Theme.of(context).colorScheme.onSurfaceVariant
-                      : context.setflowColors.error,
+                  color: state.supportsAccountDeletion
+                      ? context.setflowColors.error
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              subtitle: state.usesLiveBusinessData
-                  ? const Text('계정 탈퇴 서버 처리 연동 준비 중')
+              subtitle: Text(
+                state.supportsAccountDeletion
+                    ? '30일 유예 후 삭제되고, 그 안에는 되돌릴 수 있어요.'
+                    : '로그인한 계정에서만 신청할 수 있어요.',
+              ),
+              trailing: state.supportsAccountDeletion
+                  ? const Icon(Icons.chevron_right)
                   : null,
-              trailing: state.usesLiveBusinessData
-                  ? const Icon(Icons.lock_clock_outlined)
-                  : null,
-              onTap: state.usesLiveBusinessData
-                  ? null
-                  : () => Navigator.of(context).push(
+              onTap: state.supportsAccountDeletion
+                  ? () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) =>
-                            BusinessSettingsWithdrawScreen(role: role),
+                        builder: (_) => AccountDeletionScreen(role: role),
                       ),
-                    ),
+                    )
+                  : null,
             ),
           ],
         ),
@@ -584,203 +587,6 @@ class _BusinessSettingsNotificationsScreenState
 }
 
 /// 탈퇴 화면.
-class BusinessSettingsWithdrawScreen extends StatefulWidget {
-  const BusinessSettingsWithdrawScreen({required this.role, super.key});
-  final UserRole role;
-
-  @override
-  State<BusinessSettingsWithdrawScreen> createState() =>
-      _BusinessSettingsWithdrawScreenState();
-}
-
-class _BusinessSettingsWithdrawScreenState
-    extends State<BusinessSettingsWithdrawScreen> {
-  String? _reason;
-  bool _agreed = false;
-
-  bool get _isGym => widget.role == UserRole.gym;
-
-  static const _reasons = [
-    '운영할 시간이 부족해요',
-    '수수료가 너무 높아요',
-    '사용 방법이 어려워요',
-    '서비스 이용이 불만족스러워요',
-    '기타 사유',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final live = AppScope.of(context).usesLiveBusinessData;
-    final canWithdraw = !live && _reason != null && _agreed;
-    return Scaffold(
-      appBar: AppBar(title: Text(_isGym ? '헬스장 탈퇴' : '탈퇴')),
-      body: ListView(
-        padding: SetflowInsets.pageList,
-        children: [
-          if (live) ...[
-            const _LiveIntegrationNotice(
-              message: '계정 탈퇴는 서버 유예·정산 처리 연동 후 사용할 수 있어요.',
-            ),
-            const SizedBox(height: SetflowSpacing.lg),
-          ],
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: context.setflowColors.error.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(SetflowRadii.xl),
-              border: Border.all(
-                color: context.setflowColors.error.withValues(alpha: .2),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '잠깐, 탈퇴 전에 확인해 주세요',
-                  style: TextStyle(
-                    fontSize: SetflowFontSize.title,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: SetflowSpacing.sm2),
-                _WarningItem(
-                  icon: Icons.schedule,
-                  title: '30일 유예 기간',
-                  message: '탈퇴 신청 후 30일 동안은 언제든 로그인하여 복구할 수 있습니다.',
-                ),
-                _WarningItem(
-                  icon: Icons.groups_outlined,
-                  title: _isGym ? '소속 트레이너/회원 자동 안내' : '관리 회원 자동 안내',
-                  message: '이용 중인 상대방에게 서비스 종료 안내가 자동 발송됩니다.',
-                ),
-                _WarningItem(
-                  icon: Icons.wallet_outlined,
-                  title: '미정산 수익금 처리',
-                  message: '탈퇴 신청 후 익월 1일에 등록된 계좌로 일괄 지급됩니다.',
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.xl),
-          const Text(
-            '탈퇴 사유를 선택해 주세요',
-            style: TextStyle(
-              fontSize: SetflowFontSize.body,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.sm),
-          DropdownButtonFormField<String>(
-            initialValue: _reason,
-            hint: const Text('탈퇴 사유 선택'),
-            items: [
-              for (final reason in _reasons)
-                DropdownMenuItem(value: reason, child: Text(reason)),
-            ],
-            onChanged: (value) => setState(() => _reason = value),
-          ),
-          const SizedBox(height: SetflowSpacing.md2),
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: _agreed,
-            onChanged: (value) => setState(() => _agreed = value ?? false),
-            title: const Text(
-              '안내사항을 모두 확인하였으며 탈퇴 및 수익금 정산 처리에 동의합니다.',
-              style: TextStyle(
-                fontSize: SetflowFontSize.label,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.xl),
-          PrimaryButton(
-            label: '탈퇴 신청하기',
-            onPressed: canWithdraw ? () => _confirmWithdraw(context) : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmWithdraw(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('정말 탈퇴하시겠습니까?'),
-        content: const Text('30일 유예 기간 내에 언제든 복구할 수 있습니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(
-              '탈퇴',
-              style: TextStyle(color: context.setflowColors.error),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && context.mounted) {
-      showMessage(context, '탈퇴 신청이 완료되었습니다. (데모)');
-      Navigator.of(context).pop();
-    }
-  }
-}
-
-class _WarningItem extends StatelessWidget {
-  const _WarningItem({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: context.setflowColors.error),
-          const SizedBox(width: SetflowSpacing.sm2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: SetflowFontSize.label,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: SetflowSpacing.xxs),
-                Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: SetflowFontSize.caption,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// (트레이너) 인증 뱃지 갱신 화면.
 class BusinessBadgeRenewScreen extends StatefulWidget {
   const BusinessBadgeRenewScreen({super.key});
 

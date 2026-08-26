@@ -315,6 +315,39 @@ class RecommendationProfile {
 /// 세트 하나를 무엇으로 재는가. 근력은 무게×횟수지만, 맨몸운동은 무게가
 /// 없고(푸시업은 횟수만), 플랭크류는 횟수조차 없다(버티는 시간이 기록이다).
 /// 가짜 0kg을 타이핑하게 두는 대신 종목이 자기 측정 방식을 선언한다.
+/// 추정 1RM을 어느 공식으로 낼지. 둘은 반복수에 따라 갈린다 — Brzycki는
+/// 저반복(1~6회)에서, Epley는 고반복에서 더 잘 맞는다고 알려져 있고, 기본값인
+/// 평균은 한쪽으로 치우치지 않는 대신 어느 쪽도 아니다. 어느 것이 옳다고
+/// 단정할 수 없으므로 고르게 두되, 고르지 않은 사람에게는 평균을 준다.
+enum OneRepMaxFormula { average, epley, brzycki }
+
+extension OneRepMaxFormulaLabel on OneRepMaxFormula {
+  String get label => switch (this) {
+    OneRepMaxFormula.average => 'Epley · Brzycki 평균',
+    OneRepMaxFormula.epley => 'Epley',
+    OneRepMaxFormula.brzycki => 'Brzycki',
+  };
+
+  String get description => switch (this) {
+    OneRepMaxFormula.average => '두 공식의 중간값. 반복수 구간을 가리지 않아요.',
+    OneRepMaxFormula.epley => '무게 × (1 + 횟수/30). 고반복에서 조금 더 높게 나와요.',
+    OneRepMaxFormula.brzycki => '무게 × 36 / (37 − 횟수). 저반복에서 널리 쓰여요.',
+  };
+
+  /// 스냅샷에 남기는 값. 이름이 바뀌어도 저장된 것이 안 깨지도록 고정한다.
+  String get storageKey => switch (this) {
+    OneRepMaxFormula.average => 'average',
+    OneRepMaxFormula.epley => 'epley',
+    OneRepMaxFormula.brzycki => 'brzycki',
+  };
+}
+
+OneRepMaxFormula oneRepMaxFormulaFromStorage(String? key) => switch (key) {
+  'epley' => OneRepMaxFormula.epley,
+  'brzycki' => OneRepMaxFormula.brzycki,
+  _ => OneRepMaxFormula.average,
+};
+
 enum ExerciseMeasurement {
   /// 무게 × 횟수 — 바벨·덤벨·머신.
   weightReps,
@@ -373,6 +406,7 @@ class WorkoutSetEntry {
     this.durationSeconds = 0,
     this.distanceKm = 0,
     this.intensityRpe = 0,
+    this.rir,
   });
 
   int number;
@@ -384,6 +418,11 @@ class WorkoutSetEntry {
   int durationSeconds;
   double distanceKm;
   double intensityRpe;
+
+  /// Reps In Reserve — 이 세트 뒤에 몇 회를 더 할 수 있었는지. null은 "적지
+  /// 않음"이고 0과 다르다: 0은 실패 직전까지 갔다는 뜻이라 실제 기록이다.
+  /// 설정에서 RIR 입력을 켠 사용자만 채운다.
+  int? rir;
 
   double get volume => completed ? weight * reps : 0;
 
@@ -397,6 +436,7 @@ class WorkoutSetEntry {
     durationSeconds: durationSeconds,
     distanceKm: distanceKm,
     intensityRpe: intensityRpe,
+    rir: rir,
   );
 }
 

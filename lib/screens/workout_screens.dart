@@ -1093,6 +1093,12 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                       set,
                                       restSeconds: seconds,
                                     ),
+                                    showRir: state.useRir,
+                                    onRirChanged: (reserve) => state.updateSet(
+                                      set,
+                                      rir: reserve,
+                                      clearRir: reserve == null,
+                                    ),
                                     onDelete: () =>
                                         _confirmDeleteSet(context, state, set),
                                   ),
@@ -1664,6 +1670,69 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
   }
 }
 
+/// "몇 회 더 할 수 있었나". 0부터 5까지와 '기록 안 함' 하나.
+///
+/// 다이얼이 아니라 칩인 이유: 값이 여섯 개뿐이고 세트마다 반복되는 입력이라
+/// 시트를 열었다 닫는 왕복이 무게·횟수보다 비싸다. 그리고 다이얼에는 "안 적음"을
+/// 고를 자리가 없다 — 취소와 구별되지 않는다.
+class _RirPicker extends StatelessWidget {
+  const _RirPicker({
+    required this.setNumber,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final int setNumber;
+  final int? value;
+  final bool enabled;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'RIR · 몇 회 더 할 수 있었나요?',
+          style: TextStyle(
+            fontSize: SetflowFontSize.micro,
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: SetflowWeight.medium,
+          ),
+        ),
+        const SizedBox(height: SetflowSpacing.xxs),
+        Wrap(
+          spacing: SetflowSpacing.xs,
+          runSpacing: SetflowSpacing.xxs,
+          children: [
+            for (var reserve = 0; reserve <= 5; reserve++)
+              ChoiceChip(
+                key: ValueKey('inline-set-rir-$setNumber-$reserve'),
+                label: Text('$reserve'),
+                selected: value == reserve,
+                visualDensity: VisualDensity.compact,
+                onSelected: enabled
+                    // 이미 고른 값을 다시 누르면 해제된다 — 잘못 누른 것을
+                    // 되돌릴 다른 길이 없다.
+                    ? (_) => onChanged(value == reserve ? null : reserve)
+                    : null,
+              ),
+            ChoiceChip(
+              key: ValueKey('inline-set-rir-$setNumber-none'),
+              label: const Text('기록 안 함'),
+              selected: value == null,
+              visualDensity: VisualDensity.compact,
+              onSelected: enabled ? (_) => onChanged(null) : null,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 /// A number the user picks, never types in place.
 ///
 /// The box *is* the button: tapping it opens [showNumberDial], where the value
@@ -1747,7 +1816,9 @@ class _InlineSetRow extends StatefulWidget {
     required this.onDurationChanged,
     required this.onRestChanged,
     required this.onDelete,
+    required this.onRirChanged,
     this.measurement = ExerciseMeasurement.weightReps,
+    this.showRir = false,
   });
 
   final WorkoutSetEntry set;
@@ -1759,6 +1830,13 @@ class _InlineSetRow extends StatefulWidget {
   final ValueChanged<int> onDurationChanged;
   final ValueChanged<int> onRestChanged;
   final VoidCallback onDelete;
+
+  /// null이면 "기록 안 함"으로 되돌린다. 0은 값이다 — 실패 직전까지 갔다는 뜻.
+  final ValueChanged<int?> onRirChanged;
+
+  /// 설정 > 운동 기록 환경설정의 'RIR 입력 필드'. 꺼 둔 사람에게는 행이 늘어날
+  /// 이유가 없으므로 아예 그리지 않는다.
+  final bool showRir;
 
   /// 이 종목이 세트를 무엇으로 재는가 — 무게 다이얼을 그릴지 말지가 여기서
   /// 갈린다. 푸시업에 무게 박스를 주면 0을 타이핑하는 일만 남는다.
@@ -1818,8 +1896,19 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     super.dispose();
   }
 
+  /// 접힌 줄에도 남긴다 — 적어 둔 값이 접히면서 사라지면 적을 이유가 없다.
+  String _rirSuffix() {
+    final rir = widget.set.rir;
+    if (!_showsRir || rir == null) return '';
+    return ' · RIR $rir';
+  }
+
   String _weightText() =>
       widget.set.weight.toStringAsFixed(widget.set.weight % 1 == 0 ? 0 : 1);
+
+  /// 버티는 종목에는 "몇 회 더"가 성립하지 않는다 — 남는 것은 시간이다.
+  bool get _showsRir =>
+      widget.showRir && widget.measurement != ExerciseMeasurement.duration;
 
   /// 95초보다 "1분 35초"가 읽힌다.
   static String _holdText(int seconds) {
@@ -1839,8 +1928,8 @@ class _InlineSetRowState extends State<_InlineSetRow> {
         label: '세트',
         summary: switch (widget.measurement) {
           ExerciseMeasurement.weightReps =>
-            '${_weightText()}${widget.unit} × ${widget.set.reps}회',
-          ExerciseMeasurement.repsOnly => '${widget.set.reps}회',
+            '${_weightText()}${widget.unit} × ${widget.set.reps}회${_rirSuffix()}',
+          ExerciseMeasurement.repsOnly => '${widget.set.reps}회${_rirSuffix()}',
           ExerciseMeasurement.duration => _holdText(widget.set.durationSeconds),
         },
         onExpand: () => setState(() => reopened = true),
@@ -1848,7 +1937,9 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     }
     // 1RM은 무게가 있어야 성립한다 — 맨몸 세트에는 계산할 것이 없다.
     final estimate = widget.measurement == ExerciseMeasurement.weightReps
-        ? PerformanceEngine.estimate(widget.set.weight, widget.set.reps)
+        ? AppScope.of(
+            context,
+          ).estimateOneRepMax(widget.set.weight, widget.set.reps)
         : null;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -2042,6 +2133,15 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                 ),
               ],
             ),
+            if (_showsRir) ...[
+              const SizedBox(height: SetflowSpacing.xs),
+              _RirPicker(
+                setNumber: widget.set.number,
+                value: widget.set.rir,
+                enabled: !widget.set.completed,
+                onChanged: widget.onRirChanged,
+              ),
+            ],
             AnimatedSize(
               duration: SetflowMotion.micro,
               child: deleteRevealed
@@ -3688,10 +3788,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                 ),
                               ),
                               const SizedBox(height: SetflowSpacing.xs),
-                              if (PerformanceEngine.estimate(
-                                    set.weight,
-                                    set.reps,
-                                  )
+                              if (state.estimateOneRepMax(set.weight, set.reps)
                                   case final estimate?)
                                 Text(
                                   'e1RM ${estimate.value.toStringAsFixed(1)} · '

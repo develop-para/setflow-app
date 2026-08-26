@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
 import 'package:setflow/data/business_repository.dart';
+import 'package:setflow/screens/account_deletion_screen.dart';
 import 'package:setflow/screens/admin_content_screens.dart';
 import 'package:setflow/screens/admin_system_screens.dart';
 import 'package:setflow/screens/business_detail_screens.dart';
@@ -225,7 +226,7 @@ void main() {
       ),
       'BusinessSettingsNotificationsScreen':
           const BusinessSettingsNotificationsScreen(role: UserRole.trainer),
-      'BusinessSettingsWithdrawScreen': const BusinessSettingsWithdrawScreen(
+      'AccountDeletionScreen': const AccountDeletionScreen(
         role: UserRole.trainer,
       ),
       'BusinessBadgeRenewScreen': const BusinessBadgeRenewScreen(),

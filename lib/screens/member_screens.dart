@@ -16,7 +16,6 @@ import '../widgets/bottom_bar.dart';
 import '../widgets/portal.dart';
 import 'detail_screens.dart';
 import 'evidence_library_screen.dart';
-import 'member_membership_screen.dart';
 import 'member_mypage_screen.dart';
 import 'member_social_detail_screens.dart';
 import 'routine_editor_screen.dart';
@@ -4022,17 +4021,6 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.palette_outlined),
-            title: const Text('디스플레이'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) =>
-                    const SettingDetailScreen(section: SettingSection.display),
-              ),
-            ),
-          ),
           const Divider(height: 30),
           ListTile(
             title: Text(
@@ -4045,21 +4033,12 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.scale_outlined),
-            title: const Text('무게 단위'),
-            trailing: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'kg', label: Text('kg')),
-                ButtonSegment(value: 'lb', label: Text('lb')),
-              ],
-              selected: {state.weightUnit},
-              onSelectionChanged: (value) => state.setWeightUnit(value.first),
+            key: const ValueKey('settings-workout'),
+            leading: const Icon(Icons.fitness_center_outlined),
+            title: const Text('운동 기록 환경설정'),
+            subtitle: Text(
+              '${state.weightUnit} · 휴식 ${state.restDefaultSeconds}초',
             ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.timer_outlined),
-            title: const Text('기본 휴식 타이머'),
-            subtitle: Text('${state.restDefaultSeconds}초'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
@@ -4086,25 +4065,6 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           if (state.usesLiveBusinessData) ...[
-            ListTile(
-              leading: const Icon(Icons.apartment_outlined),
-              title: const Text('연결 센터 관리'),
-              subtitle: Text(
-                state.memberMembershipsError != null
-                    ? '센터 연결 정보를 불러오지 못했어요.'
-                    : state.memberMemberships.isEmpty
-                    ? '연결된 센터 없음'
-                    : state.memberMemberships
-                          .map((item) => item.gymName ?? '연결 센터')
-                          .join(', '),
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const MemberMembershipScreen(),
-                ),
-              ),
-            ),
             _BusinessRoleEntry(
               role: UserRole.trainer,
               icon: Icons.fitness_center,
@@ -4123,7 +4083,8 @@ class SettingsScreen extends StatelessWidget {
           ] else ...[
             ListTile(
               leading: const Icon(Icons.fitness_center),
-              title: const Text('트레이너 화면 보기'),
+              title: const Text('트레이너 화면 보기 (데모)'),
+              subtitle: const Text('샘플 데이터로 채운 미리보기예요.'),
               onTap: () {
                 Navigator.pop(context);
                 state.chooseRole(UserRole.trainer);
@@ -4131,7 +4092,8 @@ class SettingsScreen extends StatelessWidget {
             ),
             ListTile(
               leading: const Icon(Icons.apartment),
-              title: const Text('헬스장 화면 보기'),
+              title: const Text('헬스장 화면 보기 (데모)'),
+              subtitle: const Text('샘플 데이터로 채운 미리보기예요.'),
               onTap: () {
                 Navigator.pop(context);
                 state.chooseRole(UserRole.gym);
@@ -4141,7 +4103,7 @@ class SettingsScreen extends StatelessWidget {
           if (state.isAdmin)
             ListTile(
               leading: const Icon(Icons.admin_panel_settings_outlined),
-              title: const Text('운영 관리자 화면 보기'),
+              title: const Text('운영 관리자 화면 보기 (데모)'),
               onTap: () {
                 Navigator.pop(context);
                 state.chooseRole(UserRole.admin);

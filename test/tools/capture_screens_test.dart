@@ -211,8 +211,7 @@ void main() {
       ('계정 & 프로필', 'account'),
       ('알림 설정', 'notifications'),
       ('데이터 & 개인정보', 'privacy'),
-      ('디스플레이', 'display'),
-      ('기본 휴식 타이머', 'rest'),
+      ('운동 기록 환경설정', 'workout'),
     ]) {
       await tester.tap(find.text(label).first);
       await tester.pumpAndSettle();

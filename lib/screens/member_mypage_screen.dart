@@ -6,7 +6,6 @@ import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
-import 'member_goal_screen.dart';
 import 'member_membership_screen.dart';
 import 'member_screens.dart';
 import 'password_screens.dart';
@@ -93,12 +92,6 @@ class MyPageScreen extends StatelessWidget {
             builder: (_) => const CoachingScreen(),
           ),
           _MyPageEntry(
-            icon: SetflowIcons.goal,
-            title: '운동 목표',
-            subtitle: '추천 구성에 반영되는 목표',
-            builder: (_) => const MemberGoalScreen(),
-          ),
-          _MyPageEntry(
             icon: SetflowIcons.membership,
             title: '이용권',
             subtitle: '센터 회원권과 잔여 세션',
@@ -128,7 +121,7 @@ class MyPageScreen extends StatelessWidget {
           _MyPageEntry(
             icon: SetflowIcons.settings,
             title: '설정',
-            subtitle: '알림 · 운동 환경 · 계정',
+            subtitle: '계정 · 알림 · 운동 환경 · 개인정보',
             builder: (_) => const SettingsScreen(),
           ),
         ],

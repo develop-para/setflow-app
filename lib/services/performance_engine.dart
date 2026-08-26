@@ -179,9 +179,14 @@ class WorkoutRecommendation {
 }
 
 abstract final class PerformanceEngine {
-  static E1rmEstimate? estimate(double weight, int reps) {
+  static E1rmEstimate? estimate(
+    double weight,
+    int reps, {
+    OneRepMaxFormula formula = OneRepMaxFormula.average,
+  }) {
     if (weight <= 0 || reps < 1 || reps > 15) return null;
     if (reps == 1) {
+      // 1회는 공식이 필요 없다 — 그 무게가 곧 1RM이다.
       return E1rmEstimate(
         value: weight,
         epley: weight,
@@ -192,7 +197,11 @@ abstract final class PerformanceEngine {
     final epley = weight * (1 + reps / 30);
     final brzycki = weight * 36 / (37 - reps);
     return E1rmEstimate(
-      value: (epley + brzycki) / 2,
+      value: switch (formula) {
+        OneRepMaxFormula.average => (epley + brzycki) / 2,
+        OneRepMaxFormula.epley => epley,
+        OneRepMaxFormula.brzycki => brzycki,
+      },
       epley: epley,
       brzycki: brzycki,
       quality: reps <= 5
@@ -292,6 +301,7 @@ abstract final class PerformanceEngine {
     required Iterable<WorkoutSession> sessions,
     required ExerciseTemplate template,
     DateTime? before,
+    OneRepMaxFormula formula = OneRepMaxFormula.average,
   }) {
     // Cardio uses elapsed time, distance, pace/power and intensity. Treating a
     // machine level or distance as lifting weight would create a false e1RM.
@@ -300,6 +310,7 @@ abstract final class PerformanceEngine {
       sessions: sessions,
       templateId: template.id,
       before: before,
+      formula: formula,
     );
     if (records.isEmpty) return null;
 
@@ -466,6 +477,7 @@ abstract final class PerformanceEngine {
     required Iterable<WorkoutSession> sessions,
     required String templateId,
     required WorkoutSetEntry candidate,
+    OneRepMaxFormula formula = OneRepMaxFormula.average,
   }) {
     if (candidate.type != '일반' ||
         candidate.weight <= 0 ||
@@ -478,7 +490,7 @@ abstract final class PerformanceEngine {
       excludedSet: candidate,
     );
     final estimateValue = candidate.reps <= 10
-        ? estimate(candidate.weight, candidate.reps)
+        ? estimate(candidate.weight, candidate.reps, formula: formula)
         : null;
     if (allHistory.isEmpty) {
       return {
@@ -503,6 +515,7 @@ abstract final class PerformanceEngine {
         sessions: sessions,
         templateId: templateId,
         excludedSet: candidate,
+        formula: formula,
       );
       if (e1rmHistory.isEmpty ||
           estimateValue.value >
@@ -537,6 +550,7 @@ abstract final class PerformanceEngine {
     required String templateId,
     DateTime? before,
     WorkoutSetEntry? excludedSet,
+    OneRepMaxFormula formula = OneRepMaxFormula.average,
   }) {
     final records = <PerformanceSetRecord>[];
     for (final session in sessions) {
@@ -548,7 +562,11 @@ abstract final class PerformanceEngine {
         }
         for (final set in exercise.sets) {
           if (identical(set, excludedSet) || !_isE1rmSet(set)) continue;
-          final estimateValue = estimate(set.weight, set.reps);
+          final estimateValue = estimate(
+            set.weight,
+            set.reps,
+            formula: formula,
+          );
           if (estimateValue == null) continue;
           records.add(
             PerformanceSetRecord(

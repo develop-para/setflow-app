@@ -38,6 +38,12 @@ abstract interface class SupabaseAppRemoteGateway {
     required String expectedUserId,
     required DateTime? expectedUpdatedAt,
   });
+
+  Future<Map<String, dynamic>> requestAccountDeletion(String? reason);
+
+  Future<bool> cancelAccountDeletion();
+
+  Future<Map<String, dynamic>?> pendingAccountDeletion(String userId);
 }
 
 class _SupabaseClientAppRemoteGateway implements SupabaseAppRemoteGateway {
@@ -119,6 +125,36 @@ class _SupabaseClientAppRemoteGateway implements SupabaseAppRemoteGateway {
       'expected_updated_at': expectedUpdatedAt?.toIso8601String(),
     },
   );
+
+  @override
+  Future<Map<String, dynamic>> requestAccountDeletion(String? reason) async {
+    final result = await _client.rpc(
+      'request_account_deletion',
+      params: {'p_reason': reason},
+    );
+    return result is Map
+        ? Map<String, dynamic>.from(result)
+        : const <String, dynamic>{};
+  }
+
+  @override
+  Future<bool> cancelAccountDeletion() async {
+    final result = await _client.rpc('cancel_account_deletion');
+    return result is Map && result['cancelled'] == true;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> pendingAccountDeletion(String userId) async {
+    final rows = await _client
+        .from('account_deletion_requests')
+        .select('requested_at, purge_after, reason, cancelled_at, purged_at')
+        .eq('user_id', userId)
+        .isFilter('cancelled_at', null)
+        .isFilter('purged_at', null)
+        .limit(1);
+    if (rows.isEmpty) return null;
+    return Map<String, dynamic>.from(rows.first);
+  }
 }
 
 /// Supabase is authoritative, while the account-scoped local outbox protects
@@ -130,7 +166,8 @@ class SupabaseAppRepository
         AppRepository,
         PendingSaveAwareRepository,
         DeferredSyncAppRepository,
-        GuestDataAdoption {
+        GuestDataAdoption,
+        AccountDeletion {
   factory SupabaseAppRepository(
     SupabaseClient client, {
     AppRepository? migrationSource,
@@ -186,6 +223,48 @@ class SupabaseAppRepository
   @override
   Future<bool> adoptGuestSnapshot(String userId) async =>
       await _claimedSource?.claimFor(userId) ?? false;
+
+  @override
+  Future<AccountDeletionRequest> requestAccountDeletion({
+    String? reason,
+  }) async {
+    final result = await _gateway.requestAccountDeletion(reason);
+    final request = _accountDeletionFromRow(result);
+    if (request == null) {
+      throw StateError('탈퇴 요청이 유예 기간을 돌려주지 않았습니다.');
+    }
+    return request;
+  }
+
+  @override
+  Future<bool> cancelAccountDeletion() => _gateway.cancelAccountDeletion();
+
+  @override
+  Future<AccountDeletionRequest?> pendingAccountDeletion() async {
+    final userId = _gateway.currentUserId;
+    if (userId == null) return null;
+    final row = await _gateway.pendingAccountDeletion(userId);
+    return row == null ? null : _accountDeletionFromRow(row);
+  }
+
+  /// RPC는 camelCase로, 테이블 조회는 snake_case로 같은 값을 준다.
+  static AccountDeletionRequest? _accountDeletionFromRow(
+    Map<String, dynamic> row,
+  ) {
+    final requestedAt = DateTime.tryParse(
+      (row['requestedAt'] ?? row['requested_at'])?.toString() ?? '',
+    );
+    final purgeAfter = DateTime.tryParse(
+      (row['purgeAfter'] ?? row['purge_after'])?.toString() ?? '',
+    );
+    if (requestedAt == null || purgeAfter == null) return null;
+    final reason = row['reason']?.toString();
+    return AccountDeletionRequest(
+      requestedAt: requestedAt.toLocal(),
+      purgeAfter: purgeAfter.toLocal(),
+      reason: reason == null || reason.isEmpty ? null : reason,
+    );
+  }
 
   @override
   Future<AppSnapshot?> load(List<ExerciseTemplate> exerciseCatalog) async {
@@ -544,6 +623,11 @@ class SupabaseAppRepository
       autoRecommendNextExercise: source.autoRecommendNextExercise,
       restTimerNotifications: source.restTimerNotifications,
       timerVibration: source.timerVibration,
+      // 소리 설정과 1RM 공식도 사용자가 고른 값이다. 여기서 빠지면 게스트
+      // 기록을 계정에 넣는 순간 조용히 기본값으로 되돌아간다.
+      timerSound: source.timerSound,
+      timerCountdownSeconds: source.timerCountdownSeconds,
+      oneRepMaxFormula: source.oneRepMaxFormula,
       pushCoachingFeedback: source.pushCoachingFeedback,
       communityReactionNotifications: source.communityReactionNotifications,
       sessions: {

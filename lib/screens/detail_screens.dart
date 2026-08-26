@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'account_deletion_screen.dart';
 import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
 
@@ -589,7 +590,7 @@ class _MessageBubble extends StatelessWidget {
   );
 }
 
-enum SettingSection { account, workout, notifications, privacy, display }
+enum SettingSection { account, workout, notifications, privacy }
 
 class SettingDetailScreen extends StatefulWidget {
   const SettingDetailScreen({required this.section, super.key});
@@ -600,9 +601,15 @@ class SettingDetailScreen extends StatefulWidget {
 }
 
 class _SettingDetailScreenState extends State<SettingDetailScreen> {
-  bool first = true;
-  bool second = false;
-  bool shareWorkoutRecords = false;
+  // One field per switch. These used to be `first` and `second`, reused across
+  // sections, so the same name meant RIR here and vibration there.
+  bool _useRir = false;
+  bool _autoStartRestTimer = true;
+  bool _restTimerNotifications = true;
+  bool _timerVibration = true;
+  bool _shareBodyData = false;
+  bool _shareWorkoutRecords = false;
+  bool _marketing = false;
   bool _privacyLoaded = false;
   bool _savingPrivacy = false;
   double timer = 90;
@@ -621,12 +628,12 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
           _nicknameController.text = state.memberDisplayName;
           _weightController.text = state.weight?.toStringAsFixed(1) ?? '';
         case SettingSection.workout:
-          first = state.useRir;
-          second = state.autoStartRestTimer;
+          _useRir = state.useRir;
+          _autoStartRestTimer = state.autoStartRestTimer;
         case SettingSection.notifications:
-          first = state.restTimerNotifications;
-          second = state.timerVibration;
-        case SettingSection.privacy || SettingSection.display:
+          _restTimerNotifications = state.restTimerNotifications;
+          _timerVibration = state.timerVibration;
+        case SettingSection.privacy:
           break;
       }
       _settingsLoaded = true;
@@ -634,9 +641,9 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
     if (widget.section != SettingSection.privacy || _privacyLoaded) return;
     final preferences = state.memberSharingPreferences;
     if (preferences == null) return;
-    first = preferences.shareBodyData;
-    shareWorkoutRecords = preferences.shareWorkoutRecords;
-    second = preferences.marketing;
+    _shareBodyData = preferences.shareBodyData;
+    _shareWorkoutRecords = preferences.shareWorkoutRecords;
+    _marketing = preferences.marketing;
     _privacyLoaded = true;
   }
 
@@ -652,7 +659,6 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
     SettingSection.workout => '운동 기록 환경설정',
     SettingSection.notifications => '알림 설정',
     SettingSection.privacy => '데이터 & 개인정보',
-    SettingSection.display => '디스플레이',
   };
 
   @override
@@ -697,7 +703,6 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
                       ],
                     ),
                   ),
-                  const Icon(Icons.edit_outlined),
                 ],
               ),
             ),
@@ -773,41 +778,45 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
               trailing: Text('${timer.toInt()}초'),
             ),
             SwitchListTile(
+              key: const ValueKey('setting-use-rir'),
               title: const Text('RIR 입력 필드'),
-              value: first,
+              subtitle: const Text('세트마다 «몇 회 더 할 수 있었는지»를 함께 기록해요.'),
+              value: _useRir,
               onChanged: (value) {
-                setState(() => first = value);
+                setState(() => _useRir = value);
                 state.setUseRir(value);
               },
             ),
             SwitchListTile(
               title: const Text('세트 완료 시 자동 타이머'),
-              value: second,
+              value: _autoStartRestTimer,
               onChanged: (value) {
-                setState(() => second = value);
+                setState(() => _autoStartRestTimer = value);
                 state.setAutoStartRestTimer(value);
               },
             ),
-            const ListTile(
-              title: Text('1RM 공식'),
-              subtitle: Text('Epley·Brzycki 평균 · 제품 휴리스틱'),
-              trailing: Icon(Icons.chevron_right),
+            ListTile(
+              key: const ValueKey('setting-one-rep-max-formula'),
+              title: const Text('1RM 공식'),
+              subtitle: Text(state.oneRepMaxFormula.label),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showFormulaSheet(context, state),
             ),
           ],
           SettingSection.notifications => [
             SwitchListTile(
               title: const Text('휴식 타이머 종료 알림'),
-              value: first,
+              value: _restTimerNotifications,
               onChanged: (value) {
-                setState(() => first = value);
+                setState(() => _restTimerNotifications = value);
                 state.setRestTimerNotifications(value);
               },
             ),
             SwitchListTile(
               title: const Text('진동'),
-              value: second,
+              value: _timerVibration,
               onChanged: (value) {
-                setState(() => second = value);
+                setState(() => _timerVibration = value);
                 state.setTimerVibration(value);
               },
             ),
@@ -861,7 +870,7 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             SwitchListTile(
               title: const Text('담당 트레이너에게 체성분 공유'),
               subtitle: const Text('몸무게·체성분처럼 별도 동의한 정보만 공유됩니다.'),
-              value: first,
+              value: _shareBodyData,
               onChanged: _savingPrivacy
                   ? null
                   : (value) => _savePrivacy(shareBodyData: value),
@@ -869,54 +878,106 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             SwitchListTile(
               title: const Text('담당자에게 운동 기록 공유'),
               subtitle: const Text('운동 종목·세트·중량·횟수와 담당자 피드백에 사용됩니다.'),
-              value: shareWorkoutRecords,
+              value: _shareWorkoutRecords,
               onChanged: _savingPrivacy
                   ? null
                   : (value) => _savePrivacy(shareWorkoutRecords: value),
             ),
             SwitchListTile(
               title: const Text('마케팅 정보 수신'),
-              value: second,
+              value: _marketing,
               onChanged: _savingPrivacy
                   ? null
                   : (value) => _savePrivacy(marketing: value),
             ),
             if (_savingPrivacy) const LinearProgressIndicator(),
             const Divider(height: 32),
+            // '계정 비활성화'는 따로 두지 않는다 — 탈퇴의 30일 유예가 곧
+            // 비활성화라서, 두 항목은 같은 것을 다르게 부르던 중복이었다.
             ListTile(
-              leading: const Icon(Icons.pause_circle_outline),
-              title: const Text('계정 비활성화'),
-              onTap: () => showMessage(context, '계정 비활성화 안내를 확인했습니다.'),
-            ),
-            ListTile(
+              key: const ValueKey('setting-account-deletion'),
               leading: Icon(
                 Icons.delete_forever_outlined,
-                color: context.setflowColors.error,
+                color: state.supportsAccountDeletion
+                    ? context.setflowColors.error
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               title: Text(
                 '회원 탈퇴',
-                style: TextStyle(color: context.setflowColors.error),
+                style: TextStyle(
+                  color: state.supportsAccountDeletion
+                      ? context.setflowColors.error
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
-              onTap: () => showMessage(context, '탈퇴는 30일 유예 후 처리됩니다.'),
-            ),
-          ],
-          SettingSection.display => [
-            RadioGroup<bool>(
-              groupValue: state.isDarkMode,
-              onChanged: (isDarkMode) {
-                if (isDarkMode != null && isDarkMode != state.isDarkMode) {
-                  state.toggleTheme();
-                }
-              },
-              child: const Column(
-                children: [
-                  RadioListTile<bool>(title: Text('라이트 모드'), value: false),
-                  RadioListTile<bool>(title: Text('다크 모드'), value: true),
-                ],
+              subtitle: Text(
+                state.supportsAccountDeletion
+                    ? '30일 유예 후 삭제되고, 그 안에는 되돌릴 수 있어요.'
+                    : '로그인한 계정에서만 신청할 수 있어요.',
               ),
+              trailing: state.supportsAccountDeletion
+                  ? const Icon(Icons.chevron_right)
+                  : null,
+              onTap: state.supportsAccountDeletion
+                  ? () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AccountDeletionScreen(),
+                      ),
+                    )
+                  : null,
             ),
           ],
         },
+      ),
+    );
+  }
+
+  /// 공식은 세 개뿐이고 고른 뒤 바로 돌아가는 선택이라 화면을 하나 더 쌓지
+  /// 않는다. 설명을 같이 보여주는 이유는 이름만으로는 무엇이 다른지 모르기
+  /// 때문이다.
+  Future<void> _showFormulaSheet(BuildContext context, AppState state) {
+    return showSetflowSheet<void>(
+      context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.gutter,
+                SetflowSpacing.sm,
+                SetflowSpacing.gutter,
+                SetflowSpacing.xs,
+              ),
+              child: Text(
+                '1RM 공식',
+                style: Theme.of(sheetContext).textTheme.titleMedium,
+              ),
+            ),
+            RadioGroup<OneRepMaxFormula>(
+              groupValue: state.oneRepMaxFormula,
+              onChanged: (value) {
+                if (value != null) state.setOneRepMaxFormula(value);
+                Navigator.of(sheetContext).pop();
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final formula in OneRepMaxFormula.values)
+                    RadioListTile<OneRepMaxFormula>(
+                      key: ValueKey('formula-${formula.storageKey}'),
+                      value: formula,
+                      title: Text(formula.label),
+                      subtitle: Text(formula.description),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+          ],
+        ),
       ),
     );
   }
@@ -956,14 +1017,13 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
     bool? marketing,
   }) async {
     final state = AppScope.of(context);
-    final previousBody = first;
-    final previousWorkout = this.shareWorkoutRecords;
-    final previousMarketing = second;
+    final previousBody = _shareBodyData;
+    final previousWorkout = _shareWorkoutRecords;
+    final previousMarketing = _marketing;
     setState(() {
-      first = shareBodyData ?? first;
-      this.shareWorkoutRecords =
-          shareWorkoutRecords ?? this.shareWorkoutRecords;
-      second = marketing ?? second;
+      _shareBodyData = shareBodyData ?? _shareBodyData;
+      _shareWorkoutRecords = shareWorkoutRecords ?? _shareWorkoutRecords;
+      _marketing = marketing ?? _marketing;
       _savingPrivacy = true;
     });
     if (!state.usesLiveBusinessData) {
@@ -972,9 +1032,9 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
     }
     try {
       await state.updateMemberSharingPreferences(
-        shareBodyData: first,
-        shareWorkoutRecords: this.shareWorkoutRecords,
-        marketing: second,
+        shareBodyData: _shareBodyData,
+        shareWorkoutRecords: _shareWorkoutRecords,
+        marketing: _marketing,
       );
       if (!mounted) return;
       setState(() => _savingPrivacy = false);
@@ -982,9 +1042,9 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        first = previousBody;
-        this.shareWorkoutRecords = previousWorkout;
-        second = previousMarketing;
+        _shareBodyData = previousBody;
+        _shareWorkoutRecords = previousWorkout;
+        _marketing = previousMarketing;
         _savingPrivacy = false;
       });
       AppSnackbar.error(context, '공유 설정을 저장하지 못했어요.');

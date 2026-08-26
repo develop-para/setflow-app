@@ -16,6 +16,7 @@ class AppSnapshot {
     this.timerVibration = true,
     this.timerSound = true,
     this.timerCountdownSeconds = 30,
+    this.oneRepMaxFormula = OneRepMaxFormula.average,
     this.pushCoachingFeedback = true,
     this.communityReactionNotifications = false,
     this.goals = const [],
@@ -51,6 +52,9 @@ class AppSnapshot {
   /// 마지막 3초와 끝 소리만 남는다.
   final bool timerSound;
   final int timerCountdownSeconds;
+
+  /// 추정 1RM을 내는 공식. 고른 적 없으면 두 공식의 평균.
+  final OneRepMaxFormula oneRepMaxFormula;
   final bool pushCoachingFeedback;
   final bool communityReactionNotifications;
   final Map<DateTime, WorkoutSession> sessions;
@@ -179,6 +183,39 @@ abstract interface class DeferredSyncAppRepository {
   Object? get lastSyncError;
 
   Future<void> syncPending();
+}
+
+/// 지금 걸려 있는 탈퇴 요청. 유예 중이면 [purgeAfter]까지 되돌릴 수 있다.
+class AccountDeletionRequest {
+  const AccountDeletionRequest({
+    required this.requestedAt,
+    required this.purgeAfter,
+    this.reason,
+  });
+
+  final DateTime requestedAt;
+  final DateTime purgeAfter;
+  final String? reason;
+
+  int daysLeft(DateTime now) {
+    final remaining = purgeAfter.difference(now).inHours;
+    return remaining <= 0 ? 0 : (remaining / 24).ceil();
+  }
+}
+
+/// 회원 탈퇴. 스토어가 요구하는 "앱 안에서 계정을 지울 수 있는 경로"이고,
+/// 곧바로 지우는 대신 유예를 두기 때문에 취소와 조회가 함께 있어야 한다.
+///
+/// 화면은 테이블도 RPC 이름도 모른다 — 요청·취소·조회 셋만 안다.
+abstract interface class AccountDeletion {
+  /// 탈퇴를 요청하고 유예 기간을 돌려준다.
+  Future<AccountDeletionRequest> requestAccountDeletion({String? reason});
+
+  /// 유예 중인 요청을 되돌린다. 걸린 요청이 없으면 false.
+  Future<bool> cancelAccountDeletion();
+
+  /// 지금 걸려 있는 요청. 없으면 null.
+  Future<AccountDeletionRequest?> pendingAccountDeletion();
 }
 
 abstract interface class AppRepository {

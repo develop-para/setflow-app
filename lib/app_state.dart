@@ -162,6 +162,9 @@ class AppState extends ChangeNotifier {
 
   /// 카운트다운 알림이 시작되는 남은 시간(초). 0이면 시작음 없이 끝 소리만.
   int timerCountdownSeconds = 30;
+
+  /// 추정 1RM 공식. 화면에 뜨는 e1RM과 e1RM PR 판정이 전부 이걸 따른다.
+  OneRepMaxFormula oneRepMaxFormula = OneRepMaxFormula.average;
   bool pushCoachingFeedback = true;
   bool communityReactionNotifications = false;
   String get memberDisplayName {
@@ -893,6 +896,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setOneRepMaxFormula(OneRepMaxFormula value) {
+    if (oneRepMaxFormula == value) return;
+    oneRepMaxFormula = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
   void setPushCoachingFeedback(bool value) {
     pushCoachingFeedback = value;
     _schedulePersist();
@@ -964,6 +974,7 @@ class AppState extends ChangeNotifier {
       sessions: sessions.values,
       template: template,
       before: before,
+      formula: oneRepMaxFormula,
     );
   }
 
@@ -1309,6 +1320,11 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  /// 지금 설정된 공식으로 낸 추정 1RM. 화면이 공식을 직접 고르지 않도록
+  /// 한 곳을 거치게 한다.
+  E1rmEstimate? estimateOneRepMax(double weight, int reps) =>
+      PerformanceEngine.estimate(weight, reps, formula: oneRepMaxFormula);
+
   Set<PerformancePrType> prTypesForCandidate(
     ExerciseTemplate template,
     WorkoutSetEntry candidate,
@@ -1317,6 +1333,7 @@ class AppState extends ChangeNotifier {
       sessions: sessions.values,
       templateId: template.id,
       candidate: candidate,
+      formula: oneRepMaxFormula,
     );
   }
 
@@ -1447,8 +1464,17 @@ class AppState extends ChangeNotifier {
     int? durationSeconds,
     double? distanceKm,
     double? intensityRpe,
+    int? rir,
+    bool clearRir = false,
   }) {
     if (weight != null) set.weight = weight.clamp(0, 999);
+    // null을 "안 바꿈"으로 쓰는 다른 인자와 달리 RIR은 null이 값이다 —
+    // 지우려면 clearRir로 말해야 한다.
+    if (clearRir) {
+      set.rir = null;
+    } else if (rir != null) {
+      set.rir = rir.clamp(0, 10);
+    }
     if (reps != null) set.reps = reps.clamp(0, 999);
     if (type != null) set.type = type;
     if (restSeconds != null) {
@@ -1524,6 +1550,10 @@ class AppState extends ChangeNotifier {
   /// Lifting 8 reps when the routine said 10 means the next two sets are far
   /// more likely to be 8 than 10 — without this the same dial trip repeats once
   /// per remaining set. Completed sets are never touched: they are history.
+  ///
+  /// RIR은 일부러 전파하지 않는다. 무게·횟수는 계획이라 다음 세트에도 그대로
+  /// 적용되지만, "몇 회 더 할 수 있었나"는 피로가 쌓이면서 세트마다 달라지는
+  /// 관찰값이다. 1세트의 3을 3세트에 복사하면 없던 기록을 지어내는 것이 된다.
   int adoptActualIntoPendingSets(
     WorkoutExercise exercise,
     WorkoutSetEntry from,
@@ -5062,6 +5092,45 @@ class AppState extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// 탈퇴는 서버가 있어야 성립한다 — 게스트에게는 지울 계정이 없다.
+  bool get supportsAccountDeletion => _repository is AccountDeletion;
+
+  /// 지금 걸려 있는 탈퇴 요청. 유예 중이면 화면이 남은 날짜와 취소를 보여준다.
+  AccountDeletionRequest? pendingAccountDeletion;
+
+  Future<AccountDeletionRequest?> refreshPendingAccountDeletion() async {
+    final repository = _repository;
+    if (repository is! AccountDeletion) return null;
+    pendingAccountDeletion = await (repository as AccountDeletion)
+        .pendingAccountDeletion();
+    if (!_disposed) notifyListeners();
+    return pendingAccountDeletion;
+  }
+
+  Future<AccountDeletionRequest> requestAccountDeletion({
+    String? reason,
+  }) async {
+    final repository = _repository;
+    if (repository is! AccountDeletion) {
+      throw StateError('이 계정에는 탈퇴할 서버 기록이 없습니다.');
+    }
+    final request = await (repository as AccountDeletion)
+        .requestAccountDeletion(reason: reason);
+    pendingAccountDeletion = request;
+    if (!_disposed) notifyListeners();
+    return request;
+  }
+
+  Future<bool> cancelAccountDeletion() async {
+    final repository = _repository;
+    if (repository is! AccountDeletion) return false;
+    final cancelled = await (repository as AccountDeletion)
+        .cancelAccountDeletion();
+    if (cancelled) pendingAccountDeletion = null;
+    if (!_disposed) notifyListeners();
+    return cancelled;
+  }
+
   bool get _repositoryHasPendingSave =>
       _repository is PendingSaveAwareRepository &&
       (_repository as PendingSaveAwareRepository).hasPendingSave;
@@ -5135,6 +5204,7 @@ class AppState extends ChangeNotifier {
     timerVibration: timerVibration,
     timerSound: timerSound,
     timerCountdownSeconds: timerCountdownSeconds,
+    oneRepMaxFormula: oneRepMaxFormula,
     pushCoachingFeedback: pushCoachingFeedback,
     communityReactionNotifications: communityReactionNotifications,
     sessions: Map<DateTime, WorkoutSession>.unmodifiable(sessions),
@@ -5242,6 +5312,7 @@ class AppState extends ChangeNotifier {
     timerVibration = snapshot.timerVibration;
     timerSound = snapshot.timerSound;
     timerCountdownSeconds = snapshot.timerCountdownSeconds.clamp(0, 120);
+    oneRepMaxFormula = snapshot.oneRepMaxFormula;
     pushCoachingFeedback = snapshot.pushCoachingFeedback;
     communityReactionNotifications = snapshot.communityReactionNotifications;
     goals = List.of(snapshot.goals);
@@ -5310,6 +5381,7 @@ class AppState extends ChangeNotifier {
     timerVibration = true;
     timerSound = true;
     timerCountdownSeconds = 30;
+    oneRepMaxFormula = OneRepMaxFormula.average;
     pushCoachingFeedback = true;
     communityReactionNotifications = false;
     goals = [];

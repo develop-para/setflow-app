@@ -320,24 +320,18 @@ class _BusinessHeader extends StatelessWidget {
     ].where((role) => state.businessAccess?.canUse(role) ?? false).toList();
     final tools = state.usesLiveBusinessData && state.role == UserRole.trainer
         ? const [
-            (Icons.person_outline, '프로필 편집', BusinessTool.profile),
             (Icons.calendar_month_outlined, '코칭 캘린더', BusinessTool.calendar),
           ]
         : state.usesLiveBusinessData && state.role == UserRole.gym
         ? const [
-            (Icons.apartment_outlined, '센터 프로필 편집', BusinessTool.profile),
             (Icons.calendar_month_outlined, '코칭 캘린더', BusinessTool.calendar),
           ]
         : state.usesLiveBusinessData && state.role == UserRole.admin
         ? const <(IconData, String, BusinessTool)>[]
         : switch (state.role) {
             UserRole.trainer => const [
-              (Icons.person_outline, '프로필 편집', BusinessTool.profile),
               (Icons.calendar_month_outlined, '코칭 캘린더', BusinessTool.calendar),
               (Icons.replay_outlined, '환불 및 미정산', BusinessTool.refunds),
-              (Icons.workspace_premium_outlined, '플랜 관리', BusinessTool.plan),
-              (Icons.notifications_none, '알림 설정', BusinessTool.notifications),
-              (Icons.person_off_outlined, '계정 탈퇴', BusinessTool.withdraw),
             ],
             UserRole.gym => const <(IconData, String, BusinessTool)>[],
             UserRole.admin => const [
@@ -386,13 +380,7 @@ class _BusinessHeader extends StatelessWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) =>
-                            state.usesLiveBusinessData &&
-                                item.$3 == BusinessTool.profile
-                            ? BusinessProfileEditScreen(role: state.role)
-                            : BusinessToolScreen(
-                                tool: item.$3,
-                                role: state.role,
-                              ),
+                            BusinessToolScreen(tool: item.$3, role: state.role),
                       ),
                     );
                   },

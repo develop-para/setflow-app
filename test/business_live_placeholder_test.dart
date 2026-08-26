@@ -33,7 +33,13 @@ void main() {
     expect(find.text('결제 서버 연동 준비 중'), findsOneWidget);
     expect(find.text('알림 서버 저장 연동 준비 중'), findsOneWidget);
     expect(find.text('서류 업로드 연동 준비 중'), findsOneWidget);
-    expect(find.text('계정 탈퇴 서버 처리 연동 준비 중'), findsOneWidget);
+    // 탈퇴는 더 이상 플레이스홀더가 아니다 — request_account_deletion이 받는다.
+    // (열리는지 여부는 계정 레포지토리가 정하므로 이 하네스에서는 존재만 본다.)
+    expect(find.text('계정 탈퇴 서버 처리 연동 준비 중'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('business-settings-withdraw')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('알림 설정'));
     await tester.pumpAndSettle();

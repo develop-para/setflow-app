@@ -854,6 +854,28 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
   }
 
   @override
+  Future<Map<String, dynamic>> requestAccountDeletion(String? reason) async {
+    final purgeAfter = DateTime.utc(2026, 9, 25);
+    deletionRequests[currentUserId ?? ''] = {
+      'requestedAt': DateTime.utc(2026, 8, 26).toIso8601String(),
+      'purgeAfter': purgeAfter.toIso8601String(),
+      'reason': reason,
+    };
+    return deletionRequests[currentUserId ?? '']!;
+  }
+
+  @override
+  Future<bool> cancelAccountDeletion() async =>
+      deletionRequests.remove(currentUserId ?? '') != null;
+
+  @override
+  Future<Map<String, dynamic>?> pendingAccountDeletion(String userId) async =>
+      deletionRequests[userId];
+
+  /// 탈퇴 요청을 사용자별로 담아 두는 자리 — 서버 테이블 대역.
+  final Map<String, Map<String, dynamic>> deletionRequests = {};
+
+  @override
   Future<DateTime?> latestWorkoutUpdatedAt(String userId) async => null;
 
   @override

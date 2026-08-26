@@ -6,12 +6,8 @@ import '../theme.dart';
 import '../widgets/common.dart';
 
 enum BusinessTool {
-  profile,
   calendar,
   refunds,
-  plan,
-  notifications,
-  withdraw,
   badges,
   contentReports,
   sanctions,
@@ -34,7 +30,6 @@ class BusinessToolScreen extends StatefulWidget {
 
 class _BusinessToolScreenState extends State<BusinessToolScreen> {
   bool first = true;
-  bool second = true;
   double slider = 72;
   final keywords = <String>['무조건', '기적', '100% 보장', '한 달 완성'];
 
@@ -54,13 +49,8 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
   }
 
   String get title => switch (widget.tool) {
-    BusinessTool.profile =>
-      widget.role == UserRole.gym ? '헬스장 프로필 편집' : '트레이너 프로필 편집',
     BusinessTool.calendar => '코칭 캘린더',
     BusinessTool.refunds => '환불 및 미정산 내역',
-    BusinessTool.plan => '플랜 관리',
-    BusinessTool.notifications => '알림 설정',
-    BusinessTool.withdraw => '계정 탈퇴',
     BusinessTool.badges => '배지 발급 관리',
     BusinessTool.contentReports => '커뮤니티 신고 큐',
     BusinessTool.sanctions => '제재 이력',
@@ -85,12 +75,8 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
 
   List<Widget> _content(BuildContext context) {
     return switch (widget.tool) {
-      BusinessTool.profile => _profile(context),
       BusinessTool.calendar => _calendar(context),
       BusinessTool.refunds => _refunds(context),
-      BusinessTool.plan => _plan(context),
-      BusinessTool.notifications => _notifications(),
-      BusinessTool.withdraw => _withdraw(context),
       BusinessTool.badges => _badges(context),
       BusinessTool.contentReports => _reports(context),
       BusinessTool.sanctions => _sanctions(),
@@ -102,58 +88,6 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
       BusinessTool.logs => _logs(),
     };
   }
-
-  List<Widget> _profile(BuildContext context) => [
-    Center(
-      child: Stack(
-        children: [
-          Icon(
-            widget.role == UserRole.gym ? Icons.apartment : Icons.person,
-            size: 50,
-            color: widget.role == UserRole.gym
-                ? context.setflowColors.purple
-                : context.setflowColors.blue,
-          ),
-          const Positioned(
-            right: 0,
-            bottom: 0,
-            child: Icon(
-              Icons.camera_alt_outlined,
-              size: 17,
-              color: SetflowColors.ink,
-            ),
-          ),
-        ],
-      ),
-    ),
-    const SizedBox(height: SetflowSpacing.xxl),
-    TextField(
-      decoration: InputDecoration(
-        labelText: widget.role == UserRole.gym ? '헬스장명' : '이름',
-        hintText: widget.role == UserRole.gym ? '모션짐 강남점' : '김코치',
-      ),
-    ),
-    const SizedBox(height: SetflowSpacing.md),
-    const TextField(
-      maxLines: 3,
-      decoration: InputDecoration(
-        labelText: '소개',
-        hintText: '전문 분야와 코칭 철학을 소개해주세요.',
-      ),
-    ),
-    const SizedBox(height: SetflowSpacing.md),
-    TextField(
-      decoration: InputDecoration(
-        labelText: widget.role == UserRole.gym ? '위치' : '경력',
-        hintText: widget.role == UserRole.gym ? '서울 강남구' : '퍼스널 트레이닝 8년',
-      ),
-    ),
-    const SizedBox(height: SetflowSpacing.xl),
-    PrimaryButton(
-      label: '프로필 저장',
-      onPressed: () => showMessage(context, '프로필을 저장했습니다.'),
-    ),
-  ];
 
   List<Widget> _calendar(BuildContext context) {
     final state = AppScope.of(context);
@@ -628,134 +562,6 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
       ),
   ];
 
-  List<Widget> _plan(BuildContext context) => [
-    const SetflowCard(
-      color: SetflowColors.ink,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '현재 플랜',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: SetflowFontSize.small,
-            ),
-          ),
-          SizedBox(height: SetflowSpacing.xs2),
-          Text(
-            'PRO',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: SetflowFontSize.display,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          SizedBox(height: SetflowSpacing.sm2),
-          Text('관리 회원 12 / 50명', style: TextStyle(color: Colors.white70)),
-        ],
-      ),
-    ),
-    const SizedBox(height: SetflowSpacing.xl),
-    const SectionTitle('플랜 비교'),
-    const SizedBox(height: SetflowSpacing.sm),
-    for (final item in const [
-      ('스타터', '무료', '회원 1명'),
-      ('프로', r'$39/월', '회원 4~50명'),
-      ('엔터프라이즈', '별도 문의', '회원 51~500명+'),
-    ])
-      Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: SetflowCard(
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.$1,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    Text(
-                      item.$3,
-                      style: TextStyle(
-                        fontSize: SetflowFontSize.small,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                item.$2,
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(width: SetflowSpacing.sm),
-              const Icon(Icons.chevron_right),
-            ],
-          ),
-        ),
-      ),
-  ];
-
-  List<Widget> _notifications() => [
-    SwitchListTile(
-      title: const Text('새 상담 알림'),
-      value: first,
-      onChanged: (value) => setState(() => first = value),
-    ),
-    SwitchListTile(
-      title: const Text('피드백 마감 알림'),
-      value: second,
-      onChanged: (value) => setState(() => second = value),
-    ),
-    SwitchListTile(
-      title: const Text('정산 완료 알림'),
-      value: true,
-      onChanged: (_) {},
-    ),
-    SwitchListTile(
-      title: const Text('마켓 성과 리포트'),
-      value: false,
-      onChanged: (_) {},
-    ),
-  ];
-
-  List<Widget> _withdraw(BuildContext context) => [
-    SetflowCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.warning_amber_rounded, color: context.setflowColors.error),
-          SizedBox(width: SetflowSpacing.md),
-          Expanded(
-            child: Text(
-              '탈퇴 요청 후 30일 동안 계정이 비활성화됩니다. 관리 회원에게 알림이 발송되고 미정산 수익은 영업일 10일 이내 최종 정산됩니다.',
-              style: TextStyle(
-                height: 1.5,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-    const SizedBox(height: SetflowSpacing.xl),
-    const TextField(
-      maxLines: 3,
-      decoration: InputDecoration(labelText: '탈퇴 사유'),
-    ),
-    const SizedBox(height: SetflowSpacing.xl),
-    FilledButton(
-      onPressed: () => showMessage(context, '데모에서는 탈퇴 요청을 실제 처리하지 않습니다.'),
-      style: FilledButton.styleFrom(
-        backgroundColor: context.setflowColors.error,
-        minimumSize: const Size.fromHeight(54),
-      ),
-      child: const Text('탈퇴 요청'),
-    ),
-  ];
-
   List<Widget> _badges(BuildContext context) => [
     const TextField(
       decoration: InputDecoration(
@@ -954,7 +760,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     const SizedBox(height: SetflowSpacing.xl),
     PrimaryButton(
       label: 'OCR 설정 저장',
-      onPressed: () => showMessage(context, 'OCR 설정을 저장했습니다.'),
+      onPressed: () => showMessage(context, '(데모) OCR 설정은 아직 저장되지 않아요.'),
     ),
   ];
 
