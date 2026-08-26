@@ -187,7 +187,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // 마이 하위 화면들.
-    for (final (label, name) in [('코칭', 'coaching'), ('운동 목표', 'goal')]) {
+    // 운동 목표는 설정 > 계정 & 프로필로 옮겼다 — 마이와 설정 양쪽에서 같은
+    // 화면을 열던 중복을 지웠다.
+    for (final (label, name) in [('코칭', 'coaching')]) {
       await tester.tap(find.text(label).first);
       await tester.pumpAndSettle();
       await _shot(tester, 'build/shots/my_$name.png');
@@ -334,16 +336,19 @@ void main() {
       state.exercises.firstWhere((e) => !e.isCardio),
     );
 
-    await tester.pumpWidget(
-      AppScope(
-        notifier: state,
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: SetflowTheme.light,
-          home: const Scaffold(body: TogetherScreen()),
-        ),
+    // 다크도 찍어야 하므로 앱과 같은 테마 배선을 준다 — theme만 주면
+    // toggleTheme이 아무것도 안 바꾸고 다크 캡처가 라이트로 나온다.
+    Widget host() => AppScope(
+      notifier: state,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: SetflowTheme.light,
+        darkTheme: SetflowTheme.dark,
+        themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+        home: const Scaffold(body: TogetherScreen()),
       ),
     );
+    await tester.pumpWidget(host());
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/together_lobby.png');
@@ -373,6 +378,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 120));
     await tester.pump();
     await _shot(tester, 'build/shots/together_room_race.png');
+
+    // 방은 라이트에서 흰 판 위주라 다크에서 처음 무너지기 쉽다 — 전광판 테두리,
+    // 하단 액션 바의 구분선, 고정 바의 배경이 검은 판에서 살아 있는지 본다.
+    state.toggleTheme();
+    await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
+    // 테마를 갈아끼운 직후 바로 찍으면 이전 트리의 잔상이 한 겹 남는다.
+    await tester.pump(const Duration(milliseconds: 300));
+    await _shot(tester, 'build/shots/dark_together_room.png');
+    state.toggleTheme();
+    await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     state.cancelRestTimer();
     await tester.pumpAndSettle();

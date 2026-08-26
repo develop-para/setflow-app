@@ -40,6 +40,14 @@ class _MemberShellState extends State<MemberShell> {
   /// Index into the page list, where 2 is the center destination.
   int index = 0;
   bool _recordSheetOpen = false;
+
+  /// 함께 방에 들어가 있는가. 방은 운동 중 전용 화면이라 셸의 헤더와 바텀바를
+  /// 접는다 — 전광판과 하단 액션이 화면을 다 쓰게 하려는 것이다.
+  bool _togetherSession = false;
+
+  /// 함께 탭을 보고 있으면서 방 안일 때만 접는다. 다른 탭으로 옮기면 방은
+  /// 그대로 두고 바를 되돌려야 한다 — 안 그러면 나갈 길이 사라진다.
+  bool get _inTogetherSession => _togetherSession && index == 1;
   String? _handledRoutineShareToken;
 
   /// Page index the center disc owns.
@@ -107,7 +115,15 @@ class _MemberShellState extends State<MemberShell> {
       CalendarScreen(onOpenTogether: () => setState(() => index = 1)),
       // 통계(DashboardScreen)가 있던 자리. 화면은 지우지 않고 메뉴에서만 내렸다 —
       // 지표는 나중에 다시 올릴 것이고, 그때 되살릴 코드가 남아 있어야 한다.
-      TogetherScreen(onOpenRecord: () => setState(() => index = _recordPage)),
+      TogetherScreen(
+        onOpenRecord: () => setState(() => index = _recordPage),
+        // 방 안에서는 셸의 헤더와 바텀바가 사라진다. 운동 중 전용 화면이라
+        // 전광판과 하단 액션이 화면을 다 쓰고, 방을 나가면 되돌아온다.
+        onSessionChanged: (active) {
+          if (_togetherSession == active) return;
+          setState(() => _togetherSession = active);
+        },
+      ),
       DailyWorkoutScreen(date: today),
       const CommunityScreen(),
       const MyPageScreen(),
@@ -124,7 +140,8 @@ class _MemberShellState extends State<MemberShell> {
           children: [
             Column(
               children: [
-                PortalHeaderBar(switcher: index == _homePage),
+                if (!_inTogetherSession)
+                  PortalHeaderBar(switcher: index == _homePage),
                 // The header already ate the status-bar inset, so the per-page
                 // SafeArea below must not add it a second time.
                 Expanded(
@@ -163,20 +180,22 @@ class _MemberShellState extends State<MemberShell> {
             ],
           ],
         ),
-        bottomNavigationBar: SetflowActionNavBar(
-          items: destinations,
-          selectedIndex: _selectedSlot,
-          onSelected: (slot) {
-            _closeRecordSheet();
-            setState(() => index = _slotToPage[slot]);
-          },
-          centerLabel: '기록',
-          centerIcon: _recordSheetOpen
-              ? SetflowIcons.close
-              : SetflowIcons.record,
-          centerSelected: index == _recordPage,
-          onCenterTap: _handleCenterTap,
-        ),
+        bottomNavigationBar: _inTogetherSession
+            ? null
+            : SetflowActionNavBar(
+                items: destinations,
+                selectedIndex: _selectedSlot,
+                onSelected: (slot) {
+                  _closeRecordSheet();
+                  setState(() => index = _slotToPage[slot]);
+                },
+                centerLabel: '기록',
+                centerIcon: _recordSheetOpen
+                    ? SetflowIcons.close
+                    : SetflowIcons.record,
+                centerSelected: index == _recordPage,
+                onCenterTap: _handleCenterTap,
+              ),
       ),
     );
   }

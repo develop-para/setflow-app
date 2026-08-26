@@ -87,6 +87,51 @@ void main() {
       expect(find.byType(TogetherScreen), findsOneWidget);
     });
 
+    testWidgets('방에 들어가면 바가 접히고, 나오면 돌아온다', (tester) async {
+      // 방은 운동 중 전용 화면이다. 전광판과 하단 액션이 화면을 다 쓰려면
+      // 셸의 헤더와 바텀바가 비켜야 한다 — 대신 나갈 길이 사라지면 안 되므로
+      // 방을 나가는 순간 되돌아와야 한다.
+      await tester.binding.setSurfaceSize(const Size(432, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final state = AppState(togetherRepository: client('u-me', '나'));
+      await state.initialize();
+      addTearDown(state.dispose);
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: const MemberShell(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('함께').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(SetflowActionNavBar), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(SetflowActionNavBar),
+        findsNothing,
+        reason: '방 안에서는 바가 접힌다',
+      );
+
+      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('방 나가기'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(SetflowActionNavBar),
+        findsOneWidget,
+        reason: '방을 나가면 나갈 길이 돌아와야 한다',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
     testWidgets('the stats screen still exists, it is only unlisted', (
       tester,
     ) async {
@@ -114,11 +159,12 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('together-create')));
       await tester.pumpAndSettle();
 
+      // 혼자 있는 방은 본문이 통째로 초대 화면이다 — 코드가 거기 있다.
       final code = tester.widget<Text>(
         find.byKey(const ValueKey('together-code')),
       );
       expect(code.data, hasLength(6));
-      expect(find.text('나 (나)'), findsOneWidget);
+      expect(find.text('친구를 초대하세요'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 400));
     });
 
@@ -480,7 +526,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('together-code')), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('together-leave')));
+      // 나가기는 늘 보일 필요가 없어 방 메뉴 뒤로 갔다.
+      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('방 나가기'));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
