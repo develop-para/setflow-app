@@ -56,7 +56,10 @@ app.*.map.json
 # Build-time configuration overrides (see tool/dart-defines.example.json)
 /dart-defines.json
 
-# Firebase console downloads this for the native Android SDK path, which this
-# app does not use (see docs/android-distribution.md). Keeping it out of the
-# repo avoids implying the app talks to Firebase.
-android/app/google-services.json
+# android/app/google-services.json은 이제 저장소에 들어간다.
+# 예전 규칙은 "이 앱은 네이티브 Firebase SDK를 쓰지 않는다"가 근거였는데,
+# 푸시 알림(firebase_messaging)이 들어오면서 그 전제가 깨졌다 — google-services
+# Gradle 플러그인이 빌드 타임에 이 파일을 요구하므로 없으면 릴리스 빌드가 죽는다.
+# 시크릿은 들어 있지 않다(OAuth 클라이언트 시크릿·서비스 계정 키 없음). 안드로이드
+# API 키는 패키지명 + SHA 지문으로 제한되는 식별자이고, 구글도 커밋을 권한다.
+# 진짜 시크릿인 서명 키(key.properties·*.jks)와 FCM 서비스 계정은 계속 제외한다.

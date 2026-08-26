@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "587270655673",
+    "project_id": "setflow-18eeb",
+    "storage_bucket": "setflow-18eeb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:587270655673:android:ffd900f492834e1d509568",
+        "android_client_info": {
+          "package_name": "com.teampara.setflow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkQksm2DhjVdHh-G-PypSMcQzNgUNgaj8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
