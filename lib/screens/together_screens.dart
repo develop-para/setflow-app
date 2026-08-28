@@ -302,9 +302,14 @@ class _TogetherScreenState extends State<TogetherScreen> {
                   icon: const Icon(Icons.arrow_back_rounded),
                 )
               : null,
-          title: inRoom
-              ? const _LiveTitle(key: ValueKey('together-live-title'))
-              : const Text('함께'),
+          // "함께 운동 중"과 전광판의 LIVE가 같은 말을 두 번 했다. 제목은 방이
+          // 무엇인지 — 방식과 인원 — 만 말한다.
+          title: Text(
+            inRoom && party.members.length > 1
+                ? '${party.mode.label} · ${party.members.length}명'
+                : '함께',
+            key: const ValueKey('together-title'),
+          ),
           actions: [
             if (inRoom) ...[
               IconButton(
@@ -1181,31 +1186,6 @@ class _PartyRoom extends StatelessWidget {
   }
 }
 
-/// 앱바 제목 자리의 라이브 표시. 방 안이라는 사실이 제목 한 줄로 보인다.
-class _LiveTitle extends StatelessWidget {
-  const _LiveTitle({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: SetflowSpacing.sm),
-        const Text('함께 운동 중'),
-      ],
-    );
-  }
-}
-
 /// 방의 부수적인 조작들. 늘 보일 필요가 없는 것만 여기 들어온다 —
 /// 초대 코드, 운동 방식, 루틴, 나가기.
 class _RoomMenu extends StatelessWidget {
@@ -1945,6 +1925,11 @@ class _Scoreboard extends StatelessWidget {
   final TrainingParty party;
   final String? userId;
 
+  /// 한 줄이 차지하는 칸 수. 위 1칸, 이름 줄 3칸, 숫자 11칸, 아래 여유 3칸.
+  static const _rowCells = 18;
+  static const _padCells = 1;
+  static const _raceCells = 3;
+
   @override
   Widget build(BuildContext context) {
     final ranked = party.members.toList()
@@ -1955,20 +1940,43 @@ class _Scoreboard extends StatelessWidget {
     final maxSets = ranked.isEmpty ? 0 : ranked.first.completedSets;
     final race = party.members.length > 1 && maxSets > 0;
 
-    // 전광판은 남는 높이를 나눠 갖는다. 두 명이면 줄이 커지고, 여섯이면
-    // 줄이 낮아지다 넘치는 순간부터 스크롤된다 — 위에 붙여 두면 두 명짜리
-    // 방에서 화면 절반이 빈 채로 남는다.
     return LayoutBuilder(
       builder: (context, constraints) {
-        const header = 36.0;
-        final footer = race ? 34.0 : 0.0;
-        final rowHeight =
-            ((constraints.maxHeight - header - footer - SetflowSpacing.xxl) /
-                    (ranked.isEmpty ? 1 : ranked.length))
-                // 전광판은 위에서부터 채운다. 두 명이면 줄이 220까지 커져 숫자가
-                // 화면 절반을 넘게 차지하고, 여섯이면 120으로 낮아지다 스크롤된다.
-                // ("상단부터 중간 좀 넘어가게" — 실기기 피드백)
-                .clamp(120.0, 220.0);
+        // 판 전체가 하나의 격자다. 칸 크기는 남는 높이에서 온다 — 두 명이면
+        // 칸이 12px까지 커져 숫자가 화면 절반을 넘고("상단부터 중간 넘어가게"),
+        // 여섯이면 6px로 낮아지다 넘치는 순간부터 스크롤된다.
+        final totalCells =
+            ranked.length * _rowCells + _padCells * 2 + (race ? _raceCells : 0);
+        final pitch = ((constraints.maxHeight - SetflowSpacing.lg) / totalCells)
+            .clamp(6.0, 12.0);
+        final width = constraints.maxWidth - SetflowSpacing.gutter * 2;
+        final cols = (width / pitch).floor();
+        final boardWidth = cols * pitch;
+        final boardHeight = totalCells * pitch;
+
+        final lit = <LedCell>{};
+        final bands = <LedBand>[];
+        final edges = <({int fromY, int toY})>[];
+        for (final (index, member) in ranked.indexed) {
+          final top = _padCells + index * _rowCells;
+          lit.addAll(
+            ledDigitCells(
+              '${member.completedSets}',
+              origin: (x: 2, y: top + 4),
+            ),
+          );
+          if (member.userId == userId) {
+            bands.add((
+              fromY: top,
+              toY: top + _rowCells,
+              color: LedPalette.off.withValues(alpha: .45),
+            ));
+          }
+          if (member.state == PartyMemberState.lifting) {
+            edges.add((fromY: top + 1, toY: top + _rowCells - 1));
+          }
+        }
+
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -1979,64 +1987,83 @@ class _Scoreboard extends StatelessWidget {
                 SetflowSpacing.gutter,
                 SetflowSpacing.md,
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  LedPanel(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _LedHeader(mode: party.mode),
-                        for (final (index, member) in ranked.indexed) ...[
-                          if (index > 0)
-                            const Divider(
-                              height: 1,
-                              thickness: 1,
-                              color: LedPalette.off,
-                            ),
-                          _ScoreboardRow(
-                            member: member,
-                            isMe: member.userId == userId,
-                            hasTurn:
-                                party.mode == PartyMode.alternating &&
-                                party.currentTurnUserId == member.userId,
-                            rank: race ? index + 1 : null,
-                            leading:
-                                race &&
-                                index == 0 &&
-                                (ranked.length < 2 ||
-                                    ranked[1].completedSets <
-                                        member.completedSets),
-                            maxSets: maxSets,
-                            sharedRest: party.mode == PartyMode.together,
-                            minHeight: rowHeight,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(SetflowRadii.lg),
+                  child: Container(
+                    key: const ValueKey('together-scoreboard'),
+                    width: boardWidth,
+                    height: boardHeight,
+                    decoration: BoxDecoration(
+                      color: LedPalette.panel,
+                      borderRadius: BorderRadius.circular(SetflowRadii.lg),
+                      border: Border.all(color: LedPalette.edge),
+                    ),
+                    // 글자는 격자 위에 얹힌다. 시스템 글자 배율은 1.3배까지만 —
+                    // 줄 높이가 칸 수로 고정된 판이라 그 이상은 숫자를 덮는다
+                    // (달력 칸과 같은 이유).
+                    child: MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: 1.3,
+                      child: Stack(
+                        children: [
+                          LedBoard(
+                            pitch: pitch,
+                            cols: cols,
+                            rows: totalCells,
+                            lit: lit,
+                            bands: bands,
+                            edges: edges,
                           ),
-                        ],
-                        if (race)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                              SetflowSpacing.lg,
-                              SetflowSpacing.sm,
-                              SetflowSpacing.lg,
-                              SetflowSpacing.md,
-                            ),
-                            // 전광판 맨 아래 흐르는 한 줄 — 격차가 곧 응원이다.
-                            // 라임 글자는 흰 배경에서 금지지만 여기는 검은 판이다.
-                            child: Text(
-                              _raceLine(ranked),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: LedPalette.lit,
-                                fontSize: SetflowFontSize.label,
-                                fontWeight: SetflowWeight.strong,
-                                letterSpacing: .2,
+                          for (final (index, member) in ranked.indexed)
+                            Positioned(
+                              left: 2 * pitch,
+                              top: (_padCells + index * _rowCells) * pitch,
+                              width: boardWidth - 4 * pitch,
+                              height: _rowCells * pitch,
+                              child: _ScoreboardRow(
+                                member: member,
+                                isMe: member.userId == userId,
+                                hasTurn:
+                                    party.mode == PartyMode.alternating &&
+                                    party.currentTurnUserId == member.userId,
+                                rank: race ? index + 1 : null,
+                                leading:
+                                    race &&
+                                    index == 0 &&
+                                    (ranked.length < 2 ||
+                                        ranked[1].completedSets <
+                                            member.completedSets),
+                                sharedRest: party.mode == PartyMode.together,
+                                pitch: pitch,
                               ),
                             ),
-                          ),
-                      ],
+                          if (race)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: _padCells * pitch,
+                              height: _raceCells * pitch,
+                              // 전광판 맨 아래 흐르는 한 줄 — 격차가 곧 응원이다.
+                              // 라임 글자는 흰 배경에서 금지지만 여기는 검은 판이다.
+                              child: Center(
+                                child: Text(
+                                  _raceLine(ranked),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: LedPalette.lit,
+                                    fontSize: SetflowFontSize.label,
+                                    fontWeight: SetflowWeight.strong,
+                                    letterSpacing: .2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -2056,62 +2083,8 @@ class _Scoreboard extends StatelessWidget {
   }
 }
 
-/// 전광판 상단 띠 — 경기장의 "LIVE"와 종목명 자리. 방식이 여기 한 단어로
-/// 보이므로 "지금 무슨 규칙인가"를 메뉴까지 안 가고 안다.
-class _LedHeader extends StatelessWidget {
-  const _LedHeader({required this.mode});
-
-  final PartyMode mode;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        SetflowSpacing.lg,
-        SetflowSpacing.md,
-        SetflowSpacing.lg,
-        SetflowSpacing.sm,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              color: LedPalette.lit,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: SetflowSpacing.sm),
-          const Text(
-            'LIVE',
-            style: TextStyle(
-              color: LedPalette.lit,
-              fontSize: SetflowFontSize.caption,
-              fontWeight: SetflowWeight.strong,
-              letterSpacing: 2,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            '${mode.label} 모드',
-            style: const TextStyle(
-              color: LedPalette.dimText,
-              fontSize: SetflowFontSize.caption,
-              fontWeight: SetflowWeight.strong,
-              letterSpacing: .5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 전광판 한 줄.
-///
-/// 세트 수가 이 줄에서 가장 큰 글자이고, 도트로 그린 유일한 것이다 — 전광판이
-/// 도트로 쓰는 것은 점수뿐이다. 휴식 시간은 여기 적지 않는다 — 상단 상태
+/// 전광판 한 줄의 글자들. 숫자는 판(격자)이 켜고, 여기는 그 위에 얹는
+/// 이름·상태·종목·볼륨뿐이다. 휴식 시간은 여기 적지 않는다 — 상단 상태
 /// 줄에 이미 있고, 같은 숫자가 두 곳에 있으면 어느 쪽이 진짜인지 고민하게
 /// 된다. 남의 상태는 점 하나와 짧은 말로 충분하다.
 class _ScoreboardRow extends StatelessWidget {
@@ -2121,9 +2094,8 @@ class _ScoreboardRow extends StatelessWidget {
     required this.hasTurn,
     required this.rank,
     required this.leading,
-    required this.maxSets,
     required this.sharedRest,
-    required this.minHeight,
+    required this.pitch,
   });
 
   final PartyMember member;
@@ -2133,14 +2105,12 @@ class _ScoreboardRow extends StatelessWidget {
   /// 경쟁이 시작된 뒤(2명 이상, 1세트 이상)에만 순위가 있다.
   final int? rank;
   final bool leading;
-  final int maxSets;
 
   /// '같이' 모드에서는 모두가 같은 시계로 쉬므로 상단 상태 줄이 이미 말했다.
   final bool sharedRest;
 
-  /// 전광판이 나눠 준 높이. 줄이 이만큼은 차지해야 두 명짜리 방이 비어
-  /// 보이지 않는다.
-  final double minHeight;
+  /// 격자 칸 크기 — 글자가 숫자 자리를 피해 앉는 기준.
+  final double pitch;
 
   String? get _statusLabel {
     if (member.state == PartyMemberState.resting) {
@@ -2155,125 +2125,87 @@ class _ScoreboardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final lifting = member.state == PartyMemberState.lifting;
     final doing = member.currentExercise;
-    final progress = maxSets <= 0
-        ? 0.0
-        : (member.completedSets / maxSets).clamp(0.0, 1.0);
     final volume = member.totalVolume >= 1000
         ? '${(member.totalVolume / 1000).toStringAsFixed(1)}t'
         : '${member.totalVolume.toStringAsFixed(0)}kg';
-    // 점 지름은 줄 높이에서 온다 — 7×11 폰트의 높이가 지름의 15.5배라,
-    // 120px 줄에서 40px, 220px 줄에서 140px쯤 되는 숫자가 된다.
-    final dot = ((minHeight - 78) / 15.5).clamp(2.6, 9.0);
+    final digitsWidth = ledDigitsWidth('${member.completedSets}') * pitch;
 
-    return Container(
+    return Semantics(
       key: ValueKey('scoreboard-${member.userId}'),
-      constraints: BoxConstraints(minHeight: minHeight),
-      padding: const EdgeInsets.fromLTRB(
-        SetflowSpacing.md2,
-        SetflowSpacing.md,
-        SetflowSpacing.lg,
-        SetflowSpacing.md,
-      ),
-      decoration: BoxDecoration(
-        // 내 줄은 판보다 한 톤 밝고, 지금 들고 있는 사람은 왼쪽 가장자리가
-        // 라임으로 켜진다.
-        color: isMe ? LedPalette.off.withValues(alpha: .45) : null,
-        border: Border(
-          left: BorderSide(
-            color: lifting ? LedPalette.lit : Colors.transparent,
-            width: 4,
-          ),
-        ),
-      ),
+      label: '${member.displayName} ${member.completedSets}세트',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              if (leading) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: SetflowSpacing.sm,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: LedPalette.lit,
-                    borderRadius: BorderRadius.circular(SetflowRadii.xs),
-                  ),
-                  child: const Text(
-                    '1위',
-                    style: TextStyle(
-                      color: LedPalette.litInk,
-                      fontSize: SetflowFontSize.small,
-                      fontWeight: SetflowWeight.display,
+          SizedBox(
+            height: 3 * pitch,
+            child: Row(
+              children: [
+                if (leading) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: SetflowSpacing.sm,
+                      vertical: 2,
                     ),
-                  ),
-                ),
-                const SizedBox(width: SetflowSpacing.sm),
-              ] else if (rank != null) ...[
-                Text(
-                  '$rank위',
-                  style: const TextStyle(
-                    color: LedPalette.dimText,
-                    fontSize: SetflowFontSize.caption,
-                    fontWeight: SetflowWeight.strong,
-                  ),
-                ),
-                const SizedBox(width: SetflowSpacing.sm),
-              ],
-              Expanded(
-                child: Text(
-                  isMe && member.displayName != '나'
-                      ? '${member.displayName} (나)'
-                      : member.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: LedPalette.text,
-                    fontWeight: SetflowWeight.strong,
-                    fontSize: SetflowFontSize.label,
-                  ),
-                ),
-              ),
-              if (lifting)
-                Padding(
-                  padding: const EdgeInsets.only(right: SetflowSpacing.xs),
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: LedPalette.lit,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(SetflowRadii.xs),
+                    ),
+                    child: const Text(
+                      '1위',
+                      style: TextStyle(
+                        color: LedPalette.litInk,
+                        fontSize: SetflowFontSize.small,
+                        fontWeight: SetflowWeight.display,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: SetflowSpacing.sm),
+                ] else if (rank != null) ...[
+                  Text(
+                    '$rank위',
+                    style: const TextStyle(
+                      color: LedPalette.dimText,
+                      fontSize: SetflowFontSize.caption,
+                      fontWeight: SetflowWeight.strong,
+                    ),
+                  ),
+                  const SizedBox(width: SetflowSpacing.sm),
+                ],
+                Expanded(
+                  child: Text(
+                    isMe && member.displayName != '나'
+                        ? '${member.displayName} (나)'
+                        : member.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: LedPalette.text,
+                      fontWeight: SetflowWeight.strong,
+                      fontSize: SetflowFontSize.label,
                     ),
                   ),
                 ),
-              if (_statusLabel case final status?)
-                Text(
-                  status,
-                  style: TextStyle(
-                    color: lifting ? LedPalette.lit : LedPalette.muted,
-                    fontSize: SetflowFontSize.caption,
-                    fontWeight: SetflowWeight.strong,
-                    letterSpacing: .5,
+                if (_statusLabel case final status?)
+                  Text(
+                    status,
+                    style: TextStyle(
+                      color: lifting ? LedPalette.lit : LedPalette.muted,
+                      fontSize: SetflowFontSize.caption,
+                      fontWeight: SetflowWeight.strong,
+                      letterSpacing: .5,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: SetflowSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // 흘깃 봤을 때 읽히는 숫자는 이것 하나다 — 그래서 도트다.
-              DotMatrixNumber(
-                text: '${member.completedSets}',
-                dot: dot,
-                semanticsLabel: '${member.completedSets} 세트',
-              ),
-              const SizedBox(width: SetflowSpacing.sm),
-              const Padding(
-                padding: EdgeInsets.only(bottom: SetflowSpacing.xxs),
-                child: Text(
+          // 숫자(격자가 켠다)의 높이만큼 비워 두고, 그 오른쪽 아래에 글자.
+          SizedBox(
+            height: (ledGlyphRows + 1) * pitch,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                SizedBox(width: digitsWidth + pitch),
+                const Text(
                   '세트',
                   style: TextStyle(
                     color: LedPalette.muted,
@@ -2281,47 +2213,41 @@ class _ScoreboardRow extends StatelessWidget {
                     fontWeight: SetflowWeight.strong,
                   ),
                 ),
-              ),
-              const SizedBox(width: SetflowSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      doing == null
-                          ? '아직 세트 전이에요'
-                          : '$doing · ${member.currentSetNumber ?? '-'}'
-                                '/${member.currentSetTotal ?? '-'}세트',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.end,
-                      style: const TextStyle(
-                        color: LedPalette.muted,
-                        fontSize: SetflowFontSize.caption,
-                      ),
-                    ),
-                    if (member.totalVolume > 0)
+                const SizedBox(width: SetflowSpacing.md),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
                       Text(
-                        volume,
+                        doing == null
+                            ? '아직 세트 전이에요'
+                            : '$doing · ${member.currentSetNumber ?? '-'}'
+                                  '/${member.currentSetTotal ?? '-'}세트',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
                         style: const TextStyle(
-                          color: LedPalette.text,
-                          fontSize: SetflowFontSize.label,
-                          fontWeight: SetflowWeight.strong,
-                          fontFeatures: [FontFeature.tabularFigures()],
+                          color: LedPalette.muted,
+                          fontSize: SetflowFontSize.caption,
                         ),
                       ),
-                  ],
+                      if (member.totalVolume > 0)
+                        Text(
+                          volume,
+                          style: const TextStyle(
+                            color: LedPalette.text,
+                            fontSize: SetflowFontSize.label,
+                            fontWeight: SetflowWeight.strong,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          if (maxSets > 0) ...[
-            const SizedBox(height: SetflowSpacing.sm2),
-            LedBar(
-              progress: progress,
-              lit: isMe ? LedPalette.lit : LedPalette.dimText,
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );

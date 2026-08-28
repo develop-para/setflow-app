@@ -71,7 +71,7 @@ abstract final class SetflowIcons {
   static const handOver = Icons.ios_share_rounded;
 
   /// 방을 떠난다.
-  static const leaveParty = Icons.exit_to_app_rounded;
+  static const leaveParty = Icons.logout_rounded;
 
   // --- record surfaces ------------------------------------------------------
   static const routine = Icons.checklist_rounded;

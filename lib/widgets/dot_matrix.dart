@@ -25,8 +25,12 @@ abstract final class LedPalette {
 /// 종목은 글자로 남긴다(한글 도트 폰트를 만들어 쓰면 읽기 시험이 된다).
 /// 5×7은 멀리서 보는 옛 전광판의 해상도였다. 손 안의 화면은 가까우니 점을
 /// 작게, 많이 — 획이 둥글게 읽힌다.
-const _cols = 7;
-const _rows = 11;
+const ledGlyphCols = 7;
+const ledGlyphRows = 11;
+
+/// 글자 사이 빈 칸.
+const ledGlyphGap = 2;
+
 const _glyphs = <String, List<String>>{
   '0': [
     '0011100',
@@ -173,211 +177,148 @@ const _glyphs = <String, List<String>>{
   ],
 };
 
-/// 점 사이 간격. 지름의 절반보다 촘촘해야 가까이서 획으로 읽힌다.
-double _gapFor(double dot) => dot * .45;
+/// 판 위의 한 칸. (x, y)는 칸 좌표다 — 픽셀이 아니다.
+typedef LedCell = ({int x, int y});
 
-/// 도트 매트릭스로 그린 숫자. 켜진 점은 [lit], 꺼진 점도 희미하게 남겨
-/// LED 판의 격자가 보이게 한다 — 그것이 "인쇄된 숫자"와 "전광판"의 차이다.
-class DotMatrixNumber extends StatelessWidget {
-  const DotMatrixNumber({
-    required this.text,
-    required this.dot,
-    this.lit = LedPalette.lit,
-    this.off = LedPalette.off,
-    this.semanticsLabel,
-    super.key,
-  });
-
-  /// 숫자와 '-'만. 다른 글자는 빈칸으로 그린다.
-  final String text;
-
-  /// 점 하나의 지름. 점 사이 간격은 지름의 0.45배.
-  final double dot;
-  final Color lit;
-  final Color off;
-  final String? semanticsLabel;
-
-  static double widthFor(String text, double dot) {
-    if (text.isEmpty) return 0;
-    final gap = _gapFor(dot);
-    final glyph = _cols * dot + (_cols - 1) * gap;
-    return text.length * glyph + (text.length - 1) * (dot + gap) * 2;
-  }
-
-  static double heightFor(double dot) =>
-      _rows * dot + (_rows - 1) * _gapFor(dot);
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: semanticsLabel ?? text,
-      child: ExcludeSemantics(
-        child: CustomPaint(
-          size: Size(widthFor(text, dot), heightFor(dot)),
-          painter: _DotMatrixPainter(text: text, dot: dot, lit: lit, off: off),
-        ),
-      ),
-    );
-  }
-}
-
-class _DotMatrixPainter extends CustomPainter {
-  const _DotMatrixPainter({
-    required this.text,
-    required this.dot,
-    required this.lit,
-    required this.off,
-  });
-
-  final String text;
-  final double dot;
-  final Color lit;
-  final Color off;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gap = _gapFor(dot);
-    final pitch = dot + gap;
-    final offPaint = Paint()..color = off;
-    final litPaint = Paint()..color = lit;
-    // 켜진 점 둘레의 번짐 — LED가 종이 위 잉크와 다른 이유.
-    final glowPaint = Paint()
-      ..color = lit.withValues(alpha: .35)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, dot * .6);
-    var x = 0.0;
-    for (final char in text.characters) {
-      final rows = _glyphs[char];
-      for (var r = 0; r < _rows; r++) {
-        for (var c = 0; c < _cols; c++) {
-          final center = Offset(x + c * pitch + dot / 2, r * pitch + dot / 2);
-          final on = rows != null && rows[r][c] == '1';
-          if (on) {
-            canvas.drawCircle(center, dot * .7, glowPaint);
-            canvas.drawCircle(center, dot / 2, litPaint);
-          } else {
-            canvas.drawCircle(center, dot / 2, offPaint);
-          }
+/// [text]를 [origin]에서 시작해 켜야 할 칸들. 모르는 글자는 빈칸.
+Iterable<LedCell> ledDigitCells(String text, {required LedCell origin}) sync* {
+  var x = origin.x;
+  for (final char in text.characters) {
+    final rows = _glyphs[char];
+    if (rows != null) {
+      for (var r = 0; r < ledGlyphRows; r++) {
+        for (var c = 0; c < ledGlyphCols; c++) {
+          if (rows[r][c] == '1') yield (x: x + c, y: origin.y + r);
         }
       }
-      x += _cols * pitch + (dot + gap);
     }
+    x += ledGlyphCols + ledGlyphGap;
   }
-
-  @override
-  bool shouldRepaint(_DotMatrixPainter old) =>
-      old.text != text || old.dot != dot || old.lit != lit || old.off != off;
 }
 
-/// LED 한 줄로 그린 진행 바. 폭에 들어가는 만큼 점을 놓고 [progress]만큼 켠다.
-class LedBar extends StatelessWidget {
-  const LedBar({
-    required this.progress,
-    this.dot = 6,
-    this.lit = LedPalette.lit,
-    this.off = LedPalette.off,
+/// [text]가 차지하는 칸 수(가로).
+int ledDigitsWidth(String text) => text.isEmpty
+    ? 0
+    : text.length * ledGlyphCols + (text.length - 1) * ledGlyphGap;
+
+/// 판의 한 구역을 칠하는 띠 — 내 줄을 한 톤 밝게 하는 데 쓴다.
+typedef LedBand = ({int fromY, int toY, Color color});
+
+/// 판 한 장이 **하나의 격자**다. 숫자는 그 격자의 칸을 켜는 것이지 자기
+/// 격자를 따로 갖지 않는다 — 그래야 실제 LED 판처럼 빈 자리와 숫자 자리의
+/// 점이 같은 점이다. 글자(이름·종목·볼륨)는 이 위에 위젯으로 올린다.
+class LedBoard extends StatelessWidget {
+  const LedBoard({
+    required this.pitch,
+    required this.cols,
+    required this.rows,
+    required this.lit,
+    this.bands = const [],
+    this.edges = const [],
     super.key,
   });
 
-  final double progress;
-  final double dot;
-  final Color lit;
-  final Color off;
+  /// 칸 하나의 크기(픽셀). 점 지름은 이것의 0.68배.
+  final double pitch;
+  final int cols;
+  final int rows;
+  final Set<LedCell> lit;
+  final List<LedBand> bands;
+
+  /// 왼쪽 첫 열을 켜는 구간(y 범위) — 지금 세트 중인 사람의 줄.
+  final List<({int fromY, int toY})> edges;
+
+  Size get size => Size(cols * pitch, rows * pitch);
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: dot,
-      width: double.infinity,
+    return ExcludeSemantics(
       child: CustomPaint(
-        painter: _LedBarPainter(
-          progress: progress.clamp(0.0, 1.0),
-          dot: dot,
+        size: size,
+        painter: _LedBoardPainter(
+          pitch: pitch,
+          cols: cols,
+          rows: rows,
           lit: lit,
-          off: off,
+          bands: bands,
+          edges: edges,
         ),
       ),
     );
   }
 }
 
-class _LedBarPainter extends CustomPainter {
-  const _LedBarPainter({
-    required this.progress,
-    required this.dot,
+class _LedBoardPainter extends CustomPainter {
+  const _LedBoardPainter({
+    required this.pitch,
+    required this.cols,
+    required this.rows,
     required this.lit,
-    required this.off,
+    required this.bands,
+    required this.edges,
   });
 
-  final double progress;
-  final double dot;
-  final Color lit;
-  final Color off;
+  final double pitch;
+  final int cols;
+  final int rows;
+  final Set<LedCell> lit;
+  final List<LedBand> bands;
+  final List<({int fromY, int toY})> edges;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final pitch = dot * 1.5;
-    final count = (size.width / pitch).floor();
-    if (count <= 0) return;
-    final on = (progress * count).round();
-    final litPaint = Paint()..color = lit;
-    final offPaint = Paint()..color = off;
-    for (var i = 0; i < count; i++) {
-      canvas.drawCircle(
-        Offset(i * pitch + dot / 2, size.height / 2),
-        dot / 2,
-        i < on ? litPaint : offPaint,
+    final dot = pitch * .68;
+    for (final band in bands) {
+      canvas.drawRect(
+        Rect.fromLTWH(
+          0,
+          band.fromY * pitch,
+          size.width,
+          (band.toY - band.fromY) * pitch,
+        ),
+        Paint()..color = band.color,
       );
+    }
+    // 꺼진 점 전부 — 한 번의 drawPoints. 매초 다시 그려도 값싸다.
+    final off = <Offset>[
+      for (var y = 0; y < rows; y++)
+        for (var x = 0; x < cols; x++)
+          if (!lit.contains((x: x, y: y)))
+            Offset(x * pitch + pitch / 2, y * pitch + pitch / 2),
+    ];
+    canvas.drawPoints(
+      PointMode.points,
+      off,
+      Paint()
+        ..color = LedPalette.off
+        ..strokeWidth = dot
+        ..strokeCap = StrokeCap.round,
+    );
+    // 켜진 점 — 번짐 한 겹 아래, 또렷한 점 위. LED가 종이 위 잉크와 다른 이유.
+    final glow = Paint()
+      ..color = LedPalette.lit.withValues(alpha: .35)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, dot * .6);
+    final on = Paint()..color = LedPalette.lit;
+    final edgeCells = <LedCell>{
+      for (final edge in edges)
+        for (var y = edge.fromY; y < edge.toY; y++) (x: 0, y: y),
+    };
+    for (final cell in lit.followedBy(edgeCells)) {
+      final center = Offset(
+        cell.x * pitch + pitch / 2,
+        cell.y * pitch + pitch / 2,
+      );
+      canvas.drawCircle(center, dot * .75, glow);
+      canvas.drawCircle(center, dot / 2, on);
     }
   }
 
   @override
-  bool shouldRepaint(_LedBarPainter old) =>
-      old.progress != progress || old.dot != dot || old.lit != lit;
-}
-
-/// 검은 판 + 꺼진 LED 격자. 자식(전광판 줄들)이 그 위에 올라간다.
-class LedPanel extends StatelessWidget {
-  const LedPanel({required this.child, super.key});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(SetflowRadii.lg),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: LedPalette.panel,
-          borderRadius: BorderRadius.circular(SetflowRadii.lg),
-          border: Border.all(color: LedPalette.edge),
-        ),
-        child: CustomPaint(painter: const _GridPainter(), child: child),
-      ),
-    );
-  }
-}
-
-class _GridPainter extends CustomPainter {
-  const _GridPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const pitch = 8.0;
-    final points = <Offset>[
-      for (var y = pitch / 2; y < size.height; y += pitch)
-        for (var x = pitch / 2; x < size.width; x += pitch) Offset(x, y),
-    ];
-    // 한 번의 drawPoints — 매초 다시 그려도 값싸다.
-    canvas.drawPoints(
-      PointMode.points,
-      points,
-      Paint()
-        ..color = LedPalette.off.withValues(alpha: .55)
-        ..strokeWidth = 1.6
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_GridPainter old) => false;
+  bool shouldRepaint(_LedBoardPainter old) =>
+      old.pitch != pitch ||
+      old.cols != cols ||
+      old.rows != rows ||
+      old.lit != lit ||
+      old.bands != bands ||
+      old.edges != edges;
 }
