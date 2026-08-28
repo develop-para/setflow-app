@@ -627,6 +627,37 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
     });
 
+    testWidgets('a room already underway never dims the newcomer', (
+      tester,
+    ) async {
+      // 운동 중 화면에 끼어드는 설명은 불편이다. 친구가 이미 세트를 오가는
+      // 방에 들어온 사람은 지금 당장 들어야 한다 — 안내는 메뉴로 미룬다.
+      final host = client('u-me', '나');
+      final room = await host.createParty(mode: PartyMode.free);
+      await host.reportSetDone(partyId: room.id, restSeconds: 60);
+
+      await pumpTogether(
+        tester,
+        repository: client('u-friend', '친구'),
+        guideSeen: false,
+      );
+      await tester.tap(find.byKey(const ValueKey('together-join')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('together-code-input')),
+        room.code,
+      );
+      await tester.tap(find.byKey(const ValueKey('together-code-submit')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('together-status-hero')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('coach-dim')), findsNothing);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
     test('every mode says how it runs and when to pick it', () {
       for (final mode in PartyMode.values) {
         expect(mode.detail, isNotEmpty);

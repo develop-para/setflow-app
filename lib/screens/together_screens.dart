@@ -261,7 +261,16 @@ class _TogetherScreenState extends State<TogetherScreen> {
     final party = _party;
     final inRoom = repository != null && party != null;
     _reportSession(inRoom);
+    // 안내는 **빈 시간에만** 끼어든다. 방을 만들고 친구를 기다리는 사이는 빈
+    // 시간이지만, 이미 카운트다운이 돌거나 세트가 오간 방에 참가한 사람은
+    // 지금 당장 들어야 한다 — 그 앞에 딤을 깔면 운동을 방해하는 팝업이다.
+    // 그런 사람은 메뉴의 '사용법'로 원할 때 본다.
+    final idle =
+        party != null &&
+        party.startsAt == null &&
+        party.members.every((member) => member.completedSets == 0);
     if (inRoom &&
+        idle &&
         !_guideScheduled &&
         !AppScope.of(context).hasSeenTogetherGuide) {
       _guideScheduled = true;
