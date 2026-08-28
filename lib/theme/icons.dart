@@ -64,6 +64,13 @@ abstract final class SetflowIcons {
   /// 같이 시작 — the shared countdown.
   static const partyStart = Icons.play_arrow_rounded;
 
+  /// 방을 열 때 고르는 것들 — 누가 들어오는지, 무엇을 하는지.
+  static const publicRoom = Icons.public_rounded;
+  static const privateRoom = Icons.lock_outline_rounded;
+  static const activityGym = Icons.fitness_center_rounded;
+  static const activityCrossfit = Icons.bolt_rounded;
+  static const activityAlternate = Icons.swap_horiz_rounded;
+
   /// 초대 코드를 복사한다.
   static const copyCode = Icons.copy_rounded;
 

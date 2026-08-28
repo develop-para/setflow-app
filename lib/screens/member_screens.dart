@@ -72,6 +72,7 @@ class _MemberShellState extends State<MemberShell> {
 
   /// Page index the center disc owns.
   static const _recordPage = 2;
+  static const _togetherPage = 1;
 
   /// 홈. The only page that carries the 일반인/트레이너 switch.
   static const _homePage = 0;
@@ -167,6 +168,11 @@ class _MemberShellState extends State<MemberShell> {
         if (!didPop) _closeRecordSheet();
       },
       child: Scaffold(
+        // 함께 탭은 아레나(검은 판)다. 상태바 뒤의 띠와 바텀바까지 같은 톤으로 —
+        // 안 그러면 검은 페이지 위아래에 흰 띠가 남는다.
+        backgroundColor: index == _togetherPage
+            ? SetflowTheme.dark.scaffoldBackgroundColor
+            : null,
         body: Stack(
           children: [
             Column(
@@ -213,19 +219,24 @@ class _MemberShellState extends State<MemberShell> {
         ),
         bottomNavigationBar: _inTogetherSession
             ? null
-            : SetflowActionNavBar(
-                items: destinations,
-                selectedIndex: _selectedSlot,
-                onSelected: (slot) {
-                  _closeRecordSheet();
-                  setState(() => index = _slotToPage[slot]);
-                },
-                centerLabel: '기록',
-                centerIcon: _recordSheetOpen
-                    ? SetflowIcons.close
-                    : SetflowIcons.record,
-                centerSelected: index == _recordPage,
-                onCenterTap: _handleCenterTap,
+            : Theme(
+                data: index == _togetherPage
+                    ? SetflowTheme.dark
+                    : Theme.of(context),
+                child: SetflowActionNavBar(
+                  items: destinations,
+                  selectedIndex: _selectedSlot,
+                  onSelected: (slot) {
+                    _closeRecordSheet();
+                    setState(() => index = _slotToPage[slot]);
+                  },
+                  centerLabel: '기록',
+                  centerIcon: _recordSheetOpen
+                      ? SetflowIcons.close
+                      : SetflowIcons.record,
+                  centerSelected: index == _recordPage,
+                  onCenterTap: _handleCenterTap,
+                ),
               ),
       ),
     );

@@ -173,12 +173,13 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
 
-      // 혼자 있는 방은 본문이 통째로 초대 화면이다 — 코드가 거기 있다.
+      // 혼자여도 전광판이다 — 내 줄이 먼저 켜지고, 코드는 판 아래 줄에 있다.
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
       final code = tester.widget<Text>(
         find.byKey(const ValueKey('together-code')),
       );
       expect(code.data, hasLength(6));
-      expect(find.text('친구를 초대하세요'), findsOneWidget);
+      expect(find.text('친구를 기다리는 중'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 400));
     });
 
@@ -487,9 +488,9 @@ void main() {
         find.byKey(const ValueKey('together-status-hero')),
         findsOneWidget,
       );
-      expect(find.text('친구를 초대하세요'), findsOneWidget);
+      expect(find.text('친구를 기다리는 중'), findsOneWidget);
 
-      // 친구가 들어오면: 시작이 할 일이다. 코드는 화면의 코드 카드에서 읽는다.
+      // 친구가 들어오면: 시작이 할 일이다. 코드는 전광판 아래 줄에서 읽는다.
       final codeText = tester.widget<Text>(
         find.byKey(const ValueKey('together-code')),
       );
@@ -772,20 +773,12 @@ void main() {
       },
     );
 
-    testWidgets('without permission the list waits for a tap, never a popup', (
-      tester,
-    ) async {
-      // 탭을 열 때마다 권한 창이 뜨면 그게 곧 귀찮음이다 — 허용된 사람만 자동.
+    testWidgets('opening the tab asks for location right away', (tester) async {
+      // "그냥 앱 실행하거나 함께 들어올 때 수신받아야지" — 탭이 곧 근처 방
+      // 목록이니 버튼을 누르게 하지 않는다.
       final location = _FakeLocation(gym, granted: false);
       Location.bind(location);
       await pumpTogether(tester, repository: client('u-me', '나'));
-      expect(
-        find.byKey(const ValueKey('together-nearby-location')),
-        findsOneWidget,
-      );
-      expect(location.prompted, isFalse);
-      await tester.tap(find.byKey(const ValueKey('together-nearby-action')));
-      await tester.pumpAndSettle();
       expect(location.prompted, isTrue);
       expect(
         find.byKey(const ValueKey('together-nearby-empty')),

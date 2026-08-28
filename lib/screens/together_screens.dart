@@ -20,6 +20,15 @@ import 'workout_screens.dart';
 /// partner feel present is not seeing them, it is that **your rest ends when
 /// their set does**. So the room is not a chat with a timer bolted on; it is a
 /// timer that two people share, and everything else is arranged around it.
+/// 함께 탭은 **아레나**다 — 라이트 모드에서도 전광판과 같은 검은 판 위에 있다.
+///
+/// "함께 쪽 전광판 빼고 마음에 드는 UI가 하나도 없어": 전광판만 검은 게임판이고
+/// 나머지(로비·시트·액션 바)는 흰 설정 화면이었다. 탭 전체를 전광판의 톤으로
+/// 맞춘다. 앱의 다크 테마를 그대로 쓰므로 대비·색 규칙은 이미 검증된 값이다.
+Widget _arena(Widget child) => Theme(data: SetflowTheme.dark, child: child);
+
+Color get _arenaSurface => SetflowTheme.dark.colorScheme.surface;
+
 class TogetherScreen extends StatefulWidget {
   const TogetherScreen({this.onOpenRecord, this.onSessionChanged, super.key});
 
@@ -229,7 +238,9 @@ class _TogetherScreenState extends State<TogetherScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(_resumeRemembered());
-      unawaited(_loadNearby());
+      // 위치는 함께 탭에 들어온 순간 묻는다 — "버튼을 눌러야 보인다"가 아니라
+      // 탭이 곧 근처 방 목록이다. 거절한 사람에게는 안내와 버튼이 남는다.
+      unawaited(_loadNearby(request: true));
     });
   }
 
@@ -336,124 +347,126 @@ class _TogetherScreenState extends State<TogetherScreen> {
     // 시스템 뒤로가기도 앱바의 ←와 같다: 방은 그대로 두고 기록 탭으로. 안
     // 잡으면 셸 루트라 앱이 통째로 내려간다 — "뒤로가기도 없어 보이는데".
     final backToRecord = inRoom && widget.onOpenRecord != null;
-    return PopScope(
-      canPop: !backToRecord,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && backToRecord) widget.onOpenRecord!();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          // 방 안에서는 셸 헤더가 접히므로 이 앱바가 유일한 위쪽 크롬이다.
-          // 그래서 나가는 길(기록 탭으로 접기)이 여기 있어야 한다.
-          // "방에 들어오면 다시 나갈 수는 없나?" — 접힌 셸에서 나가는 길이
-          // 아래 화살표 하나였다. 뒤로가기는 뒤로가기처럼 생겨야 하고, 방 나가기는
-          // 메뉴 속이 아니라 보이는 자리에 있어야 한다.
-          leading: inRoom && widget.onOpenRecord != null
-              ? IconButton(
-                  key: const ValueKey('together-minimize'),
-                  tooltip: '기록으로 돌아가기 (방은 유지)',
-                  onPressed: widget.onOpenRecord,
-                  icon: const Icon(Icons.arrow_back_rounded),
+    return _arena(
+      PopScope(
+        canPop: !backToRecord,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && backToRecord) widget.onOpenRecord!();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            // 방 안에서는 셸 헤더가 접히므로 이 앱바가 유일한 위쪽 크롬이다.
+            // 그래서 나가는 길(기록 탭으로 접기)이 여기 있어야 한다.
+            // "방에 들어오면 다시 나갈 수는 없나?" — 접힌 셸에서 나가는 길이
+            // 아래 화살표 하나였다. 뒤로가기는 뒤로가기처럼 생겨야 하고, 방 나가기는
+            // 메뉴 속이 아니라 보이는 자리에 있어야 한다.
+            leading: inRoom && widget.onOpenRecord != null
+                ? IconButton(
+                    key: const ValueKey('together-minimize'),
+                    tooltip: '기록으로 돌아가기 (방은 유지)',
+                    onPressed: widget.onOpenRecord,
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  )
+                : null,
+            // "함께 운동 중"과 전광판의 LIVE가 같은 말을 두 번 했다. 제목은 방이
+            // 무엇인지 — 방식과 인원 — 만 말한다.
+            title: Text(switch ((
+              inRoom,
+              party?.isPublic ?? false,
+              party?.members.length ?? 0,
+            )) {
+              (false, _, _) => '함께',
+              (true, true, 1) => '공개방 · 대기 중',
+              (true, false, 1) => '함께',
+              (true, final public, final n) =>
+                '${public ? '공개 · ' : ''}${party!.mode.label} · $n명',
+            }, key: const ValueKey('together-title')),
+            actions: [
+              // 헤더는 ← / 제목 / ⋮ 셋이다. 나가기는 메뉴 맨 아래 — 더보기 옆에
+              // 나가기 아이콘을 나란히 두는 헤더는 없다("버튼이 있다고 막 배치하지
+              // 말고"). 뒤로가기가 제대로 되는 지금, 출구는 그걸로 충분하다.
+              if (inRoom)
+                KeyedSubtree(
+                  key: _menuKey,
+                  child: _RoomMenu(
+                    key: const ValueKey('together-room-menu'),
+                    busy: _busy,
+                    onInvite: () => _showInvite(party),
+                    onMode: () => _showModeSheet(party),
+                    onRoutines: () => _showRoutinesSheet(party),
+                    onHelp: () => unawaited(_showGuide()),
+                    onLeave: _confirmLeave,
+                  ),
                 )
-              : null,
-          // "함께 운동 중"과 전광판의 LIVE가 같은 말을 두 번 했다. 제목은 방이
-          // 무엇인지 — 방식과 인원 — 만 말한다.
-          title: Text(switch ((
-            inRoom,
-            party?.isPublic ?? false,
-            party?.members.length ?? 0,
-          )) {
-            (false, _, _) => '함께',
-            (true, true, 1) => '공개방 · 대기 중',
-            (true, false, 1) => '함께',
-            (true, final public, final n) =>
-              '${public ? '공개 · ' : ''}${party!.mode.label} · $n명',
-          }, key: const ValueKey('together-title')),
-          actions: [
-            // 헤더는 ← / 제목 / ⋮ 셋이다. 나가기는 메뉴 맨 아래 — 더보기 옆에
-            // 나가기 아이콘을 나란히 두는 헤더는 없다("버튼이 있다고 막 배치하지
-            // 말고"). 뒤로가기가 제대로 되는 지금, 출구는 그걸로 충분하다.
-            if (inRoom)
-              KeyedSubtree(
-                key: _menuKey,
-                child: _RoomMenu(
-                  key: const ValueKey('together-room-menu'),
-                  busy: _busy,
-                  onInvite: () => _showInvite(party),
-                  onMode: () => _showModeSheet(party),
-                  onRoutines: () => _showRoutinesSheet(party),
-                  onHelp: () => unawaited(_showGuide()),
-                  onLeave: _confirmLeave,
+              else
+                IconButton(
+                  key: const ValueKey('together-help'),
+                  tooltip: '함께 운동 사용법',
+                  onPressed: () => _showTogetherHelp(context),
+                  icon: const Icon(Icons.help_outline_rounded),
                 ),
-              )
-            else
-              IconButton(
-                key: const ValueKey('together-help'),
-                tooltip: '함께 운동 사용법',
-                onPressed: () => _showTogetherHelp(context),
-                icon: const Icon(Icons.help_outline_rounded),
-              ),
-          ],
-        ),
-        body: SafeArea(
-          top: false,
-          child: repository == null
-              ? const EmptyState(
-                  key: ValueKey('together-unavailable'),
-                  icon: SetflowIcons.together,
-                  title: '함께 운동은 곧 열려요',
-                  message: '이 빌드에는 파트너 서버가 연결되어 있지 않아요.',
-                )
-              : _party == null
-              ? _Lobby(
-                  busy: _busy,
-                  error: _error,
-                  nearby: _nearby,
-                  locationAvailable: Location.instance.isAvailable,
-                  onCreate: _create,
-                  onJoin: _join,
-                  onJoinNearby: _joinNearby,
-                  onLoadNearby: () => _loadNearby(request: true),
-                  onRefreshNearby: _loadNearby,
-                  onOpenLocationSettings: Location.instance.openSettings,
-                  onSignIn: () async {
-                    if (await requireSignIn(
-                      context,
-                      reason: AuthReason.together,
-                    )) {
-                      unawaited(_loadNearby());
-                    }
-                  },
-                )
-              : _PartyRoom(
-                  party: party!,
-                  userId: _userId,
-                  busy: _busy,
-                  statusKey: _statusKey,
-                  boardKey: _boardKey,
-                  actionKey: _actionKey,
-                  codeKey: _codeKey,
-                  liveSet: _liveSetOfToday(AppScope.of(context)),
-                  onOpenRecord: widget.onOpenRecord,
-                  onInvite: () => _showInvite(party),
-                  onShowRoutines: () => _showRoutinesSheet(party),
-                  unit: AppScope.of(context).weightUnit,
-                  onSetEdited: ({weight, reps, restSeconds}) {
-                    final live = _liveSetOfToday(AppScope.of(context));
-                    if (live == null) return;
-                    // updateSet이 클램프·저장·알림까지 맡는 정식 경로다.
-                    AppScope.of(context).updateSet(
-                      live.$2,
-                      weight: weight,
-                      reps: reps,
-                      restSeconds: restSeconds,
-                    );
-                    setState(() {});
-                  },
-                  onStart: () =>
-                      _run(() => _repository!.startTogether(_party!.id)),
-                  onSetDone: _reportSetDone,
-                ),
+            ],
+          ),
+          body: SafeArea(
+            top: false,
+            child: repository == null
+                ? const EmptyState(
+                    key: ValueKey('together-unavailable'),
+                    icon: SetflowIcons.together,
+                    title: '함께 운동은 곧 열려요',
+                    message: '이 빌드에는 파트너 서버가 연결되어 있지 않아요.',
+                  )
+                : _party == null
+                ? _Lobby(
+                    busy: _busy,
+                    error: _error,
+                    nearby: _nearby,
+                    locationAvailable: Location.instance.isAvailable,
+                    onCreate: _create,
+                    onJoin: _join,
+                    onJoinNearby: _joinNearby,
+                    onLoadNearby: () => _loadNearby(request: true),
+                    onRefreshNearby: _loadNearby,
+                    onOpenLocationSettings: Location.instance.openSettings,
+                    onSignIn: () async {
+                      if (await requireSignIn(
+                        context,
+                        reason: AuthReason.together,
+                      )) {
+                        unawaited(_loadNearby());
+                      }
+                    },
+                  )
+                : _PartyRoom(
+                    party: party!,
+                    userId: _userId,
+                    busy: _busy,
+                    statusKey: _statusKey,
+                    boardKey: _boardKey,
+                    actionKey: _actionKey,
+                    codeKey: _codeKey,
+                    liveSet: _liveSetOfToday(AppScope.of(context)),
+                    onOpenRecord: widget.onOpenRecord,
+                    onInvite: () => _showInvite(party),
+                    onShowRoutines: () => _showRoutinesSheet(party),
+                    unit: AppScope.of(context).weightUnit,
+                    onSetEdited: ({weight, reps, restSeconds}) {
+                      final live = _liveSetOfToday(AppScope.of(context));
+                      if (live == null) return;
+                      // updateSet이 클램프·저장·알림까지 맡는 정식 경로다.
+                      AppScope.of(context).updateSet(
+                        live.$2,
+                        weight: weight,
+                        reps: reps,
+                        restSeconds: restSeconds,
+                      );
+                      setState(() {});
+                    },
+                    onStart: () =>
+                        _run(() => _repository!.startTogether(_party!.id)),
+                    onSetDone: _reportSetDone,
+                  ),
+          ),
         ),
       ),
     );
@@ -598,21 +611,26 @@ class _TogetherScreenState extends State<TogetherScreen> {
   }) => showSetflowSheet<void>(
     context,
     showDragHandle: true,
-    builder: (sheetContext) => Padding(
-      padding: const EdgeInsets.fromLTRB(
-        SetflowSpacing.gutter,
-        0,
-        SetflowSpacing.gutter,
-        SetflowSpacing.xl,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(title, style: Theme.of(sheetContext).textTheme.titleLarge),
-          const SizedBox(height: SetflowSpacing.lg),
-          ...children(sheetContext),
-        ],
+    backgroundColor: _arenaSurface,
+    builder: (sheetContext) => _arena(
+      Builder(
+        builder: (sheetContext) => Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.gutter,
+            0,
+            SetflowSpacing.gutter,
+            SetflowSpacing.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: Theme.of(sheetContext).textTheme.titleLarge),
+              const SizedBox(height: SetflowSpacing.lg),
+              ...children(sheetContext),
+            ],
+          ),
+        ),
       ),
     ),
   );
@@ -624,8 +642,10 @@ class _TogetherScreenState extends State<TogetherScreen> {
       context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) =>
-          _CreateSheet(locationAvailable: Location.instance.isAvailable),
+      backgroundColor: _arenaSurface,
+      builder: (_) => _arena(
+        _CreateSheet(locationAvailable: Location.instance.isAvailable),
+      ),
     );
     if (choice == null || !mounted) return;
     var (visibility, mode) = choice;
@@ -743,7 +763,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
     final routine = await showSetflowSheet<RoutineData>(
       context,
       isScrollControlled: true,
-      builder: (_) => _RoutinePickerSheet(routines: state.routines),
+      backgroundColor: _arenaSurface,
+      builder: (_) => _arena(_RoutinePickerSheet(routines: state.routines)),
     );
     if (routine == null || !mounted) return;
     await _run(
@@ -769,20 +790,22 @@ class _TogetherScreenState extends State<TogetherScreen> {
   Future<void> _confirmLeave() async {
     final leave = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('방을 나갈까요?'),
-        content: const Text('다시 들어오려면 초대 코드가 필요하고, 전광판의 세트 수는 처음부터예요.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            key: const ValueKey('together-leave-confirm'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('나가기'),
-          ),
-        ],
+      builder: (dialogContext) => _arena(
+        AlertDialog(
+          title: const Text('방을 나갈까요?'),
+          content: const Text('다시 들어오려면 초대 코드가 필요하고, 전광판의 세트 수는 처음부터예요.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              key: const ValueKey('together-leave-confirm'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('나가기'),
+            ),
+          ],
+        ),
       ),
     );
     if (leave == true && mounted) await _leave();
@@ -809,7 +832,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
 Future<String?> _askForCode(BuildContext context) => showSetflowSheet<String>(
   context,
   isScrollControlled: true,
-  builder: (_) => const _CodeSheet(),
+  backgroundColor: _arenaSurface,
+  builder: (_) => _arena(const _CodeSheet()),
 );
 
 /// Owns its own controller.
@@ -933,113 +957,128 @@ void _showTogetherHelp(BuildContext context) {
   showSetflowSheet<void>(
     context,
     showDragHandle: true,
-    builder: (sheetContext) {
-      final theme = Theme.of(sheetContext);
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(
-          SetflowSpacing.gutter,
-          0,
-          SetflowSpacing.gutter,
-          SetflowSpacing.xl,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('함께 운동 사용법', style: theme.textTheme.titleLarge),
-            const SizedBox(height: SetflowSpacing.lg),
-            for (final (step, icon, title, detail) in const [
-              (
-                1,
-                SetflowIcons.partyCreate,
-                '방을 만들고 코드를 공유해요',
-                '전화로 불러줄 수 있는 여섯 글자예요. 한 방에 최대 6명.',
-              ),
-              (2, SetflowIcons.partyStart, '준비되면 같이 시작', '모든 폰이 같은 카운트다운을 세요'),
-              (
-                3,
-                SetflowIcons.setComplete,
-                '세트 끝!을 누르면',
-                '내 기록에 저장되고, 상대 휴식이 그 순간 끝나요',
-              ),
-            ]) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: sheetContext.setflowColors.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(SetflowRadii.sm),
-                    ),
-                    child: Text(
-                      '$step',
-                      style: const TextStyle(fontWeight: SetflowWeight.strong),
-                    ),
+    backgroundColor: _arenaSurface,
+    builder: (_) => _arena(
+      Builder(
+        builder: (sheetContext) {
+          final theme = Theme.of(sheetContext);
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              SetflowSpacing.gutter,
+              0,
+              SetflowSpacing.gutter,
+              SetflowSpacing.xl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('함께 운동 사용법', style: theme.textTheme.titleLarge),
+                const SizedBox(height: SetflowSpacing.lg),
+                for (final (step, icon, title, detail) in const [
+                  (
+                    1,
+                    SetflowIcons.partyCreate,
+                    '방을 만들고 코드를 공유해요',
+                    '전화로 불러줄 수 있는 여섯 글자예요. 한 방에 최대 6명.',
                   ),
-                  const SizedBox(width: SetflowSpacing.md),
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: theme.colorScheme.onSurfaceVariant,
+                  (
+                    2,
+                    SetflowIcons.partyStart,
+                    '준비되면 같이 시작',
+                    '모든 폰이 같은 카운트다운을 세요',
                   ),
-                  const SizedBox(width: SetflowSpacing.sm),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
+                  (
+                    3,
+                    SetflowIcons.setComplete,
+                    '세트 끝!을 누르면',
+                    '내 기록에 저장되고, 상대 휴식이 그 순간 끝나요',
+                  ),
+                ]) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color:
+                              sheetContext.setflowColors.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                        ),
+                        child: Text(
+                          '$step',
                           style: const TextStyle(
                             fontWeight: SetflowWeight.strong,
-                            fontSize: SetflowFontSize.label,
                           ),
                         ),
-                        Text(
-                          detail,
+                      ),
+                      const SizedBox(width: SetflowSpacing.md),
+                      Icon(
+                        icon,
+                        size: 18,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: SetflowSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: SetflowWeight.strong,
+                                fontSize: SetflowFontSize.label,
+                              ),
+                            ),
+                            Text(
+                              detail,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: SetflowSpacing.md2),
+                ],
+                const SizedBox(height: SetflowSpacing.xs),
+                Text('세 가지 종목 — 전광판은 어디에나', style: theme.textTheme.titleMedium),
+                const SizedBox(height: SetflowSpacing.sm),
+                for (final mode in PartyMode.values) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 44,
+                        child: Text(
+                          mode.label,
+                          style: const TextStyle(
+                            fontWeight: SetflowWeight.strong,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '${mode.detail}\n${mode.when}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: SetflowSpacing.md2),
-            ],
-            const SizedBox(height: SetflowSpacing.xs),
-            Text('세 가지 종목 — 전광판은 어디에나', style: theme.textTheme.titleMedium),
-            const SizedBox(height: SetflowSpacing.sm),
-            for (final mode in PartyMode.values) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 44,
-                    child: Text(
-                      mode.label,
-                      style: const TextStyle(fontWeight: SetflowWeight.strong),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${mode.detail}\n${mode.when}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
                       ),
-                    ),
+                    ],
                   ),
+                  const SizedBox(height: SetflowSpacing.sm),
                 ],
-              ),
-              const SizedBox(height: SetflowSpacing.sm),
-            ],
-          ],
-        ),
-      );
-    },
+              ],
+            ),
+          );
+        },
+      ),
+    ),
   );
 }
 
@@ -1448,12 +1487,13 @@ class _NearbyRow extends StatelessWidget {
   }
 }
 
-/// 방을 열기 전에 정하는 둘 — 누가 들어올 수 있는지, 어떻게 운동할지.
+/// 방을 열기 전에 정하는 둘 — 누가 들어올 수 있는지, 무슨 종목인지.
 /// 방을 여는 것은 빈 시간이라 여기서 한 번 묻는 것이 세트 사이에 묻는 것보다 낫다.
+/// 라디오 목록이 아니라 카드다 — 게임의 방 설정 화면처럼 한눈에 고른다.
 class _CreateSheet extends StatefulWidget {
   const _CreateSheet({required this.locationAvailable});
 
-  /// 위치를 못 읽는 빌드(웹·데스크톱)에는 공개 선택지를 아예 내지 않는다.
+  /// 위치를 못 읽는 기기에서는 공개 카드를 잠그고 이유를 적는다.
   final bool locationAvailable;
 
   @override
@@ -1463,6 +1503,12 @@ class _CreateSheet extends StatefulWidget {
 class _CreateSheetState extends State<_CreateSheet> {
   PartyVisibility _visibility = PartyVisibility.private;
   PartyMode _mode = PartyMode.defaultMode;
+
+  static IconData _iconFor(PartyMode mode) => switch (mode) {
+    PartyMode.free => SetflowIcons.activityGym,
+    PartyMode.together => SetflowIcons.activityCrossfit,
+    PartyMode.alternating => SetflowIcons.activityAlternate,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -1479,62 +1525,82 @@ class _CreateSheetState extends State<_CreateSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('방 만들기', style: theme.textTheme.titleLarge),
-          const SizedBox(height: SetflowSpacing.md),
-          // 공개/비밀은 **언제나** 여기서 고른다. 위치를 못 읽는 기기에서는 공개를
-          // 숨기는 대신 잠그고 이유를 적는다 — 숨기면 "설정할 수 없다"로 읽힌다.
+          const SizedBox(height: SetflowSpacing.lg),
           Text('누가 들어올 수 있나요', style: theme.textTheme.titleMedium),
-          RadioGroup<PartyVisibility>(
-            groupValue: _visibility,
-            onChanged: (value) {
-              if (value != null) setState(() => _visibility = value);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final visibility in PartyVisibility.values)
-                  RadioListTile<PartyVisibility>(
+          const SizedBox(height: SetflowSpacing.sm),
+          Row(
+            children: [
+              for (final (index, visibility)
+                  in PartyVisibility.values.indexed) ...[
+                if (index > 0) const SizedBox(width: SetflowSpacing.sm),
+                Expanded(
+                  child: _ChoiceCard(
                     key: ValueKey('create-visibility-${visibility.name}'),
-                    value: visibility,
+                    icon: visibility == PartyVisibility.public
+                        ? SetflowIcons.publicRoom
+                        : SetflowIcons.privateRoom,
+                    title: visibility.label,
+                    subtitle: visibility == PartyVisibility.public
+                        ? '근처 사람도 들어와요'
+                        : '코드로만 들어와요',
+                    selected: _visibility == visibility,
                     enabled:
                         widget.locationAvailable ||
                         visibility == PartyVisibility.private,
-                    title: Text(visibility.label),
-                    subtitle: Text(
-                      visibility == PartyVisibility.public &&
-                              !widget.locationAvailable
-                          ? '이 기기에서는 위치를 읽을 수 없어 공개방을 열 수 없어요.'
-                          : visibility.detail,
-                    ),
-                    contentPadding: EdgeInsets.zero,
+                    onTap: () => setState(() => _visibility = visibility),
                   ),
+                ),
               ],
-            ),
+            ],
           ),
-          const SizedBox(height: SetflowSpacing.md),
+          if (!widget.locationAvailable) ...[
+            const SizedBox(height: SetflowSpacing.sm),
+            Text(
+              '이 기기에서는 위치를 읽을 수 없어 공개방을 열 수 없어요.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+          const SizedBox(height: SetflowSpacing.lg),
           Text('종목', style: theme.textTheme.titleMedium),
-          Text(
-            '어느 종목이든 전광판은 있어요. 다른 건 휴식을 누구와 묶느냐뿐.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          RadioGroup<PartyMode>(
-            groupValue: _mode,
-            onChanged: (value) {
-              if (value != null) setState(() => _mode = value);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final mode in PartyMode.values)
-                  RadioListTile<PartyMode>(
+          const SizedBox(height: SetflowSpacing.sm),
+          Row(
+            children: [
+              for (final (index, mode) in PartyMode.values.indexed) ...[
+                if (index > 0) const SizedBox(width: SetflowSpacing.sm),
+                Expanded(
+                  child: _ChoiceCard(
                     key: ValueKey('create-mode-${mode.name}'),
-                    value: mode,
-                    title: Text(mode.label),
-                    subtitle: Text('${mode.detail}\n${mode.when}'),
-                    isThreeLine: true,
-                    contentPadding: EdgeInsets.zero,
+                    icon: _iconFor(mode),
+                    title: mode.label,
+                    selected: _mode == mode,
+                    onTap: () => setState(() => _mode = mode),
                   ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          // 고른 종목의 설명 한 장. 세 장에 다 적으면 카드가 글 상자가 된다.
+          Container(
+            key: const ValueKey('create-mode-detail'),
+            padding: const EdgeInsets.all(SetflowSpacing.md),
+            decoration: BoxDecoration(
+              color: context.setflowColors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(SetflowRadii.md),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_mode.detail, style: theme.textTheme.bodyMedium),
+                const SizedBox(height: SetflowSpacing.xxs),
+                Text(
+                  '${_mode.when} · 전광판은 어느 종목에나 있어요',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1546,6 +1612,93 @@ class _CreateSheetState extends State<_CreateSheet> {
             onPressed: () => Navigator.of(context).pop((_visibility, _mode)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 고르는 카드 하나. 골리면 라임 테두리와 옅은 라임 바탕, 아니면 회색 판.
+class _ChoiceCard extends StatelessWidget {
+  const _ChoiceCard({
+    required this.icon,
+    required this.title,
+    required this.selected,
+    required this.onTap,
+    this.subtitle,
+    this.enabled = true,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground = !enabled
+        ? context.setflowColors.disabled
+        : selected
+        ? theme.colorScheme.onSurface
+        : theme.colorScheme.onSurfaceVariant;
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: subtitle == null ? title : '$title, $subtitle',
+      child: Material(
+        color: selected
+            ? theme.colorScheme.primary.withValues(alpha: .18)
+            : context.setflowColors.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+          side: BorderSide(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SetflowSpacing.sm,
+              vertical: SetflowSpacing.md,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 24, color: foreground),
+                const SizedBox(height: SetflowSpacing.xs2),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: foreground,
+                    fontWeight: SetflowWeight.strong,
+                    fontSize: SetflowFontSize.label,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: SetflowSpacing.xxs),
+                  Text(
+                    subtitle!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: SetflowFontSize.small,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1601,7 +1754,6 @@ class _PartyRoom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final solo = party.members.length == 1;
     final countdown = party.countdownSeconds;
     final myTurn =
         party.mode == PartyMode.alternating &&
@@ -1626,15 +1778,9 @@ class _PartyRoom extends StatelessWidget {
         Expanded(
           child: KeyedSubtree(
             key: boardKey,
-            child: solo
-                ? _WaitingPanel(
-                    key: const ValueKey('together-waiting'),
-                    code: party.code,
-                    codeKey: codeKey,
-                    isPublic: party.isPublic,
-                    onInvite: onInvite,
-                  )
-                : _Scoreboard(party: party, userId: userId),
+            // 혼자여도 전광판이다 — "전광판이 게임판인데". 내 줄이 먼저 켜지고,
+            // 초대 코드는 판 아래 줄에 얹힌다.
+            child: _Scoreboard(party: party, userId: userId, codeKey: codeKey),
           ),
         ),
         if (party.routines.isNotEmpty)
@@ -1811,7 +1957,10 @@ class _LiveStatusBar extends StatelessWidget {
         party.members.every((member) => member.completedSets == 0);
 
     final (label, tone) = switch (null) {
-      _ when solo => ('친구를 기다리는 중', _StatusTone.idle),
+      _ when solo => (
+        party.isPublic ? '근처 사람을 기다리는 중' : '친구를 기다리는 중',
+        _StatusTone.idle,
+      ),
       _ when rest > 0 => (
         switch (party.mode) {
           PartyMode.together => '같이 휴식 ${_clock(rest)}',
@@ -1896,67 +2045,6 @@ class _LiveStatusBar extends StatelessWidget {
 }
 
 enum _StatusTone { idle, active, resting }
-
-/// 혼자 있는 방 — 전광판에 올릴 것이 없으니 자리를 초대가 가져간다.
-class _WaitingPanel extends StatelessWidget {
-  const _WaitingPanel({
-    required this.code,
-    required this.codeKey,
-    required this.isPublic,
-    required this.onInvite,
-    super.key,
-  });
-
-  final String code;
-
-  /// 공개방은 근처 사람이 알아서 들어온다 — 코드는 친구를 부르는 보조 수단.
-  final bool isPublic;
-
-  /// 화면 안내가 비출 자리 — 패널 전체가 아니라 코드 카드만.
-  final GlobalKey codeKey;
-  final VoidCallback onInvite;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.gutter),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              SetflowIcons.together,
-              size: 44,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: SetflowSpacing.lg),
-            Text(
-              isPublic ? '근처 사람을 기다리는 중' : '친구를 초대하세요',
-              style: theme.textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: SetflowSpacing.xs),
-            Text(
-              isPublic
-                  ? '근처에서 함께 탭을 연 사람에게 이 방이 보여요. 친구는 코드로 불러도 돼요.'
-                  : '이 코드를 알려주면 같은 방으로 들어와요.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: SetflowSpacing.xl),
-            KeyedSubtree(
-              key: codeKey,
-              child: _CodeCard(code: code),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 /// 루틴이 도착했다는 사실만 한 줄로. 내용은 시트에서 본다.
 class _RoutineBanner extends StatelessWidget {
@@ -2422,10 +2510,17 @@ class _Countdown extends StatelessWidget {
 /// 한 번에 읽힌다. 순위는 세트 수로만 매긴다 — 볼륨은 체급이 다르면
 /// 비교가 성립하지 않아 참고 숫자로만 둔다.
 class _Scoreboard extends StatelessWidget {
-  const _Scoreboard({required this.party, required this.userId});
+  const _Scoreboard({
+    required this.party,
+    required this.userId,
+    required this.codeKey,
+  });
 
   final TrainingParty party;
   final String? userId;
+
+  /// 화면 안내가 초대 코드를 비출 자리.
+  final GlobalKey codeKey;
 
   /// 한 줄이 차지하는 칸 수. 위 1칸, 이름 줄 3칸, 숫자 11칸, 아래 여유 3칸.
   static const _rowCells = 18;
@@ -2441,6 +2536,9 @@ class _Scoreboard extends StatelessWidget {
       });
     final maxSets = ranked.isEmpty ? 0 : ranked.first.completedSets;
     final race = party.members.length > 1 && maxSets > 0;
+    final solo = party.members.length == 1;
+    // 판 아래 한 줄: 경쟁 중이면 격차, 혼자면 초대 코드.
+    final footer = race || solo;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2448,9 +2546,13 @@ class _Scoreboard extends StatelessWidget {
         // 칸이 12px까지 커져 숫자가 화면 절반을 넘고("상단부터 중간 넘어가게"),
         // 여섯이면 6px로 낮아지다 넘치는 순간부터 스크롤된다.
         final totalCells =
-            ranked.length * _rowCells + _padCells * 2 + (race ? _raceCells : 0);
+            ranked.length * _rowCells +
+            _padCells * 2 +
+            (footer ? _raceCells : 0);
+        // 혼자면 줄이 하나뿐이라 칸을 더 키운다 — 판이 화면을 채우고 숫자가
+        // 아케이드처럼 커진다. 둘 이상이면 12px이 상한이다.
         final pitch = ((constraints.maxHeight - SetflowSpacing.lg) / totalCells)
-            .clamp(6.0, 12.0);
+            .clamp(6.0, solo ? 16.0 : 12.0);
         final width = constraints.maxWidth - SetflowSpacing.gutter * 2;
         final cols = (width / pitch).floor();
         final boardWidth = cols * pitch;
@@ -2560,6 +2662,20 @@ class _Scoreboard extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                            )
+                          else if (solo)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: _padCells * pitch,
+                              height: _raceCells * pitch,
+                              child: KeyedSubtree(
+                                key: codeKey,
+                                child: _CodeFooter(
+                                  code: party.code,
+                                  isPublic: party.isPublic,
+                                ),
+                              ),
                             ),
                         ],
                       ),
@@ -2582,6 +2698,56 @@ class _Scoreboard extends StatelessWidget {
     return chasing
         ? '${ranked[0].displayName}님이 $gap세트 앞서요 — 따라잡아요!'
         : '${ranked[0].displayName}님이 $gap세트 앞서는 중';
+  }
+}
+
+/// 혼자인 방의 전광판 아래 줄 — 초대 코드. 탭하면 복사된다. 공개방이면
+/// 근처 사람이 알아서 들어오니 코드는 "친구도 부를 수 있다"는 보조 수단이다.
+class _CodeFooter extends StatelessWidget {
+  const _CodeFooter({required this.code, required this.isPublic});
+
+  final String code;
+  final bool isPublic;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '초대 코드 $code, 탭하면 복사',
+      child: InkWell(
+        onTap: () async {
+          await Clipboard.setData(ClipboardData(text: code));
+          if (context.mounted) AppSnackbar.success(context, '코드를 복사했어요.');
+        },
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              isPublic ? '근처 사람 입장 가능 · 초대 코드' : '초대 코드',
+              style: const TextStyle(
+                color: LedPalette.dimText,
+                fontSize: SetflowFontSize.caption,
+                fontWeight: SetflowWeight.strong,
+              ),
+            ),
+            const SizedBox(width: SetflowSpacing.sm),
+            Text(
+              code,
+              key: const ValueKey('together-code'),
+              style: const TextStyle(
+                color: LedPalette.lit,
+                fontSize: SetflowFontSize.title,
+                fontWeight: SetflowWeight.display,
+                letterSpacing: 4,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(width: SetflowSpacing.sm),
+            const Icon(Icons.copy_rounded, size: 16, color: LedPalette.dimText),
+          ],
+        ),
+      ),
+    );
   }
 }
 
