@@ -58,6 +58,9 @@
 코드와 마이그레이션·엣지 펑션은 배포돼 있다. 아래 셋이 채워지기 전까지는
 **발신함에 줄은 쌓이지만 전송은 되지 않는다**(크론이 조용히 아무것도 안 한다).
 
+**1·2번은 2026-08-28에 끝났다** (프로덕션 프로젝트 `fblrtxnpgftrtplqmsqe`). 새 프로젝트로
+옮기거나 키를 돌릴 때만 다시 한다. 3번(iOS)은 아직이다.
+
 ### 1. FCM 서비스 계정 키 (필수)
 
 Firebase 콘솔 → 프로젝트 `setflow-18eeb` → 프로젝트 설정 → 서비스 계정 →
@@ -105,4 +108,6 @@ order by start_time desc limit 5;
 ```
 
 `sent_at`이 계속 null이고 `attempts`가 오르면 `last_error`를 본다.
-`attempts`가 0인 채 그대로면 크론이 못 부르는 것이다 — 위 2번 Vault 시크릿을 확인.
+`attempts`가 0인 채 그대로면 크론이 못 부르는 것이다 — 위 2번 Vault 시크릿을 확인하고,
+`cron.job_run_details`의 `status`가 `failed`면 `return_message`를 본다. pg_net 함수는
+`net.http_post`다(`extensions.net.`이 아니다 — 20260828070000이 그 실수를 고쳤다).
