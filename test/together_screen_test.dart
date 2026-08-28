@@ -8,6 +8,7 @@ import 'package:setflow/main.dart';
 import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/screens/together_screens.dart';
 import 'package:setflow/services/auth_service.dart';
+import 'package:setflow/services/location_service.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/widgets/bottom_bar.dart';
 import 'package:setflow/widgets/common.dart';
@@ -120,13 +121,17 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('together-create')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
       expect(
         find.byType(SetflowActionNavBar),
         findsNothing,
         reason: '방 안에서는 바가 접힌다',
       );
 
-      // 나가기는 메뉴 속이 아니라 앱바에 보인다 — "다시 나갈 수는 없나?"
+      // 헤더는 ← / 제목 / ⋮ — 나가기는 메뉴 맨 아래, 확인 한 번.
+      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-leave')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-leave-confirm')));
@@ -164,6 +169,8 @@ void main() {
       await pumpTogether(tester, repository: client('u-me', '나'));
 
       await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
 
       // 혼자 있는 방은 본문이 통째로 초대 화면이다 — 코드가 거기 있다.
@@ -220,6 +227,8 @@ void main() {
       final repo = client('u-me', '나');
       final state = await pumpTogether(tester, repository: repo);
       await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
       expect(state.activeTrainingPartyId, isNotNull);
 
@@ -384,6 +393,8 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('together-create')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
 
       // 방이 오늘 기록의 차례 세트를 보여준다.
       expect(find.byKey(const ValueKey('together-live-set')), findsOneWidget);
@@ -418,6 +429,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-create')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const ValueKey('together-dial-weight')));
       await tester.pumpAndSettle();
@@ -437,6 +450,8 @@ void main() {
       (tester) async {
         await pumpTogether(tester, repository: client('u-me', '나'));
         await tester.tap(find.byKey(const ValueKey('together-create')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
         await tester.pumpAndSettle();
 
         expect(
@@ -459,6 +474,8 @@ void main() {
       // 언제나 지금 할 일 한 문장이 있어야 한다.
       final state = await pumpTogether(tester, repository: client('u-me', '나'));
       await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
 
       // 혼자: 초대가 할 일이다.
@@ -542,15 +559,21 @@ void main() {
       await pumpTogether(tester, repository: client('u-me', '나'));
       await tester.tap(find.byKey(const ValueKey('together-create')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('together-code')), findsOneWidget);
 
-      // 나가기는 앱바에 보이고, 한 번 묻는다 — 취소하면 방에 남는다.
+      // 나가기는 메뉴 맨 아래이고, 한 번 묻는다 — 취소하면 방에 남는다.
+      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-leave')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('취소'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('together-code')), findsOneWidget);
 
+      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-leave')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-leave-confirm')));
@@ -571,6 +594,8 @@ void main() {
         guideSeen: false,
       );
       await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
 
       // 혼자인 방: 첫 걸음은 초대 코드다.
@@ -611,6 +636,8 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('together-create')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('coach-skip')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('coach-dim')), findsNothing);
@@ -629,6 +656,8 @@ void main() {
     testWidgets('a room already seen opens without the dim', (tester) async {
       await pumpTogether(tester, repository: client('u-me', '나'));
       await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('coach-dim')), findsNothing);
       await tester.pump(const Duration(milliseconds: 400));
@@ -673,6 +702,118 @@ void main() {
       expect(PartyMode.alternating.detail, contains('번갈아'));
     });
   });
+
+  group('public rooms', () {
+    const gym = GeoPoint(37.5665, 126.9780);
+    setUp(() => Location.bind(_FakeLocation(gym)));
+    tearDown(() => Location.bind(const DisabledLocationService()));
+
+    testWidgets('a public room nearby is listed and joinable without a code', (
+      tester,
+    ) async {
+      // 같은 헬스장의 모르는 사람 — 코드를 물어볼 수 없다. 근처 목록에서 바로.
+      await client('u-host', '지훈').createParty(
+        mode: PartyMode.free,
+        visibility: PartyVisibility.public,
+        location: const GeoPoint(37.5667, 126.9782),
+      );
+      await client('u-far', '멀리').createParty(
+        mode: PartyMode.free,
+        visibility: PartyVisibility.public,
+        location: const GeoPoint(35.1796, 129.0756),
+      );
+      await client('u-secret', '비밀').createParty(
+        mode: PartyMode.free,
+        visibility: PartyVisibility.private,
+        location: gym,
+      );
+
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      expect(find.text('지훈님의 방'), findsOneWidget);
+      expect(find.text('멀리님의 방'), findsNothing);
+      expect(find.text('비밀님의 방'), findsNothing);
+      expect(find.textContaining('1/6명'), findsOneWidget);
+
+      await tester.tap(find.text('참여'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
+      expect(find.text('공개 · 각자 · 2명'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets(
+      'making a room asks public or private, and public takes the fix',
+      (tester) async {
+        await pumpTogether(tester, repository: client('u-me', '나'));
+        await tester.tap(find.byKey(const ValueKey('together-create')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('create-visibility-public')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('공개방 열기'), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('공개방 · 대기 중'), findsOneWidget);
+        expect(find.text('근처 사람을 기다리는 중'), findsOneWidget);
+        final party = backend.partyByCode(
+          tester
+              .widget<Text>(find.byKey(const ValueKey('together-code')))
+              .data!,
+        )!;
+        expect(party.isPublic, isTrue);
+        expect(party.location, isNotNull);
+        await tester.pump(const Duration(milliseconds: 400));
+      },
+    );
+
+    testWidgets('without permission the list waits for a tap, never a popup', (
+      tester,
+    ) async {
+      // 탭을 열 때마다 권한 창이 뜨면 그게 곧 귀찮음이다 — 허용된 사람만 자동.
+      final location = _FakeLocation(gym, granted: false);
+      Location.bind(location);
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      expect(
+        find.byKey(const ValueKey('together-nearby-location')),
+        findsOneWidget,
+      );
+      expect(location.prompted, isFalse);
+      await tester.tap(find.byKey(const ValueKey('together-nearby-action')));
+      await tester.pumpAndSettle();
+      expect(location.prompted, isTrue);
+      expect(
+        find.byKey(const ValueKey('together-nearby-empty')),
+        findsOneWidget,
+      );
+    });
+  });
+}
+
+/// 정해진 자리에 서 있는 가짜 위치. [granted]가 false면 버튼을 누를 때 묻는다.
+class _FakeLocation implements LocationService {
+  _FakeLocation(this.point, {this.granted = true});
+
+  final GeoPoint point;
+  bool granted;
+  bool prompted = false;
+
+  @override
+  bool get isAvailable => true;
+
+  @override
+  Future<bool> isGranted() async => granted;
+
+  @override
+  Future<LocationResult> current() async {
+    prompted = true;
+    granted = true;
+    return LocationFix(point);
+  }
+
+  @override
+  Future<void> openSettings() async {}
 }
 
 /// Signed in, and nothing else. 함께 only ever asks whether there is an account.

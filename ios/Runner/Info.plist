@@ -39,6 +39,8 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>근처에서 열린 함께 운동 공개방을 찾는 데만 씁니다.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>운동 기록 사진을 바로 촬영해 커뮤니티에 공유하기 위해 카메라를 사용합니다.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

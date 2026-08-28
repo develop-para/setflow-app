@@ -34,6 +34,112 @@ void main() {
     return backend.partyById(party.id)!;
   }
 
+  group('public rooms', () {
+    const gym = GeoPoint(37.5665, 126.9780);
+
+    test('nearby lists public rooms by distance and hides the rest', () async {
+      final near = await me.createParty(
+        mode: PartyMode.free,
+        visibility: PartyVisibility.public,
+        location: const GeoPoint(37.5667, 126.9782),
+      );
+      final farther =
+          await MemoryTogetherRepository(
+            backend: backend,
+            userId: 'u-2',
+            displayName: '둘',
+          ).createParty(
+            mode: PartyMode.together,
+            visibility: PartyVisibility.public,
+            location: const GeoPoint(37.5700, 126.9800),
+          );
+      await MemoryTogetherRepository(
+        backend: backend,
+        userId: 'u-3',
+        displayName: '셋',
+      ).createParty(
+        mode: PartyMode.together,
+        visibility: PartyVisibility.private,
+        location: gym,
+      );
+      await MemoryTogetherRepository(
+        backend: backend,
+        userId: 'u-4',
+        displayName: '넷',
+      ).createParty(
+        mode: PartyMode.together,
+        visibility: PartyVisibility.public,
+        location: const GeoPoint(35.1796, 129.0756),
+      );
+
+      final rooms = await friend.listNearbyParties(gym);
+      expect(rooms.map((r) => r.id).toList(), [near.id, farther.id]);
+      expect(rooms.first.hostName, '나');
+      expect(rooms.first.distanceMeters, lessThan(100));
+      expect(rooms.first.memberCount, 1);
+
+      // 내가 든 방은 내 목록에 없다.
+      final mine = await me.listNearbyParties(gym);
+      expect(mine.map((r) => r.id).toList(), [farther.id]);
+    });
+
+    test('a public room without a fix opens as private', () async {
+      final party = await me.createParty(
+        mode: PartyMode.free,
+        visibility: PartyVisibility.public,
+      );
+      expect(party.isPublic, isFalse);
+      expect(await friend.listNearbyParties(gym), isEmpty);
+    });
+
+    test('joining by id works only for public rooms', () async {
+      final public = await me.createParty(
+        mode: PartyMode.free,
+        visibility: PartyVisibility.public,
+        location: gym,
+      );
+      final joined = await friend.joinPublicParty(public.id);
+      expect(joined.members.length, 2);
+
+      final secret = await me.createParty(mode: PartyMode.free);
+      expect(
+        () => friend.joinPublicParty(secret.id),
+        throwsA(isA<TogetherFailure>()),
+      );
+    });
+
+    test('only the host flips visibility, and public needs a fix', () async {
+      final party = await roomOfTwo();
+      expect(
+        () => friend.setVisibility(
+          partyId: party.id,
+          visibility: PartyVisibility.public,
+          location: gym,
+        ),
+        throwsA(isA<TogetherFailure>()),
+      );
+      expect(
+        () => me.setVisibility(
+          partyId: party.id,
+          visibility: PartyVisibility.public,
+        ),
+        throwsA(isA<TogetherFailure>()),
+      );
+      final opened = await me.setVisibility(
+        partyId: party.id,
+        visibility: PartyVisibility.public,
+        location: gym,
+      );
+      expect(opened.isPublic, isTrue);
+      final closed = await me.setVisibility(
+        partyId: party.id,
+        visibility: PartyVisibility.private,
+      );
+      expect(closed.isPublic, isFalse);
+      expect(closed.location, isNull);
+    });
+  });
+
   group('joining', () {
     test('a code puts both people in the same room', () async {
       final party = await roomOfTwo();

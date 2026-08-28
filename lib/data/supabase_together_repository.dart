@@ -75,15 +75,74 @@ class SupabaseTogetherRepository implements TogetherRepository {
       return '방이 가득 찼어요. 한 방에는 최대 6명까지예요.';
     }
     if (message.contains('not a member')) return '이 방에서 나간 상태예요.';
+    if (message.contains('not the host')) return '공개 여부는 방을 만든 사람이 정해요.';
+    if (message.contains('location required')) return '공개방으로 바꾸려면 위치가 필요해요.';
     if (message.contains('auth required')) return '함께 운동하려면 로그인이 필요해요.';
     return '지금은 연결이 어려워요. 잠시 후 다시 시도해주세요.';
   }
 
   @override
-  Future<TrainingParty> createParty({required PartyMode mode}) => _rpc(
-    'create_training_party',
-    {'p_mode': mode.name, 'p_display_name': _displayName},
+  Future<TrainingParty> createParty({
+    required PartyMode mode,
+    PartyVisibility visibility = PartyVisibility.private,
+    GeoPoint? location,
+  }) => _rpc('create_training_party', {
+    'p_mode': mode.name,
+    'p_display_name': _displayName,
+    'p_visibility': visibility.name,
+    'p_lat': location?.lat,
+    'p_lng': location?.lng,
+  });
+
+  @override
+  Future<List<NearbyParty>> listNearbyParties(GeoPoint at) async {
+    try {
+      final result = await _client.rpc<Object?>(
+        'list_nearby_training_parties',
+        params: {'p_lat': at.lat, 'p_lng': at.lng},
+      );
+      return [
+        for (final raw in (result as List? ?? const []))
+          if (raw is Map) ?_nearbyFrom(Map<String, dynamic>.from(raw)),
+      ];
+    } on PostgrestException catch (error) {
+      throw TogetherFailure(_messageFor(error));
+    }
+  }
+
+  @override
+  Future<TrainingParty> joinPublicParty(String partyId) => _rpc(
+    'join_public_training_party',
+    {'p_party_id': partyId, 'p_display_name': _displayName},
   );
+
+  @override
+  Future<TrainingParty> setVisibility({
+    required String partyId,
+    required PartyVisibility visibility,
+    GeoPoint? location,
+  }) => _rpc('set_training_party_visibility', {
+    'p_party_id': partyId,
+    'p_visibility': visibility.name,
+    'p_lat': location?.lat,
+    'p_lng': location?.lng,
+  });
+
+  NearbyParty? _nearbyFrom(Map<String, dynamic> json) {
+    final id = json['id'] as String?;
+    if (id == null) return null;
+    return NearbyParty(
+      id: id,
+      hostName: json['host_name'] as String? ?? '회원',
+      mode: PartyMode.values.firstWhere(
+        (value) => value.name == json['mode'],
+        orElse: () => PartyMode.together,
+      ),
+      memberCount: (json['member_count'] as num?)?.toInt() ?? 1,
+      distanceMeters: (json['distance_m'] as num?)?.toInt() ?? 0,
+      createdAt: _time(json['created_at']) ?? DateTime.now(),
+    );
+  }
 
   @override
   Future<TrainingParty> joinParty(String code) => _rpc('join_training_party', {
@@ -251,6 +310,9 @@ class SupabaseTogetherRepository implements TogetherRepository {
         (value) => value.name == json['mode'],
         orElse: () => PartyMode.together,
       ),
+      visibility: json['visibility'] == 'public'
+          ? PartyVisibility.public
+          : PartyVisibility.private,
       startsAt: _time(json['starts_at']),
       currentTurnUserId: json['current_turn_user_id'] as String?,
       members: [

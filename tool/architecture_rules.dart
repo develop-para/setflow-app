@@ -57,6 +57,15 @@ final architectureRules = <ArchitectureRule>[
         '포트(AuthService / *Repository)를 통해 접근하고, 벤더 타입은 어댑터 안에서 앱 타입으로 변환할 것.',
   ),
   ArchitectureRule(
+    name: '위치 플러그인도 어댑터 밖으로 나가지 않는다',
+    pattern: RegExp(r'''import\s+['"]package:geolocator'''),
+    searchIn: const ['lib'],
+    allow: const ['lib/services/geolocator_location_service.dart'],
+    why: '위치는 근처 공개방 하나를 위한 것이다. 플러그인이 화면에 퍼지면 권한 처리가 화면마다 달라진다.',
+    instead:
+        '`Location.instance`(LocationService 포트)로 현재 위치만 묻고, 결과는 GeoPoint로 받을 것.',
+  ),
+  ArchitectureRule(
     name: 'Firebase도 어댑터 밖으로 나가지 않는다',
     pattern: RegExp(r'''import\s+['"]package:firebase'''),
     searchIn: const ['lib'],

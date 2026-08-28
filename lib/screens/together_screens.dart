@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../app_state.dart';
 import '../data/together_repository.dart';
+import '../services/location_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
@@ -51,6 +52,54 @@ class _TogetherScreenState extends State<TogetherScreen> {
   /// (`hasSeenTogetherGuide`) 자동으로는 다시 안 뜨고 메뉴 '사용법'으로만 본다.
   bool _guideScheduled = false;
 
+  /// 로비의 "근처 공개방" 구역이 지금 보여줄 것.
+  _NearbyStatus _nearby = const _NearbyIdle();
+
+  /// 근처 공개방을 불러온다. [request]가 false면 이미 허용된 사람만 — 탭을
+  /// 열 때마다 권한 창이 뜨면 그게 곧 귀찮음이다. 버튼을 누른 사람에게만 묻는다.
+  Future<void> _loadNearby({bool request = false}) async {
+    final repository = _repository;
+    if (repository == null || !Location.instance.isAvailable) return;
+    if (repository.currentUserId == null) {
+      if (mounted) setState(() => _nearby = const _NearbySignedOut());
+      return;
+    }
+    if (!request && !await Location.instance.isGranted()) {
+      if (mounted) setState(() => _nearby = const _NearbyNeedsLocation());
+      return;
+    }
+    if (mounted) setState(() => _nearby = const _NearbyLoading());
+    final result = await Location.instance.current();
+    if (!mounted) return;
+    switch (result) {
+      case LocationFix(:final point):
+        try {
+          final rooms = await repository.listNearbyParties(point);
+          if (mounted) setState(() => _nearby = _NearbyRooms(rooms));
+        } catch (error) {
+          if (mounted) {
+            setState(() => _nearby = _NearbyFailed(_messageFor(error)));
+          }
+        }
+      case LocationDenied(:final permanently):
+        setState(
+          () => _nearby = _NearbyNeedsLocation(permanently: permanently),
+        );
+      case LocationUnavailable():
+        setState(() => _nearby = const _NearbyNeedsLocation(servicesOff: true));
+    }
+  }
+
+  /// 공개방을 열거나 공개로 바꿀 때 필요한 좌표. 못 읽으면 null — 호출자가
+  /// "비밀방으로 열었어요"라고 말한다.
+  Future<GeoPoint?> _fixForPublic() async {
+    final result = await Location.instance.current();
+    return switch (result) {
+      LocationFix(:final point) => point,
+      _ => null,
+    };
+  }
+
   /// 게임의 첫 판처럼 — 딤을 깔고 버튼마다 비추며 설명한다. 텍스트 시트는
   /// 읽고 나면 화면과 이어지지 않았다는 실기기 피드백에서 왔다.
   Future<void> _showGuide() async {
@@ -63,9 +112,13 @@ class _TogetherScreenState extends State<TogetherScreen> {
       steps: [
         CoachStep(
           target: solo ? _codeKey : _boardKey,
-          title: solo ? '먼저 친구를 초대하세요' : '전광판',
+          title: solo
+              ? (party.isPublic ? '근처 사람이 들어올 수 있어요' : '먼저 친구를 초대하세요')
+              : '전광판',
           body: solo
-              ? '이 여섯 글자를 알려주면 같은 방으로 들어와요. 한 방에 최대 6명.'
+              ? (party.isPublic
+                    ? '근처에서 함께 탭을 연 사람에게 이 방이 보여요. 이 여섯 글자로 친구를 불러도 돼요.'
+                    : '이 여섯 글자를 알려주면 같은 방으로 들어와요. 한 방에 최대 6명.')
               : '누가 몇 세트 했는지, 지금 누구 차례인지 여기서 봐요.',
         ),
         CoachStep(
@@ -175,7 +228,9 @@ class _TogetherScreenState extends State<TogetherScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_resumeRemembered());
+      if (!mounted) return;
+      unawaited(_resumeRemembered());
+      unawaited(_loadNearby());
     });
   }
 
@@ -304,20 +359,22 @@ class _TogetherScreenState extends State<TogetherScreen> {
               : null,
           // "함께 운동 중"과 전광판의 LIVE가 같은 말을 두 번 했다. 제목은 방이
           // 무엇인지 — 방식과 인원 — 만 말한다.
-          title: Text(
-            inRoom && party.members.length > 1
-                ? '${party.mode.label} · ${party.members.length}명'
-                : '함께',
-            key: const ValueKey('together-title'),
-          ),
+          title: Text(switch ((
+            inRoom,
+            party?.isPublic ?? false,
+            party?.members.length ?? 0,
+          )) {
+            (false, _, _) => '함께',
+            (true, true, 1) => '공개방 · 대기 중',
+            (true, false, 1) => '함께',
+            (true, final public, final n) =>
+              '${public ? '공개 · ' : ''}${party!.mode.label} · $n명',
+          }, key: const ValueKey('together-title')),
           actions: [
-            if (inRoom) ...[
-              IconButton(
-                key: const ValueKey('together-leave'),
-                tooltip: '방 나가기',
-                onPressed: _busy ? null : _confirmLeave,
-                icon: const Icon(SetflowIcons.leaveParty),
-              ),
+            // 헤더는 ← / 제목 / ⋮ 셋이다. 나가기는 메뉴 맨 아래 — 더보기 옆에
+            // 나가기 아이콘을 나란히 두는 헤더는 없다("버튼이 있다고 막 배치하지
+            // 말고"). 뒤로가기가 제대로 되는 지금, 출구는 그걸로 충분하다.
+            if (inRoom)
               KeyedSubtree(
                 key: _menuKey,
                 child: _RoomMenu(
@@ -327,9 +384,10 @@ class _TogetherScreenState extends State<TogetherScreen> {
                   onMode: () => _showModeSheet(party),
                   onRoutines: () => _showRoutinesSheet(party),
                   onHelp: () => unawaited(_showGuide()),
+                  onLeave: _confirmLeave,
                 ),
-              ),
-            ] else
+              )
+            else
               IconButton(
                 key: const ValueKey('together-help'),
                 tooltip: '함께 운동 사용법',
@@ -351,8 +409,22 @@ class _TogetherScreenState extends State<TogetherScreen> {
               ? _Lobby(
                   busy: _busy,
                   error: _error,
+                  nearby: _nearby,
+                  locationAvailable: Location.instance.isAvailable,
                   onCreate: _create,
                   onJoin: _join,
+                  onJoinNearby: _joinNearby,
+                  onLoadNearby: () => _loadNearby(request: true),
+                  onRefreshNearby: _loadNearby,
+                  onOpenLocationSettings: Location.instance.openSettings,
+                  onSignIn: () async {
+                    if (await requireSignIn(
+                      context,
+                      reason: AuthReason.together,
+                    )) {
+                      unawaited(_loadNearby());
+                    }
+                  },
                 )
               : _PartyRoom(
                   party: party!,
@@ -440,11 +512,38 @@ class _TogetherScreenState extends State<TogetherScreen> {
             ],
           ),
         ),
+        const SizedBox(height: SetflowSpacing.md),
+        Text(
+          '누가 들어올 수 있나요',
+          style: Theme.of(sheetContext).textTheme.titleMedium,
+        ),
+        RadioGroup<PartyVisibility>(
+          groupValue: party.visibility,
+          onChanged: (value) {
+            Navigator.of(sheetContext).pop();
+            if (value != null && value != party.visibility) {
+              unawaited(_setVisibility(party, value));
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final visibility in PartyVisibility.values)
+                RadioListTile<PartyVisibility>(
+                  key: ValueKey('together-visibility-${visibility.name}'),
+                  value: visibility,
+                  enabled: host,
+                  title: Text(visibility.label),
+                  subtitle: Text(visibility.detail),
+                ),
+            ],
+          ),
+        ),
         if (!host)
           Padding(
             padding: const EdgeInsets.only(top: SetflowSpacing.sm),
             child: Text(
-              '운동 방식은 방을 만든 사람이 정해요.',
+              '운동 방식과 공개 여부는 방을 만든 사람이 정해요.',
               style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
                 color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
               ),
@@ -522,7 +621,62 @@ class _TogetherScreenState extends State<TogetherScreen> {
   Future<void> _create() async {
     if (!await requireSignIn(context, reason: AuthReason.together)) return;
     if (!mounted) return;
-    await _run(() => _repository!.createParty(mode: PartyMode.together));
+    final choice = await showSetflowSheet<(PartyVisibility, PartyMode)>(
+      context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) =>
+          _CreateSheet(locationAvailable: Location.instance.isAvailable),
+    );
+    if (choice == null || !mounted) return;
+    var (visibility, mode) = choice;
+    GeoPoint? location;
+    if (visibility == PartyVisibility.public) {
+      location = await _fixForPublic();
+      if (!mounted) return;
+      if (location == null) {
+        // 막다른 길을 만들지 않는다 — 방은 열리고, 왜 비밀방인지 말한다.
+        visibility = PartyVisibility.private;
+        AppSnackbar.info(context, '위치를 읽지 못해 비밀방으로 열었어요. 코드로 초대할 수 있어요.');
+      }
+    }
+    await _run(
+      () => _repository!.createParty(
+        mode: mode,
+        visibility: visibility,
+        location: location,
+      ),
+    );
+  }
+
+  Future<void> _joinNearby(NearbyParty room) async {
+    if (!await requireSignIn(context, reason: AuthReason.together)) return;
+    if (!mounted) return;
+    await _run(() => _repository!.joinPublicParty(room.id));
+    // 못 들어갔으면(꽉 참·사라짐) 목록이 낡은 것이다.
+    if (mounted && _party == null) unawaited(_loadNearby());
+  }
+
+  Future<void> _setVisibility(
+    TrainingParty party,
+    PartyVisibility visibility,
+  ) async {
+    GeoPoint? location;
+    if (visibility == PartyVisibility.public) {
+      location = await _fixForPublic();
+      if (!mounted) return;
+      if (location == null) {
+        AppSnackbar.info(context, '위치를 읽지 못해 공개방으로 바꾸지 못했어요.');
+        return;
+      }
+    }
+    await _run(
+      () => _repository!.setVisibility(
+        partyId: party.id,
+        visibility: visibility,
+        location: location,
+      ),
+    );
   }
 
   Future<void> _join() async {
@@ -890,192 +1044,438 @@ void _showTogetherHelp(BuildContext context) {
   );
 }
 
+/// 로비의 "근처 공개방" 구역 상태. 위치는 허용된 사람만 자동으로 읽는다.
+sealed class _NearbyStatus {
+  const _NearbyStatus();
+}
+
+class _NearbyIdle extends _NearbyStatus {
+  const _NearbyIdle();
+}
+
+class _NearbyLoading extends _NearbyStatus {
+  const _NearbyLoading();
+}
+
+class _NearbySignedOut extends _NearbyStatus {
+  const _NearbySignedOut();
+}
+
+class _NearbyNeedsLocation extends _NearbyStatus {
+  const _NearbyNeedsLocation({
+    this.permanently = false,
+    this.servicesOff = false,
+  });
+
+  final bool permanently;
+  final bool servicesOff;
+}
+
+class _NearbyFailed extends _NearbyStatus {
+  const _NearbyFailed(this.message);
+
+  final String message;
+}
+
+class _NearbyRooms extends _NearbyStatus {
+  const _NearbyRooms(this.rooms);
+
+  final List<NearbyParty> rooms;
+}
+
+/// 방 밖. 위는 전광판을 닮은 히어로, 가운데는 행동 둘, 아래는 근처에서 열린
+/// 공개방 — 같은 헬스장의 모르는 사람과 겨루러 들어가는 문이다.
 class _Lobby extends StatelessWidget {
   const _Lobby({
     required this.busy,
     required this.error,
+    required this.nearby,
+    required this.locationAvailable,
     required this.onCreate,
     required this.onJoin,
+    required this.onJoinNearby,
+    required this.onLoadNearby,
+    required this.onRefreshNearby,
+    required this.onOpenLocationSettings,
+    required this.onSignIn,
   });
 
   final bool busy;
   final String? error;
+  final _NearbyStatus nearby;
+  final bool locationAvailable;
   final VoidCallback onCreate;
   final VoidCallback onJoin;
+  final ValueChanged<NearbyParty> onJoinNearby;
+  final VoidCallback onLoadNearby;
+  final Future<void> Function() onRefreshNearby;
+  final Future<void> Function() onOpenLocationSettings;
+  final VoidCallback onSignIn;
 
   @override
   Widget build(BuildContext context) {
-    // 방과 같은 규칙: 들어가면 가운데, 넘치면 스크롤. 위에 붙여 두면
-    // 화면 아래 절반이 빈 채로 남아 페이지가 미완성처럼 보인다.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              SetflowSpacing.gutter,
-              SetflowSpacing.sm,
-              SetflowSpacing.gutter,
-              SetflowSpacing.xxl2,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    final theme = Theme.of(context);
+    return RefreshIndicator(
+      onRefresh: onRefreshNearby,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          SetflowSpacing.sm,
+          SetflowSpacing.gutter,
+          SetflowSpacing.xxl2,
+        ),
+        children: [
+          const _LobbyHero(),
+          const SizedBox(height: SetflowSpacing.xl),
+          if (error != null) ...[
+            _Notice(message: error!),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
+          AppButton(
+            key: const ValueKey('together-create'),
+            label: '방 만들기',
+            icon: SetflowIcons.partyCreate,
+            isLoading: busy,
+            onPressed: busy ? null : onCreate,
+          ),
+          const SizedBox(height: SetflowSpacing.sm2),
+          AppButton(
+            key: const ValueKey('together-join'),
+            label: '코드로 참여',
+            icon: SetflowIcons.partyJoin,
+            variant: AppButtonVariant.outlined,
+            onPressed: busy ? null : onJoin,
+          ),
+          if (locationAvailable) ...[
+            const SizedBox(height: SetflowSpacing.section),
+            Row(
               children: [
-                // 설명은 물음표 뒤로 갔다. 페이지가 하는 일은 둘뿐이다: 그림 한 장으로
-                // "두 사람, 타이머 하나"를 보여주고, 방을 만들거나 참여하게 한다.
-                Container(
-                  padding: const EdgeInsets.all(SetflowSpacing.xl),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        SetflowColors.inkBlockTop,
-                        SetflowColors.inkBlockBottom,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(SetflowRadii.lg),
+                const Expanded(child: SectionTitle('근처 공개방')),
+                if (nearby is _NearbyRooms || nearby is _NearbyFailed)
+                  IconButton(
+                    key: const ValueKey('together-nearby-refresh'),
+                    tooltip: '새로 고침',
+                    onPressed: onRefreshNearby,
+                    icon: const Icon(Icons.refresh_rounded),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '떨어져 있어도\n같이 운동해요',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: SetflowFontSize.headline,
-                          fontWeight: FontWeight.w900,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: SetflowSpacing.lg),
-                      // 문장이 아니라 그림: 두 사람이 타이머 하나를 같이 쓰는 모습이
-                      // 이 기능의 전부다. 단, **예시임이 한눈에 보여야 한다** —
-                      // 실기기에서 "처음 들어왔는데 왜 이 상태지?"로 읽혔다.
-                      // 있는 척하는 UI 금지 규칙(AGENTS 8) 그대로: 데모에는 데모 표기.
-                      Container(
-                        padding: const EdgeInsets.all(SetflowSpacing.md2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: .08),
-                          borderRadius: BorderRadius.circular(SetflowRadii.md),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  '예시',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: .45),
-                                    fontSize: SetflowFontSize.small,
-                                    fontWeight: SetflowWeight.strong,
-                                    letterSpacing: 1,
-                                  ),
-                                ),
-                                const SizedBox(width: SetflowSpacing.sm),
-                                for (final name in const ['나', '친구']) ...[
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: SetflowSpacing.sm2,
-                                      vertical: SetflowSpacing.xxs,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: .14,
-                                      ),
-                                      borderRadius: BorderRadius.circular(
-                                        SetflowRadii.full,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      name,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: SetflowFontSize.small,
-                                        fontWeight: SetflowWeight.strong,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: SetflowSpacing.xs2),
-                                ],
-                                const Spacer(),
-                                const Text(
-                                  '같이 휴식 00:42',
-                                  style: TextStyle(
-                                    color: SetflowColors.brand,
-                                    fontSize: SetflowFontSize.label,
-                                    fontWeight: FontWeight.w900,
-                                    fontFeatures: [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: SetflowSpacing.sm2),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                SetflowRadii.full,
-                              ),
-                              child: const LinearProgressIndicator(
-                                value: .65,
-                                minHeight: 5,
-                                backgroundColor: Colors.white12,
-                                valueColor: AlwaysStoppedAnimation(
-                                  SetflowColors.brand,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: SetflowSpacing.sm),
-                      Text(
-                        '두 사람, 타이머 하나 — 세트가 끝나면 같이 쉬어요.',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: .68),
-                          fontSize: SetflowFontSize.label,
-                          fontWeight: SetflowWeight.medium,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: SetflowSpacing.xl),
-                if (error != null) ...[
-                  _Notice(message: error!),
-                  const SizedBox(height: SetflowSpacing.lg),
-                ],
-                AppButton(
-                  key: const ValueKey('together-create'),
-                  label: '방 만들기',
-                  icon: SetflowIcons.partyCreate,
-                  isLoading: busy,
-                  onPressed: busy ? null : onCreate,
-                ),
-                const SizedBox(height: SetflowSpacing.sm2),
-                AppButton(
-                  key: const ValueKey('together-join'),
-                  label: '코드로 참여',
-                  icon: SetflowIcons.partyJoin,
-                  variant: AppButtonVariant.outlined,
-                  onPressed: busy ? null : onJoin,
-                ),
               ],
             ),
-          ),
-        ),
+            const SizedBox(height: SetflowSpacing.sm),
+            switch (nearby) {
+              _NearbyIdle() || _NearbyLoading() => _NearbyHint(
+                key: const ValueKey('together-nearby-loading'),
+                message: '근처에서 열린 방을 찾는 중이에요.',
+              ),
+              _NearbySignedOut() => _NearbyHint(
+                key: const ValueKey('together-nearby-signed-out'),
+                message: '로그인하면 근처에서 열린 공개방이 보여요.',
+                actionLabel: '로그인',
+                onAction: onSignIn,
+              ),
+              _NearbyNeedsLocation(:final permanently, :final servicesOff) =>
+                _NearbyHint(
+                  key: const ValueKey('together-nearby-location'),
+                  message: servicesOff
+                      ? '기기의 위치 서비스가 꺼져 있어요. 켜면 근처 공개방이 보여요.'
+                      : '위치를 허용하면 근처에서 열린 공개방이 보여요. 위치는 거리 계산에만 써요.',
+                  actionLabel: servicesOff
+                      ? null
+                      : permanently
+                      ? '설정 열기'
+                      : '근처 방 보기',
+                  onAction: permanently ? onOpenLocationSettings : onLoadNearby,
+                ),
+              _NearbyFailed(:final message) => _NearbyHint(
+                key: const ValueKey('together-nearby-failed'),
+                message: message,
+                actionLabel: '다시 시도',
+                onAction: onRefreshNearby,
+              ),
+              _NearbyRooms(:final rooms) when rooms.isEmpty => _NearbyHint(
+                key: const ValueKey('together-nearby-empty'),
+                message:
+                    '근처에 열린 공개방이 없어요. 공개로 방을 열면 여기 떠요 — 같은 헬스장 사람이 들어올 수 있어요.',
+              ),
+              _NearbyRooms(:final rooms) => Column(
+                children: [
+                  for (final room in rooms) ...[
+                    _NearbyRow(
+                      key: ValueKey('together-nearby-${room.id}'),
+                      room: room,
+                      busy: busy,
+                      onJoin: () => onJoinNearby(room),
+                    ),
+                    const SizedBox(height: SetflowSpacing.sm),
+                  ],
+                ],
+              ),
+            },
+            const SizedBox(height: SetflowSpacing.sm),
+            Text(
+              '공개방에는 이름만 보여요. 언제든 나갈 수 있어요.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
-/// 방 — 전광판이 주인공인 운동 중 화면.
-///
-/// 예전에는 히어로·코드·모드·순위판·세트카드·버튼 둘이 **한 스크롤에 세로로**
-/// 줄 서 있었다. 전부 같은 무게의 둥근 카드라 위계가 없었고, 정작 방의 전부인
+/// 로비 맨 위 — 방 안 전광판의 축소판. 들어가면 무엇이 기다리는지 보여준다.
+class _LobbyHero extends StatelessWidget {
+  const _LobbyHero();
+
+  @override
+  Widget build(BuildContext context) {
+    const pitch = 4.0;
+    const cols = 26;
+    const rows = 13;
+    final lit = <LedCell>{
+      ...ledDigitCells('3', origin: (x: 1, y: 1)),
+      ...ledDigitCells('2', origin: (x: 18, y: 1)),
+      for (var y = 5; y < 8; y++) (x: 12, y: y),
+      for (var y = 5; y < 8; y++) (x: 13, y: y),
+    };
+    return Container(
+      padding: const EdgeInsets.all(SetflowSpacing.lg),
+      decoration: BoxDecoration(
+        color: LedPalette.panel,
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        border: Border.all(color: LedPalette.edge),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(SetflowRadii.sm),
+            child: LedBoard(pitch: pitch, cols: cols, rows: rows, lit: lit),
+          ),
+          const SizedBox(width: SetflowSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '떨어져 있어도\n같이 운동해요',
+                  style: TextStyle(
+                    color: LedPalette.text,
+                    fontSize: SetflowFontSize.titleLarge,
+                    fontWeight: SetflowWeight.strong,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.xs2),
+                Text(
+                  '친구와, 또는 같은 헬스장의 처음 보는 사람과 — 전광판 하나로 겨뤄요.',
+                  style: const TextStyle(
+                    color: LedPalette.muted,
+                    fontSize: SetflowFontSize.caption,
+                    fontWeight: SetflowWeight.medium,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NearbyHint extends StatelessWidget {
+  const _NearbyHint({
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+    super.key,
+  });
+
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SetflowCard(
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(width: SetflowSpacing.sm),
+            TextButton(
+              key: const ValueKey('together-nearby-action'),
+              onPressed: onAction,
+              child: Text(actionLabel!),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 근처 공개방 한 줄 — 누가, 어떤 방식으로, 몇 명이, 얼마나 가까이.
+class _NearbyRow extends StatelessWidget {
+  const _NearbyRow({
+    required this.room,
+    required this.busy,
+    required this.onJoin,
+    super.key,
+  });
+
+  final NearbyParty room;
+  final bool busy;
+  final VoidCallback onJoin;
+
+  static String _distance(int meters) =>
+      meters < 1000 ? '${meters}m' : '${(meters / 1000).toStringAsFixed(1)}km';
+
+  static String _ago(DateTime at) {
+    final minutes = DateTime.now().difference(at).inMinutes;
+    if (minutes < 1) return '방금';
+    if (minutes < 60) return '$minutes분 전';
+    return '${minutes ~/ 60}시간 전';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SetflowCard(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${room.hostName}님의 방',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: SetflowWeight.strong),
+                ),
+                const SizedBox(height: SetflowSpacing.xxs),
+                Text(
+                  '${room.mode.label} · ${room.memberCount}/$maxPartyMembers명 · '
+                  '${_distance(room.distanceMeters)} · ${_ago(room.createdAt)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: SetflowSpacing.sm),
+          FilledButton.tonal(
+            key: ValueKey('together-nearby-join-${room.id}'),
+            onPressed: busy ? null : onJoin,
+            child: const Text('참여'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 방을 열기 전에 정하는 둘 — 누가 들어올 수 있는지, 어떻게 운동할지.
+/// 방을 여는 것은 빈 시간이라 여기서 한 번 묻는 것이 세트 사이에 묻는 것보다 낫다.
+class _CreateSheet extends StatefulWidget {
+  const _CreateSheet({required this.locationAvailable});
+
+  /// 위치를 못 읽는 빌드(웹·데스크톱)에는 공개 선택지를 아예 내지 않는다.
+  final bool locationAvailable;
+
+  @override
+  State<_CreateSheet> createState() => _CreateSheetState();
+}
+
+class _CreateSheetState extends State<_CreateSheet> {
+  PartyVisibility _visibility = PartyVisibility.private;
+  PartyMode _mode = PartyMode.together;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        0,
+        SetflowSpacing.gutter,
+        SetflowSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('방 만들기', style: theme.textTheme.titleLarge),
+          if (widget.locationAvailable) ...[
+            const SizedBox(height: SetflowSpacing.md),
+            Text('누가 들어올 수 있나요', style: theme.textTheme.titleMedium),
+            RadioGroup<PartyVisibility>(
+              groupValue: _visibility,
+              onChanged: (value) {
+                if (value != null) setState(() => _visibility = value);
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final visibility in PartyVisibility.values)
+                    RadioListTile<PartyVisibility>(
+                      key: ValueKey('create-visibility-${visibility.name}'),
+                      value: visibility,
+                      title: Text(visibility.label),
+                      subtitle: Text(visibility.detail),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: SetflowSpacing.md),
+          Text('운동 방식', style: theme.textTheme.titleMedium),
+          RadioGroup<PartyMode>(
+            groupValue: _mode,
+            onChanged: (value) {
+              if (value != null) setState(() => _mode = value);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final mode in PartyMode.values)
+                  RadioListTile<PartyMode>(
+                    key: ValueKey('create-mode-${mode.name}'),
+                    value: mode,
+                    title: Text(mode.label),
+                    subtitle: Text('${mode.detail}\n${mode.when}'),
+                    isThreeLine: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+          AppButton(
+            key: const ValueKey('together-create-confirm'),
+            label: _visibility == PartyVisibility.public ? '공개방 열기' : '비밀방 열기',
+            icon: SetflowIcons.partyCreate,
+            onPressed: () => Navigator.of(context).pop((_visibility, _mode)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// "세트 끝냈어요"가 맨 아래에서 접혔다. 휴식 시간은 한 화면에 세 번 나왔다.
 ///
 /// 지금은 셋으로 나뉜다 — 위에 **상태 한 줄**, 가운데 **전광판**(화면의 대부분),
@@ -1156,6 +1556,7 @@ class _PartyRoom extends StatelessWidget {
                     key: const ValueKey('together-waiting'),
                     code: party.code,
                     codeKey: codeKey,
+                    isPublic: party.isPublic,
                     onInvite: onInvite,
                   )
                 : _Scoreboard(party: party, userId: userId),
@@ -1195,6 +1596,7 @@ class _RoomMenu extends StatelessWidget {
     required this.onMode,
     required this.onRoutines,
     required this.onHelp,
+    required this.onLeave,
     super.key,
   });
 
@@ -1203,6 +1605,7 @@ class _RoomMenu extends StatelessWidget {
   final VoidCallback onMode;
   final VoidCallback onRoutines;
   final VoidCallback onHelp;
+  final VoidCallback onLeave;
 
   @override
   Widget build(BuildContext context) {
@@ -1219,6 +1622,8 @@ class _RoomMenu extends StatelessWidget {
             onRoutines();
           case _RoomAction.help:
             onHelp();
+          case _RoomAction.leave:
+            onLeave();
         }
       },
       itemBuilder: (_) => [
@@ -1255,12 +1660,28 @@ class _RoomMenu extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
           ),
         ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          key: const ValueKey('together-leave'),
+          value: _RoomAction.leave,
+          child: ListTile(
+            leading: Icon(
+              SetflowIcons.leaveParty,
+              color: context.setflowColors.error,
+            ),
+            title: Text(
+              '방 나가기',
+              style: TextStyle(color: context.setflowColors.error),
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
       ],
     );
   }
 }
 
-enum _RoomAction { invite, mode, routines, help }
+enum _RoomAction { invite, mode, routines, help, leave }
 
 /// 상태는 한 줄이다.
 ///
@@ -1406,11 +1827,15 @@ class _WaitingPanel extends StatelessWidget {
   const _WaitingPanel({
     required this.code,
     required this.codeKey,
+    required this.isPublic,
     required this.onInvite,
     super.key,
   });
 
   final String code;
+
+  /// 공개방은 근처 사람이 알아서 들어온다 — 코드는 친구를 부르는 보조 수단.
+  final bool isPublic;
 
   /// 화면 안내가 비출 자리 — 패널 전체가 아니라 코드 카드만.
   final GlobalKey codeKey;
@@ -1432,13 +1857,15 @@ class _WaitingPanel extends StatelessWidget {
             ),
             const SizedBox(height: SetflowSpacing.lg),
             Text(
-              '친구를 초대하세요',
+              isPublic ? '근처 사람을 기다리는 중' : '친구를 초대하세요',
               style: theme.textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: SetflowSpacing.xs),
             Text(
-              '이 코드를 알려주면 같은 방으로 들어와요.',
+              isPublic
+                  ? '근처에서 함께 탭을 연 사람에게 이 방이 보여요. 친구는 코드로 불러도 돼요.'
+                  : '이 코드를 알려주면 같은 방으로 들어와요.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

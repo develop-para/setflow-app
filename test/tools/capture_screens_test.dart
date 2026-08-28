@@ -15,6 +15,7 @@ import 'package:setflow/screens/business_screens.dart';
 import 'package:setflow/screens/together_screens.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/services/auth_service.dart';
+import 'package:setflow/services/location_service.dart';
 
 const _enabled = bool.fromEnvironment('CAPTURE');
 
@@ -348,12 +349,27 @@ void main() {
         home: const Scaffold(body: TogetherScreen()),
       ),
     );
+    // 로비의 "근처 공개방"이 비어 보이지 않게 — 근처에 한 명이 방을 열어 둔다.
+    Location.bind(const _CaptureLocation());
+    addTearDown(() => Location.bind(const DisabledLocationService()));
+    await MemoryTogetherRepository(
+      backend: backend,
+      userId: 'u-nearby',
+      displayName: '민수',
+    ).createParty(
+      mode: PartyMode.free,
+      visibility: PartyVisibility.public,
+      location: const GeoPoint(37.5667, 126.9782),
+    );
     await tester.pumpWidget(host());
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/together_lobby.png');
 
     await tester.tap(find.byKey(const ValueKey('together-create')));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/together_create_sheet.png');
+    await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
     await tester.pumpAndSettle();
     // 첫 방은 화면 안내(딤 + 스포트라이트)가 먼저 뜬다. 첫 걸음과 마지막
     // 걸음(방식 설명)을 찍고 건너뛴 뒤에야 맨 방이 보인다.
@@ -451,4 +467,22 @@ void main() {
     await tester.binding.setSurfaceSize(null);
     await tester.pump(const Duration(milliseconds: 400));
   }, skip: !_enabled);
+}
+
+/// 캡처용 위치 — 서울시청 앞에 서 있다.
+class _CaptureLocation implements LocationService {
+  const _CaptureLocation();
+
+  @override
+  bool get isAvailable => true;
+
+  @override
+  Future<bool> isGranted() async => true;
+
+  @override
+  Future<LocationResult> current() async =>
+      const LocationFix(GeoPoint(37.5665, 126.9780));
+
+  @override
+  Future<void> openSettings() async {}
 }

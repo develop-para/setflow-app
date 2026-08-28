@@ -42,6 +42,8 @@ final signedIn = Auth.instance.hasAuthenticatedUser;
   `listMyConsultations()`) 그 다음 어댑터에 구현한다. 화면이 테이블·컬럼을 알면 안 된다.
 - `package:supabase`를 import해도 되는 파일은 `lib/main.dart`와 `lib/data/supabase_*.dart`,
   `lib/services/supabase_auth_service.dart` 뿐이다.
+- 같은 규칙이 Firebase(`firebase_push_service.dart`)와 위치 플러그인
+  (`geolocator_location_service.dart`)에도 걸린다. 화면은 `Push.instance` / `Location.instance`만 안다.
 
 배경: `docs/backend-portability.md`
 

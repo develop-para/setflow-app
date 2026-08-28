@@ -1,6 +1,31 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 enum UserRole { guest, member, trainer, gym, admin }
+
+/// 위경도 한 점. 근처 공개방을 찾는 데만 쓴다.
+class GeoPoint {
+  const GeoPoint(this.lat, this.lng);
+
+  final double lat;
+  final double lng;
+
+  /// 두 점 사이 거리(미터). 하버사인 — 서버(`list_nearby_training_parties`)와
+  /// 같은 식이라 메모리 백엔드의 목록도 같은 순서로 나온다.
+  double distanceTo(GeoPoint other) {
+    const r = 6371000.0;
+    double rad(double d) => d * math.pi / 180;
+    final dLat = rad(other.lat - lat);
+    final dLng = rad(other.lng - lng);
+    final a =
+        math.pow(math.sin(dLat / 2), 2) +
+        math.cos(rad(lat)) *
+            math.cos(rad(other.lat)) *
+            math.pow(math.sin(dLng / 2), 2);
+    return 2 * r * math.asin(math.sqrt(a));
+  }
+}
 
 /// The two product surfaces the header switcher toggles between. A portal is
 /// not a page: each one owns its own shell, navigation bar and home, so

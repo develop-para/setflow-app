@@ -27,6 +27,8 @@ import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
 import 'services/firebase_push_service.dart';
+import 'services/geolocator_location_service.dart';
+import 'services/location_service.dart';
 import 'services/push_service.dart';
 import 'widgets/common.dart';
 import 'widgets/guest_data_prompt.dart';
@@ -48,6 +50,7 @@ Future<void> main() async {
   // 배달부를 고르는 유일한 자리. 설정 파일이 없는 플랫폼에서는 조용히 꺼진
   // 구현이 돌아온다 — 알림이 없는 것과 앱이 안 켜지는 것은 등급이 다르다.
   Push.bind(await FirebasePushService.create());
+  Location.bind(const GeolocatorLocationService());
 
   AppRepository? migrationSource;
   try {

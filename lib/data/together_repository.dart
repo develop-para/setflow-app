@@ -63,6 +63,37 @@ enum PartyMode {
   final String when;
 }
 
+/// 누가 들어올 수 있는가. 비밀(기본)은 코드를 아는 사람만, 공개는 근처
+/// 목록에 떠서 모르는 사람도 — 같은 헬스장에서 처음 보는 사람과 겨루는 방이다.
+enum PartyVisibility {
+  public('공개', '근처에서 열린 방 목록에 떠요. 모르는 사람도 들어올 수 있어요.'),
+  private('비밀', '초대 코드를 아는 사람만 들어와요.');
+
+  const PartyVisibility(this.label, this.detail);
+
+  final String label;
+  final String detail;
+}
+
+/// 근처 공개방 한 줄. 좌표는 없다 — 서버가 거리만 준다.
+class NearbyParty {
+  const NearbyParty({
+    required this.id,
+    required this.hostName,
+    required this.mode,
+    required this.memberCount,
+    required this.distanceMeters,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String hostName;
+  final PartyMode mode;
+  final int memberCount;
+  final int distanceMeters;
+  final DateTime createdAt;
+}
+
 enum PartyMemberState {
   /// In the room, nothing running.
   waiting,
@@ -168,6 +199,8 @@ class TrainingParty {
     required this.hostUserId,
     required this.mode,
     required this.members,
+    this.visibility = PartyVisibility.private,
+    this.location,
     this.startsAt,
     this.currentTurnUserId,
     this.routines = const [],
@@ -181,6 +214,13 @@ class TrainingParty {
   final String hostUserId;
   final PartyMode mode;
   final List<PartyMember> members;
+  final PartyVisibility visibility;
+
+  /// 공개방을 연 자리. 메모리 백엔드가 거리를 재는 데 쓰고, 서버에서 오는
+  /// 방 JSON에는 없다(남의 좌표는 앱에 닿지 않는다).
+  final GeoPoint? location;
+
+  bool get isPublic => visibility == PartyVisibility.public;
 
   /// When the shared countdown fires. Null once it has been consumed.
   final DateTime? startsAt;
@@ -209,6 +249,8 @@ class TrainingParty {
   TrainingParty copyWith({
     PartyMode? mode,
     List<PartyMember>? members,
+    PartyVisibility? visibility,
+    Object? location = _unset,
     Object? startsAt = _unset,
     Object? currentTurnUserId = _unset,
     List<OfferedRoutine>? routines,
@@ -218,6 +260,8 @@ class TrainingParty {
     hostUserId: hostUserId,
     mode: mode ?? this.mode,
     members: members ?? this.members,
+    visibility: visibility ?? this.visibility,
+    location: location == _unset ? this.location : location as GeoPoint?,
     startsAt: startsAt == _unset ? this.startsAt : startsAt as DateTime?,
     currentTurnUserId: currentTurnUserId == _unset
         ? this.currentTurnUserId
@@ -241,9 +285,28 @@ abstract interface class TogetherRepository {
   /// say whose turn it is.
   String? get currentUserId;
 
-  Future<TrainingParty> createParty({required PartyMode mode});
+  /// 공개방은 [location]이 있어야 목록에 뜬다. 없으면 어댑터가 비밀방으로
+  /// 연다 — 화면이 그렇게 안내한 뒤다.
+  Future<TrainingParty> createParty({
+    required PartyMode mode,
+    PartyVisibility visibility = PartyVisibility.private,
+    GeoPoint? location,
+  });
 
   Future<TrainingParty> joinParty(String code);
+
+  /// 근처에서 열린 공개방. 가까운 순, 좌표 없이 거리만.
+  Future<List<NearbyParty>> listNearbyParties(GeoPoint at);
+
+  /// 코드 없이 공개방에 들어간다. 비밀방이면 "그런 방이 없어요".
+  Future<TrainingParty> joinPublicParty(String partyId);
+
+  /// 방장이 공개/비밀을 바꾼다. 공개로 바꾸려면 [location]이 필요하다.
+  Future<TrainingParty> setVisibility({
+    required String partyId,
+    required PartyVisibility visibility,
+    GeoPoint? location,
+  });
 
   Future<void> leaveParty(String partyId);
 
@@ -329,18 +392,90 @@ class MemoryTogetherBackend {
     required String userId,
     required String displayName,
     required PartyMode mode,
+    PartyVisibility visibility = PartyVisibility.private,
+    GeoPoint? location,
   }) {
+    // 서버와 같은 규칙: 좌표 없는 공개방은 비밀방이다.
+    final effective = visibility == PartyVisibility.public && location == null
+        ? PartyVisibility.private
+        : visibility;
     final party = TrainingParty(
       id: _nextId('party'),
       code: _newCode(),
       hostUserId: userId,
       mode: mode,
+      visibility: effective,
+      location: effective == PartyVisibility.public ? location : null,
       members: [
         PartyMember(userId: userId, displayName: displayName, turnOrder: 0),
       ],
     );
     _parties[party.id] = party;
     return party;
+  }
+
+  /// 반경 안의 공개방, 가까운 순. 내가 이미 든 방과 꽉 찬 방은 뺀다.
+  List<NearbyParty> nearby({
+    required GeoPoint at,
+    required String userId,
+    double radiusMeters = 3000,
+  }) {
+    final rows = <(double, NearbyParty)>[];
+    for (final party in _parties.values) {
+      final location = party.location;
+      if (!party.isPublic || location == null) continue;
+      if (party.memberOf(userId) != null) continue;
+      if (party.members.length >= maxPartyMembers) continue;
+      final distance = at.distanceTo(location);
+      if (distance > radiusMeters) continue;
+      final host = party.memberOf(party.hostUserId);
+      rows.add((
+        distance,
+        NearbyParty(
+          id: party.id,
+          hostName: host?.displayName ?? '회원',
+          mode: party.mode,
+          memberCount: party.members.length,
+          distanceMeters: (distance / 10).round() * 10,
+          createdAt: DateTime.now(),
+        ),
+      ));
+    }
+    rows.sort((a, b) => a.$1.compareTo(b.$1));
+    return [for (final row in rows.take(20)) row.$2];
+  }
+
+  TrainingParty joinPublic({
+    required String partyId,
+    required String userId,
+    required String displayName,
+  }) {
+    final party = _parties[partyId];
+    if (party == null || !party.isPublic) {
+      throw const TogetherFailure('그 방은 이제 없어요. 목록을 새로 고쳐 주세요.');
+    }
+    return join(code: party.code, userId: userId, displayName: displayName);
+  }
+
+  TrainingParty setVisibility({
+    required String partyId,
+    required String userId,
+    required PartyVisibility visibility,
+    GeoPoint? location,
+  }) {
+    final party = _require(partyId);
+    if (!party.isHost(userId)) {
+      throw const TogetherFailure('공개 여부는 방을 만든 사람이 정해요.');
+    }
+    if (visibility == PartyVisibility.public && location == null) {
+      throw const TogetherFailure('공개방으로 바꾸려면 위치가 필요해요.');
+    }
+    return _publish(
+      party.copyWith(
+        visibility: visibility,
+        location: visibility == PartyVisibility.public ? location : null,
+      ),
+    );
   }
 
   TrainingParty join({
@@ -623,12 +758,45 @@ class MemoryTogetherRepository implements TogetherRepository {
   }
 
   @override
-  Future<TrainingParty> createParty({required PartyMode mode}) async => backend
-      .create(userId: _requireUser, displayName: displayName, mode: mode);
+  Future<TrainingParty> createParty({
+    required PartyMode mode,
+    PartyVisibility visibility = PartyVisibility.private,
+    GeoPoint? location,
+  }) async => backend.create(
+    userId: _requireUser,
+    displayName: displayName,
+    mode: mode,
+    visibility: visibility,
+    location: location,
+  );
 
   @override
   Future<TrainingParty> joinParty(String code) async =>
       backend.join(code: code, userId: _requireUser, displayName: displayName);
+
+  @override
+  Future<List<NearbyParty>> listNearbyParties(GeoPoint at) async =>
+      backend.nearby(at: at, userId: _requireUser);
+
+  @override
+  Future<TrainingParty> joinPublicParty(String partyId) async =>
+      backend.joinPublic(
+        partyId: partyId,
+        userId: _requireUser,
+        displayName: displayName,
+      );
+
+  @override
+  Future<TrainingParty> setVisibility({
+    required String partyId,
+    required PartyVisibility visibility,
+    GeoPoint? location,
+  }) async => backend.setVisibility(
+    partyId: partyId,
+    userId: _requireUser,
+    visibility: visibility,
+    location: location,
+  );
 
   @override
   Future<void> leaveParty(String partyId) async =>
