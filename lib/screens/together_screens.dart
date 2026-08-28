@@ -10,6 +10,7 @@ import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/coach_marks.dart';
 import '../widgets/common.dart';
+import '../widgets/dot_matrix.dart';
 import 'workout_screens.dart';
 
 /// 함께 — training with someone who is not in the room with you.
@@ -278,89 +279,106 @@ class _TogetherScreenState extends State<TogetherScreen> {
         if (mounted && _party != null) unawaited(_showGuide());
       });
     }
-    return Scaffold(
-      appBar: AppBar(
-        // 방 안에서는 셸 헤더가 접히므로 이 앱바가 유일한 위쪽 크롬이다.
-        // 그래서 나가는 길(기록 탭으로 접기)이 여기 있어야 한다.
-        leading: inRoom && widget.onOpenRecord != null
-            ? IconButton(
-                key: const ValueKey('together-minimize'),
-                tooltip: '기록으로 이동 (방은 그대로)',
-                onPressed: widget.onOpenRecord,
-                icon: const Icon(Icons.expand_more_rounded),
-              )
-            : null,
-        title: inRoom
-            ? const _LiveTitle(key: ValueKey('together-live-title'))
-            : const Text('함께'),
-        actions: [
-          if (inRoom)
-            KeyedSubtree(
-              key: _menuKey,
-              child: _RoomMenu(
-                key: const ValueKey('together-room-menu'),
-                busy: _busy,
-                onInvite: () => _showInvite(party),
-                onMode: () => _showModeSheet(party),
-                onRoutines: () => _showRoutinesSheet(party),
-                onHelp: () => unawaited(_showGuide()),
-                onLeave: _leave,
+    // 시스템 뒤로가기도 앱바의 ←와 같다: 방은 그대로 두고 기록 탭으로. 안
+    // 잡으면 셸 루트라 앱이 통째로 내려간다 — "뒤로가기도 없어 보이는데".
+    final backToRecord = inRoom && widget.onOpenRecord != null;
+    return PopScope(
+      canPop: !backToRecord,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && backToRecord) widget.onOpenRecord!();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          // 방 안에서는 셸 헤더가 접히므로 이 앱바가 유일한 위쪽 크롬이다.
+          // 그래서 나가는 길(기록 탭으로 접기)이 여기 있어야 한다.
+          // "방에 들어오면 다시 나갈 수는 없나?" — 접힌 셸에서 나가는 길이
+          // 아래 화살표 하나였다. 뒤로가기는 뒤로가기처럼 생겨야 하고, 방 나가기는
+          // 메뉴 속이 아니라 보이는 자리에 있어야 한다.
+          leading: inRoom && widget.onOpenRecord != null
+              ? IconButton(
+                  key: const ValueKey('together-minimize'),
+                  tooltip: '기록으로 돌아가기 (방은 유지)',
+                  onPressed: widget.onOpenRecord,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                )
+              : null,
+          title: inRoom
+              ? const _LiveTitle(key: ValueKey('together-live-title'))
+              : const Text('함께'),
+          actions: [
+            if (inRoom) ...[
+              IconButton(
+                key: const ValueKey('together-leave'),
+                tooltip: '방 나가기',
+                onPressed: _busy ? null : _confirmLeave,
+                icon: const Icon(SetflowIcons.leaveParty),
               ),
-            )
-          else
-            IconButton(
-              key: const ValueKey('together-help'),
-              tooltip: '함께 운동 사용법',
-              onPressed: () => _showTogetherHelp(context),
-              icon: const Icon(Icons.help_outline_rounded),
-            ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        child: repository == null
-            ? const EmptyState(
-                key: ValueKey('together-unavailable'),
-                icon: SetflowIcons.together,
-                title: '함께 운동은 곧 열려요',
-                message: '이 빌드에는 파트너 서버가 연결되어 있지 않아요.',
-              )
-            : _party == null
-            ? _Lobby(
-                busy: _busy,
-                error: _error,
-                onCreate: _create,
-                onJoin: _join,
-              )
-            : _PartyRoom(
-                party: party!,
-                userId: _userId,
-                busy: _busy,
-                statusKey: _statusKey,
-                boardKey: _boardKey,
-                actionKey: _actionKey,
-                codeKey: _codeKey,
-                liveSet: _liveSetOfToday(AppScope.of(context)),
-                onOpenRecord: widget.onOpenRecord,
-                onInvite: () => _showInvite(party),
-                onShowRoutines: () => _showRoutinesSheet(party),
-                unit: AppScope.of(context).weightUnit,
-                onSetEdited: ({weight, reps, restSeconds}) {
-                  final live = _liveSetOfToday(AppScope.of(context));
-                  if (live == null) return;
-                  // updateSet이 클램프·저장·알림까지 맡는 정식 경로다.
-                  AppScope.of(context).updateSet(
-                    live.$2,
-                    weight: weight,
-                    reps: reps,
-                    restSeconds: restSeconds,
-                  );
-                  setState(() {});
-                },
-                onStart: () =>
-                    _run(() => _repository!.startTogether(_party!.id)),
-                onSetDone: _reportSetDone,
+              KeyedSubtree(
+                key: _menuKey,
+                child: _RoomMenu(
+                  key: const ValueKey('together-room-menu'),
+                  busy: _busy,
+                  onInvite: () => _showInvite(party),
+                  onMode: () => _showModeSheet(party),
+                  onRoutines: () => _showRoutinesSheet(party),
+                  onHelp: () => unawaited(_showGuide()),
+                ),
               ),
+            ] else
+              IconButton(
+                key: const ValueKey('together-help'),
+                tooltip: '함께 운동 사용법',
+                onPressed: () => _showTogetherHelp(context),
+                icon: const Icon(Icons.help_outline_rounded),
+              ),
+          ],
+        ),
+        body: SafeArea(
+          top: false,
+          child: repository == null
+              ? const EmptyState(
+                  key: ValueKey('together-unavailable'),
+                  icon: SetflowIcons.together,
+                  title: '함께 운동은 곧 열려요',
+                  message: '이 빌드에는 파트너 서버가 연결되어 있지 않아요.',
+                )
+              : _party == null
+              ? _Lobby(
+                  busy: _busy,
+                  error: _error,
+                  onCreate: _create,
+                  onJoin: _join,
+                )
+              : _PartyRoom(
+                  party: party!,
+                  userId: _userId,
+                  busy: _busy,
+                  statusKey: _statusKey,
+                  boardKey: _boardKey,
+                  actionKey: _actionKey,
+                  codeKey: _codeKey,
+                  liveSet: _liveSetOfToday(AppScope.of(context)),
+                  onOpenRecord: widget.onOpenRecord,
+                  onInvite: () => _showInvite(party),
+                  onShowRoutines: () => _showRoutinesSheet(party),
+                  unit: AppScope.of(context).weightUnit,
+                  onSetEdited: ({weight, reps, restSeconds}) {
+                    final live = _liveSetOfToday(AppScope.of(context));
+                    if (live == null) return;
+                    // updateSet이 클램프·저장·알림까지 맡는 정식 경로다.
+                    AppScope.of(context).updateSet(
+                      live.$2,
+                      weight: weight,
+                      reps: reps,
+                      restSeconds: restSeconds,
+                    );
+                    setState(() {});
+                  },
+                  onStart: () =>
+                      _run(() => _repository!.startTogether(_party!.id)),
+                  onSetDone: _reportSetDone,
+                ),
+        ),
       ),
     );
   }
@@ -586,6 +604,30 @@ class _TogetherScreenState extends State<TogetherScreen> {
       RoutineImportResult.limitReached => '무료 루틴은 4개까지 담을 수 있어요.',
       RoutineImportResult.paidPlanRequired => '이용권이 필요한 루틴이에요.',
     });
+  }
+
+  /// 나가기는 되돌리기 어렵다(코드로 다시 들어오면 세트 수가 0부터다). 세트
+  /// 사이의 조작이 아니라 운동을 끝내는 조작이니 한 번은 묻는다.
+  Future<void> _confirmLeave() async {
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('방을 나갈까요?'),
+        content: const Text('다시 들어오려면 초대 코드가 필요하고, 전광판의 세트 수는 처음부터예요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            key: const ValueKey('together-leave-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('나가기'),
+          ),
+        ],
+      ),
+    );
+    if (leave == true && mounted) await _leave();
   }
 
   Future<void> _leave() async {
@@ -1173,7 +1215,6 @@ class _RoomMenu extends StatelessWidget {
     required this.onMode,
     required this.onRoutines,
     required this.onHelp,
-    required this.onLeave,
     super.key,
   });
 
@@ -1182,7 +1223,6 @@ class _RoomMenu extends StatelessWidget {
   final VoidCallback onMode;
   final VoidCallback onRoutines;
   final VoidCallback onHelp;
-  final VoidCallback onLeave;
 
   @override
   Widget build(BuildContext context) {
@@ -1199,8 +1239,6 @@ class _RoomMenu extends StatelessWidget {
             onRoutines();
           case _RoomAction.help:
             onHelp();
-          case _RoomAction.leave:
-            onLeave();
         }
       },
       itemBuilder: (_) => [
@@ -1237,27 +1275,12 @@ class _RoomMenu extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
           ),
         ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: _RoomAction.leave,
-          child: ListTile(
-            leading: Icon(
-              SetflowIcons.leaveParty,
-              color: context.setflowColors.error,
-            ),
-            title: Text(
-              '방 나가기',
-              style: TextStyle(color: context.setflowColors.error),
-            ),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
       ],
     );
   }
 }
 
-enum _RoomAction { invite, mode, routines, help, leave }
+enum _RoomAction { invite, mode, routines, help }
 
 /// 상태는 한 줄이다.
 ///
@@ -1924,7 +1947,6 @@ class _Scoreboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final ranked = party.members.toList()
       ..sort((a, b) {
         final bySets = b.completedSets.compareTo(a.completedSets);
@@ -1938,13 +1960,15 @@ class _Scoreboard extends StatelessWidget {
     // 방에서 화면 절반이 빈 채로 남는다.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final gaps = SetflowSpacing.sm2 * ranked.length + (race ? 28.0 : 0);
+        const header = 36.0;
+        final footer = race ? 34.0 : 0.0;
         final rowHeight =
-            ((constraints.maxHeight - gaps - SetflowSpacing.lg) /
+            ((constraints.maxHeight - header - footer - SetflowSpacing.xxl) /
                     (ranked.isEmpty ? 1 : ranked.length))
-                // 상한이 없으면 두 명짜리 방에서 카드 한 장이 208까지 늘어나 안쪽이
-                // 헐렁해진다. 남는 높이는 카드를 늘리는 대신 전광판째로 가운데 둔다.
-                .clamp(116.0, 150.0);
+                // 전광판은 위에서부터 채운다. 두 명이면 줄이 220까지 커져 숫자가
+                // 화면 절반을 넘게 차지하고, 여섯이면 120으로 낮아지다 스크롤된다.
+                // ("상단부터 중간 좀 넘어가게" — 실기기 피드백)
+                .clamp(120.0, 220.0);
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -1956,39 +1980,62 @@ class _Scoreboard extends StatelessWidget {
                 SetflowSpacing.md,
               ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  for (final (index, member) in ranked.indexed) ...[
-                    _ScoreboardRow(
-                      member: member,
-                      isMe: member.userId == userId,
-                      hasTurn:
-                          party.mode == PartyMode.alternating &&
-                          party.currentTurnUserId == member.userId,
-                      rank: race ? index + 1 : null,
-                      leading:
-                          race &&
-                          index == 0 &&
-                          (ranked.length < 2 ||
-                              ranked[1].completedSets < member.completedSets),
-                      maxSets: maxSets,
-                      sharedRest: party.mode == PartyMode.together,
-                      minHeight: rowHeight,
+                  LedPanel(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _LedHeader(mode: party.mode),
+                        for (final (index, member) in ranked.indexed) ...[
+                          if (index > 0)
+                            const Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: LedPalette.off,
+                            ),
+                          _ScoreboardRow(
+                            member: member,
+                            isMe: member.userId == userId,
+                            hasTurn:
+                                party.mode == PartyMode.alternating &&
+                                party.currentTurnUserId == member.userId,
+                            rank: race ? index + 1 : null,
+                            leading:
+                                race &&
+                                index == 0 &&
+                                (ranked.length < 2 ||
+                                    ranked[1].completedSets <
+                                        member.completedSets),
+                            maxSets: maxSets,
+                            sharedRest: party.mode == PartyMode.together,
+                            minHeight: rowHeight,
+                          ),
+                        ],
+                        if (race)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              SetflowSpacing.lg,
+                              SetflowSpacing.sm,
+                              SetflowSpacing.lg,
+                              SetflowSpacing.md,
+                            ),
+                            // 전광판 맨 아래 흐르는 한 줄 — 격차가 곧 응원이다.
+                            // 라임 글자는 흰 배경에서 금지지만 여기는 검은 판이다.
+                            child: Text(
+                              _raceLine(ranked),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: LedPalette.lit,
+                                fontSize: SetflowFontSize.label,
+                                fontWeight: SetflowWeight.strong,
+                                letterSpacing: .2,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: SetflowSpacing.sm2),
-                  ],
-                  if (race)
-                    Padding(
-                      padding: const EdgeInsets.only(top: SetflowSpacing.xxs),
-                      child: Text(
-                        _raceLine(ranked),
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: SetflowWeight.medium,
-                        ),
-                      ),
-                    ),
+                  ),
                 ],
               ),
             ),
@@ -1998,7 +2045,6 @@ class _Scoreboard extends StatelessWidget {
     );
   }
 
-  /// 전광판 아래 한 줄 — 격차가 곧 응원이다.
   String _raceLine(List<PartyMember> ranked) {
     if (ranked.length < 2) return '';
     final gap = ranked[0].completedSets - ranked[1].completedSets;
@@ -2010,10 +2056,62 @@ class _Scoreboard extends StatelessWidget {
   }
 }
 
+/// 전광판 상단 띠 — 경기장의 "LIVE"와 종목명 자리. 방식이 여기 한 단어로
+/// 보이므로 "지금 무슨 규칙인가"를 메뉴까지 안 가고 안다.
+class _LedHeader extends StatelessWidget {
+  const _LedHeader({required this.mode});
+
+  final PartyMode mode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.lg,
+        SetflowSpacing.md,
+        SetflowSpacing.lg,
+        SetflowSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: LedPalette.lit,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: SetflowSpacing.sm),
+          const Text(
+            'LIVE',
+            style: TextStyle(
+              color: LedPalette.lit,
+              fontSize: SetflowFontSize.caption,
+              fontWeight: SetflowWeight.strong,
+              letterSpacing: 2,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '${mode.label} 모드',
+            style: const TextStyle(
+              color: LedPalette.dimText,
+              fontSize: SetflowFontSize.caption,
+              fontWeight: SetflowWeight.strong,
+              letterSpacing: .5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 전광판 한 줄.
 ///
-/// 세트 수가 이 줄에서 가장 큰 글자다(`SetflowWeight.display`가 허용되는
-/// "화면에서 가장 큰 숫자"의 자리). 휴식 시간은 여기 적지 않는다 — 상단 상태
+/// 세트 수가 이 줄에서 가장 큰 글자이고, 도트로 그린 유일한 것이다 — 전광판이
+/// 도트로 쓰는 것은 점수뿐이다. 휴식 시간은 여기 적지 않는다 — 상단 상태
 /// 줄에 이미 있고, 같은 숫자가 두 곳에 있으면 어느 쪽이 진짜인지 고민하게
 /// 된다. 남의 상태는 점 하나와 짧은 말로 충분하다.
 class _ScoreboardRow extends StatelessWidget {
@@ -2055,7 +2153,6 @@ class _ScoreboardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final lifting = member.state == PartyMemberState.lifting;
     final doing = member.currentExercise;
     final progress = maxSets <= 0
@@ -2064,27 +2161,28 @@ class _ScoreboardRow extends StatelessWidget {
     final volume = member.totalVolume >= 1000
         ? '${(member.totalVolume / 1000).toStringAsFixed(1)}t'
         : '${member.totalVolume.toStringAsFixed(0)}kg';
+    // 점 지름은 줄 높이에서 온다 — 7×11 폰트의 높이가 지름의 15.5배라,
+    // 120px 줄에서 40px, 220px 줄에서 140px쯤 되는 숫자가 된다.
+    final dot = ((minHeight - 78) / 15.5).clamp(2.6, 9.0);
 
     return Container(
       key: ValueKey('scoreboard-${member.userId}'),
       constraints: BoxConstraints(minHeight: minHeight),
       padding: const EdgeInsets.fromLTRB(
-        SetflowSpacing.lg,
         SetflowSpacing.md2,
+        SetflowSpacing.md,
         SetflowSpacing.lg,
-        SetflowSpacing.md2,
+        SetflowSpacing.md,
       ),
       decoration: BoxDecoration(
-        // 나는 늘 옅게 도드라지고, 지금 들고 있는 사람이 전광판에서 빛난다.
-        color: isMe
-            ? context.setflowColors.surfaceContainerLow
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(SetflowRadii.lg),
-        border: Border.all(
-          color: lifting
-              ? theme.colorScheme.primary
-              : theme.colorScheme.outlineVariant,
-          width: lifting ? 2 : 1,
+        // 내 줄은 판보다 한 톤 밝고, 지금 들고 있는 사람은 왼쪽 가장자리가
+        // 라임으로 켜진다.
+        color: isMe ? LedPalette.off.withValues(alpha: .45) : null,
+        border: Border(
+          left: BorderSide(
+            color: lifting ? LedPalette.lit : Colors.transparent,
+            width: 4,
+          ),
         ),
       ),
       child: Column(
@@ -2100,13 +2198,13 @@ class _ScoreboardRow extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(SetflowRadii.full),
+                    color: LedPalette.lit,
+                    borderRadius: BorderRadius.circular(SetflowRadii.xs),
                   ),
-                  child: Text(
+                  child: const Text(
                     '1위',
                     style: TextStyle(
-                      color: theme.colorScheme.onPrimary,
+                      color: LedPalette.litInk,
                       fontSize: SetflowFontSize.small,
                       fontWeight: SetflowWeight.display,
                     ),
@@ -2116,8 +2214,9 @@ class _ScoreboardRow extends StatelessWidget {
               ] else if (rank != null) ...[
                 Text(
                   '$rank위',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  style: const TextStyle(
+                    color: LedPalette.dimText,
+                    fontSize: SetflowFontSize.caption,
                     fontWeight: SetflowWeight.strong,
                   ),
                 ),
@@ -2131,6 +2230,7 @@ class _ScoreboardRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
+                    color: LedPalette.text,
                     fontWeight: SetflowWeight.strong,
                     fontSize: SetflowFontSize.label,
                   ),
@@ -2142,8 +2242,8 @@ class _ScoreboardRow extends StatelessWidget {
                   child: Container(
                     width: 8,
                     height: 8,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
+                    decoration: const BoxDecoration(
+                      color: LedPalette.lit,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -2151,39 +2251,35 @@ class _ScoreboardRow extends StatelessWidget {
               if (_statusLabel case final status?)
                 Text(
                   status,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: lifting
-                        ? theme.colorScheme.onSurface
-                        : theme.colorScheme.onSurfaceVariant,
+                  style: TextStyle(
+                    color: lifting ? LedPalette.lit : LedPalette.muted,
+                    fontSize: SetflowFontSize.caption,
                     fontWeight: SetflowWeight.strong,
+                    letterSpacing: .5,
                   ),
                 ),
             ],
           ),
+          const SizedBox(height: SetflowSpacing.sm),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // 흘깃 봤을 때 읽히는 숫자는 이것 하나다.
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '${member.completedSets}',
-                      style: const TextStyle(
-                        fontSize: SetflowFontSize.display,
-                        fontWeight: SetflowWeight.display,
-                        height: 1,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    TextSpan(
-                      text: ' 세트',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: SetflowWeight.strong,
-                      ),
-                    ),
-                  ],
+              // 흘깃 봤을 때 읽히는 숫자는 이것 하나다 — 그래서 도트다.
+              DotMatrixNumber(
+                text: '${member.completedSets}',
+                dot: dot,
+                semanticsLabel: '${member.completedSets} 세트',
+              ),
+              const SizedBox(width: SetflowSpacing.sm),
+              const Padding(
+                padding: EdgeInsets.only(bottom: SetflowSpacing.xxs),
+                child: Text(
+                  '세트',
+                  style: TextStyle(
+                    color: LedPalette.muted,
+                    fontSize: SetflowFontSize.caption,
+                    fontWeight: SetflowWeight.strong,
+                  ),
                 ),
               ),
               const SizedBox(width: SetflowSpacing.md),
@@ -2199,16 +2295,19 @@ class _ScoreboardRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.end,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                      style: const TextStyle(
+                        color: LedPalette.muted,
+                        fontSize: SetflowFontSize.caption,
                       ),
                     ),
                     if (member.totalVolume > 0)
                       Text(
                         volume,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                        style: const TextStyle(
+                          color: LedPalette.text,
+                          fontSize: SetflowFontSize.label,
+                          fontWeight: SetflowWeight.strong,
+                          fontFeatures: [FontFeature.tabularFigures()],
                         ),
                       ),
                   ],
@@ -2216,20 +2315,13 @@ class _ScoreboardRow extends StatelessWidget {
               ),
             ],
           ),
-          if (maxSets > 0)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(SetflowRadii.xs),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 6,
-                backgroundColor: theme.colorScheme.outlineVariant,
-                valueColor: AlwaysStoppedAnimation(
-                  isMe
-                      ? theme.colorScheme.primary
-                      : context.setflowColors.disabled,
-                ),
-              ),
+          if (maxSets > 0) ...[
+            const SizedBox(height: SetflowSpacing.sm2),
+            LedBar(
+              progress: progress,
+              lit: isMe ? LedPalette.lit : LedPalette.dimText,
             ),
+          ],
         ],
       ),
     );

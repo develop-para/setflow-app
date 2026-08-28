@@ -126,9 +126,10 @@ void main() {
         reason: '방 안에서는 바가 접힌다',
       );
 
-      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      // 나가기는 메뉴 속이 아니라 앱바에 보인다 — "다시 나갈 수는 없나?"
+      await tester.tap(find.byKey(const ValueKey('together-leave')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('방 나가기'));
+      await tester.tap(find.byKey(const ValueKey('together-leave-confirm')));
       await tester.pumpAndSettle();
       expect(
         find.byType(SetflowActionNavBar),
@@ -543,10 +544,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('together-code')), findsOneWidget);
 
-      // 나가기는 늘 보일 필요가 없어 방 메뉴 뒤로 갔다.
-      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      // 나가기는 앱바에 보이고, 한 번 묻는다 — 취소하면 방에 남는다.
+      await tester.tap(find.byKey(const ValueKey('together-leave')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('방 나가기'));
+      await tester.tap(find.text('취소'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('together-code')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('together-leave')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-leave-confirm')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
