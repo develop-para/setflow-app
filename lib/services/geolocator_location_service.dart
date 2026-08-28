@@ -11,8 +11,10 @@ import 'location_service.dart';
 class GeolocatorLocationService implements LocationService {
   const GeolocatorLocationService();
 
+  /// 웹도 된다 — geolocator_web이 브라우저 위치를 쓴다. 웹에서 꺼 두었더니
+  /// 로비의 근처 공개방과 만들기 시트의 공개/비밀 선택이 통째로 숨었다.
   @override
-  bool get isAvailable => !kIsWeb;
+  bool get isAvailable => true;
 
   @override
   Future<LocationResult> current() async {

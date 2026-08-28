@@ -29,28 +29,33 @@ import '../models.dart';
 /// 들어오는 것을 막는 한 숫자다.
 const int maxPartyMembers = 6;
 
-/// How the room decides who lifts when.
+/// 방의 종목 — 겉으로는 무엇을 하는 방인지, 속으로는 휴식을 누구와 묶는지.
+///
+/// 처음엔 규칙 이름(같이·교대·각자)이었다. "헬스는 다 각자가 기본이고, 같이와
+/// 교대는 크로스핏이나 요가 같은 걸로 바꿔야 할 것 같다"는 피드백대로 종목
+/// 이름으로 바꿨다. 서버 값(`together` `alternating` `free`)은 그대로다 —
+/// 규칙은 안 바뀌었고 이름만 사람이 고르는 말로 바뀌었다. **전광판은 어느
+/// 종목에나 있다.**
 enum PartyMode {
-  /// Everyone starts on the same countdown and rests on the same clock. The
-  /// feeling is a class: you are all mid-set at the same moment.
-  together(
-    '같이',
-    '같은 신호에 시작하고, 누가 세트를 끝내면 모두 같이 쉬어요.',
-    '나란히 다른 기구에서 같은 템포로 할 때',
+  /// 헬스 기본. 각자 페이스로 세트를 하고 전광판으로만 겨룬다. 휴식은 내 것만
+  /// 돈다 — 기구 대기·다른 종목 때문에 같은 시계로 묶을 수 없어서다.
+  free(
+    '헬스',
+    '각자 페이스로 세트를 하고, 전광판으로 겨뤄요. 휴식은 내 것만 돌아요.',
+    '헬스장 기본 — 각자 다른 기구를 써도 돼요',
   ),
 
-  /// One person lifts while the others rest, then it passes on. The feeling is
-  /// a spotter: your rest ends exactly when their set does.
+  /// 같은 신호에 시작하고 같은 시계로 쉰다. WOD처럼 모두가 같은 순간 세트
+  /// 안에 있는 느낌.
+  together('크로스핏', '같은 신호에 시작하고, 누가 세트를 끝내면 모두 같이 쉬어요.', 'WOD처럼 같은 템포로 할 때'),
+
+  /// 한 명이 세트를 하는 동안 나머지는 쉰다. 보조를 서 주는 느낌 — 내 휴식이
+  /// 상대의 세트가 끝나는 순간 끝난다.
   alternating(
     '교대',
     '한 명씩 번갈아 해요. 내가 끝내면 상대 차례, 상대가 끝내면 내 휴식이 끝나요.',
     '한 기구를 둘이 나눠 쓸 때',
-  ),
-
-  /// 각자 페이스. 떨어져서 각자 헬스장에 있으면 기구 대기·다른 종목 때문에
-  /// 같은 시계로 묶을 수 없다 — 그때의 "함께"는 타이머가 아니라 전광판이다.
-  /// 휴식은 자기 것만 돌고, 세트 수로만 겨룬다.
-  free('각자', '각자 페이스로 하고, 전광판으로만 겨뤄요. 휴식은 내 것만 돌아요.', '떨어진 헬스장에서 따로 할 때');
+  );
 
   const PartyMode(this.label, this.detail, this.when);
 
@@ -59,8 +64,11 @@ enum PartyMode {
   /// 어떻게 도는가 — 한 문장.
   final String detail;
 
-  /// 언제 고르는가. "교대가 뭔지 모르겠다"는 피드백의 답은 규칙보다 상황이었다.
+  /// 언제 고르는가. "교대가 뭔지 모르겠다"의 답은 규칙보다 상황이었다.
   final String when;
+
+  /// 방을 열 때의 기본. 헬스장에서는 각자 하는 것이 보통이다.
+  static const PartyMode defaultMode = free;
 }
 
 /// 누가 들어올 수 있는가. 비밀(기본)은 코드를 아는 사람만, 공개는 근처

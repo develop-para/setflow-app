@@ -475,6 +475,10 @@ void main() {
       final state = await pumpTogether(tester, repository: client('u-me', '나'));
       await tester.tap(find.byKey(const ValueKey('together-create')));
       await tester.pumpAndSettle();
+      // 같은 신호로 출발하는 종목(크로스핏)이어야 "같이 시작"이 할 일이 된다.
+      // 기본인 헬스는 각자 페이스라 출발 신호 자체가 없다.
+      await tester.tap(find.byKey(const ValueKey('create-mode-together')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
 
@@ -615,7 +619,7 @@ void main() {
       // 마지막 걸음은 방식 설명 — "교대가 뭔지 모르겠다"의 답이 여기 있다.
       await tester.tap(find.byKey(const ValueKey('coach-next')));
       await tester.pumpAndSettle();
-      expect(find.text('지금 방식은 "같이"'), findsOneWidget);
+      expect(find.text('지금 종목은 "헬스"'), findsOneWidget);
       expect(find.byKey(const ValueKey('coach-skip')), findsNothing);
       expect(find.text('시작하기'), findsOneWidget);
 
@@ -737,7 +741,7 @@ void main() {
       await tester.tap(find.text('참여'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
-      expect(find.text('공개 · 각자 · 2명'), findsOneWidget);
+      expect(find.text('공개 · 헬스 · 2명'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 400));
     });
 

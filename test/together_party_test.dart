@@ -83,6 +83,12 @@ void main() {
       expect(mine.map((r) => r.id).toList(), [farther.id]);
     });
 
+    test('헬스 is the default — at a gym, everyone lifts at their own pace', () {
+      expect(PartyMode.defaultMode, PartyMode.free);
+      expect(PartyMode.values.first, PartyMode.free);
+      expect(PartyMode.free.label, '헬스');
+    });
+
     test('a public room without a fix opens as private', () async {
       final party = await me.createParty(
         mode: PartyMode.free,

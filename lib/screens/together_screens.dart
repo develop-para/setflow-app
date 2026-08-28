@@ -135,9 +135,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
         ),
         CoachStep(
           target: _menuKey,
-          title: '지금 방식은 "${mode.label}"',
-          body:
-              '${mode.detail} ${mode.when} 쓰는 방식이에요. 방식 바꾸기·초대 코드·나가기는 이 메뉴에 있어요.',
+          title: '지금 종목은 "${mode.label}"',
+          body: '${mode.detail} 종목 바꾸기·공개 여부·초대 코드·나가기는 이 메뉴에 있어요.',
         ),
       ],
     );
@@ -481,7 +480,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
   Future<void> _showModeSheet(TrainingParty party) {
     final host = party.isHost(_userId ?? '');
     return _sheet(
-      title: '운동 방식',
+      title: '종목과 공개 여부',
       children: (sheetContext) => [
         RadioGroup<PartyMode>(
           groupValue: party.mode,
@@ -543,7 +542,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
           Padding(
             padding: const EdgeInsets.only(top: SetflowSpacing.sm),
             child: Text(
-              '운동 방식과 공개 여부는 방을 만든 사람이 정해요.',
+              '종목과 공개 여부는 방을 만든 사람이 정해요.',
               style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
                 color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
               ),
@@ -1012,7 +1011,7 @@ void _showTogetherHelp(BuildContext context) {
               const SizedBox(height: SetflowSpacing.md2),
             ],
             const SizedBox(height: SetflowSpacing.xs),
-            Text('세 가지 방식', style: theme.textTheme.titleMedium),
+            Text('세 가지 종목 — 전광판은 어디에나', style: theme.textTheme.titleMedium),
             const SizedBox(height: SetflowSpacing.sm),
             for (final mode in PartyMode.values) ...[
               Row(
@@ -1126,7 +1125,7 @@ class _Lobby extends StatelessWidget {
           SetflowSpacing.xxl2,
         ),
         children: [
-          const _LobbyHero(),
+          _LobbyHero(nearby: nearby),
           const SizedBox(height: SetflowSpacing.xl),
           if (error != null) ...[
             _Notice(message: error!),
@@ -1225,20 +1224,36 @@ class _Lobby extends StatelessWidget {
   }
 }
 
-/// 로비 맨 위 — 방 안 전광판의 축소판. 들어가면 무엇이 기다리는지 보여준다.
+/// 로비 맨 위 — 방 안 전광판의 축소판인데, 숫자는 **진짜**다. 왼쪽은 지금
+/// 근처에서 열린 공개방 수, 오른쪽은 그 방들에서 운동 중인 사람 수. 위치를
+/// 모르면 '-' — 정적인 장식 숫자는 두지 않는다("도트도 실시간 데이터도 아니고").
 class _LobbyHero extends StatelessWidget {
-  const _LobbyHero();
+  const _LobbyHero({required this.nearby});
+
+  final _NearbyStatus nearby;
 
   @override
   Widget build(BuildContext context) {
     const pitch = 4.0;
-    const cols = 26;
     const rows = 13;
+    final rooms = switch (nearby) {
+      _NearbyRooms(:final rooms) => rooms,
+      _ => null,
+    };
+    final roomText = rooms == null ? '-' : '${rooms.length.clamp(0, 99)}';
+    final peopleText = rooms == null
+        ? '-'
+        : '${rooms.fold<int>(0, (sum, room) => sum + room.memberCount).clamp(0, 99)}';
+    final leftWidth = ledDigitsWidth(roomText);
+    final rightWidth = ledDigitsWidth(peopleText);
+    // 두 숫자 사이에 점 두 개(:), 좌우 여백 1칸.
+    final cols = 1 + leftWidth + 3 + 2 + 3 + rightWidth + 1;
+    final rightX = 1 + leftWidth + 3 + 2 + 3;
     final lit = <LedCell>{
-      ...ledDigitCells('3', origin: (x: 1, y: 1)),
-      ...ledDigitCells('2', origin: (x: 18, y: 1)),
-      for (var y = 5; y < 8; y++) (x: 12, y: y),
-      for (var y = 5; y < 8; y++) (x: 13, y: y),
+      ...ledDigitCells(roomText, origin: (x: 1, y: 1)),
+      ...ledDigitCells(peopleText, origin: (x: rightX, y: 1)),
+      for (var y = 4; y < 6; y++) (x: 1 + leftWidth + 4, y: y),
+      for (var y = 7; y < 9; y++) (x: 1 + leftWidth + 4, y: y),
     };
     return Container(
       padding: const EdgeInsets.all(SetflowSpacing.lg),
@@ -1249,17 +1264,58 @@ class _LobbyHero extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(SetflowRadii.sm),
-            child: LedBoard(pitch: pitch, cols: cols, rows: rows, lit: lit),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                child: LedBoard(
+                  key: const ValueKey('together-hero-board'),
+                  pitch: pitch,
+                  cols: cols,
+                  rows: rows,
+                  lit: lit,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.xs),
+              SizedBox(
+                width: cols * pitch,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [
+                    Text(
+                      '근처 방',
+                      style: TextStyle(
+                        color: LedPalette.dimText,
+                        fontSize: SetflowFontSize.tiny,
+                        fontWeight: SetflowWeight.strong,
+                      ),
+                    ),
+                    Text(
+                      '운동 중',
+                      style: TextStyle(
+                        color: LedPalette.dimText,
+                        fontSize: SetflowFontSize.tiny,
+                        fontWeight: SetflowWeight.strong,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: SetflowSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '떨어져 있어도\n같이 운동해요',
+                Text(
+                  switch (nearby) {
+                    _NearbyRooms(:final rooms) when rooms.isNotEmpty =>
+                      '근처에서 ${rooms.length}개 방이\n열려 있어요',
+                    _NearbyRooms() => '지금 근처엔\n열린 방이 없어요',
+                    _ => '떨어져 있어도\n같이 운동해요',
+                  },
                   style: TextStyle(
                     color: LedPalette.text,
                     fontSize: SetflowFontSize.titleLarge,
@@ -1269,8 +1325,13 @@ class _LobbyHero extends StatelessWidget {
                 ),
                 const SizedBox(height: SetflowSpacing.xs2),
                 Text(
-                  '친구와, 또는 같은 헬스장의 처음 보는 사람과 — 전광판 하나로 겨뤄요.',
-                  style: const TextStyle(
+                  switch (nearby) {
+                    _NearbyRooms(:final rooms) when rooms.isNotEmpty =>
+                      '아래에서 골라 들어가면 바로 전광판에 이름이 올라가요.',
+                    _NearbyRooms() => '공개로 방을 열면 같은 헬스장 사람이 들어올 수 있어요.',
+                    _ => '친구와, 또는 같은 헬스장의 처음 보는 사람과 — 전광판 하나로 겨뤄요.',
+                  },
+                  style: TextStyle(
                     color: LedPalette.muted,
                     fontSize: SetflowFontSize.caption,
                     fontWeight: SetflowWeight.medium,
@@ -1401,7 +1462,7 @@ class _CreateSheet extends StatefulWidget {
 
 class _CreateSheetState extends State<_CreateSheet> {
   PartyVisibility _visibility = PartyVisibility.private;
-  PartyMode _mode = PartyMode.together;
+  PartyMode _mode = PartyMode.defaultMode;
 
   @override
   Widget build(BuildContext context) {
@@ -1418,31 +1479,45 @@ class _CreateSheetState extends State<_CreateSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('방 만들기', style: theme.textTheme.titleLarge),
-          if (widget.locationAvailable) ...[
-            const SizedBox(height: SetflowSpacing.md),
-            Text('누가 들어올 수 있나요', style: theme.textTheme.titleMedium),
-            RadioGroup<PartyVisibility>(
-              groupValue: _visibility,
-              onChanged: (value) {
-                if (value != null) setState(() => _visibility = value);
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final visibility in PartyVisibility.values)
-                    RadioListTile<PartyVisibility>(
-                      key: ValueKey('create-visibility-${visibility.name}'),
-                      value: visibility,
-                      title: Text(visibility.label),
-                      subtitle: Text(visibility.detail),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: SetflowSpacing.md),
-          Text('운동 방식', style: theme.textTheme.titleMedium),
+          // 공개/비밀은 **언제나** 여기서 고른다. 위치를 못 읽는 기기에서는 공개를
+          // 숨기는 대신 잠그고 이유를 적는다 — 숨기면 "설정할 수 없다"로 읽힌다.
+          Text('누가 들어올 수 있나요', style: theme.textTheme.titleMedium),
+          RadioGroup<PartyVisibility>(
+            groupValue: _visibility,
+            onChanged: (value) {
+              if (value != null) setState(() => _visibility = value);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final visibility in PartyVisibility.values)
+                  RadioListTile<PartyVisibility>(
+                    key: ValueKey('create-visibility-${visibility.name}'),
+                    value: visibility,
+                    enabled:
+                        widget.locationAvailable ||
+                        visibility == PartyVisibility.private,
+                    title: Text(visibility.label),
+                    subtitle: Text(
+                      visibility == PartyVisibility.public &&
+                              !widget.locationAvailable
+                          ? '이 기기에서는 위치를 읽을 수 없어 공개방을 열 수 없어요.'
+                          : visibility.detail,
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          Text('종목', style: theme.textTheme.titleMedium),
+          Text(
+            '어느 종목이든 전광판은 있어요. 다른 건 휴식을 누구와 묶느냐뿐.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           RadioGroup<PartyMode>(
             groupValue: _mode,
             onChanged: (value) {
@@ -1640,7 +1715,7 @@ class _RoomMenu extends StatelessWidget {
           enabled: !busy,
           child: const ListTile(
             leading: Icon(Icons.tune_rounded),
-            title: Text('운동 방식'),
+            title: Text('종목 · 공개 여부'),
             contentPadding: EdgeInsets.zero,
           ),
         ),
