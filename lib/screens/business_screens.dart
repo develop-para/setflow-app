@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app_state.dart';
+import '../services/push_service.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -28,8 +29,38 @@ class BusinessShell extends StatefulWidget {
   State<BusinessShell> createState() => _BusinessShellState();
 }
 
+/// 탭한 푸시가 여는 업무 셸의 페이지. 트레이너는 상담 큐가 넷째 탭, 센터는
+/// 운영이 셋째 탭이다. 관리자 셸은 알림의 집이 아니라 계정 알림만 홈으로.
+int? businessPageForPush(UserRole role, PushOpen open) {
+  if (open.kind == 'account') return 0;
+  if (open.kind != 'business' && open.kind != 'business_activity') return null;
+  if (role == UserRole.admin) return null;
+  final event = open.event ?? '';
+  if (event.startsWith('consultation') ||
+      event == 'coaching_schedule_reminder') {
+    return role == UserRole.gym ? 2 : 3;
+  }
+  if (event.startsWith('routine')) return 2;
+  // 회원 배정·초대 수락·회원 관계 종료는 사람 탭의 일이다.
+  return 1;
+}
+
 class _BusinessShellState extends State<BusinessShell> {
   int index = 0;
+  int _handledPushSerial = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final open = AppScope.of(context).pendingPushOpen;
+    if (open == null || open.serial == _handledPushSerial) return;
+    _handledPushSerial = open.serial;
+    final page = businessPageForPush(widget.role, open);
+    if (page == null || page == index) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => index = page);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

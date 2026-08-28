@@ -164,6 +164,12 @@ class _FakePush implements PushService {
 
   @override
   Future<void> deleteToken() async => deleted = true;
+
+  @override
+  Stream<PushOpen> get opens => const Stream<PushOpen>.empty();
+
+  @override
+  Future<PushOpen?> initialOpen() async => null;
 }
 
 class _RecordingRepository implements AppRepository, PushTokenRegistry {

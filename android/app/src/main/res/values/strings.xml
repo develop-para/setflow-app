@@ -2,6 +2,7 @@
 <resources>
     <string name="rest_timer_running">휴식 시간</string>
     <string name="rest_timer_background_message">앱을 닫아도 남은 시간을 알려드려요.</string>
+    <string name="rest_timer_extend">+30초</string>
     <string name="rest_timer_stop">타이머 종료</string>
     <string name="rest_timer_complete">휴식 끝</string>
     <string name="rest_timer_complete_message">다음 세트를 시작할 시간이에요.</string>

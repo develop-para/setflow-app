@@ -656,6 +656,10 @@ class SupabaseAppRepository
       oneRepMaxFormula: source.oneRepMaxFormula,
       pushCoachingFeedback: source.pushCoachingFeedback,
       communityReactionNotifications: source.communityReactionNotifications,
+      pushTogether: source.pushTogether,
+      pushWorkoutReminder: source.pushWorkoutReminder,
+      workoutReminderHour: source.workoutReminderHour,
+      businessNotifications: source.businessNotifications,
       sessions: {
         for (final entry in source.sessions.entries)
           if (entry.value.exercises.any(

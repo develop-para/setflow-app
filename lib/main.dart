@@ -19,6 +19,7 @@ import 'data/supabase_routine_catalog_repository.dart';
 import 'data/supabase_together_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
+import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
 import 'screens/splash_screen.dart';
 import 'services/auth_service.dart';
@@ -101,6 +102,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _appLinkSubscription;
   StreamSubscription<AuthChange>? _authSubscription;
+  StreamSubscription<PushOpen>? _pushOpenSubscription;
   Timer? _persistenceSyncTimer;
   String? _observedAuthUserId;
 
@@ -141,7 +143,59 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       onError: (_) {},
     );
     unawaited(_captureInitialAppLink());
+    // 알림 탭은 두 통로로 온다 — 앱이 뒤에 있었으면 스트림, 꺼져 있었으면
+    // 시작 메시지. 둘 다 같은 곳으로 보낸다.
+    _pushOpenSubscription = Push.instance.opens.listen(
+      _handlePushOpen,
+      onError: (_) {},
+    );
+    unawaited(
+      Push.instance.initialOpen().then((open) {
+        if (open != null && mounted) _handlePushOpen(open);
+      }),
+    );
     unawaited(_initializeState());
+  }
+
+  /// 셸이 탭을 옮기고(`pendingPushOpen`), 상세 화면이 있는 알림은 그 위에
+  /// push한다. 초기화 전에 도착하면 셸이 뜨고 나서 처리되도록 상태에만 남긴다.
+  void _handlePushOpen(PushOpen open) {
+    state.openPush(open);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openPushDetail(open));
+  }
+
+  void _openPushDetail(PushOpen open) {
+    if (!mounted || !state.isInitialized) return;
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+    final memberShell =
+        state.role == UserRole.guest || state.role == UserRole.member;
+    if (open.kind == 'community_reaction') {
+      final postId = open.data['postId'];
+      final post = state.communityPosts
+          .where((item) => item.id == postId)
+          .firstOrNull;
+      if (post == null) return; // 커뮤니티 탭으로 옮긴 것으로 충분하다.
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => CommunityPostDetailScreen(post: post),
+        ),
+      );
+      return;
+    }
+    if (open.event == 'consultation_reply' && memberShell) {
+      final id = open.data['consultationId'];
+      final consultation = state.consultations
+          .where((item) => item.id == id)
+          .firstOrNull;
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => consultation == null
+              ? const ConsultationHistoryScreen()
+              : ConsultationDetailScreen(consultation: consultation),
+        ),
+      );
+    }
   }
 
   Future<void> _initializeState() async {
@@ -306,6 +360,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_authSubscription?.cancel());
     unawaited(_appLinkSubscription?.cancel());
+    unawaited(_pushOpenSubscription?.cancel());
     _persistenceSyncTimer?.cancel();
     state.dispose();
     super.dispose();

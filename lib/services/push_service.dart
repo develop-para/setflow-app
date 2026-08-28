@@ -22,6 +22,33 @@ abstract interface class PushService {
   /// 이 기기의 토큰을 지운다. 로그아웃할 때 부른다 — 안 지우면 다음 사람에게
   /// 남의 알림이 간다.
   Future<void> deleteToken();
+
+  /// 사용자가 알림을 탭해 앱이 열렸다(앱이 뒤에 있을 때). 앱이 아예 꺼져
+  /// 있다가 알림으로 켜진 경우는 [initialOpen]이다 — 둘은 플랫폼이 다른
+  /// 통로로 준다.
+  Stream<PushOpen> get opens;
+
+  /// 이 실행이 알림 탭으로 시작됐다면 그 알림. 한 번만 답한다.
+  Future<PushOpen?> initialOpen();
+}
+
+/// 탭한 알림. 서버가 보낸 `kind`와 `data`(문자열 맵)만 안다 — 어떤 화면을
+/// 열지는 앱이 `data['event']`를 보고 정한다.
+class PushOpen {
+  PushOpen({required this.kind, Map<String, String> data = const {}})
+    : data = Map.unmodifiable(data),
+      serial = ++_counter;
+
+  final String kind;
+  final Map<String, String> data;
+
+  /// 같은 알림을 두 번 처리하지 않기 위한 일련번호. 셸은 마지막으로 처리한
+  /// 번호를 기억한다.
+  final int serial;
+
+  String? get event => data['event'];
+
+  static int _counter = 0;
 }
 
 /// 푸시를 쓸 수 없는 자리에서 쓰는 빈 구현.
@@ -45,6 +72,12 @@ class DisabledPushService implements PushService {
 
   @override
   Future<void> deleteToken() async {}
+
+  @override
+  Stream<PushOpen> get opens => const Stream<PushOpen>.empty();
+
+  @override
+  Future<PushOpen?> initialOpen() async => null;
 }
 
 /// 앱 어디서나 쓰는 단일 진입점. [AuthService]의 `Auth.instance`와 같은 모양이다.

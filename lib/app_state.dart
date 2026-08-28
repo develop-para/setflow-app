@@ -169,6 +169,17 @@ class AppState extends ChangeNotifier {
   OneRepMaxFormula oneRepMaxFormula = OneRepMaxFormula.average;
   bool pushCoachingFeedback = true;
   bool communityReactionNotifications = false;
+  bool pushTogether = true;
+  bool pushWorkoutReminder = false;
+  int workoutReminderHour = 19;
+
+  /// 트레이너·센터 업무 알림 스위치. 서버의 `push_enabled`가 스냅샷에서
+  /// 같은 키를 읽는다 — 키가 없으면 켜진 것이다.
+  Map<String, bool> businessNotifications = {};
+
+  /// 방금 탭한 푸시. 셸이 이걸 보고 탭을 옮기고, 상세 화면이 필요하면
+  /// main.dart가 그 위에 push한다. [PushOpen.serial]로 "이미 처리한 것"을 가른다.
+  PushOpen? pendingPushOpen;
   String get memberDisplayName {
     final nickname = memberNickname.trim();
     return nickname.isEmpty ? Auth.instance.currentDisplayName : nickname;
@@ -974,6 +985,33 @@ class AppState extends ChangeNotifier {
   void setCommunityReactionNotifications(bool value) {
     communityReactionNotifications = value;
     _schedulePersist();
+    notifyListeners();
+  }
+
+  void setPushTogether(bool value) {
+    pushTogether = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setPushWorkoutReminder(bool value) {
+    pushWorkoutReminder = value;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setWorkoutReminderHour(int hour) {
+    workoutReminderHour = hour.clamp(
+      AppSnapshot.earliestReminderHour,
+      AppSnapshot.latestReminderHour,
+    );
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  /// 푸시를 탭했다. 셸과 main.dart가 [pendingPushOpen]을 보고 움직인다.
+  void openPush(PushOpen open) {
+    pendingPushOpen = open;
     notifyListeners();
   }
 
@@ -4275,13 +4313,15 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 업무 알림 스위치. 역할에 상관없이 계정에 하나다 — 한 계정은 한 역할로
+  /// 일하고, 스냅샷의 `preferences.businessNotifications`가 서버와 공유하는
+  /// 진실이다(예전엔 데모 대시보드의 facts에만 있어 라이브에서 저장되지 않았다).
   bool businessNotificationPreference(
     UserRole role,
     String key, {
     required bool fallback,
   }) {
-    final value = dashboardFor(role).facts['notification.$key'];
-    return value == null ? fallback : value == 'true';
+    return businessNotifications[key] ?? fallback;
   }
 
   void setBusinessNotificationPreference(
@@ -4289,7 +4329,7 @@ class AppState extends ChangeNotifier {
     String key,
     bool value,
   ) {
-    dashboardFor(role).facts['notification.$key'] = '$value';
+    businessNotifications = {...businessNotifications, key: value};
     _schedulePersist();
     notifyListeners();
   }
@@ -5269,6 +5309,12 @@ class AppState extends ChangeNotifier {
     oneRepMaxFormula: oneRepMaxFormula,
     pushCoachingFeedback: pushCoachingFeedback,
     communityReactionNotifications: communityReactionNotifications,
+    pushTogether: pushTogether,
+    pushWorkoutReminder: pushWorkoutReminder,
+    workoutReminderHour: workoutReminderHour,
+    businessNotifications: Map<String, bool>.unmodifiable(
+      businessNotifications,
+    ),
     sessions: Map<DateTime, WorkoutSession>.unmodifiable(sessions),
     routines: List<RoutineData>.unmodifiable(routines),
     goals: List<String>.unmodifiable(goals),
@@ -5303,6 +5349,7 @@ class AppState extends ChangeNotifier {
         vibrate: timerVibration,
         sound: timerSound,
         countdownSeconds: timerCountdownSeconds,
+        detail: restTimerDetail,
       ),
     );
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -5310,6 +5357,19 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     });
     notifyListeners();
+  }
+
+  /// 알림 창에 적을 "지금 어디쯤인지". 휴식 화면([RestFocusOverlay])이 답하는
+  /// 것과 같은 질문이다 — 막았으면 궁금해질 것을 답해야 한다는 규칙은 알림에도
+  /// 적용된다. 방금 마친 세트를 모르면 null이고 네이티브가 기본 문구를 쓴다.
+  String? get restTimerDetail {
+    final focus = restFocus;
+    if (focus == null) return null;
+    if (focus.setsLeft > 0) {
+      return '${focus.exerciseName} · 남은 세트 ${focus.setsLeft}';
+    }
+    final next = focus.nextExercise;
+    return next == null ? '${focus.exerciseName} 끝 · 마지막 종목이에요' : '다음: $next';
   }
 
   void _refreshRestRemaining() {
@@ -5377,6 +5437,13 @@ class AppState extends ChangeNotifier {
     oneRepMaxFormula = snapshot.oneRepMaxFormula;
     pushCoachingFeedback = snapshot.pushCoachingFeedback;
     communityReactionNotifications = snapshot.communityReactionNotifications;
+    pushTogether = snapshot.pushTogether;
+    pushWorkoutReminder = snapshot.pushWorkoutReminder;
+    workoutReminderHour = snapshot.workoutReminderHour.clamp(
+      AppSnapshot.earliestReminderHour,
+      AppSnapshot.latestReminderHour,
+    );
+    businessNotifications = Map.of(snapshot.businessNotifications);
     goals = List.of(snapshot.goals);
     heightCm = snapshot.heightCm;
     weight = snapshot.weight;
@@ -5446,6 +5513,10 @@ class AppState extends ChangeNotifier {
     oneRepMaxFormula = OneRepMaxFormula.average;
     pushCoachingFeedback = true;
     communityReactionNotifications = false;
+    pushTogether = true;
+    pushWorkoutReminder = false;
+    workoutReminderHour = 19;
+    businessNotifications = {};
     goals = [];
     heightCm = null;
     weight = null;

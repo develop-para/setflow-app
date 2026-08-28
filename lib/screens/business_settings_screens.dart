@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../services/push_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'account_deletion_screen.dart';
@@ -455,8 +456,6 @@ class _BusinessSettingsNotificationsScreenState
     extends State<BusinessSettingsNotificationsScreen> {
   bool _primaryActivity = true;
   bool _feedback = true;
-  bool _settlement = false;
-  bool _marketing = false;
   bool _loaded = false;
 
   bool get _isGym => widget.role == UserRole.gym;
@@ -476,91 +475,63 @@ class _BusinessSettingsNotificationsScreenState
       'feedback',
       fallback: true,
     );
-    _settlement = state.businessNotificationPreference(
-      widget.role,
-      'settlement',
-      fallback: false,
-    );
-    _marketing = state.businessNotificationPreference(
-      widget.role,
-      'marketing',
-      fallback: false,
-    );
     _loaded = true;
   }
 
   @override
   Widget build(BuildContext context) {
-    final live = AppScope.of(context).usesLiveBusinessData;
+    // 두 스위치는 서버가 실제로 읽는다(`private.push_enabled`의 business /
+    // business_activity). 정산·마케팅 스위치는 뒤에 보낼 알림이 없어서 뺐다 —
+    // 켜 놓고 아무것도 안 오는 스위치가 "있는 척"이다.
     return Scaffold(
       appBar: AppBar(title: const Text('알림 설정')),
       body: _SettingsWidth(
         child: ListView(
           padding: SetflowInsets.pageList,
           children: [
-            if (live) ...[
-              const _LiveIntegrationNotice(
-                message: '알림 설정을 서버에 저장하는 기능을 준비 중이에요.',
+            if (!Push.instance.isAvailable)
+              const ListTile(
+                key: ValueKey('business-push-unavailable'),
+                leading: Icon(Icons.notifications_off_outlined),
+                title: Text('푸시 알림을 쓸 수 없는 기기예요'),
+                subtitle: Text('알림 권한을 껐거나 이 기기가 푸시를 지원하지 않아요.'),
+              )
+            else ...[
+              ListTile(
+                title: Text(
+                  '활동 알림',
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.label,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
-              const SizedBox(height: SetflowSpacing.md),
+              SwitchListTile(
+                key: const ValueKey('business-push-primary'),
+                secondary: const Icon(Icons.chat_bubble_outline),
+                title: Text(_isGym ? '회원·상담 알림' : '상담·회원 알림'),
+                subtitle: Text(
+                  _isGym
+                      ? '새 상담 문의, 초대 수락, 회원 등록 종료를 알려드려요.'
+                      : '새 상담 요청, 회원 메시지, 상담·회원 배정, 1시간 전 코칭 일정을 알려드려요.',
+                ),
+                value: _primaryActivity,
+                onChanged: (value) => _setPreference('primary', value),
+              ),
+              SwitchListTile(
+                key: const ValueKey('business-push-feedback'),
+                secondary: const Icon(Icons.fitness_center),
+                title: const Text('루틴 알림'),
+                subtitle: Text(
+                  _isGym
+                      ? '루틴 심사 결과를 알려드려요.'
+                      : '보낸 루틴의 수락·거절과 루틴 심사 결과를 알려드려요.',
+                ),
+                value: _feedback,
+                onChanged: (value) => _setPreference('feedback', value),
+              ),
             ],
-            ListTile(
-              title: Text(
-                '활동 알림',
-                style: TextStyle(
-                  fontSize: SetflowFontSize.label,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.chat_bubble_outline),
-              title: Text(_isGym ? '신규 회원 문의' : '신규 상담 요청'),
-              subtitle: Text(_isGym ? '센터 등록/이용 문의 알림' : '새로운 회원의 코칭 문의 알림'),
-              value: _primaryActivity,
-              onChanged: live
-                  ? null
-                  : (value) => _setPreference('primary', value),
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.fitness_center),
-              title: Text(_isGym ? '트레이너 활동 알림' : '회원 운동 기록 및 피드백'),
-              subtitle: Text(_isGym ? '소속 트레이너 활동 현황 알림' : '코칭 중인 회원의 새로운 활동'),
-              value: _feedback,
-              onChanged: live
-                  ? null
-                  : (value) => _setPreference('feedback', value),
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.payments_outlined),
-              title: const Text('정산 및 환불 현황'),
-              subtitle: const Text('주기적인 정산 금액 및 분쟁 알림'),
-              value: _settlement,
-              onChanged: live
-                  ? null
-                  : (value) => _setPreference('settlement', value),
-            ),
-            const Divider(height: 30),
-            ListTile(
-              title: Text(
-                '이벤트 및 혜택',
-                style: TextStyle(
-                  fontSize: SetflowFontSize.label,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.card_giftcard_outlined),
-              title: const Text('마케팅 정보 수신 동의'),
-              subtitle: const Text('플랫폼 이벤트 및 혜택 안내'),
-              value: _marketing,
-              onChanged: live
-                  ? null
-                  : (value) => _setPreference('marketing', value),
-            ),
           ],
         ),
       ),
@@ -574,10 +545,6 @@ class _BusinessSettingsNotificationsScreenState
           _primaryActivity = value;
         case 'feedback':
           _feedback = value;
-        case 'settlement':
-          _settlement = value;
-        case 'marketing':
-          _marketing = value;
       }
     });
     AppScope.of(

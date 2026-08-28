@@ -868,8 +868,8 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             else ...[
               SwitchListTile(
                 key: const ValueKey('setting-push-coaching'),
-                title: const Text('코칭 피드백 알림'),
-                subtitle: const Text('트레이너가 상담에 답하면 알려드려요.'),
+                title: const Text('코칭 알림'),
+                subtitle: const Text('트레이너의 답변·운동 피드백·코칭 일정·루틴 공유를 알려드려요.'),
                 value: state.pushCoachingFeedback,
                 onChanged: state.setPushCoachingFeedback,
               ),
@@ -880,6 +880,43 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
                 value: state.communityReactionNotifications,
                 onChanged: state.setCommunityReactionNotifications,
               ),
+              SwitchListTile(
+                key: const ValueKey('setting-push-together'),
+                title: const Text('함께 운동 알림'),
+                subtitle: const Text('방에 누가 들어오거나, 시작되거나, 루틴이 오면 알려드려요.'),
+                value: state.pushTogether,
+                onChanged: state.setPushTogether,
+              ),
+              SwitchListTile(
+                key: const ValueKey('setting-push-reminder'),
+                title: const Text('운동 리마인더'),
+                subtitle: const Text(
+                  '기록이 없는 날 정한 시각에 한 번, 월요일 아침엔 지난주 요약을 보내드려요.',
+                ),
+                value: state.pushWorkoutReminder,
+                onChanged: state.setPushWorkoutReminder,
+              ),
+              if (state.pushWorkoutReminder) ...[
+                const ListTile(
+                  title: Text('리마인더 시각'),
+                  subtitle: Text('그날 아직 기록이 없으면 이 시각에 알려드려요.'),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+                  child: Wrap(
+                    spacing: SetflowSpacing.sm,
+                    children: [
+                      for (final hour in const [7, 9, 12, 18, 19, 20, 21])
+                        ChoiceChip(
+                          key: ValueKey('reminder-hour-$hour'),
+                          label: Text('$hour시'),
+                          selected: state.workoutReminderHour == hour,
+                          onSelected: (_) => state.setWorkoutReminderHour(hour),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ],
           SettingSection.privacy => [

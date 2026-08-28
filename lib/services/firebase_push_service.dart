@@ -68,6 +68,30 @@ class FirebasePushService implements PushService {
   Stream<String> get tokenChanges => FirebaseMessaging.instance.onTokenRefresh;
 
   @override
+  Stream<PushOpen> get opens =>
+      FirebaseMessaging.onMessageOpenedApp.map(_toOpen);
+
+  @override
+  Future<PushOpen?> initialOpen() async {
+    try {
+      final message = await FirebaseMessaging.instance.getInitialMessage();
+      return message == null ? null : _toOpen(message);
+    } catch (error) {
+      debugPrint('시작 알림을 읽지 못했습니다: $error');
+      return null;
+    }
+  }
+
+  /// send-push는 data를 전부 문자열로 보낸다(FCM 규칙). `kind`도 그 안에 있다.
+  static PushOpen _toOpen(RemoteMessage message) {
+    final data = <String, String>{
+      for (final entry in message.data.entries)
+        entry.key: entry.value.toString(),
+    };
+    return PushOpen(kind: data['kind'] ?? '', data: data);
+  }
+
+  @override
   Future<void> deleteToken() async {
     try {
       await FirebaseMessaging.instance.deleteToken();

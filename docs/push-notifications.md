@@ -1,8 +1,36 @@
 # 푸시 알림
 
-설정의 **코칭 피드백 알림**과 **커뮤니티 반응 알림** 두 스위치가 실제로
-무언가를 켜게 만든 구조. 규칙은 `AGENTS.md`에 있고, 여기엔 **왜 이렇게 나눴는지**와
-**사람이 직접 해야 하는 것**만 적는다.
+설정의 알림 스위치가 실제로 무언가를 켜게 만든 구조. 규칙은 `AGENTS.md`에 있고,
+여기엔 **무엇을 보내는지**, **왜 이렇게 나눴는지**, **사람이 직접 해야 하는 것**만 적는다.
+
+## 카탈로그 — 무엇을, 누구에게, 어느 스위치로
+
+`kind`는 알림 하나가 아니라 **설정 스위치 단위**다. 화면이 사건을 구분해야 하면
+`data.event`를 본다. 스위치의 진실은 `app_state_snapshots.payload.preferences`이고
+`private.push_enabled`가 거기서 읽는다.
+
+| kind | 스위치(기본값) | 받는 사람 | 사건(`data.event`) | 어디서 |
+|---|---|---|---|---|
+| `coaching_feedback` | `pushCoachingFeedback`(켬) | 회원 | 트레이너 답변 `consultation_reply` · 운동 피드백 `session_feedback` · 코칭 일정 `coaching_schedule` · 1시간 전 `coaching_schedule_reminder` · 루틴 도착 `routine_share` · 담당 배정 `member_assigned` | 트리거 + 10분 크론 |
+| `community_reaction` | `communityReactionNotifications`(끔) | 글쓴이 | 좋아요·댓글 (`postId`) | 트리거 |
+| `together` | `pushTogether`(켬) | 방 사람들 | 입장 `party_joined`(방장에게) · 시작 `party_started` · 루틴 전달 `party_routine` | 트리거 |
+| `workout_reminder` | `pushWorkoutReminder`(끔) + `workoutReminderHour`(19) | 본인 | 오늘 기록 없음 `workout_reminder`(매시 크론, 고른 시각에) · 지난주 요약 `weekly_summary`(월 09:00) | 크론 |
+| `business` | `businessNotifications.primary`(켬) | 트레이너·센터장 | 새 상담 `consultation_created` · 회원 메시지 `consultation_message` · 상담 배정 `consultation_assigned` · 회원 배정 `member_assigned` · 초대 수락 `invite_accepted` · 회원이 종료 `membership_ended` · 1시간 전 코칭 | 트리거 + 크론 |
+| `business_activity` | `businessNotifications.feedback`(켬) | 트레이너·센터장 | 루틴 수락/거절 `routine_share_accepted/declined` · 루틴 심사 `routine_review_approved/rejected` | 트리거 |
+| `account` | **없음(끌 수 없다)** | 본인 | 트레이너/센터 심사 결과 `trainer_application_*` `gym_application_*` · 센터가 등록 종료 `membership_ended` · 삭제 3일 전 `account_deletion_reminder`(매일 10:00) | 트리거 + 크론 |
+
+**탭하면 어디로 가는가.** `Push.instance.opens` / `initialOpen()` → `AppState.openPush()` →
+셸이 `memberPageForPush` / `businessPageForPush`로 탭을 옮기고, 상담 답변과 게시글은
+main.dart가 그 위에 상세 화면을 push한다. 표: `test/push_catalog_test.dart`.
+
+**없는 사건은 만들지 않았다.** `trainer_follows`·`routine_reviews`·`user_badges`는 앱이 쓰지
+않는 테이블이라(0행, 어댑터 참조 없음) 트리거가 없다. 정산·마케팅 스위치도 같은 이유로
+업무 알림 화면에서 뺐다 — 켜 놓고 아무것도 안 오는 스위치가 "있는 척"이다.
+
+**FCM 알림에는 버튼이 없다.** `notification` 페이로드로 보내는 알림은 시스템이 그리므로
+액션 버튼을 달 수 없다. 달려면 data-only 메시지 + 앱이 직접 그리는 로컬 알림(백그라운드
+아이솔레이트)이 필요한데, 그 무게에 비해 지금 버튼이 쓸모 있는 알림이 없다. 버튼이 있는
+알림은 기기 로컬인 휴식 타이머뿐이다(`+30초` · `타이머 종료`, `RestTimerService`).
 
 ## 왜 발신함(outbox)을 거치는가
 

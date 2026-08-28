@@ -18,6 +18,7 @@ abstract final class RestTimerPlatform {
     required bool vibrate,
     bool sound = true,
     int countdownSeconds = 30,
+    String? detail,
   }) async {
     try {
       await _channel.invokeMethod<void>('start', {
@@ -26,6 +27,9 @@ abstract final class RestTimerPlatform {
         'vibrate': vibrate,
         'sound': sound,
         'countdownSeconds': countdownSeconds,
+        // 알림 창의 둘째 줄 — "다음: 스쿼트" 같은 지금 위치. 없으면 네이티브가
+        // 기본 문구를 쓴다.
+        'detail': ?detail,
       });
     } on MissingPluginException {
       // Supported only by the Android host.

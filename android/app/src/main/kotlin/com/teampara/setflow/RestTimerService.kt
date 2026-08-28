@@ -32,6 +32,7 @@ class RestTimerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_CANCEL -> cancelTimer()
+            ACTION_EXTEND -> extendTimer()
             ACTION_START -> {
                 val seconds = intent.getIntExtra(EXTRA_SECONDS, 0)
                 if (seconds <= 0) {
@@ -52,12 +53,24 @@ class RestTimerService : Service() {
                         KEY_COUNTDOWN_SECONDS,
                         intent.getIntExtra(EXTRA_COUNTDOWN_SECONDS, 30).coerceIn(0, 120),
                     )
+                    .putString(KEY_DETAIL, intent.getStringExtra(EXTRA_DETAIL))
                     .apply()
                 runTimer(endsAt)
             }
             else -> restoreTimer()
         }
         return START_STICKY
+    }
+
+    // The "+30s" action on the notification. Dart learns the new end time on
+    // resume (syncRestTimerFromPlatform) -- closing the shade resumes the app,
+    // and the service already owns the truth about when rest ends.
+    private fun extendTimer() {
+        if (!preferences.getBoolean(KEY_ACTIVE, false)) return
+        val now = System.currentTimeMillis()
+        val endsAt = maxOf(preferences.getLong(KEY_ENDS_AT, now), now) + EXTEND_MILLIS
+        preferences.edit().putLong(KEY_ENDS_AT, endsAt).apply()
+        runTimer(endsAt)
     }
 
     override fun onDestroy() {
@@ -194,16 +207,35 @@ class RestTimerService : Service() {
             Intent(this, RestTimerService::class.java).setAction(ACTION_CANCEL),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val extendIntent = PendingIntent.getService(
+            this,
+            2,
+            Intent(this, RestTimerService::class.java).setAction(ACTION_EXTEND),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        // Second line says where the lifter is ("next: squat"), the same
+        // answer the in-app rest screen gives. Falls back to the generic copy
+        // when the timer was started without that context.
+        val detail = preferences.getString(KEY_DETAIL, null)
+            ?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.rest_timer_background_message)
         val builder = Notification.Builder(this, ONGOING_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_rest_timer)
             .setContentTitle(getString(R.string.rest_timer_running))
-            .setContentText(getString(R.string.rest_timer_background_message))
+            .setContentText(detail)
             .setContentIntent(openIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setCategory(Notification.CATEGORY_STOPWATCH)
             .setWhen(endsAt)
             .setUsesChronometer(true)
+            .addAction(
+                Notification.Action.Builder(
+                    null,
+                    getString(R.string.rest_timer_extend),
+                    extendIntent,
+                ).build(),
+            )
             .addAction(
                 Notification.Action.Builder(
                     null,
@@ -285,8 +317,12 @@ class RestTimerService : Service() {
         private const val KEY_VIBRATE = "vibrate"
         private const val KEY_SOUND = "sound"
         private const val KEY_COUNTDOWN_SECONDS = "countdown_seconds"
+        private const val KEY_DETAIL = "detail"
         private const val ACTION_START = "com.teampara.setflow.action.START_REST_TIMER"
         private const val ACTION_CANCEL = "com.teampara.setflow.action.CANCEL_REST_TIMER"
+        private const val ACTION_EXTEND = "com.teampara.setflow.action.EXTEND_REST_TIMER"
+        private const val EXTEND_MILLIS = 30_000L
+        private const val EXTRA_DETAIL = "detail"
         private const val EXTRA_SECONDS = "seconds"
         private const val EXTRA_SHOW_COMPLETION = "show_completion"
         private const val EXTRA_VIBRATE = "vibrate"
@@ -305,6 +341,7 @@ class RestTimerService : Service() {
             vibrate: Boolean,
             sound: Boolean = true,
             countdownSeconds: Int = 30,
+            detail: String? = null,
         ) {
             val intent = Intent(context, RestTimerService::class.java)
                 .setAction(ACTION_START)
@@ -313,6 +350,7 @@ class RestTimerService : Service() {
                 .putExtra(EXTRA_VIBRATE, vibrate)
                 .putExtra(EXTRA_SOUND, sound)
                 .putExtra(EXTRA_COUNTDOWN_SECONDS, countdownSeconds.coerceIn(0, 120))
+                .putExtra(EXTRA_DETAIL, detail)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {

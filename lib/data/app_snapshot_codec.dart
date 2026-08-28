@@ -51,6 +51,10 @@ abstract final class AppSnapshotCodec {
         'pushCoachingFeedback': snapshot.pushCoachingFeedback,
         'communityReactionNotifications':
             snapshot.communityReactionNotifications,
+        'pushTogether': snapshot.pushTogether,
+        'pushWorkoutReminder': snapshot.pushWorkoutReminder,
+        'workoutReminderHour': snapshot.workoutReminderHour,
+        'businessNotifications': snapshot.businessNotifications,
       },
       'profile': {
         'nickname': snapshot.nickname,
@@ -204,6 +208,22 @@ abstract final class AppSnapshotCodec {
             preferences['pushCoachingFeedback'] as bool? ?? true,
         communityReactionNotifications:
             preferences['communityReactionNotifications'] as bool? ?? false,
+        pushTogether: preferences['pushTogether'] as bool? ?? true,
+        pushWorkoutReminder:
+            preferences['pushWorkoutReminder'] as bool? ?? false,
+        workoutReminderHour:
+            ((preferences['workoutReminderHour'] as num?)?.toInt() ?? 19).clamp(
+              AppSnapshot.earliestReminderHour,
+              AppSnapshot.latestReminderHour,
+            ),
+        businessNotifications: {
+          for (final entry
+              in (preferences['businessNotifications']
+                          as Map<String, dynamic>? ??
+                      const <String, dynamic>{})
+                  .entries)
+            if (entry.value is bool) entry.key: entry.value as bool,
+        },
         sessions: sessions,
         routines: routines,
         goals: (profile['goals'] as List<dynamic>? ?? const [])

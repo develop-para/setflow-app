@@ -19,6 +19,10 @@ class AppSnapshot {
     this.oneRepMaxFormula = OneRepMaxFormula.average,
     this.pushCoachingFeedback = true,
     this.communityReactionNotifications = false,
+    this.pushTogether = true,
+    this.pushWorkoutReminder = false,
+    this.workoutReminderHour = 19,
+    this.businessNotifications = const {},
     this.goals = const [],
     this.heightCm,
     this.weight,
@@ -35,6 +39,10 @@ class AppSnapshot {
     this.businessDashboards = const {},
     this.customExercises = const [],
   });
+
+  /// 리마인더 시각의 범위. 새벽에 울리는 운동 알림은 없다.
+  static const earliestReminderHour = 6;
+  static const latestReminderHour = 22;
 
   final UserRole role;
   final bool isDarkMode;
@@ -57,6 +65,18 @@ class AppSnapshot {
   final OneRepMaxFormula oneRepMaxFormula;
   final bool pushCoachingFeedback;
   final bool communityReactionNotifications;
+
+  /// 함께 운동 방 알림 — 누가 들어왔는지, 시작됐는지, 루틴을 보냈는지.
+  final bool pushTogether;
+
+  /// 오늘 기록이 없을 때 [workoutReminderHour]시에 한 번, 그리고 월요일 아침
+  /// 지난주 요약. 서버 크론이 스냅샷의 이 값을 읽는다.
+  final bool pushWorkoutReminder;
+  final int workoutReminderHour;
+
+  /// 트레이너·센터의 업무 알림 스위치(`primary`·`feedback`·`settlement`·
+  /// `marketing`). 키가 없으면 켜진 것으로 본다 — 서버의 기본값과 같다.
+  final Map<String, bool> businessNotifications;
   final Map<DateTime, WorkoutSession> sessions;
   final List<RoutineData> routines;
   final List<String> goals;

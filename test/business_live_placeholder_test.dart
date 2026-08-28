@@ -46,20 +46,23 @@ void main() {
     expect(find.byType(BusinessSettingsListScreen), findsOneWidget);
   });
 
-  testWidgets('live notification preferences cannot mutate local switches', (
+  testWidgets('live notification preferences are real, not a placeholder', (
     tester,
   ) async {
+    // 업무 알림 스위치는 스냅샷으로 저장되고 서버 트리거가 그 값을 읽는다
+    // (test/push_catalog_test.dart). 여기서는 "준비 중" 안내가 사라졌고, 푸시를
+    // 못 받는 기기에서는 켤 수 있다고 말하지 않는다는 것만 본다.
     await pumpLive(
       tester,
       const BusinessSettingsNotificationsScreen(role: UserRole.gym),
     );
 
-    expect(find.text('알림 설정을 서버에 저장하는 기능을 준비 중이에요.'), findsOneWidget);
-    final switches = tester.widgetList<SwitchListTile>(
-      find.byType(SwitchListTile),
+    expect(find.text('알림 설정을 서버에 저장하는 기능을 준비 중이에요.'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('business-push-unavailable')),
+      findsOneWidget,
     );
-    expect(switches, isNotEmpty);
-    expect(switches.every((tile) => tile.onChanged == null), isTrue);
+    expect(find.byType(SwitchListTile), findsNothing);
   });
 
   testWidgets('live gym onboarding never presents simulated Hometax approval', (

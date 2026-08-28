@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../app_state.dart';
+import '../services/push_service.dart';
 import '../korean_holidays.dart';
 import '../data/business_repository.dart';
 import '../services/auth_service.dart';
@@ -36,6 +37,24 @@ class MemberShell extends StatefulWidget {
   State<MemberShell> createState() => _MemberShellState();
 }
 
+/// 탭한 푸시가 여는 회원 셸의 페이지. 상세 화면(상담·게시글)은 main.dart가
+/// 이 위에 push하므로, 여기서는 "어느 탭이 그 알림의 집인가"만 답한다.
+/// 모르는 알림은 null — 탭을 옮기지 않는다.
+int? memberPageForPush(PushOpen open) {
+  return switch (open.kind) {
+    'together' => 1,
+    'workout_reminder' => 2,
+    'community_reaction' => 3,
+    'account' => 4,
+    'coaching_feedback' => switch (open.event) {
+      'routine_share' => 2,
+      'member_assigned' => 4,
+      _ => 0,
+    },
+    _ => null,
+  };
+}
+
 class _MemberShellState extends State<MemberShell> {
   /// Index into the page list, where 2 is the center destination.
   int index = 0;
@@ -49,6 +68,7 @@ class _MemberShellState extends State<MemberShell> {
   /// 그대로 두고 바를 되돌려야 한다 — 안 그러면 나갈 길이 사라진다.
   bool get _inTogetherSession => _togetherSession && index == 1;
   String? _handledRoutineShareToken;
+  int _handledPushSerial = 0;
 
   /// Page index the center disc owns.
   static const _recordPage = 2;
@@ -91,7 +111,18 @@ class _MemberShellState extends State<MemberShell> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final token = AppScope.of(context).pendingRoutineShareToken;
+    final state = AppScope.of(context);
+    final open = state.pendingPushOpen;
+    if (open != null && open.serial != _handledPushSerial) {
+      _handledPushSerial = open.serial;
+      final page = memberPageForPush(open);
+      if (page != null && page != index) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => index = page);
+        });
+      }
+    }
+    final token = state.pendingRoutineShareToken;
     if (token == null) {
       _handledRoutineShareToken = null;
       return;
