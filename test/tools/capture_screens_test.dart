@@ -355,6 +355,16 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('together-create')));
     await tester.pumpAndSettle();
+    // 첫 방은 화면 안내(딤 + 스포트라이트)가 먼저 뜬다. 첫 걸음과 마지막
+    // 걸음(방식 설명)을 찍고 건너뛴 뒤에야 맨 방이 보인다.
+    await _shot(tester, 'build/shots/together_room_guide.png');
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byKey(const ValueKey('coach-next')));
+      await tester.pumpAndSettle();
+    }
+    await _shot(tester, 'build/shots/together_room_guide_mode.png');
+    await tester.tap(find.byKey(const ValueKey('coach-next')));
+    await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/together_room_solo.png');
 
     // 친구 참가 + 세트 몇 개로 전광판 상태.

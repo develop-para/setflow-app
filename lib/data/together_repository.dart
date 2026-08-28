@@ -33,21 +33,34 @@ const int maxPartyMembers = 6;
 enum PartyMode {
   /// Everyone starts on the same countdown and rests on the same clock. The
   /// feeling is a class: you are all mid-set at the same moment.
-  together('같이', '같은 신호에 시작하고 같이 쉬어요'),
+  together(
+    '같이',
+    '같은 신호에 시작하고, 누가 세트를 끝내면 모두 같이 쉬어요.',
+    '나란히 다른 기구에서 같은 템포로 할 때',
+  ),
 
   /// One person lifts while the others rest, then it passes on. The feeling is
   /// a spotter: your rest ends exactly when their set does.
-  alternating('교대', '한 명이 세트를 하는 동안 나머지는 쉬어요'),
+  alternating(
+    '교대',
+    '한 명씩 번갈아 해요. 내가 끝내면 상대 차례, 상대가 끝내면 내 휴식이 끝나요.',
+    '한 기구를 둘이 나눠 쓸 때',
+  ),
 
   /// 각자 페이스. 떨어져서 각자 헬스장에 있으면 기구 대기·다른 종목 때문에
   /// 같은 시계로 묶을 수 없다 — 그때의 "함께"는 타이머가 아니라 전광판이다.
   /// 휴식은 자기 것만 돌고, 세트 수로만 겨룬다.
-  free('각자', '각자 페이스로 하고, 전광판으로 겨뤄요');
+  free('각자', '각자 페이스로 하고, 전광판으로만 겨뤄요. 휴식은 내 것만 돌아요.', '떨어진 헬스장에서 따로 할 때');
 
-  const PartyMode(this.label, this.detail);
+  const PartyMode(this.label, this.detail, this.when);
 
   final String label;
+
+  /// 어떻게 도는가 — 한 문장.
   final String detail;
+
+  /// 언제 고르는가. "교대가 뭔지 모르겠다"는 피드백의 답은 규칙보다 상황이었다.
+  final String when;
 }
 
 enum PartyMemberState {

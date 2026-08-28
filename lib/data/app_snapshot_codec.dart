@@ -66,6 +66,7 @@ abstract final class AppSnapshotCodec {
         'precisionRecommendationPrompted':
             snapshot.precisionRecommendationPrompted,
         'hasSwipedSet': snapshot.hasSwipedSet,
+        'hasSeenTogetherGuide': snapshot.hasSeenTogetherGuide,
         'recommendationProfile': snapshot.recommendationProfile?.toJson(),
       },
       'customExercises': snapshot.customExercises
@@ -236,6 +237,7 @@ abstract final class AppSnapshotCodec {
         precisionRecommendationPrompted:
             profile['precisionRecommendationPrompted'] as bool? ?? false,
         hasSwipedSet: profile['hasSwipedSet'] as bool? ?? false,
+        hasSeenTogetherGuide: profile['hasSeenTogetherGuide'] as bool? ?? false,
         recommendationProfile: RecommendationProfile.tryFromJson(
           profile['recommendationProfile'],
         ),

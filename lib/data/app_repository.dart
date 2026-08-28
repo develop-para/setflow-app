@@ -30,6 +30,7 @@ class AppSnapshot {
     this.gender,
     this.precisionRecommendationPrompted = false,
     this.hasSwipedSet = false,
+    this.hasSeenTogetherGuide = false,
     this.defaultSetCount,
     this.defaultRepCount,
     this.activeTrainingPartyId,
@@ -88,6 +89,9 @@ class AppSnapshot {
 
   /// 세트를 밀어서 기록해 본 적이 있는가. 없으면 그 행에 살짝 미는 힌트를 보여준다.
   final bool hasSwipedSet;
+
+  /// 함께 운동 방의 화면 안내(코치마크)를 끝까지 봤거나 건너뛴 적이 있는가.
+  final bool hasSeenTogetherGuide;
 
   /// 운동을 추가할 때의 세트 수·횟수 기본값. null이면 추천/처방을 따른다 —
   /// 사용자가 정한 적 없는 값과 "3으로 정했다"를 구분해야 한다.

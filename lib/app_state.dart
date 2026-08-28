@@ -207,6 +207,7 @@ class AppState extends ChangeNotifier {
   /// 미는 조작에는 손잡이가 없어서, 해 보기 전에는 있는 줄도 모른다. 아직 안 해 봤으면
   /// 차례인 행이 스스로 살짝 움직여 보인다. 한 번 하고 나면 다시는 안 한다.
   bool hasSwipedSet = false;
+  bool hasSeenTogetherGuide = false;
   RecommendationProfile? recommendationProfile;
   int restRemaining = 0;
   Timer? _restTimer;
@@ -855,6 +856,15 @@ class AppState extends ChangeNotifier {
   void markSwipeLearned() {
     if (hasSwipedSet) return;
     hasSwipedSet = true;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  /// 함께 방의 화면 안내를 봤다(끝까지든 건너뛰기든). 다시는 자동으로 안 뜬다 —
+  /// 메뉴의 '사용법'으로만 다시 본다.
+  void markTogetherGuideSeen() {
+    if (hasSeenTogetherGuide) return;
+    hasSeenTogetherGuide = true;
     _schedulePersist();
     notifyListeners();
   }
@@ -5324,6 +5334,7 @@ class AppState extends ChangeNotifier {
     gender: gender,
     precisionRecommendationPrompted: precisionRecommendationPrompted,
     hasSwipedSet: hasSwipedSet,
+    hasSeenTogetherGuide: hasSeenTogetherGuide,
     recommendationProfile: recommendationProfile,
     communityPosts: communityRepository == null
         ? List<CommunityPost>.unmodifiable(communityPosts)
@@ -5453,6 +5464,7 @@ class AppState extends ChangeNotifier {
         snapshot.precisionRecommendationPrompted ||
         snapshot.recommendationProfile != null;
     hasSwipedSet = snapshot.hasSwipedSet;
+    hasSeenTogetherGuide = snapshot.hasSeenTogetherGuide;
     recommendationProfile = snapshot.recommendationProfile;
     customExercises
       ..clear()
@@ -5524,6 +5536,7 @@ class AppState extends ChangeNotifier {
     gender = null;
     precisionRecommendationPrompted = false;
     hasSwipedSet = false;
+    hasSeenTogetherGuide = false;
     recommendationProfile = null;
     customExercises.clear();
     exercises

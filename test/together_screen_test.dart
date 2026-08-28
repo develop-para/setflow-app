@@ -33,12 +33,16 @@ void main() {
   Future<AppState> pumpTogether(
     WidgetTester tester, {
     TogetherRepository? repository,
+    bool guideSeen = true,
   }) async {
     await tester.binding.setSurfaceSize(const Size(432, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final state = AppState(togetherRepository: repository);
     await state.initialize();
     addTearDown(state.dispose);
+    // 첫 방에서는 화면 안내(코치마크)가 딤을 깔고 뜬다. 방을 다루는 테스트는
+    // 이미 본 사람의 눈으로 본다 — 안내 자체는 'the guide' 그룹이 본다.
+    if (guideSeen) state.markTogetherGuideSeen();
     await tester.pumpWidget(
       AppScope(
         notifier: state,
@@ -96,6 +100,8 @@ void main() {
       final state = AppState(togetherRepository: client('u-me', '나'));
       await state.initialize();
       addTearDown(state.dispose);
+      // 첫 방의 화면 안내는 여기 관심사가 아니다 — 딤이 메뉴 탭을 삼킨다.
+      state.markTogetherGuideSeen();
       await tester.pumpWidget(
         AppScope(
           notifier: state,
@@ -341,7 +347,12 @@ void main() {
       // is the host's turn and the friend's button must be inert.
       await client('u-me', '나').startTogether(room.id);
 
-      await pumpTogether(tester, repository: client('u-friend', '친구'));
+      final state = await pumpTogether(
+        tester,
+        repository: client('u-friend', '친구'),
+      );
+      final today = state.dateOnly(DateTime.now());
+      state.addExercise(today, state.exercises.firstWhere((e) => !e.isCardio));
       await tester.tap(find.byKey(const ValueKey('together-join')));
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -432,6 +443,12 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('오늘 기록에 운동이 없어요'), findsOneWidget);
+        // 끝낼 세트가 없는데 "세트 끝냈어요"가 있으면 안 된다 — 실기기 피드백.
+        expect(find.byKey(const ValueKey('together-set-done')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('together-add-workout')),
+          findsOneWidget,
+        );
         await tester.pump(const Duration(milliseconds: 400));
       },
     );
@@ -534,6 +551,88 @@ void main() {
 
       expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 400));
+    });
+  });
+
+  group('the guide', () {
+    testWidgets('the first room dims the screen and walks the buttons once', (
+      tester,
+    ) async {
+      final state = await pumpTogether(
+        tester,
+        repository: client('u-me', '나'),
+        guideSeen: false,
+      );
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+
+      // 혼자인 방: 첫 걸음은 초대 코드다.
+      expect(find.byKey(const ValueKey('coach-dim')), findsOneWidget);
+      expect(find.text('먼저 친구를 초대하세요'), findsOneWidget);
+      expect(state.hasSeenTogetherGuide, isFalse);
+
+      // 게임처럼 딤 아무 데나 눌러도 넘어간다.
+      await tester.tapAt(const Offset(20, 700));
+      await tester.pumpAndSettle();
+      expect(find.text('지금 할 일은 이 한 줄'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('coach-next')));
+      await tester.pumpAndSettle();
+      expect(find.text('세트를 끝내면 여기서'), findsOneWidget);
+
+      // 마지막 걸음은 방식 설명 — "교대가 뭔지 모르겠다"의 답이 여기 있다.
+      await tester.tap(find.byKey(const ValueKey('coach-next')));
+      await tester.pumpAndSettle();
+      expect(find.text('지금 방식은 "같이"'), findsOneWidget);
+      expect(find.byKey(const ValueKey('coach-skip')), findsNothing);
+      expect(find.text('시작하기'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('coach-next')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('coach-dim')), findsNothing);
+      expect(state.hasSeenTogetherGuide, isTrue);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('skipping counts as seen, and the menu brings it back', (
+      tester,
+    ) async {
+      final state = await pumpTogether(
+        tester,
+        repository: client('u-me', '나'),
+        guideSeen: false,
+      );
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('coach-skip')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('coach-dim')), findsNothing);
+      expect(state.hasSeenTogetherGuide, isTrue);
+
+      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('사용법'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('coach-dim')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('coach-skip')));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('a room already seen opens without the dim', (tester) async {
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('coach-dim')), findsNothing);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    test('every mode says how it runs and when to pick it', () {
+      for (final mode in PartyMode.values) {
+        expect(mode.detail, isNotEmpty);
+        expect(mode.when, isNotEmpty);
+      }
+      expect(PartyMode.alternating.detail, contains('번갈아'));
     });
   });
 }

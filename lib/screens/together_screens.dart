@@ -8,6 +8,7 @@ import '../data/together_repository.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
+import '../widgets/coach_marks.dart';
 import '../widgets/common.dart';
 import 'workout_screens.dart';
 
@@ -37,6 +38,57 @@ class _TogetherScreenState extends State<TogetherScreen> {
   StreamSubscription<TrainingParty>? _subscription;
   String? _error;
   bool _busy = false;
+
+  /// 화면 안내(코치마크)가 비출 자리들. 방의 세 덩어리 + 앱바 메뉴.
+  final _statusKey = GlobalKey(debugLabel: 'together-guide-status');
+  final _boardKey = GlobalKey(debugLabel: 'together-guide-board');
+  final _actionKey = GlobalKey(debugLabel: 'together-guide-action');
+  final _menuKey = GlobalKey(debugLabel: 'together-guide-menu');
+  final _codeKey = GlobalKey(debugLabel: 'together-guide-code');
+
+  /// 처음 방에 들어온 그 프레임에 안내를 한 번만 예약한다. 본 적 있으면
+  /// (`hasSeenTogetherGuide`) 자동으로는 다시 안 뜨고 메뉴 '사용법'으로만 본다.
+  bool _guideScheduled = false;
+
+  /// 게임의 첫 판처럼 — 딤을 깔고 버튼마다 비추며 설명한다. 텍스트 시트는
+  /// 읽고 나면 화면과 이어지지 않았다는 실기기 피드백에서 왔다.
+  Future<void> _showGuide() async {
+    final party = _party;
+    if (party == null) return;
+    final solo = party.members.length == 1;
+    final mode = party.mode;
+    await showCoachMarks(
+      context,
+      steps: [
+        CoachStep(
+          target: solo ? _codeKey : _boardKey,
+          title: solo ? '먼저 친구를 초대하세요' : '전광판',
+          body: solo
+              ? '이 여섯 글자를 알려주면 같은 방으로 들어와요. 한 방에 최대 6명.'
+              : '누가 몇 세트 했는지, 지금 누구 차례인지 여기서 봐요.',
+        ),
+        CoachStep(
+          target: _statusKey,
+          title: '지금 할 일은 이 한 줄',
+          body: solo
+              ? '친구가 들어오면 여기에 "같이 시작"이 떠요. 휴식이 돌 땐 남은 시간이 여기 보여요.'
+              : '"같이 시작"을 누르면 모든 폰이 같은 카운트다운을 세요. 휴식이 돌 땐 남은 시간이 여기 보여요.',
+        ),
+        CoachStep(
+          target: _actionKey,
+          title: '세트를 끝내면 여기서',
+          body: '오늘 기록의 세트가 저장되고 방에도 알려져요. 기록에 운동이 없으면 먼저 추가해요.',
+        ),
+        CoachStep(
+          target: _menuKey,
+          title: '지금 방식은 "${mode.label}"',
+          body:
+              '${mode.detail} ${mode.when} 쓰는 방식이에요. 방식 바꾸기·초대 코드·나가기는 이 메뉴에 있어요.',
+        ),
+      ],
+    );
+    if (mounted) AppScope.of(context).markTogetherGuideSeen();
+  }
 
   /// Redraws the countdowns once a second, and **only while something is
   /// counting**. The values are absolute instants, so this repaints them — it
@@ -209,6 +261,14 @@ class _TogetherScreenState extends State<TogetherScreen> {
     final party = _party;
     final inRoom = repository != null && party != null;
     _reportSession(inRoom);
+    if (inRoom &&
+        !_guideScheduled &&
+        !AppScope.of(context).hasSeenTogetherGuide) {
+      _guideScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _party != null) unawaited(_showGuide());
+      });
+    }
     return Scaffold(
       appBar: AppBar(
         // 방 안에서는 셸 헤더가 접히므로 이 앱바가 유일한 위쪽 크롬이다.
@@ -226,14 +286,17 @@ class _TogetherScreenState extends State<TogetherScreen> {
             : const Text('함께'),
         actions: [
           if (inRoom)
-            _RoomMenu(
-              key: const ValueKey('together-room-menu'),
-              busy: _busy,
-              onInvite: () => _showInvite(party),
-              onMode: () => _showModeSheet(party),
-              onRoutines: () => _showRoutinesSheet(party),
-              onHelp: () => _showTogetherHelp(context),
-              onLeave: _leave,
+            KeyedSubtree(
+              key: _menuKey,
+              child: _RoomMenu(
+                key: const ValueKey('together-room-menu'),
+                busy: _busy,
+                onInvite: () => _showInvite(party),
+                onMode: () => _showModeSheet(party),
+                onRoutines: () => _showRoutinesSheet(party),
+                onHelp: () => unawaited(_showGuide()),
+                onLeave: _leave,
+              ),
             )
           else
             IconButton(
@@ -264,6 +327,10 @@ class _TogetherScreenState extends State<TogetherScreen> {
                 party: party!,
                 userId: _userId,
                 busy: _busy,
+                statusKey: _statusKey,
+                boardKey: _boardKey,
+                actionKey: _actionKey,
+                codeKey: _codeKey,
                 liveSet: _liveSetOfToday(AppScope.of(context)),
                 onOpenRecord: widget.onOpenRecord,
                 onInvite: () => _showInvite(party),
@@ -335,7 +402,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
                   // 읽을 수 있게 두되 손대지 못하게 한다.
                   enabled: host,
                   title: Text(mode.label),
-                  subtitle: Text(mode.detail),
+                  subtitle: Text('${mode.detail}\n${mode.when}'),
+                  isThreeLine: true,
                 ),
             ],
           ),
@@ -734,10 +802,11 @@ void _showTogetherHelp(BuildContext context) {
               const SizedBox(height: SetflowSpacing.md2),
             ],
             const SizedBox(height: SetflowSpacing.xs),
-            Text('두 가지 방식', style: theme.textTheme.titleMedium),
+            Text('세 가지 방식', style: theme.textTheme.titleMedium),
             const SizedBox(height: SetflowSpacing.sm),
             for (final mode in PartyMode.values) ...[
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
                     width: 44,
@@ -748,7 +817,7 @@ void _showTogetherHelp(BuildContext context) {
                   ),
                   Expanded(
                     child: Text(
-                      mode.detail,
+                      '${mode.detail}\n${mode.when}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -962,6 +1031,10 @@ class _PartyRoom extends StatelessWidget {
     required this.party,
     required this.userId,
     required this.busy,
+    required this.statusKey,
+    required this.boardKey,
+    required this.actionKey,
+    required this.codeKey,
     required this.liveSet,
     required this.onOpenRecord,
     required this.onInvite,
@@ -975,6 +1048,13 @@ class _PartyRoom extends StatelessWidget {
   final TrainingParty party;
   final String? userId;
   final bool busy;
+
+  /// 화면 안내가 비출 자리. 각 덩어리의 ValueKey는 테스트가 쓰므로 그대로 두고
+  /// 바깥을 감싼다.
+  final GlobalKey statusKey;
+  final GlobalKey boardKey;
+  final GlobalKey actionKey;
+  final GlobalKey codeKey;
 
   /// 오늘 기록에서 차례인 세트. 방은 "무슨 세트를 하는 중인가"를 기록에서
   /// 읽는다 — 여기 없는 별도 장부를 만들지 않는다.
@@ -998,25 +1078,32 @@ class _PartyRoom extends StatelessWidget {
 
     return Column(
       children: [
-        _LiveStatusBar(
-          key: const ValueKey('together-status-hero'),
-          party: party,
-          userId: userId,
-          countdown: countdown,
-          myTurn: myTurn,
-          onStart: busy ? null : onStart,
-          onInvite: onInvite,
+        KeyedSubtree(
+          key: statusKey,
+          child: _LiveStatusBar(
+            key: const ValueKey('together-status-hero'),
+            party: party,
+            userId: userId,
+            countdown: countdown,
+            myTurn: myTurn,
+            onStart: busy ? null : onStart,
+            onInvite: onInvite,
+          ),
         ),
         // 전광판이 남는 높이를 전부 가져간다. 두 사람이면 스크롤이 아예 없고,
         // 여섯이면 이 안에서만 스크롤된다 — 하단 액션은 밀려나지 않는다.
         Expanded(
-          child: solo
-              ? _WaitingPanel(
-                  key: const ValueKey('together-waiting'),
-                  code: party.code,
-                  onInvite: onInvite,
-                )
-              : _Scoreboard(party: party, userId: userId),
+          child: KeyedSubtree(
+            key: boardKey,
+            child: solo
+                ? _WaitingPanel(
+                    key: const ValueKey('together-waiting'),
+                    code: party.code,
+                    codeKey: codeKey,
+                    onInvite: onInvite,
+                  )
+                : _Scoreboard(party: party, userId: userId),
+          ),
         ),
         if (party.routines.isNotEmpty)
           _RoutineBanner(
@@ -1024,16 +1111,19 @@ class _PartyRoom extends StatelessWidget {
             count: party.routines.length,
             onTap: onShowRoutines,
           ),
-        _RoomActionBar(
-          party: party,
-          userId: userId,
-          busy: busy,
-          myTurn: myTurn,
-          liveSet: liveSet,
-          unit: unit,
-          onOpenRecord: onOpenRecord,
-          onSetEdited: onSetEdited,
-          onSetDone: onSetDone,
+        KeyedSubtree(
+          key: actionKey,
+          child: _RoomActionBar(
+            party: party,
+            userId: userId,
+            busy: busy,
+            myTurn: myTurn,
+            liveSet: liveSet,
+            unit: unit,
+            onOpenRecord: onOpenRecord,
+            onSetEdited: onSetEdited,
+            onSetDone: onSetDone,
+          ),
         ),
       ],
     );
@@ -1301,9 +1391,17 @@ enum _StatusTone { idle, active, resting }
 
 /// 혼자 있는 방 — 전광판에 올릴 것이 없으니 자리를 초대가 가져간다.
 class _WaitingPanel extends StatelessWidget {
-  const _WaitingPanel({required this.code, required this.onInvite, super.key});
+  const _WaitingPanel({
+    required this.code,
+    required this.codeKey,
+    required this.onInvite,
+    super.key,
+  });
 
   final String code;
+
+  /// 화면 안내가 비출 자리 — 패널 전체가 아니라 코드 카드만.
+  final GlobalKey codeKey;
   final VoidCallback onInvite;
 
   @override
@@ -1335,7 +1433,10 @@ class _WaitingPanel extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: SetflowSpacing.xl),
-            _CodeCard(code: code),
+            KeyedSubtree(
+              key: codeKey,
+              child: _CodeCard(code: code),
+            ),
           ],
         ),
       ),
@@ -1420,6 +1521,7 @@ class _RoomActionBar extends StatelessWidget {
     final theme = Theme.of(context);
     final me = userId == null ? null : party.memberOf(userId!);
     final solo = party.members.length == 1;
+    final live = liveSet;
     // 교대에서는 자기 차례에만 눌린다 — 차례 밖의 기록은 들지도 않은 사람을
     // 지나쳐 순번을 돌린다. 다만 라벨은 상태를 정직하게 말해야 한다.
     final gated = party.mode == PartyMode.alternating && !solo && !myTurn;
@@ -1427,10 +1529,54 @@ class _RoomActionBar extends StatelessWidget {
         ? null
         : party.memberOf(party.currentTurnUserId!)?.displayName;
     final label = !gated
-        ? (liveSet == null ? '세트 끝냈어요' : '${liveSet!.$2.number}세트 끝냈어요')
+        ? '${live?.$2.number ?? ''}세트 끝냈어요'
         : party.currentTurnUserId != null
         ? '${turnName ?? '상대'}님 차례예요'
         : '같이 시작으로 순서를 정해요';
+
+    // "세트 끝냈어요"는 신호가 아니라 기록이다. 오늘 기록에 세트가 없으면 끝낼
+    // 것도 없다 — 그 자리엔 실제로 할 수 있는 일 하나만 둔다: 운동 추가.
+    // (실기기 피드백: "운동이 없는데 세트 끝내는 버튼이 왜 있지")
+    final children = live == null
+        ? [
+            Padding(
+              key: const ValueKey('together-live-set-empty'),
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+              child: Column(
+                children: [
+                  const Text(
+                    '오늘 기록에 운동이 없어요',
+                    style: TextStyle(fontWeight: SetflowWeight.strong),
+                  ),
+                  const SizedBox(height: SetflowSpacing.xxs),
+                  Text(
+                    '기록 탭에서 운동을 추가하면 여기서 세트가 넘어가요.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AppButton(
+              key: const ValueKey('together-add-workout'),
+              label: '오늘 운동 추가하기',
+              icon: SetflowIcons.partyCreate,
+              onPressed: onOpenRecord,
+            ),
+          ]
+        : [
+            _LiveSetCard(liveSet: live, unit: unit, onEdited: onSetEdited),
+            const SizedBox(height: SetflowSpacing.md),
+            AppButton(
+              key: const ValueKey('together-set-done'),
+              label: label,
+              icon: SetflowIcons.setComplete,
+              isLoading: busy,
+              onPressed: busy || me == null || gated ? null : onSetDone,
+            ),
+          ];
 
     return Container(
       decoration: BoxDecoration(
@@ -1448,25 +1594,7 @@ class _RoomActionBar extends StatelessWidget {
             SetflowSpacing.gutter,
             SetflowSpacing.md,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _LiveSetCard(
-                liveSet: liveSet,
-                onOpenRecord: onOpenRecord,
-                unit: unit,
-                onEdited: onSetEdited,
-              ),
-              const SizedBox(height: SetflowSpacing.md),
-              AppButton(
-                key: const ValueKey('together-set-done'),
-                label: label,
-                icon: SetflowIcons.setComplete,
-                isLoading: busy,
-                onPressed: busy || me == null || gated ? null : onSetDone,
-              ),
-            ],
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: children),
         ),
       ),
     );
@@ -1481,13 +1609,11 @@ class _RoomActionBar extends StatelessWidget {
 class _LiveSetCard extends StatelessWidget {
   const _LiveSetCard({
     required this.liveSet,
-    required this.onOpenRecord,
     required this.unit,
     required this.onEdited,
   });
 
-  final (WorkoutExercise, WorkoutSetEntry)? liveSet;
-  final VoidCallback? onOpenRecord;
+  final (WorkoutExercise, WorkoutSetEntry) liveSet;
   final String unit;
 
   /// 다이얼 적용을 상태의 정식 경로(updateSet)로 넘긴다 — 카드가 세트에
@@ -1497,47 +1623,7 @@ class _LiveSetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final live = liveSet;
-    if (live == null) {
-      return SetflowCard(
-        key: const ValueKey('together-live-set-empty'),
-        onTap: onOpenRecord,
-        child: Row(
-          children: [
-            Icon(
-              SetflowIcons.record,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: SetflowSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '오늘 기록에 운동이 없어요',
-                    style: TextStyle(fontWeight: SetflowWeight.strong),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '기록 탭에서 운동을 추가하면 여기서 세트가 넘어가요.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (onOpenRecord != null)
-              Icon(
-                Icons.chevron_right,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-          ],
-        ),
-      );
-    }
-
-    final (exercise, set) = live;
+    final (exercise, set) = liveSet;
     final total = exercise.sets.length;
     return SetflowCard(
       key: const ValueKey('together-live-set'),
