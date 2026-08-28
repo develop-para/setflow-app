@@ -213,37 +213,55 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
   }
 
+  /// 로그인이 됐다. **지금 당장 원래 화면으로 돌아간다** — 동기화는 뒤에서.
+  ///
+  /// 예전엔 여기서 `syncAfterAuthentication`이 끝나기를(최대 15초) 기다리며
+  /// 회원가입 화면에 회색 스피너를 돌렸다. 로그인은 됐는데 "로그인하고 오늘의
+  /// 운동을 시작하세요"가 그대로 떠 있는 것이 실기기에서 버그로 보였다.
+  /// 기다릴 이유가 없다: 역할은 서버가 정해지면 셸이 알아서 바뀌고, 동기화는
+  /// 실패하면 토스트로 말하고 5분 주기 동기화가 다시 시도한다.
   Future<void> _completeAuthentication() async {
     if (!mounted || authService.currentUser == null) return;
-    setState(() {
-      isSubmitting = true;
-      awaitingOAuth = false;
-      submitError = null;
-    });
     final state = AppScope.of(context);
+    final navigator = Navigator.of(context);
+    // 토스트는 라우트가 아니라 루트 오버레이에 산다 — 이 화면이 닫혀도 남는다.
+    // 실패 토스트는 이 화면이 사라진 뒤에 뜨므로 오버레이를 미리 잡아 둔다.
+    final overlay = Overlay.of(context, rootOverlay: true);
+    AppSnackbar.success(context, '로그인됐어요. 기록을 동기화하고 있어요.');
+    // The server-resolved role drives the shell. Without a live business
+    // repository nothing resolves it, so fall back to the member shell.
+    if (state.role == UserRole.guest) state.chooseRole(UserRole.member);
+    unawaited(_syncInBackground(state, overlay));
+    if (navigator.canPop()) {
+      navigator.pop(true);
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        isSubmitting = false;
+        awaitingOAuth = false;
+        submitError = null;
+      });
+    }
+  }
+
+  static Future<void> _syncInBackground(
+    AppState state,
+    OverlayState overlay,
+  ) async {
     try {
-      // 타임아웃이 없으면 네트워크가 멈춘 채로 스피너가 영원히 돈다 —
-      // 기기에서 실제로 그랬다. 실패로 떨어뜨려야 다시 시도할 수 있다.
+      // 타임아웃이 없으면 네트워크가 멈춘 채로 영원히 기다린다 — 기기에서
+      // 실제로 그랬다. 실패로 떨어뜨려야 다음 주기가 다시 시도한다.
       await state.syncAfterAuthentication().timeout(
-        const Duration(seconds: 15),
+        const Duration(seconds: 30),
       );
-      if (!mounted) return;
-      AppSnackbar.success(context, '로그인됐어요. 기록을 안전하게 동기화합니다.');
-      // The server-resolved role drives the shell. Without a live business
-      // repository nothing resolves it, so fall back to the member shell.
-      if (state.role == UserRole.guest) state.chooseRole(UserRole.member);
-      final navigator = Navigator.of(context);
-      if (navigator.canPop()) {
-        navigator.pop(true);
-        return;
-      }
-      if (mounted) setState(() => isSubmitting = false);
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          isSubmitting = false;
-          submitError = '로그인은 완료됐지만 기록 동기화에 실패했어요. 다시 시도해주세요.';
-        });
+    } catch (_) {
+      if (overlay.mounted) {
+        AppSnackbar.error(
+          overlay.context,
+          '기록 동기화에 실패했어요. 잠시 후 자동으로 다시 시도해요.',
+          overlay: overlay,
+        );
       }
     }
   }

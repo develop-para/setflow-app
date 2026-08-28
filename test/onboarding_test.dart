@@ -68,6 +68,54 @@ void main() {
     state.dispose();
   });
 
+  testWidgets('a signed-in visitor is sent straight back, no spinner', (
+    tester,
+  ) async {
+    // "로그인했을 때 화면 버그" — 로그인이 끝난 뒤에도 회원가입 화면이 회색
+    // 스피너를 돌리며 동기화를 기다렸다. 로그인됐으면 이 화면은 즉시 닫힌다.
+    addTearDown(Auth.reset);
+    Auth.use(_SignedInAuthService());
+    await tester.binding.setSurfaceSize(const Size(432, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+    addTearDown(state.dispose);
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  key: const ValueKey('open-welcome'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                  ),
+                  child: const Text('열기'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const ValueKey('open-welcome')));
+    // 토스트는 3초 뒤 스스로 닫히므로 settle 대신 프레임을 나눠 본다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('로그인됐어요. 기록을 동기화하고 있어요.'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(WelcomeScreen), findsNothing);
+    expect(find.byKey(const ValueKey('open-welcome')), findsOneWidget);
+    expect(state.role, UserRole.member);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 4));
+  });
+
   testWidgets('gym onboarding validates and submits verification steps', (
     tester,
   ) async {
@@ -148,4 +196,14 @@ class _KakaoOnlyAuthService implements AuthService {
   Future<bool> isVerifiedAdmin() async => false;
   @override
   String messageFor(Object error) => '$error';
+}
+
+/// 이미 로그인된 사람. 회원가입 화면을 열 일이 없어야 하지만, 열렸다면 곧장 닫힌다.
+class _SignedInAuthService extends _KakaoOnlyAuthService {
+  @override
+  AuthUser? get currentUser =>
+      const AuthUser(id: 'u-me', email: 'me@example.com', displayName: '나');
+
+  @override
+  bool get hasAuthenticatedUser => true;
 }

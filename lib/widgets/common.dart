@@ -914,8 +914,21 @@ abstract final class AppSnackbar {
     );
   }
 
-  static void error(BuildContext context, String message) {
-    _show(context, message, Icons.error_rounded, context.setflowColors.error);
+  /// [overlay]를 주면 그 오버레이에 띄운다 — 띄우는 시점에 자기 라우트가 이미
+  /// 닫힌 쪽(로그인 뒤 백그라운드 동기화 실패)이 쓴다. 오버레이는 네비게이터
+  /// 안에 있어서 네비게이터의 컨텍스트로는 찾을 수 없다.
+  static void error(
+    BuildContext context,
+    String message, {
+    OverlayState? overlay,
+  }) {
+    _show(
+      context,
+      message,
+      Icons.error_rounded,
+      context.setflowColors.error,
+      overlay: overlay,
+    );
   }
 
   static void info(BuildContext context, String message) {
@@ -952,12 +965,13 @@ abstract final class AppSnackbar {
     Color color, {
     String? actionLabel,
     VoidCallback? onAction,
+    OverlayState? overlay,
   }) {
     // The root overlay is inside the web app frame (the frame wraps the
     // Navigator in MaterialApp.builder), so the toast keeps the phone width
     // instead of stretching across the browser.
-    final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    if (overlay == null) return;
+    overlay ??= Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null || !overlay.mounted) return;
 
     dismiss();
     late final OverlayEntry entry;
