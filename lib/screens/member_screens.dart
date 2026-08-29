@@ -68,18 +68,7 @@ class _MemberShellState extends State<MemberShell> {
   /// 그대로 두고 바를 되돌려야 한다 — 안 그러면 나갈 길이 사라진다.
   bool get _inTogetherSession => _togetherSession && index == 1;
 
-  /// 함께 탭에 오기 직전에 보던 탭. 방의 ←와 시스템 뒤로가기는 여기로 돌아간다 —
-  /// 뒤로가기는 온 곳으로 가야 뒤로가기다. 한때 무조건 기록 탭으로 보냈는데,
-  /// 들른 적도 없는 탭에 떨어지는 것이 "뒤로가기가 좀 이상해"였다.
-  int _tabBeforeTogether = _homePage;
-
-  /// 모든 탭 전환은 여기를 지난다. 함께 탭으로 들어올 때만 출발 탭을 적어 둔다.
-  void _show(int page) {
-    if (page == _togetherPage && index != _togetherPage) {
-      _tabBeforeTogether = index;
-    }
-    setState(() => index = page);
-  }
+  void _show(int page) => setState(() => index = page);
 
   String? _handledRoutineShareToken;
   int _handledPushSerial = 0;
@@ -137,6 +126,12 @@ class _MemberShellState extends State<MemberShell> {
         });
       }
     }
+    // 초대 링크는 함께 탭으로 — 참여 자체는 그 화면이 코드를 집어 처리한다.
+    if (state.pendingTogetherJoinCode != null && index != _togetherPage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && index != _togetherPage) _show(_togetherPage);
+      });
+    }
     final token = state.pendingRoutineShareToken;
     if (token == null) {
       _handledRoutineShareToken = null;
@@ -161,7 +156,6 @@ class _MemberShellState extends State<MemberShell> {
       // 지표는 나중에 다시 올릴 것이고, 그때 되살릴 코드가 남아 있어야 한다.
       TogetherScreen(
         onOpenRecord: () => _show(_recordPage),
-        onBack: () => _show(_tabBeforeTogether),
         // 방 안에서는 셸의 헤더와 바텀바가 사라진다. 운동 중 전용 화면이라
         // 전광판과 하단 액션이 화면을 다 쓰고, 방을 나가면 되돌아온다.
         onSessionChanged: (active) {

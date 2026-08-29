@@ -239,6 +239,10 @@ class AppState extends ChangeNotifier {
   List<MemberSessionFeedback> memberSessionFeedbacks = const [];
   String? pendingRoutineShareToken;
   String? pendingBusinessInviteToken;
+
+  /// 초대 링크로 들어온 함께 방 코드. 셸이 함께 탭을 열고, 화면이 그 코드로
+  /// 참여한 뒤 지운다(`clearPendingTogetherJoinCode`).
+  String? pendingTogetherJoinCode;
   bool businessLoading = false;
   Object? businessError;
   bool coachingSchedulesLoading = false;
@@ -344,7 +348,29 @@ class AppState extends ChangeNotifier {
 
   List<RoutineData> get marketRoutines => List.unmodifiable(_marketRoutines);
 
+  /// 함께 방 초대 링크. 코드 여섯 글자만 싣는다 — 링크가 곧 코드라서, 링크를
+  /// 못 여는 곳(PC 카톡 등)에서도 사람이 읽고 칠 수 있다.
+  static Uri togetherInviteUri(String code) => Uri(
+    scheme: 'com.teampara.setflow',
+    host: 'together-join',
+    pathSegments: [code.trim().toUpperCase()],
+  );
+
   void captureIncomingUri(Uri uri) {
+    final joinCode = switch ((uri.scheme, uri.host)) {
+      ('com.teampara.setflow', 'together-join') =>
+        uri.pathSegments.firstOrNull ?? uri.queryParameters['code'],
+      ('https', 'setflow.app') when uri.path == '/together/join' =>
+        uri.queryParameters['code'],
+      _ => null,
+    };
+    if (joinCode != null) {
+      final normalized = joinCode.trim().toUpperCase();
+      if (normalized.isEmpty) return;
+      pendingTogetherJoinCode = normalized;
+      notifyListeners();
+      return;
+    }
     if (uri.scheme == 'com.teampara.setflow' && uri.host == 'routine-share') {
       final token = uri.pathSegments.firstOrNull?.trim();
       if (token == null || token.isEmpty) return;
@@ -369,6 +395,12 @@ class AppState extends ChangeNotifier {
   void clearPendingRoutineShareToken() {
     if (pendingRoutineShareToken == null) return;
     pendingRoutineShareToken = null;
+    notifyListeners();
+  }
+
+  void clearPendingTogetherJoinCode() {
+    if (pendingTogetherJoinCode == null) return;
+    pendingTogetherJoinCode = null;
     notifyListeners();
   }
 

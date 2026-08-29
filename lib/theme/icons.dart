@@ -77,6 +77,9 @@ abstract final class SetflowIcons {
   /// 루틴을 상대에게 건넨다.
   static const handOver = Icons.ios_share_rounded;
 
+  /// 함께 방 초대 링크를 보낸다.
+  static const shareInvite = Icons.ios_share_rounded;
+
   /// 방을 떠난다.
   static const leaveParty = Icons.logout_rounded;
 

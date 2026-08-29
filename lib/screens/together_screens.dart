@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../app_state.dart';
 import '../data/together_repository.dart';
@@ -26,21 +27,11 @@ import 'workout_screens.dart';
 /// 게임판 느낌보다 더 튀었다. 로비·시트·다이얼로그는 다른 탭과 같은 면 위에 있고,
 /// 판이 그 위에 검게 놓인다.
 class TogetherScreen extends StatefulWidget {
-  const TogetherScreen({
-    this.onOpenRecord,
-    this.onBack,
-    this.onSessionChanged,
-    super.key,
-  });
+  const TogetherScreen({this.onOpenRecord, this.onSessionChanged, super.key});
 
   /// 방의 "지금 세트" 카드가 오늘 기록이 비었을 때 기록 탭으로 보내는 통로.
   /// 기록은 셸의 탭이라 push하면 바텀바 없는 사본이 열린다.
   final VoidCallback? onOpenRecord;
-
-  /// 방의 ←와 시스템 뒤로가기. 방은 그대로 두고 **함께 탭에 오기 전 탭**으로
-  /// 돌아간다 — 셸이 그 탭을 기억한다. 기록 탭으로 보내는 것은 [onOpenRecord]의
-  /// 일이지 뒤로가기의 일이 아니다.
-  final VoidCallback? onBack;
 
   /// 방에 들어가고 나옴을 셸에 알린다. 방은 운동 중 전용 화면이라 셸이
   /// 헤더와 바텀바를 접는다 — 전광판과 하단 액션이 화면을 다 써야 한다.
@@ -151,7 +142,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
         CoachStep(
           target: _menuKey,
           title: '지금 종목은 "${mode.label}"',
-          body: '${mode.detail} 종목 바꾸기·공개 여부·초대 코드·나가기는 이 메뉴에 있어요.',
+          body: '${mode.detail} 종목 바꾸기·공개 여부·친구 초대·나가기는 이 메뉴에 있어요.',
         ),
       ],
     );
@@ -164,6 +155,17 @@ class _TogetherScreenState extends State<TogetherScreen> {
   /// back correct instead of a minute behind. A room sitting idle has nothing
   /// to repaint, so the ticker stops rather than rebuilding at 1Hz forever.
   Timer? _tick;
+
+  /// 방을 **접어 둔** 상태 — 방은 살아 있고 구독도 그대로인데 화면은 로비다.
+  /// 방의 ←와 시스템 뒤로가기가 여기로 온다. 뒤로가기는 함께 탭 **안**에서
+  /// 끝나야 한다: 예전엔 기록 탭으로 보냈는데, 기록에서 운동을 추가하고
+  /// 돌아와 "함께 목록"으로 가려던 사람이 다시 기록에 떨어졌다("뒤로가기가
+  /// 좀 이상해"). 로비 맨 위의 배너가 방으로 되돌아가는 길이다.
+  bool _minimized = false;
+
+  /// 초대 링크의 코드로 참여하는 중 — 기억해 둔 방 복원이 이 위에 덮어쓰지
+  /// 않게 막는다(둘 다 첫 프레임 뒤에 시작해서 순서가 없다).
+  bool _joiningFromLink = false;
 
   /// 셸에 마지막으로 알린 상태. 다섯 군데의 `_party = ...` 대입마다 알림을
   /// 흩뿌리는 대신 build에서 한 번 비교한다 — 어느 경로로 들어오고 나가든
@@ -193,7 +195,10 @@ class _TogetherScreenState extends State<TogetherScreen> {
 
   void _watch(TrainingParty party) {
     unawaited(_subscription?.cancel());
-    setState(() => _party = party);
+    setState(() {
+      _party = party;
+      _minimized = false;
+    });
     AppScope.of(context).setActiveTrainingParty(party.id);
     _subscription = _repository
         ?.watchParty(party.id)
@@ -207,7 +212,10 @@ class _TogetherScreenState extends State<TogetherScreen> {
           onDone: () {
             if (!mounted) return;
             AppScope.of(context).setActiveTrainingParty(null);
-            setState(() => _party = null);
+            setState(() {
+              _party = null;
+              _minimized = false;
+            });
             _tick?.cancel();
             _tick = null;
           },
@@ -221,7 +229,12 @@ class _TogetherScreenState extends State<TogetherScreen> {
     final state = AppScope.of(context);
     final remembered = state.activeTrainingPartyId;
     final repository = _repository;
-    if (remembered == null || repository == null || _party != null) return;
+    if (remembered == null ||
+        repository == null ||
+        _party != null ||
+        _joiningFromLink) {
+      return;
+    }
     setState(() => _busy = true);
     try {
       final party = await repository.fetchParty(remembered);
@@ -248,6 +261,52 @@ class _TogetherScreenState extends State<TogetherScreen> {
       // 탭이 곧 근처 방 목록이다. 거절한 사람에게는 안내와 버튼이 남는다.
       unawaited(_loadNearby(request: true));
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final state = AppScope.of(context);
+    final code = state.pendingTogetherJoinCode;
+    if (code == null || _repository == null || _joiningFromLink) return;
+    _joiningFromLink = true;
+    // 지우는 것도 notify라 build 중에는 못 부른다 — 프레임 뒤로.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      state.clearPendingTogetherJoinCode();
+      unawaited(_joinFromLink(code));
+    });
+  }
+
+  /// 초대 링크로 들어왔다. 이미 그 방이면 펼치기만 하고, 다른 방에 있었으면
+  /// 나가고 들어간다 — 링크를 누른 사람의 뜻은 "그 방"이다.
+  Future<void> _joinFromLink(String code) async {
+    try {
+      if (_party?.code == code) {
+        if (_minimized) setState(() => _minimized = false);
+        return;
+      }
+      if (!await requireSignIn(context, reason: AuthReason.together)) return;
+      if (!mounted) return;
+      await _leaveCurrentRoom();
+      if (!mounted) return;
+      await _run(() => _repository!.joinParty(code));
+    } finally {
+      _joiningFromLink = false;
+    }
+  }
+
+  /// 로비로 접어 둔 방이 있는 채로 다른 방에 들어가면 먼저 나간다 — 한 사람이
+  /// 두 방에 있을 수 없고, 서버에 유령 멤버를 남기지 않는다.
+  Future<void> _leaveCurrentRoom() async {
+    if (_party != null) await _leave();
+  }
+
+  void _minimizeRoom() {
+    if (_party == null || _minimized) return;
+    setState(() => _minimized = true);
+    // 로비로 내려왔으니 목록을 새로 본다.
+    unawaited(_loadNearby());
   }
 
   bool _isCounting(TrainingParty party) =>
@@ -331,7 +390,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
   Widget build(BuildContext context) {
     final repository = _repository;
     final party = _party;
-    final inRoom = repository != null && party != null;
+    final inRoom = repository != null && party != null && !_minimized;
     _reportSession(inRoom);
     // 안내는 **빈 시간에만** 끼어든다. 방을 만들고 친구를 기다리는 사이는 빈
     // 시간이지만, 이미 카운트다운이 돌거나 세트가 오간 방에 참가한 사람은
@@ -350,26 +409,26 @@ class _TogetherScreenState extends State<TogetherScreen> {
         if (mounted && _party != null) unawaited(_showGuide());
       });
     }
-    // 시스템 뒤로가기도 앱바의 ←와 같다: 방은 그대로 두고 온 탭으로. 안
+    // 시스템 뒤로가기도 앱바의 ←와 같다: 방은 그대로 두고 로비로 접는다. 안
     // 잡으면 셸 루트라 앱이 통째로 내려간다 — "뒤로가기도 없어 보이는데".
-    final canGoBack = inRoom && widget.onBack != null;
+    final canGoBack = inRoom;
     return PopScope(
       canPop: !canGoBack,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && canGoBack) widget.onBack!();
+        if (!didPop && canGoBack) _minimizeRoom();
       },
       child: Scaffold(
         appBar: AppBar(
           // 방 안에서는 셸 헤더가 접히므로 이 앱바가 유일한 위쪽 크롬이다.
-          // 그래서 나가는 길(온 탭으로 접기)이 여기 있어야 한다.
+          // 그래서 나가는 길(로비로 접기)이 여기 있어야 한다.
           // "방에 들어오면 다시 나갈 수는 없나?" — 접힌 셸에서 나가는 길이
           // 아래 화살표 하나였다. 뒤로가기는 뒤로가기처럼 생겨야 하고, 방 나가기는
           // 메뉴 속이 아니라 보이는 자리에 있어야 한다.
           leading: canGoBack
               ? IconButton(
                   key: const ValueKey('together-minimize'),
-                  tooltip: '돌아가기 (방은 유지)',
-                  onPressed: widget.onBack,
+                  tooltip: '목록으로 (방은 유지)',
+                  onPressed: _minimizeRoom,
                   icon: const Icon(Icons.arrow_back_rounded),
                 )
               : null,
@@ -421,10 +480,12 @@ class _TogetherScreenState extends State<TogetherScreen> {
                   title: '함께 운동은 곧 열려요',
                   message: '이 빌드에는 파트너 서버가 연결되어 있지 않아요.',
                 )
-              : _party == null
+              : _party == null || _minimized
               ? _Lobby(
                   busy: _busy,
                   error: _error,
+                  activeParty: party,
+                  onResume: () => setState(() => _minimized = false),
                   nearby: _nearby,
                   locationAvailable: Location.instance.isAvailable,
                   onCreate: _create,
@@ -482,15 +543,37 @@ class _TogetherScreenState extends State<TogetherScreen> {
     title: '친구 초대',
     children: (sheetContext) => [
       Text(
-        '이 여섯 글자를 알려주면 같은 방으로 들어와요. 한 방에 최대 6명.',
+        '링크를 보내면 누르는 순간 이 방으로 들어와요. 링크가 안 열리는 곳에서는 여섯 글자를 쳐도 돼요. 한 방에 최대 6명.',
         style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
           color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
         ),
       ),
       const SizedBox(height: SetflowSpacing.lg),
+      AppButton(
+        key: const ValueKey('together-share-link'),
+        label: '초대 링크 보내기',
+        icon: SetflowIcons.shareInvite,
+        onPressed: () => _shareInvite(sheetContext, party),
+      ),
+      const SizedBox(height: SetflowSpacing.md),
       _CodeCard(code: party.code),
     ],
   );
+
+  /// 링크와 코드를 같이 보낸다 — 링크는 한 번에 들어오는 길이고, 코드는
+  /// 링크를 못 여는 곳(PC·다른 메신저)에서의 예비다.
+  Future<void> _shareInvite(BuildContext context, TrainingParty party) async {
+    final box = context.findRenderObject() as RenderBox?;
+    await Share.share(
+      'Setflow에서 ${party.mode.label} 함께 해요.\n'
+      '${AppState.togetherInviteUri(party.code)}\n'
+      '초대 코드: ${party.code}',
+      subject: 'Setflow 함께 운동 초대',
+      sharePositionOrigin: box == null
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size,
+    );
+  }
 
   /// 운동 방식은 방을 열 때 한 번 정하고 거의 안 바꾼다. 상시 세그먼트로 두면
   /// 화면 한가운데를 늘 차지한다.
@@ -658,6 +741,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
         AppSnackbar.info(context, '위치를 읽지 못해 비밀방으로 열었어요. 코드로 초대할 수 있어요.');
       }
     }
+    await _leaveCurrentRoom();
+    if (!mounted) return;
     await _run(
       () => _repository!.createParty(
         mode: mode,
@@ -669,6 +754,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
 
   Future<void> _joinNearby(NearbyParty room) async {
     if (!await requireSignIn(context, reason: AuthReason.together)) return;
+    if (!mounted) return;
+    await _leaveCurrentRoom();
     if (!mounted) return;
     await _run(() => _repository!.joinPublicParty(room.id));
     // 못 들어갔으면(꽉 참·사라짐) 목록이 낡은 것이다.
@@ -702,6 +789,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
     if (!mounted) return;
     final code = await _askForCode(context);
     if (code == null || !mounted) return;
+    await _leaveCurrentRoom();
+    if (!mounted) return;
     await _run(() => _repository!.joinParty(code));
   }
 
@@ -821,7 +910,12 @@ class _TogetherScreenState extends State<TogetherScreen> {
       // Leaving is the one action that must always appear to work: staying
       // stuck in a room you closed is worse than a stale row on the server.
     }
-    if (mounted) setState(() => _party = null);
+    if (mounted) {
+      setState(() {
+        _party = null;
+        _minimized = false;
+      });
+    }
   }
 }
 
@@ -1118,6 +1212,8 @@ class _Lobby extends StatelessWidget {
   const _Lobby({
     required this.busy,
     required this.error,
+    required this.activeParty,
+    required this.onResume,
     required this.nearby,
     required this.locationAvailable,
     required this.onCreate,
@@ -1131,6 +1227,10 @@ class _Lobby extends StatelessWidget {
 
   final bool busy;
   final String? error;
+
+  /// 접어 둔 방. 있으면 맨 위 배너가 되돌아가는 길이다.
+  final TrainingParty? activeParty;
+  final VoidCallback onResume;
   final _NearbyStatus nearby;
   final bool locationAvailable;
   final VoidCallback onCreate;
@@ -1155,6 +1255,10 @@ class _Lobby extends StatelessWidget {
           SetflowSpacing.xxl2,
         ),
         children: [
+          if (activeParty != null) ...[
+            _ActiveRoomBanner(party: activeParty!, onResume: onResume),
+            const SizedBox(height: SetflowSpacing.lg),
+          ],
           _LobbyHero(nearby: nearby),
           const SizedBox(height: SetflowSpacing.xl),
           if (error != null) ...[
@@ -1248,6 +1352,62 @@ class _Lobby extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 접어 둔 방으로 돌아가는 배너. 방은 계속 돌고 있으니 "진행 중"이고,
+/// 탭 한 번이면 전광판이다. 브랜드 채움 위 전경은 언제나 잉크(onBrand).
+class _ActiveRoomBanner extends StatelessWidget {
+  const _ActiveRoomBanner({required this.party, required this.onResume});
+
+  final TrainingParty party;
+  final VoidCallback onResume;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final n = party.members.length;
+    return SetflowCard(
+      key: const ValueKey('together-resume'),
+      color: SetflowColors.brand,
+      onTap: onResume,
+      child: Row(
+        children: [
+          const Icon(SetflowIcons.together, color: SetflowColors.onBrand),
+          const SizedBox(width: SetflowSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '진행 중인 방',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: SetflowColors.onBrand,
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.xxs),
+                Text(
+                  n == 1
+                      ? '${party.mode.label} · 친구를 기다리는 중'
+                      : '${party.mode.label} · $n명',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: SetflowColors.onBrand,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '돌아가기',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: SetflowColors.onBrand,
+            ),
+          ),
+          const SizedBox(width: SetflowSpacing.xs),
+          const Icon(SetflowIcons.forward, color: SetflowColors.onBrand),
         ],
       ),
     );
@@ -1840,10 +2000,11 @@ class _RoomMenu extends StatelessWidget {
       },
       itemBuilder: (_) => [
         const PopupMenuItem(
+          key: ValueKey('together-invite'),
           value: _RoomAction.invite,
           child: ListTile(
             leading: Icon(SetflowIcons.partyJoin),
-            title: Text('초대 코드'),
+            title: Text('친구 초대'),
             contentPadding: EdgeInsets.zero,
           ),
         ),

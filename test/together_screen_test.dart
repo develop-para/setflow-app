@@ -129,36 +129,36 @@ void main() {
         reason: '방 안에서는 바가 접힌다',
       );
 
-      // ←는 뒤로가기다: 온 곳(홈)으로 돌아가고 방은 남는다. 한때 무조건 기록
-      // 탭으로 보냈는데, 들른 적 없는 탭에 떨어지는 것이 "뒤로가기가 좀 이상해"였다.
-      int shownPage() =>
-          tester.widget<IndexedStack>(find.byType(IndexedStack)).index!;
+      // ←는 함께 탭 **안**에서 끝난다: 방은 남긴 채 로비로 접히고, 바가 돌아오고,
+      // 로비 맨 위 배너가 방으로 되돌아가는 길이다. 예전엔 기록 탭으로 보냈는데,
+      // 기록에서 운동을 추가하고 돌아와 목록으로 가려던 사람이 다시 기록에
+      // 떨어졌다("뒤로가기가 좀 이상해").
       await tester.tap(find.byKey(const ValueKey('together-minimize')));
       await tester.pumpAndSettle();
-      expect(shownPage(), 0, reason: '←는 함께 탭에 오기 전 탭(홈)으로 간다');
+      expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
+      expect(find.byKey(const ValueKey('together-resume')), findsOneWidget);
       expect(find.byType(SetflowActionNavBar), findsOneWidget);
-      await tester.tap(find.text('함께').last);
+      expect(
+        tester.widget<IndexedStack>(find.byType(IndexedStack)).index,
+        1,
+        reason: '뒤로가기는 다른 탭으로 튀지 않는다',
+      );
+      await tester.tap(find.byKey(const ValueKey('together-resume')));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('together-scoreboard')),
         findsOneWidget,
-        reason: '돌아오면 방이 그대로 있다',
+        reason: '배너를 누르면 그 방 그대로다',
       );
+      expect(find.byType(SetflowActionNavBar), findsNothing);
 
-      // 시스템 뒤로가기도 같은 길이다 — 앱을 내리지 않는다. 방 안에서는 바가
-      // 접혀 있으니 ←로 먼저 나와서 다른 탭을 거쳐 들어온다.
-      await tester.tap(find.byKey(const ValueKey('together-minimize')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('마이').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('함께').last);
-      await tester.pumpAndSettle();
+      // 시스템 뒤로가기도 같은 길이다 — 앱을 내리지 않는다.
       final dynamic widgetsApp = tester.state(find.byType(WidgetsApp));
       // ignore: avoid_dynamic_calls
       await widgetsApp.didPopRoute();
       await tester.pumpAndSettle();
-      expect(shownPage(), 4, reason: '시스템 뒤로가기는 직전 탭(마이)으로 간다');
-      await tester.tap(find.text('함께').last);
+      expect(find.byKey(const ValueKey('together-resume')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('together-resume')));
       await tester.pumpAndSettle();
 
       // 헤더는 ← / 제목 / ⋮ — 나가기는 메뉴 맨 아래, 확인 한 번.
@@ -231,6 +231,66 @@ void main() {
 
       expect(find.textContaining('그런 코드의 방이 없어요'), findsOneWidget);
       expect(find.byKey(const ValueKey('together-code')), findsNothing);
+    });
+  });
+
+  group('invite links', () {
+    test('the invite link carries the code and comes back as a join', () {
+      final state = AppState();
+      addTearDown(state.dispose);
+
+      final link = AppState.togetherInviteUri('ab12cd');
+      expect(link.toString(), 'com.teampara.setflow://together-join/AB12CD');
+
+      state.captureIncomingUri(link);
+      expect(state.pendingTogetherJoinCode, 'AB12CD');
+
+      state.clearPendingTogetherJoinCode();
+      state.captureIncomingUri(
+        Uri.parse('https://setflow.app/together/join?code=zz99zz'),
+      );
+      expect(state.pendingTogetherJoinCode, 'ZZ99ZZ');
+
+      state.clearPendingTogetherJoinCode();
+      state.captureIncomingUri(
+        Uri.parse('com.teampara.setflow://routine-share/whatever'),
+      );
+      expect(state.pendingTogetherJoinCode, isNull);
+    });
+
+    testWidgets('opening an invite link lands in that room', (tester) async {
+      final friend = client('u-friend', '친구');
+      final party = await friend.createParty(mode: PartyMode.together);
+      final state = await pumpTogether(tester, repository: client('u-me', '나'));
+      expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
+
+      state.captureIncomingUri(AppState.togetherInviteUri(party.code));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
+      expect(find.text('나'), findsOneWidget);
+      expect(find.text('친구'), findsOneWidget);
+      expect(state.pendingTogetherJoinCode, isNull, reason: '한 번 쓴 링크는 지운다');
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('the invite sheet offers the link first, the code as backup', (
+      tester,
+    ) async {
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-invite')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('together-share-link')), findsOneWidget);
+      expect(find.byKey(const ValueKey('together-copy-code')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
     });
   });
 
