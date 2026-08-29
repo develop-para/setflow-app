@@ -67,6 +67,20 @@ class _MemberShellState extends State<MemberShell> {
   /// 함께 탭을 보고 있으면서 방 안일 때만 접는다. 다른 탭으로 옮기면 방은
   /// 그대로 두고 바를 되돌려야 한다 — 안 그러면 나갈 길이 사라진다.
   bool get _inTogetherSession => _togetherSession && index == 1;
+
+  /// 함께 탭에 오기 직전에 보던 탭. 방의 ←와 시스템 뒤로가기는 여기로 돌아간다 —
+  /// 뒤로가기는 온 곳으로 가야 뒤로가기다. 한때 무조건 기록 탭으로 보냈는데,
+  /// 들른 적도 없는 탭에 떨어지는 것이 "뒤로가기가 좀 이상해"였다.
+  int _tabBeforeTogether = _homePage;
+
+  /// 모든 탭 전환은 여기를 지난다. 함께 탭으로 들어올 때만 출발 탭을 적어 둔다.
+  void _show(int page) {
+    if (page == _togetherPage && index != _togetherPage) {
+      _tabBeforeTogether = index;
+    }
+    setState(() => index = page);
+  }
+
   String? _handledRoutineShareToken;
   int _handledPushSerial = 0;
 
@@ -119,7 +133,7 @@ class _MemberShellState extends State<MemberShell> {
       final page = memberPageForPush(open);
       if (page != null && page != index) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => index = page);
+          if (mounted) _show(page);
         });
       }
     }
@@ -132,9 +146,7 @@ class _MemberShellState extends State<MemberShell> {
     _handledRoutineShareToken = token;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 루틴 no longer owns a tab, so surface the record page instead.
-      if (mounted && index != _recordPage) {
-        setState(() => index = _recordPage);
-      }
+      if (mounted && index != _recordPage) _show(_recordPage);
     });
   }
 
@@ -144,11 +156,12 @@ class _MemberShellState extends State<MemberShell> {
     final today = DateTime(now.year, now.month, now.day);
     final pages = [
       // 함께 운동 섹션이 탭을 바꿀 수 있도록 셸이 전환을 넘겨준다.
-      CalendarScreen(onOpenTogether: () => setState(() => index = 1)),
+      CalendarScreen(onOpenTogether: () => _show(_togetherPage)),
       // 통계(DashboardScreen)가 있던 자리. 화면은 지우지 않고 메뉴에서만 내렸다 —
       // 지표는 나중에 다시 올릴 것이고, 그때 되살릴 코드가 남아 있어야 한다.
       TogetherScreen(
-        onOpenRecord: () => setState(() => index = _recordPage),
+        onOpenRecord: () => _show(_recordPage),
+        onBack: () => _show(_tabBeforeTogether),
         // 방 안에서는 셸의 헤더와 바텀바가 사라진다. 운동 중 전용 화면이라
         // 전광판과 하단 액션이 화면을 다 쓰고, 방을 나가면 되돌아온다.
         onSessionChanged: (active) {
@@ -168,11 +181,6 @@ class _MemberShellState extends State<MemberShell> {
         if (!didPop) _closeRecordSheet();
       },
       child: Scaffold(
-        // 함께 탭은 아레나(검은 판)다. 상태바 뒤의 띠와 바텀바까지 같은 톤으로 —
-        // 안 그러면 검은 페이지 위아래에 흰 띠가 남는다.
-        backgroundColor: index == _togetherPage
-            ? SetflowTheme.dark.scaffoldBackgroundColor
-            : null,
         body: Stack(
           children: [
             Column(
@@ -219,24 +227,19 @@ class _MemberShellState extends State<MemberShell> {
         ),
         bottomNavigationBar: _inTogetherSession
             ? null
-            : Theme(
-                data: index == _togetherPage
-                    ? SetflowTheme.dark
-                    : Theme.of(context),
-                child: SetflowActionNavBar(
-                  items: destinations,
-                  selectedIndex: _selectedSlot,
-                  onSelected: (slot) {
-                    _closeRecordSheet();
-                    setState(() => index = _slotToPage[slot]);
-                  },
-                  centerLabel: '기록',
-                  centerIcon: _recordSheetOpen
-                      ? SetflowIcons.close
-                      : SetflowIcons.record,
-                  centerSelected: index == _recordPage,
-                  onCenterTap: _handleCenterTap,
-                ),
+            : SetflowActionNavBar(
+                items: destinations,
+                selectedIndex: _selectedSlot,
+                onSelected: (slot) {
+                  _closeRecordSheet();
+                  _show(_slotToPage[slot]);
+                },
+                centerLabel: '기록',
+                centerIcon: _recordSheetOpen
+                    ? SetflowIcons.close
+                    : SetflowIcons.record,
+                centerSelected: index == _recordPage,
+                onCenterTap: _handleCenterTap,
               ),
       ),
     );
@@ -278,7 +281,7 @@ class _MemberShellState extends State<MemberShell> {
           MaterialPageRoute(builder: (_) => ExerciseLibraryScreen(date: today)),
         );
       case _RecordAction.pastDays:
-        setState(() => index = 0);
+        _show(_homePage);
     }
   }
 }

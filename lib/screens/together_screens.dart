@@ -20,21 +20,27 @@ import 'workout_screens.dart';
 /// partner feel present is not seeing them, it is that **your rest ends when
 /// their set does**. So the room is not a chat with a timer bolted on; it is a
 /// timer that two people share, and everything else is arranged around it.
-/// 함께 탭은 **아레나**다 — 라이트 모드에서도 전광판과 같은 검은 판 위에 있다.
-///
-/// "함께 쪽 전광판 빼고 마음에 드는 UI가 하나도 없어": 전광판만 검은 게임판이고
-/// 나머지(로비·시트·액션 바)는 흰 설정 화면이었다. 탭 전체를 전광판의 톤으로
-/// 맞춘다. 앱의 다크 테마를 그대로 쓰므로 대비·색 규칙은 이미 검증된 값이다.
-Widget _arena(Widget child) => Theme(data: SetflowTheme.dark, child: child);
-
-Color get _arenaSurface => SetflowTheme.dark.colorScheme.surface;
-
+/// 함께 탭은 앱 테마를 따른다. 검은 것은 **전광판 판 하나**뿐이다(`widgets/dot_matrix.dart`
+/// — 경기장 전광판은 낮에도 하얗게 변하지 않는다). 한때 탭 전체를 다크 테마로 감싸
+/// "아레나"로 만들었다가(07239fe) 되돌렸다: 설정한 테마를 탭 하나만 무시하는 것이
+/// 게임판 느낌보다 더 튀었다. 로비·시트·다이얼로그는 다른 탭과 같은 면 위에 있고,
+/// 판이 그 위에 검게 놓인다.
 class TogetherScreen extends StatefulWidget {
-  const TogetherScreen({this.onOpenRecord, this.onSessionChanged, super.key});
+  const TogetherScreen({
+    this.onOpenRecord,
+    this.onBack,
+    this.onSessionChanged,
+    super.key,
+  });
 
   /// 방의 "지금 세트" 카드가 오늘 기록이 비었을 때 기록 탭으로 보내는 통로.
   /// 기록은 셸의 탭이라 push하면 바텀바 없는 사본이 열린다.
   final VoidCallback? onOpenRecord;
+
+  /// 방의 ←와 시스템 뒤로가기. 방은 그대로 두고 **함께 탭에 오기 전 탭**으로
+  /// 돌아간다 — 셸이 그 탭을 기억한다. 기록 탭으로 보내는 것은 [onOpenRecord]의
+  /// 일이지 뒤로가기의 일이 아니다.
+  final VoidCallback? onBack;
 
   /// 방에 들어가고 나옴을 셸에 알린다. 방은 운동 중 전용 화면이라 셸이
   /// 헤더와 바텀바를 접는다 — 전광판과 하단 액션이 화면을 다 써야 한다.
@@ -344,129 +350,127 @@ class _TogetherScreenState extends State<TogetherScreen> {
         if (mounted && _party != null) unawaited(_showGuide());
       });
     }
-    // 시스템 뒤로가기도 앱바의 ←와 같다: 방은 그대로 두고 기록 탭으로. 안
+    // 시스템 뒤로가기도 앱바의 ←와 같다: 방은 그대로 두고 온 탭으로. 안
     // 잡으면 셸 루트라 앱이 통째로 내려간다 — "뒤로가기도 없어 보이는데".
-    final backToRecord = inRoom && widget.onOpenRecord != null;
-    return _arena(
-      PopScope(
-        canPop: !backToRecord,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop && backToRecord) widget.onOpenRecord!();
-        },
-        child: Scaffold(
-          appBar: AppBar(
-            // 방 안에서는 셸 헤더가 접히므로 이 앱바가 유일한 위쪽 크롬이다.
-            // 그래서 나가는 길(기록 탭으로 접기)이 여기 있어야 한다.
-            // "방에 들어오면 다시 나갈 수는 없나?" — 접힌 셸에서 나가는 길이
-            // 아래 화살표 하나였다. 뒤로가기는 뒤로가기처럼 생겨야 하고, 방 나가기는
-            // 메뉴 속이 아니라 보이는 자리에 있어야 한다.
-            leading: inRoom && widget.onOpenRecord != null
-                ? IconButton(
-                    key: const ValueKey('together-minimize'),
-                    tooltip: '기록으로 돌아가기 (방은 유지)',
-                    onPressed: widget.onOpenRecord,
-                    icon: const Icon(Icons.arrow_back_rounded),
-                  )
-                : null,
-            // "함께 운동 중"과 전광판의 LIVE가 같은 말을 두 번 했다. 제목은 방이
-            // 무엇인지 — 방식과 인원 — 만 말한다.
-            title: Text(switch ((
-              inRoom,
-              party?.isPublic ?? false,
-              party?.members.length ?? 0,
-            )) {
-              (false, _, _) => '함께',
-              (true, true, 1) => '공개방 · 대기 중',
-              (true, false, 1) => '함께',
-              (true, final public, final n) =>
-                '${public ? '공개 · ' : ''}${party!.mode.label} · $n명',
-            }, key: const ValueKey('together-title')),
-            actions: [
-              // 헤더는 ← / 제목 / ⋮ 셋이다. 나가기는 메뉴 맨 아래 — 더보기 옆에
-              // 나가기 아이콘을 나란히 두는 헤더는 없다("버튼이 있다고 막 배치하지
-              // 말고"). 뒤로가기가 제대로 되는 지금, 출구는 그걸로 충분하다.
-              if (inRoom)
-                KeyedSubtree(
-                  key: _menuKey,
-                  child: _RoomMenu(
-                    key: const ValueKey('together-room-menu'),
-                    busy: _busy,
-                    onInvite: () => _showInvite(party),
-                    onMode: () => _showModeSheet(party),
-                    onRoutines: () => _showRoutinesSheet(party),
-                    onHelp: () => unawaited(_showGuide()),
-                    onLeave: _confirmLeave,
-                  ),
+    final canGoBack = inRoom && widget.onBack != null;
+    return PopScope(
+      canPop: !canGoBack,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && canGoBack) widget.onBack!();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          // 방 안에서는 셸 헤더가 접히므로 이 앱바가 유일한 위쪽 크롬이다.
+          // 그래서 나가는 길(온 탭으로 접기)이 여기 있어야 한다.
+          // "방에 들어오면 다시 나갈 수는 없나?" — 접힌 셸에서 나가는 길이
+          // 아래 화살표 하나였다. 뒤로가기는 뒤로가기처럼 생겨야 하고, 방 나가기는
+          // 메뉴 속이 아니라 보이는 자리에 있어야 한다.
+          leading: canGoBack
+              ? IconButton(
+                  key: const ValueKey('together-minimize'),
+                  tooltip: '돌아가기 (방은 유지)',
+                  onPressed: widget.onBack,
+                  icon: const Icon(Icons.arrow_back_rounded),
                 )
-              else
-                IconButton(
-                  key: const ValueKey('together-help'),
-                  tooltip: '함께 운동 사용법',
-                  onPressed: () => _showTogetherHelp(context),
-                  icon: const Icon(Icons.help_outline_rounded),
+              : null,
+          // "함께 운동 중"과 전광판의 LIVE가 같은 말을 두 번 했다. 제목은 방이
+          // 무엇인지 — 방식과 인원 — 만 말한다.
+          title: Text(switch ((
+            inRoom,
+            party?.isPublic ?? false,
+            party?.members.length ?? 0,
+          )) {
+            (false, _, _) => '함께',
+            (true, true, 1) => '공개방 · 대기 중',
+            (true, false, 1) => '함께',
+            (true, final public, final n) =>
+              '${public ? '공개 · ' : ''}${party!.mode.label} · $n명',
+          }, key: const ValueKey('together-title')),
+          actions: [
+            // 헤더는 ← / 제목 / ⋮ 셋이다. 나가기는 메뉴 맨 아래 — 더보기 옆에
+            // 나가기 아이콘을 나란히 두는 헤더는 없다("버튼이 있다고 막 배치하지
+            // 말고"). 뒤로가기가 제대로 되는 지금, 출구는 그걸로 충분하다.
+            if (inRoom)
+              KeyedSubtree(
+                key: _menuKey,
+                child: _RoomMenu(
+                  key: const ValueKey('together-room-menu'),
+                  busy: _busy,
+                  onInvite: () => _showInvite(party),
+                  onMode: () => _showModeSheet(party),
+                  onRoutines: () => _showRoutinesSheet(party),
+                  onHelp: () => unawaited(_showGuide()),
+                  onLeave: _confirmLeave,
                 ),
-            ],
-          ),
-          body: SafeArea(
-            top: false,
-            child: repository == null
-                ? const EmptyState(
-                    key: ValueKey('together-unavailable'),
-                    icon: SetflowIcons.together,
-                    title: '함께 운동은 곧 열려요',
-                    message: '이 빌드에는 파트너 서버가 연결되어 있지 않아요.',
-                  )
-                : _party == null
-                ? _Lobby(
-                    busy: _busy,
-                    error: _error,
-                    nearby: _nearby,
-                    locationAvailable: Location.instance.isAvailable,
-                    onCreate: _create,
-                    onJoin: _join,
-                    onJoinNearby: _joinNearby,
-                    onLoadNearby: () => _loadNearby(request: true),
-                    onRefreshNearby: _loadNearby,
-                    onOpenLocationSettings: Location.instance.openSettings,
-                    onSignIn: () async {
-                      if (await requireSignIn(
-                        context,
-                        reason: AuthReason.together,
-                      )) {
-                        unawaited(_loadNearby());
-                      }
-                    },
-                  )
-                : _PartyRoom(
-                    party: party!,
-                    userId: _userId,
-                    busy: _busy,
-                    statusKey: _statusKey,
-                    boardKey: _boardKey,
-                    actionKey: _actionKey,
-                    codeKey: _codeKey,
-                    liveSet: _liveSetOfToday(AppScope.of(context)),
-                    onOpenRecord: widget.onOpenRecord,
-                    onInvite: () => _showInvite(party),
-                    onShowRoutines: () => _showRoutinesSheet(party),
-                    unit: AppScope.of(context).weightUnit,
-                    onSetEdited: ({weight, reps, restSeconds}) {
-                      final live = _liveSetOfToday(AppScope.of(context));
-                      if (live == null) return;
-                      // updateSet이 클램프·저장·알림까지 맡는 정식 경로다.
-                      AppScope.of(context).updateSet(
-                        live.$2,
-                        weight: weight,
-                        reps: reps,
-                        restSeconds: restSeconds,
-                      );
-                      setState(() {});
-                    },
-                    onStart: () =>
-                        _run(() => _repository!.startTogether(_party!.id)),
-                    onSetDone: _reportSetDone,
-                  ),
-          ),
+              )
+            else
+              IconButton(
+                key: const ValueKey('together-help'),
+                tooltip: '함께 운동 사용법',
+                onPressed: () => _showTogetherHelp(context),
+                icon: const Icon(Icons.help_outline_rounded),
+              ),
+          ],
+        ),
+        body: SafeArea(
+          top: false,
+          child: repository == null
+              ? const EmptyState(
+                  key: ValueKey('together-unavailable'),
+                  icon: SetflowIcons.together,
+                  title: '함께 운동은 곧 열려요',
+                  message: '이 빌드에는 파트너 서버가 연결되어 있지 않아요.',
+                )
+              : _party == null
+              ? _Lobby(
+                  busy: _busy,
+                  error: _error,
+                  nearby: _nearby,
+                  locationAvailable: Location.instance.isAvailable,
+                  onCreate: _create,
+                  onJoin: _join,
+                  onJoinNearby: _joinNearby,
+                  onLoadNearby: () => _loadNearby(request: true),
+                  onRefreshNearby: _loadNearby,
+                  onOpenLocationSettings: Location.instance.openSettings,
+                  onSignIn: () async {
+                    if (await requireSignIn(
+                      context,
+                      reason: AuthReason.together,
+                    )) {
+                      unawaited(_loadNearby());
+                    }
+                  },
+                )
+              : _PartyRoom(
+                  party: party!,
+                  userId: _userId,
+                  busy: _busy,
+                  statusKey: _statusKey,
+                  boardKey: _boardKey,
+                  actionKey: _actionKey,
+                  codeKey: _codeKey,
+                  liveSet: _liveSetOfToday(AppScope.of(context)),
+                  onOpenRecord: widget.onOpenRecord,
+                  onInvite: () => _showInvite(party),
+                  onShowRoutines: () => _showRoutinesSheet(party),
+                  unit: AppScope.of(context).weightUnit,
+                  onSetEdited: ({weight, reps, restSeconds}) {
+                    final live = _liveSetOfToday(AppScope.of(context));
+                    if (live == null) return;
+                    // updateSet이 클램프·저장·알림까지 맡는 정식 경로다.
+                    AppScope.of(context).updateSet(
+                      live.$2,
+                      weight: weight,
+                      reps: reps,
+                      restSeconds: restSeconds,
+                    );
+                    setState(() {});
+                  },
+                  onStart: () =>
+                      _run(() => _repository!.startTogether(_party!.id)),
+                  onSetDone: _reportSetDone,
+                ),
         ),
       ),
     );
@@ -611,25 +615,22 @@ class _TogetherScreenState extends State<TogetherScreen> {
   }) => showSetflowSheet<void>(
     context,
     showDragHandle: true,
-    backgroundColor: _arenaSurface,
-    builder: (sheetContext) => _arena(
-      Builder(
-        builder: (sheetContext) => Padding(
-          padding: const EdgeInsets.fromLTRB(
-            SetflowSpacing.gutter,
-            0,
-            SetflowSpacing.gutter,
-            SetflowSpacing.xl,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(title, style: Theme.of(sheetContext).textTheme.titleLarge),
-              const SizedBox(height: SetflowSpacing.lg),
-              ...children(sheetContext),
-            ],
-          ),
+    builder: (sheetContext) => Builder(
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          0,
+          SetflowSpacing.gutter,
+          SetflowSpacing.xl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(title, style: Theme.of(sheetContext).textTheme.titleLarge),
+            const SizedBox(height: SetflowSpacing.lg),
+            ...children(sheetContext),
+          ],
         ),
       ),
     ),
@@ -642,10 +643,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
       context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: _arenaSurface,
-      builder: (_) => _arena(
-        _CreateSheet(locationAvailable: Location.instance.isAvailable),
-      ),
+      builder: (_) =>
+          _CreateSheet(locationAvailable: Location.instance.isAvailable),
     );
     if (choice == null || !mounted) return;
     var (visibility, mode) = choice;
@@ -763,8 +762,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
     final routine = await showSetflowSheet<RoutineData>(
       context,
       isScrollControlled: true,
-      backgroundColor: _arenaSurface,
-      builder: (_) => _arena(_RoutinePickerSheet(routines: state.routines)),
+      builder: (_) => _RoutinePickerSheet(routines: state.routines),
     );
     if (routine == null || !mounted) return;
     await _run(
@@ -790,22 +788,20 @@ class _TogetherScreenState extends State<TogetherScreen> {
   Future<void> _confirmLeave() async {
     final leave = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => _arena(
-        AlertDialog(
-          title: const Text('방을 나갈까요?'),
-          content: const Text('다시 들어오려면 초대 코드가 필요하고, 전광판의 세트 수는 처음부터예요.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('취소'),
-            ),
-            FilledButton(
-              key: const ValueKey('together-leave-confirm'),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('나가기'),
-            ),
-          ],
-        ),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('방을 나갈까요?'),
+        content: const Text('다시 들어오려면 초대 코드가 필요하고, 전광판의 세트 수는 처음부터예요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            key: const ValueKey('together-leave-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('나가기'),
+          ),
+        ],
       ),
     );
     if (leave == true && mounted) await _leave();
@@ -832,8 +828,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
 Future<String?> _askForCode(BuildContext context) => showSetflowSheet<String>(
   context,
   isScrollControlled: true,
-  backgroundColor: _arenaSurface,
-  builder: (_) => _arena(const _CodeSheet()),
+  builder: (_) => const _CodeSheet(),
 );
 
 /// Owns its own controller.
@@ -957,127 +952,123 @@ void _showTogetherHelp(BuildContext context) {
   showSetflowSheet<void>(
     context,
     showDragHandle: true,
-    backgroundColor: _arenaSurface,
-    builder: (_) => _arena(
-      Builder(
-        builder: (sheetContext) {
-          final theme = Theme.of(sheetContext);
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(
-              SetflowSpacing.gutter,
-              0,
-              SetflowSpacing.gutter,
-              SetflowSpacing.xl,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('함께 운동 사용법', style: theme.textTheme.titleLarge),
-                const SizedBox(height: SetflowSpacing.lg),
-                for (final (step, icon, title, detail) in const [
-                  (
-                    1,
-                    SetflowIcons.partyCreate,
-                    '방을 만들고 코드를 공유해요',
-                    '전화로 불러줄 수 있는 여섯 글자예요. 한 방에 최대 6명.',
-                  ),
-                  (
-                    2,
-                    SetflowIcons.partyStart,
-                    '준비되면 같이 시작',
-                    '모든 폰이 같은 카운트다운을 세요',
-                  ),
-                  (
-                    3,
-                    SetflowIcons.setComplete,
-                    '세트 끝!을 누르면',
-                    '내 기록에 저장되고, 상대 휴식이 그 순간 끝나요',
-                  ),
-                ]) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color:
-                              sheetContext.setflowColors.surfaceContainerHigh,
-                          borderRadius: BorderRadius.circular(SetflowRadii.sm),
-                        ),
-                        child: Text(
-                          '$step',
-                          style: const TextStyle(
-                            fontWeight: SetflowWeight.strong,
-                          ),
+    builder: (_) => Builder(
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.gutter,
+            0,
+            SetflowSpacing.gutter,
+            SetflowSpacing.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('함께 운동 사용법', style: theme.textTheme.titleLarge),
+              const SizedBox(height: SetflowSpacing.lg),
+              for (final (step, icon, title, detail) in const [
+                (
+                  1,
+                  SetflowIcons.partyCreate,
+                  '방을 만들고 코드를 공유해요',
+                  '전화로 불러줄 수 있는 여섯 글자예요. 한 방에 최대 6명.',
+                ),
+                (
+                  2,
+                  SetflowIcons.partyStart,
+                  '준비되면 같이 시작',
+                  '모든 폰이 같은 카운트다운을 세요',
+                ),
+                (
+                  3,
+                  SetflowIcons.setComplete,
+                  '세트 끝!을 누르면',
+                  '내 기록에 저장되고, 상대 휴식이 그 순간 끝나요',
+                ),
+              ]) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: sheetContext.setflowColors.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                      ),
+                      child: Text(
+                        '$step',
+                        style: const TextStyle(
+                          fontWeight: SetflowWeight.strong,
                         ),
                       ),
-                      const SizedBox(width: SetflowSpacing.md),
-                      Icon(
-                        icon,
-                        size: 18,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: SetflowSpacing.sm),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontWeight: SetflowWeight.strong,
-                                fontSize: SetflowFontSize.label,
-                              ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.md),
+                    Icon(
+                      icon,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontWeight: SetflowWeight.strong,
+                              fontSize: SetflowFontSize.label,
                             ),
-                            Text(
-                              detail,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
+                          ),
+                          Text(
+                            detail,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: SetflowSpacing.md2),
-                ],
-                const SizedBox(height: SetflowSpacing.xs),
-                Text('세 가지 종목 — 전광판은 어디에나', style: theme.textTheme.titleMedium),
-                const SizedBox(height: SetflowSpacing.sm),
-                for (final mode in PartyMode.values) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 44,
-                        child: Text(
-                          mode.label,
-                          style: const TextStyle(
-                            fontWeight: SetflowWeight.strong,
                           ),
-                        ),
+                        ],
                       ),
-                      Expanded(
-                        child: Text(
-                          '${mode.detail}\n${mode.when}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: SetflowSpacing.sm),
-                ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SetflowSpacing.md2),
               ],
-            ),
-          );
-        },
-      ),
+              const SizedBox(height: SetflowSpacing.xs),
+              Text('세 가지 종목 — 전광판은 어디에나', style: theme.textTheme.titleMedium),
+              const SizedBox(height: SetflowSpacing.sm),
+              for (final mode in PartyMode.values) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 44,
+                      child: Text(
+                        mode.label,
+                        style: const TextStyle(
+                          fontWeight: SetflowWeight.strong,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '${mode.detail}\n${mode.when}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SetflowSpacing.sm),
+              ],
+            ],
+          ),
+        );
+      },
     ),
   );
 }

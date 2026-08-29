@@ -129,6 +129,38 @@ void main() {
         reason: '방 안에서는 바가 접힌다',
       );
 
+      // ←는 뒤로가기다: 온 곳(홈)으로 돌아가고 방은 남는다. 한때 무조건 기록
+      // 탭으로 보냈는데, 들른 적 없는 탭에 떨어지는 것이 "뒤로가기가 좀 이상해"였다.
+      int shownPage() =>
+          tester.widget<IndexedStack>(find.byType(IndexedStack)).index!;
+      await tester.tap(find.byKey(const ValueKey('together-minimize')));
+      await tester.pumpAndSettle();
+      expect(shownPage(), 0, reason: '←는 함께 탭에 오기 전 탭(홈)으로 간다');
+      expect(find.byType(SetflowActionNavBar), findsOneWidget);
+      await tester.tap(find.text('함께').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('together-scoreboard')),
+        findsOneWidget,
+        reason: '돌아오면 방이 그대로 있다',
+      );
+
+      // 시스템 뒤로가기도 같은 길이다 — 앱을 내리지 않는다. 방 안에서는 바가
+      // 접혀 있으니 ←로 먼저 나와서 다른 탭을 거쳐 들어온다.
+      await tester.tap(find.byKey(const ValueKey('together-minimize')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('마이').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('함께').last);
+      await tester.pumpAndSettle();
+      final dynamic widgetsApp = tester.state(find.byType(WidgetsApp));
+      // ignore: avoid_dynamic_calls
+      await widgetsApp.didPopRoute();
+      await tester.pumpAndSettle();
+      expect(shownPage(), 4, reason: '시스템 뒤로가기는 직전 탭(마이)으로 간다');
+      await tester.tap(find.text('함께').last);
+      await tester.pumpAndSettle();
+
       // 헤더는 ← / 제목 / ⋮ — 나가기는 메뉴 맨 아래, 확인 한 번.
       await tester.tap(find.byKey(const ValueKey('together-room-menu')));
       await tester.pumpAndSettle();
