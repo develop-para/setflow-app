@@ -293,6 +293,25 @@ jobs:
           git tag -a "dist/$BUILD_NUMBER" -m "Setflow $VERSION_NAME+$BUILD_NUMBER distributed to testers"
           git push origin "dist/$BUILD_NUMBER"
 
+      # 배포마다 노션 "셋플로우 배포 기록"에 한 줄. 태그 뒤에 두어 배포·태그가
+      # 끝난 사실만 기록하고, 노션이 죽어도 배포는 성공으로 남긴다. 요약은 커밋
+      # 제목으로 자동 생성되고, 사람이 읽을 요약은 에이전트 스킬(release-notion)이
+      # 나중에 --update 로 덧쓴다. 시크릿이 없으면 경고만 하고 건너뛴다.
+      - name: Record in Notion
+        if: steps.version.outputs.already != 'true'
+        continue-on-error: true
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NOTION_TOKEN:-}" ]; then
+            echo "::warning::NOTION_TOKEN secret is not set; skipping the Notion release record."
+            exit 0
+          fi
+          dart tool/notion_release_note.dart --build "$BUILD_NUMBER" --version "$VERSION_NAME" --by 자동
+
       - name: Summary
         if: always()
         env:

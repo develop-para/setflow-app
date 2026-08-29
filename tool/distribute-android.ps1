@@ -276,5 +276,14 @@ if (-not $NoTag) {
     }
 }
 
+# 노션 배포 기록 — CI와 같은 스크립트, 같은 DB. 실패해도 배포는 이미 끝났으니 경고만.
+if (-not $NoTag) {
+    Write-Step "notion release record"
+    & dart tool/notion_release_note.dart --build $buildNumber --version $versionName --by 자동
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Could not record the build in Notion. Run later: dart tool/notion_release_note.dart --build $buildNumber" -ForegroundColor Yellow
+    }
+}
+
 Write-Host ""
 Write-Host "Distributed Setflow $versionName+$buildNumber to Firebase App Distribution." -ForegroundColor Green

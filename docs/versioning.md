@@ -80,12 +80,25 @@ pwsh tool/distribute-android.ps1 -Notes "휴식 타이머 위젯 수정"
 품질을 결정합니다.** 커밋 제목을 사용자 관점에서 쓰면 그대로 쓸 만한 노트가
 나옵니다.
 
+## 노션 배포 기록
+
+배포가 끝나면(태그가 찍힌 뒤) `tool/notion_release_note.dart`가 노션 **셋플로우 › 셋플로우 배포 기록**
+데이터베이스에 한 줄을 남깁니다 — CI와 로컬 배포 스크립트 둘 다. 열: 버전·빌드·배포일·채널·
+**작업자(그 범위 커밋의 author)**·요약 작성(자동/Claude/Codex/사람)·커밋 범위·GitHub compare 링크.
+본문은 커밋 제목 목록이고, 사람이 읽을 요약은 에이전트 스킬(`.claude/skills/release-notion`)이
+`--update`로 덧씁니다.
+
+- 토큰: CI는 `NOTION_TOKEN` 시크릿, 로컬은 `.env.notion-mcp`(Codex 노션 MCP와 같은 파일).
+- DB id: `tool/notion-release.json`.
+- 같은 빌드는 두 번 만들지 않습니다(재실행 안전). 지난 배포를 채우려면
+  `dart tool/notion_release_note.dart --build N`.
+
 ## 전체 흐름
 
 ```
 커밋 → main 푸시
         │
-        ├─ GitHub Actions: analyze → test → 서명 빌드 → 서명 검증 → 업로드 → dist/N 태그
+        ├─ GitHub Actions: analyze → test → 서명 빌드 → 서명 검증 → 업로드 → dist/N 태그 → 노션 기록
         │                  (versionCode = 커밋 수, 노트 = dist/이전..HEAD)
         │
         └─ 또는 로컬: pwsh tool/distribute-android.ps1   ← 같은 공식, 같은 태그

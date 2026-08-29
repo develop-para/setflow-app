@@ -1,0 +1,5 @@
+{
+  "_comment": "노션 '셋플로우 배포 기록' 데이터베이스. tool/notion_release_note.dart 가 읽는다. 토큰은 여기 두지 않는다(.env.notion-mcp / NOTION_TOKEN).",
+  "databaseId": "3cbf3e53-ed67-81c6-899c-ee1bf13d8b6c",
+  "url": "https://app.notion.com/p/3cbf3e53ed6781c6899cee1bf13d8b6c"
+}
