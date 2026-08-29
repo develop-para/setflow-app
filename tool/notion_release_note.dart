@@ -363,16 +363,33 @@ class _PageSpec {
   };
 
   /// 본문 블록. 노션은 한 요청에 100블록까지라 커밋은 80개에서 자른다.
-  List<Map<String, dynamic>> children() => [
-    if (summary.isNotEmpty) ...[
+  ///
+  /// 요약이 있으면 커밋 원문은 **토글 아래로** 내린다 — 읽는 사람은 한글 요약을
+  /// 보고, 해시가 필요한 사람만 펼친다("이건 왜 다 영어야"). 요약이 없는 자동
+  /// 기록은 커밋 제목이 본문이므로 커밋 제목을 한글로 쓰는 규칙(AGENTS.md)이
+  /// 여기 그대로 드러난다.
+  List<Map<String, dynamic>> children() {
+    final commitBlocks = [
+      for (final line in commits.take(80)) _bullet(line),
+      if (commits.length > 80) _paragraph('… 외 ${commits.length - 80}개'),
+      if (commits.isEmpty) _paragraph('이 범위에 커밋이 없습니다.'),
+    ];
+    if (summary.isEmpty) return [_heading('커밋'), ...commitBlocks];
+    return [
       _heading('요약'),
       for (final line in summary) _bullet(line),
-    ],
-    _heading('커밋'),
-    for (final line in commits.take(80)) _bullet(line),
-    if (commits.length > 80) _paragraph('… 외 ${commits.length - 80}개'),
-    if (commits.isEmpty) _paragraph('이 범위에 커밋이 없습니다.'),
-  ];
+      _toggle('커밋 ${commits.length}개 (원문)', commitBlocks),
+    ];
+  }
+
+  static Map<String, dynamic> _toggle(
+    String text,
+    List<Map<String, dynamic>> children,
+  ) => {
+    'object': 'block',
+    'type': 'toggle',
+    'toggle': {'rich_text': _text(text), 'children': children},
+  };
 
   Map<String, dynamic> toJson() => {
     'properties': properties(),
