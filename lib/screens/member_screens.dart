@@ -150,8 +150,9 @@ class _MemberShellState extends State<MemberShell> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final pages = [
-      // 함께 운동 섹션이 탭을 바꿀 수 있도록 셸이 전환을 넘겨준다.
-      CalendarScreen(onOpenTogether: () => _show(_togetherPage)),
+      // 홈의 "오늘" 카드가 기록 탭으로 보낸다. 기록은 셸의 탭이라 push하면
+      // 바텀바 없는 사본이 열린다.
+      CalendarScreen(onOpenRecord: () => _show(_recordPage)),
       // 통계(DashboardScreen)가 있던 자리. 화면은 지우지 않고 메뉴에서만 내렸다 —
       // 지표는 나중에 다시 올릴 것이고, 그때 되살릴 코드가 남아 있어야 한다.
       TogetherScreen(
@@ -405,11 +406,11 @@ class _RecordActionTile extends StatelessWidget {
 }
 
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({this.onOpenTogether, super.key});
+  const CalendarScreen({this.onOpenRecord, super.key});
 
-  /// 홈의 함께 운동 섹션이 탭을 바꾸는 통로. 함께는 셸의 탭이라 push하면
+  /// 홈의 "오늘" 카드가 기록 탭으로 가는 통로. 기록은 셸의 탭이라 push하면
   /// 바텀바 없는 사본이 열린다 — 셸이 이 콜백으로 탭 전환을 넘겨준다.
-  final VoidCallback? onOpenTogether;
+  final VoidCallback? onOpenRecord;
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -517,12 +518,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    // 제목은 titleLarge — 화면에서 가장 큰
+                                    // 숫자는 이 달의 볼륨이지 연월이 아니다.
                                     Text(
                                       DateFormat('yyyy.MM').format(month),
-                                      style: theme.textTheme.headlineMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w900,
-                                          ),
+                                      style: theme.textTheme.titleLarge,
                                     ),
                                     const SizedBox(width: SetflowSpacing.xxs),
                                     Icon(
@@ -538,34 +538,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ),
                       ),
                     ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: context.setflowColors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(SetflowRadii.full),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _MonthArrowButton(
-                            tooltip: expanded ? '이전 달' : '이전 주',
-                            icon: Icons.chevron_left_rounded,
-                            onPressed: () => _step(-1),
-                          ),
-                          Container(
-                            width: 1,
-                            height: 18,
-                            color: theme.colorScheme.outlineVariant,
-                          ),
-                          _MonthArrowButton(
-                            tooltip: expanded ? '다음 달' : '다음 주',
-                            icon: Icons.chevron_right_rounded,
-                            onPressed: () => _step(1),
-                          ),
-                        ],
-                      ),
+                    // 이동 버튼은 맨 아이콘 둘이다. 알약 테두리 안에 구분선까지
+                    // 넣었더니 제목보다 무거운 덩어리가 됐다("버튼이 너무 커").
+                    _MonthArrowButton(
+                      tooltip: expanded ? '이전 달' : '이전 주',
+                      icon: Icons.chevron_left_rounded,
+                      onPressed: () => _step(-1),
+                    ),
+                    _MonthArrowButton(
+                      tooltip: expanded ? '다음 달' : '다음 주',
+                      icon: Icons.chevron_right_rounded,
+                      onPressed: () => _step(1),
                     ),
                     // 통계와 설정은 여기 없다. 통계는 바텀바의 "통계" 탭이고
                     // 설정은 "마이"에 있다 — 여기서 push하면 셸 위에 바텀바 없는
@@ -688,6 +671,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               onPressed: _toggleExpanded,
                             ),
                             const SizedBox(height: SetflowSpacing.md),
+                            _TodaySection(onOpenRecord: widget.onOpenRecord),
+                            const SizedBox(height: SetflowSpacing.xl),
+                            const _WeekSection(),
+                            const SizedBox(height: SetflowSpacing.xl),
                             _MemberCoachingScheduleSection(
                               schedules: state.coachingSchedules,
                               memberUserId: state.businessAccess?.userId,
@@ -702,11 +689,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               },
                             ),
                             const SizedBox(height: SetflowSpacing.xl),
-                            const _ExpertRoutinePreviewSection(),
-                            const SizedBox(height: SetflowSpacing.xl),
-                            _TogetherPreviewSection(
-                              onOpen: widget.onOpenTogether,
-                            ),
+                            const _RecentBestsSection(),
+                            const _RecentSessionsSection(),
                             if (dragSource != null)
                               Container(
                                 margin: const EdgeInsets.only(top: 10),
@@ -965,9 +949,9 @@ class _MonthArrowButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
       padding: EdgeInsets.zero,
-      iconSize: 20,
+      iconSize: 22,
       icon: Icon(icon),
     );
   }
@@ -1408,40 +1392,214 @@ class _CalendarCell extends StatelessWidget {
 ///
 /// The empty month says so in one line rather than showing three zeros. A zero
 /// is a result; no records at all is not.
-/// 홈에 얹는 전문가 루틴 미리보기.
-///
-/// 마이·설정과 같은 "행" 모양이면 콘텐츠가 아니라 메뉴처럼 읽힌다. 그래서
-/// 여기는 가로로 넘기는 카드다 — 폭을 고정하고 높이는 내용이 정한다
-/// (Row는 가장 큰 자식만큼 자라서 글자 배율이 커져도 잘리지 않는다).
-class _ExpertRoutinePreviewSection extends StatelessWidget {
-  const _ExpertRoutinePreviewSection();
+// ---------------------------------------------------------------------------
+// 홈 하단 — 달력 아래는 **내 데이터**다: 오늘, 이번 주, 최근 기록(PR), 최근 운동.
+// 전에는 전문가 루틴 미리보기와 함께 운동 광고 카드였다("캘린더 아래 컨텐츠들이
+// 별로야, 전면 개편"). 마켓은 기록 시트에 있고 함께는 제 탭이 있다 — 홈이 그걸
+// 또 팔 이유가 없다. 여기 있는 것은 전부 기기의 기록에서 계산한 값이고, 값이
+// 없으면 섹션째 사라진다(빈 카드로 자리를 채우지 않는다).
+// ---------------------------------------------------------------------------
+
+const _weekdayShort = ['일', '월', '화', '수', '목', '금', '토'];
+
+/// 세트가 하나라도 있는 날만 "운동한 날"이다. 최근순.
+List<WorkoutSession> _sessionsNewestFirst(AppState state) =>
+    state.sessions.values.where((s) => s.totalSets > 0).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+String _volumeText(double volume, String unit) => volume >= 1000
+    ? '${(volume / 1000).toStringAsFixed(1)}t'
+    : '${volume.round()}$unit';
+
+String _exercisesText(WorkoutSession session) {
+  final lead = session.exercises.first.template.name;
+  final others = session.exercises.length - 1;
+  return others > 0 ? '$lead 외 $others종' : lead;
+}
+
+String _shortDate(DateTime date) =>
+    '${date.month}/${date.day} (${_weekdayShort[date.weekday % 7]})';
+
+/// 오늘 — 기록이 있으면 진행률과 "이어서 기록", 없으면 지난 운동과 "오늘 운동 시작".
+/// 홈에서 가장 먼저 답해야 할 질문은 "오늘 뭐 하지"라서 달력 바로 아래다.
+class _TodaySection extends StatelessWidget {
+  const _TodaySection({required this.onOpenRecord});
+
+  final VoidCallback? onOpenRecord;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final state = AppScope.of(context);
-    final routines = state.marketRoutines.take(4).toList();
-    if (routines.isEmpty) return const SizedBox.shrink();
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final session = state.sessions[state.dateOnly(DateTime.now())];
+    if (session != null && session.totalSets > 0) {
+      final done = session.completedSets;
+      final total = session.totalSets;
+      final finished = done == total;
+      return SetflowCard(
+        key: const ValueKey('home-today'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('오늘', style: theme.textTheme.titleMedium),
+                const Spacer(),
+                Text(
+                  finished
+                      ? '완료 · ${_volumeText(session.volume, state.weightUnit)}'
+                      : '$done/$total 세트',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(_exercisesText(session), style: theme.textTheme.bodyMedium),
+            const SizedBox(height: SetflowSpacing.sm2),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(SetflowRadii.full),
+              child: LinearProgressIndicator(
+                value: total == 0 ? 0 : done / total,
+                minHeight: 6,
+                backgroundColor: context.setflowColors.surfaceContainer,
+                // 달력과 같은 규칙: 진행 중은 브랜드, 다 끝나면 성공색.
+                color: finished
+                    ? context.setflowColors.success
+                    : theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            AppButton(
+              key: const ValueKey('home-open-record'),
+              label: finished ? '오늘 기록 보기' : '이어서 기록',
+              icon: SetflowIcons.record,
+              onPressed: onOpenRecord,
+            ),
+          ],
+        ),
+      );
+    }
+    final last = _sessionsNewestFirst(state).firstOrNull;
+    return SetflowCard(
+      key: const ValueKey('home-today'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('오늘', style: theme.textTheme.titleMedium),
+          const SizedBox(height: SetflowSpacing.xs),
+          Text(
+            last == null
+                ? '첫 운동을 기록해 보세요. 세트 하나면 달력에 오늘이 켜져요.'
+                : '오늘은 아직 기록 전이에요.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          if (last != null) ...[
+            const SizedBox(height: SetflowSpacing.xxs),
+            Text(
+              '지난 운동 ${_shortDate(last.date)} · ${_exercisesText(last)} · ${last.completedSets}세트',
+              style: muted,
+            ),
+          ],
+          const SizedBox(height: SetflowSpacing.md),
+          AppButton(
+            key: const ValueKey('home-open-record'),
+            label: '오늘 운동 시작',
+            icon: SetflowIcons.record,
+            onPressed: onOpenRecord,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 이번 주 — 일~토 일곱 칸과 합계, 지난주와의 차이. 달력이 "이 달"을 답한다면
+/// 이 줄은 "이번 주 리듬"을 답한다. 값은 전부 기록에서 센다.
+class _WeekSection extends StatelessWidget {
+  const _WeekSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = AppScope.of(context);
+    final today = state.dateOnly(DateTime.now());
+    final weekStart = today.subtract(Duration(days: today.weekday % 7));
+    final days = [for (var i = 0; i < 7; i++) weekStart.add(Duration(days: i))];
+    final lastWeek = [
+      for (var i = 7; i > 0; i--) weekStart.subtract(Duration(days: i)),
+    ];
+
+    (int, int, double) tally(List<DateTime> range) {
+      var workouts = 0;
+      var sets = 0;
+      var volume = 0.0;
+      for (final day in range) {
+        final session = state.sessions[state.dateOnly(day)];
+        if (session == null || session.totalSets == 0) continue;
+        workouts++;
+        sets += session.completedSets;
+        volume += session.volume;
+      }
+      return (workouts, sets, volume);
+    }
+
+    final (workouts, sets, volume) = tally(days);
+    final (lastWorkouts, _, _) = tally(lastWeek);
+    final delta = workouts - lastWorkouts;
+    final deltaText = switch (delta) {
+      0 => '지난주와 같은 횟수',
+      > 0 => '지난주보다 $delta회 더',
+      _ => '지난주보다 ${-delta}회 적게',
+    };
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle(
-          '전문가 루틴',
-          action: '더 보기',
-          onAction: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const MarketScreen())),
-        ),
+        const SectionTitle('이번 주'),
         const SizedBox(height: SetflowSpacing.sm),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          clipBehavior: Clip.none,
-          child: Row(
+        SetflowCard(
+          key: const ValueKey('home-week'),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final (index, routine) in routines.indexed) ...[
-                if (index > 0) const SizedBox(width: SetflowSpacing.sm2),
-                _ExpertRoutineHomeCard(routine: routine),
+              Row(
+                children: [
+                  for (final day in days)
+                    Expanded(
+                      // 요일이 아니라 날짜다 — 요일 글자는 달력 머리에 이미
+                      // 있고(같은 글자가 둘이면 어느 쪽이 달력인지 헷갈린다),
+                      // 날짜는 "이번 주가 며칠부터"를 같이 답한다.
+                      child: _WeekDayDot(
+                        label: '${day.day}',
+                        done:
+                            (state.sessions[state.dateOnly(day)]?.totalSets ??
+                                0) >
+                            0,
+                        isToday: DateUtils.isSameDay(day, today),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+              Text(
+                workouts == 0
+                    ? '이번 주는 아직 기록이 없어요'
+                    : '$workouts회 · $sets세트 · ${_volumeText(volume, state.weightUnit)}',
+                style: theme.textTheme.bodyMedium,
+              ),
+              if (workouts > 0 || lastWorkouts > 0) ...[
+                const SizedBox(height: SetflowSpacing.xxs),
+                Text(
+                  deltaText,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ],
           ),
@@ -1451,196 +1609,224 @@ class _ExpertRoutinePreviewSection extends StatelessWidget {
   }
 }
 
-class _ExpertRoutineHomeCard extends StatelessWidget {
-  const _ExpertRoutineHomeCard({required this.routine});
+class _WeekDayDot extends StatelessWidget {
+  const _WeekDayDot({
+    required this.label,
+    required this.done,
+    required this.isToday,
+  });
 
-  final RoutineData routine;
+  final String label;
+  final bool done;
+  final bool isToday;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: 250,
-      child: SetflowCard(
-        padding: const EdgeInsets.all(SetflowSpacing.lg),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ExpertRoutineDetailScreen(routine: routine),
+    // 한 칸에 색 하나: 한 날 = 브랜드가 채운 원, 오늘(아직)은 브랜드 테두리,
+    // 나머지는 회색 면. 달력 칸과 같은 규칙이다.
+    return Column(
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: SetflowSpacing.sm2,
-                    vertical: SetflowSpacing.xxs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: context.setflowColors.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(SetflowRadii.full),
-                  ),
-                  child: Text(
-                    routine.level,
-                    style: const TextStyle(
-                      fontSize: SetflowFontSize.small,
-                      fontWeight: SetflowWeight.medium,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  routine.accessTier.label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: routine.accessTier == RoutineAccessTier.paid
-                        ? context.setflowColors.purple
-                        : context.setflowColors.success,
-                    fontWeight: SetflowWeight.strong,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: SetflowSpacing.md),
-            Text(
-              routine.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: SetflowFontSize.title,
-                fontWeight: FontWeight.w900,
-                height: 1.25,
-              ),
-            ),
-            const SizedBox(height: SetflowSpacing.xs),
-            Text(
-              routine.description,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: SetflowSpacing.md),
-            Row(
-              children: [
-                Icon(
-                  Icons.verified_rounded,
-                  size: 15,
-                  color: context.setflowColors.blue,
-                ),
-                const SizedBox(width: SetflowSpacing.xs),
-                Expanded(
-                  child: Text(
-                    routine.author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: SetflowWeight.strong,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+        const SizedBox(height: SetflowSpacing.xs),
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: done
+                ? theme.colorScheme.primary
+                : context.setflowColors.surfaceContainer,
+            border: isToday && !done
+                ? Border.all(color: theme.colorScheme.primary, width: 2)
+                : null,
+          ),
+          child: done
+              ? Icon(
+                  Icons.check_rounded,
+                  size: 16,
+                  color: theme.colorScheme.onPrimary,
+                )
+              : null,
         ),
-      ),
+      ],
     );
   }
 }
 
-/// 함께 운동 입구 — 메뉴 행이 아니라 잉크 블록 피처 카드다. 홈에서 유일하게
-/// 어두운 판이라 눈에 걸리고, 그만큼 하나만 둔다. 함께는 셸의 탭이라 화면을
-/// push하지 않고 탭을 바꾼다.
-class _TogetherPreviewSection extends StatelessWidget {
-  const _TogetherPreviewSection({required this.onOpen});
-
-  final VoidCallback? onOpen;
+/// 최근 기록 — 최근 30일 안에 갱신된 종목별 최고 중량. 없으면 섹션이 없다.
+class _RecentBestsSection extends StatelessWidget {
+  const _RecentBestsSection();
 
   @override
   Widget build(BuildContext context) {
-    if (onOpen == null) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final state = AppScope.of(context);
+    final sessions = _sessionsNewestFirst(state);
+    final cutoff = DateTime.now().subtract(const Duration(days: 30));
+    final templates = <String, ExerciseTemplate>{
+      for (final session in sessions)
+        if (!session.date.isBefore(cutoff))
+          for (final exercise in session.exercises)
+            if (!exercise.template.isCardio)
+              exercise.template.id: exercise.template,
+    };
+    final rows = <(ExerciseTemplate, PerformanceSetRecord)>[];
+    for (final template in templates.values) {
+      final summary = PerformanceEngine.summarize(
+        sessions: sessions,
+        template: template,
+        formula: state.oneRepMaxFormula,
+      );
+      if (summary == null) continue;
+      final best = summary.weightPr;
+      if (best.date.isBefore(cutoff)) continue;
+      rows.add((template, best));
+    }
+    if (rows.isEmpty) return const SizedBox.shrink();
+    rows.sort((a, b) => b.$2.date.compareTo(a.$2.date));
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionTitle('함께 운동'),
+        const SectionTitle('최근 기록'),
         const SizedBox(height: SetflowSpacing.sm),
-        Semantics(
-          button: true,
-          label: '함께 운동 열기. 친구와 같은 타이머로 같은 순간에 쉬어요',
-          child: Material(
-            key: const ValueKey('home-together-entry'),
-            clipBehavior: Clip.antiAlias,
-            borderRadius: BorderRadius.circular(SetflowRadii.lg),
-            child: Ink(
-              decoration: const BoxDecoration(
-                // 잉크 블록은 일부러 어두운 판이다 — 테마를 따라 뒤집지 않는다.
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    SetflowColors.inkBlockTop,
-                    SetflowColors.inkBlockBottom,
-                  ],
-                ),
-              ),
-              child: InkWell(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onOpen?.call();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(SetflowSpacing.xl),
+        SetflowCard(
+          key: const ValueKey('home-bests'),
+          padding: const EdgeInsets.symmetric(
+            horizontal: SetflowSpacing.lg,
+            vertical: SetflowSpacing.sm,
+          ),
+          child: Column(
+            children: [
+              for (final (template, best) in rows.take(3))
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: SetflowSpacing.sm,
+                  ),
                   child: Row(
                     children: [
+                      Icon(
+                        template.icon,
+                        size: 20,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: SetflowSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              '친구와 같이 운동하기',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: SetflowFontSize.titleLarge,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: SetflowSpacing.xs),
                             Text(
-                              '같은 타이머로 같은 순간에 쉬어요',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: .68),
-                                fontSize: SetflowFontSize.label,
-                                fontWeight: SetflowWeight.medium,
+                              template.name,
+                              style: theme.textTheme.bodyMedium,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              _shortDate(best.date),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: SetflowSpacing.md),
-                      // 브랜드는 채우는 색: 잉크 판 위 라임 원이 입구를 가리킨다.
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: const BoxDecoration(
-                          color: SetflowColors.brand,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 22,
-                          color: SetflowColors.onBrand,
+                      const SizedBox(width: SetflowSpacing.sm),
+                      Text(
+                        '${PerformanceEngine.formatWeight(best.set.weight)}${state.weightUnit} × ${best.set.reps}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
+            ],
           ),
         ),
+        const SizedBox(height: SetflowSpacing.xl),
+      ],
+    );
+  }
+}
+
+/// 최근 운동 — 마지막 세 번. 탭하면 그날 기록으로. 없으면 섹션이 없다.
+class _RecentSessionsSection extends StatelessWidget {
+  const _RecentSessionsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = AppScope.of(context);
+    // 오늘은 위의 "오늘" 카드가 맡는다. 세트를 하나도 안 끝낸 날(계획만 있는
+    // 날)은 "운동"이 아니라 예정이라 여기 없다.
+    final today = state.dateOnly(DateTime.now());
+    final recent = _sessionsNewestFirst(
+      state,
+    ).where((s) => s.completedSets > 0 && s.date != today).take(3).toList();
+    if (recent.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle('최근 운동'),
+        const SizedBox(height: SetflowSpacing.sm),
+        for (final session in recent) ...[
+          SetflowCard(
+            key: ValueKey(
+              'home-recent-${session.date.year}${session.date.month}${session.date.day}',
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: SetflowSpacing.lg,
+              vertical: SetflowSpacing.md,
+            ),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => DailyWorkoutScreen(date: session.date),
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 64,
+                  child: Text(
+                    _shortDate(session.date),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    _exercisesText(session),
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+                Text(
+                  '${session.completedSets}세트 · ${_volumeText(session.volume, state.weightUnit)}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.xs),
+                Icon(
+                  SetflowIcons.forward,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+        ],
       ],
     );
   }
@@ -1697,45 +1883,27 @@ class _MonthSummary extends StatelessWidget {
       );
     }
 
-    return SetflowCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: SetflowSpacing.lg,
-        vertical: SetflowSpacing.md,
-      ),
-      child: Row(
-        children: [
-          _MonthSummaryStat(
-            value: '${sessions.length}',
-            unit: '일',
-            label: '${month.month}월 운동',
-          ),
-          _MonthSummaryDivider(),
-          _MonthSummaryStat(
-            value: volume > 1000
-                ? (volume / 1000).toStringAsFixed(1)
-                : volume.toStringAsFixed(0),
-            unit: volume > 1000 ? 't' : state.weightUnit,
-            label: '총 볼륨',
-          ),
-          _MonthSummaryDivider(),
-          _MonthSummaryStat(
-            value: '$completedSets',
-            unit: '세트',
-            label: '완료 세트',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MonthSummaryDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 26,
-      color: Theme.of(context).colorScheme.outlineVariant,
+    // 회색 카드에 구분선으로 나눈 세 칸은 달력 격자와 다른 부품처럼 보였다
+    // ("디자인이 안 맞다"). 요약은 페이지 위에 그냥 놓인 숫자 셋이다 —
+    // 격자·헤더와 같은 면, 같은 여백.
+    return Row(
+      children: [
+        _MonthSummaryStat(
+          value: '${sessions.length}',
+          unit: '일',
+          label: '${month.month}월 운동',
+        ),
+        const SizedBox(width: SetflowSpacing.xxl),
+        _MonthSummaryStat(
+          value: volume > 1000
+              ? (volume / 1000).toStringAsFixed(1)
+              : volume.toStringAsFixed(0),
+          unit: volume > 1000 ? 't' : state.weightUnit,
+          label: '총 볼륨',
+        ),
+        const SizedBox(width: SetflowSpacing.xxl),
+        _MonthSummaryStat(value: '$completedSets', unit: '세트', label: '완료 세트'),
+      ],
     );
   }
 }
@@ -1754,8 +1922,9 @@ class _MonthSummaryStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Expanded(
+    return Flexible(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           RichText(
             maxLines: 1,
@@ -1764,7 +1933,7 @@ class _MonthSummaryStat extends StatelessWidget {
               children: [
                 TextSpan(
                   text: value,
-                  style: theme.textTheme.titleLarge?.copyWith(
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: SetflowWeight.display,
                     // 숫자가 세로로 안 흔들리게 — 달을 넘길 때 자릿수가 바뀐다.
                     fontFeatures: const [FontFeature.tabularFigures()],
