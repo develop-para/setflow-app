@@ -52,8 +52,8 @@ class MyPageScreen extends StatelessWidget {
           ),
           _MyPageEntry(
             icon: SetflowIcons.membership,
-            title: '이용권',
-            subtitle: '센터 회원권과 잔여 세션',
+            title: '운동 장소 및 센터',
+            subtitle: '여러 헬스장과 센터 연결 관리',
             // A membership belongs to a person, so it cannot resolve for a
             // guest — gate it instead of showing a permanently empty screen.
             reason: AuthReason.membership,

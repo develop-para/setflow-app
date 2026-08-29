@@ -77,12 +77,14 @@ void main() {
       expect(backend.rpcRequests.single.method, 'POST');
       expect(
         backend.rpcRequests.single.path,
-        '/rest/v1/rpc/create_business_consultation',
+        '/rest/v1/rpc/create_location_aware_consultation',
       );
       expect(backend.rpcRequests.single.body, <String, Object?>{
         'request_id': _requestId,
+        'consultation_mode': 'online',
         'trainer_id': _trainerId,
         'gym_id': null,
+        'region_code': null,
         'routine_id': null,
         'specialty': '근력',
         'goal': '근비대',
@@ -215,7 +217,7 @@ class _ConsultationBackend {
 
   Future<void> _handle(HttpRequest request) async {
     final path = request.uri.path;
-    if (path == '/rest/v1/rpc/create_business_consultation') {
+    if (path == '/rest/v1/rpc/create_location_aware_consultation') {
       final body = Map<String, dynamic>.from(
         jsonDecode(await utf8.decoder.bind(request).join()) as Map,
       );
@@ -265,6 +267,9 @@ class _ConsultationBackend {
     'question': '스쿼트 자세를 봐주세요.',
     'is_read': false,
     'assigned_trainer_id': null,
+    'consultation_mode': 'online',
+    'matching_source': 'direct',
+    'requested_region_code': null,
     'created_at': '2026-08-21T00:00:00Z',
     'recommendation_profile_share': _recommendationProfileShare,
     'member': {'id': _memberUserId, 'nickname': '상담 회원', 'avatar_url': null},

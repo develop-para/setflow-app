@@ -4259,6 +4259,15 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                         ),
                                       ),
                                       const SizedBox(height: SetflowSpacing.xs),
+                                      Text(
+                                        _businessConsultationModeLine(
+                                          state,
+                                          item,
+                                        ),
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.labelSmall,
+                                      ),
                                       Text(item.goal ?? '운동 목표 미등록'),
                                       if (item.sharedRecommendationProfile !=
                                               null &&
@@ -4363,6 +4372,19 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: SetflowSpacing.xs2),
+                      Text(
+                        _businessConsultationModeLine(
+                          AppScope.of(context),
+                          consultation,
+                        ),
+                        style: Theme.of(sheetContext).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Theme.of(
+                                sheetContext,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: SetflowSpacing.sm),
                       Text(consultation.question ?? '질문 내용이 없습니다.'),
                       if (consultation.sharedRecommendationProfile != null &&
                           consultation.recommendationProfileShareRevokedAt ==
@@ -4631,6 +4653,27 @@ bool _hasBusinessReply(BusinessConsultation consultation) {
         message.sender == BusinessMessageSender.trainer ||
         message.sender == BusinessMessageSender.gym,
   );
+}
+
+String _businessConsultationModeLine(
+  AppState state,
+  BusinessConsultation consultation,
+) {
+  final location = switch (consultation.matchingSource) {
+    ConsultationMatchingSource.gym => consultation.gymName,
+    ConsultationMatchingSource.region =>
+      state.serviceRegions
+              .where(
+                (region) => region.code == consultation.requestedRegionCode,
+              )
+              .firstOrNull
+              ?.name ??
+          consultation.requestedRegionCode,
+    ConsultationMatchingSource.direct => consultation.gymName,
+  };
+  return location == null
+      ? consultation.mode.label
+      : '${consultation.mode.label} · $location';
 }
 
 String _businessTrainerName(AppState state, String trainerId) =>

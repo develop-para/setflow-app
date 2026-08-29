@@ -632,7 +632,7 @@ void main() {
 
     // 접힌 이번 주가 기본이다 — 홈에서 매일 보는 것은 이번 주고, 그 아래
     // 요약과 섹션들이 첫 화면에 들어와야 한다.
-    expect(find.byType(DragTarget<DateTime>), findsNWidgets(7));
+    expect(find.byType(DragTarget<Object>), findsNWidgets(7));
     expect(find.byTooltip('이전 주'), findsOneWidget);
 
     // 접기 손잡이는 격자 바로 아래 하나뿐이다 — 헤더에 있던 사본은 걷어냈다.
@@ -650,7 +650,7 @@ void main() {
     await tester.pump();
     await tester.pump(SetflowMotion.standard);
     await tester.pump(SetflowMotion.standard);
-    expect(find.byType(DragTarget<DateTime>), findsNWidgets(7));
+    expect(find.byType(DragTarget<Object>), findsNWidgets(7));
     final lastWeek = today.subtract(const Duration(days: 7));
     expect(
       find.bySemanticsLabel(
@@ -665,7 +665,7 @@ void main() {
     await tester.pump();
     await tester.pump(SetflowMotion.standard);
     await tester.pump(SetflowMotion.standard);
-    expect(find.byType(DragTarget<DateTime>), findsNWidgets(42));
+    expect(find.byType(DragTarget<Object>), findsNWidgets(42));
     expect(find.byTooltip('이전 달'), findsOneWidget);
 
     // 다시 접으면 이번 주로 돌아온다.
@@ -674,8 +674,93 @@ void main() {
     await tester.pump();
     await tester.pump(SetflowMotion.standard);
     await tester.pump(SetflowMotion.standard);
-    expect(find.byType(DragTarget<DateTime>), findsNWidgets(7));
+    expect(find.byType(DragTarget<Object>), findsNWidgets(7));
     expect(tester.takeException(), isNull);
+
+    state.dispose();
+  });
+
+  testWidgets('calendar home shows my saved routines without together entry', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(432, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: const Scaffold(body: CalendarScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('나의 루틴'), findsOneWidget);
+    expect(find.text('전문가 루틴'), findsNothing);
+    expect(find.byKey(const ValueKey('home-together-entry')), findsNothing);
+    for (final routine in state.routines.take(4)) {
+      expect(
+        find.byKey(ValueKey('home-routine-${routine.id}')),
+        findsOneWidget,
+      );
+      expect(find.text(routine.name), findsOneWidget);
+    }
+
+    state.dispose();
+  });
+
+  testWidgets('long-pressing my routine onto a calendar day applies it', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(432, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+    final routine = state.routines.first;
+    final today = state.dateOnly(DateTime.now());
+    final weekStart = today.subtract(Duration(days: today.weekday % 7));
+    final target = state.dateOnly(weekStart.add(const Duration(days: 2)));
+    state.sessions.remove(target);
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          home: const Scaffold(body: CalendarScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final routineCard = find.byKey(ValueKey('home-routine-${routine.id}'));
+    final targetCell = find.bySemanticsLabel(
+      RegExp('^${target.year}년 ${target.month}월 ${target.day}일'),
+    );
+    expect(routineCard, findsOneWidget);
+    expect(targetCell, findsOneWidget);
+
+    final gesture = await tester.startGesture(tester.getCenter(routineCard));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    await gesture.moveTo(tester.getCenter(targetCell));
+    await tester.pump(const Duration(milliseconds: 200));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(
+      state.sessions[target]!.exercises.map((item) => item.template.id),
+      routine.exercises.map((item) => item.id),
+    );
+    expect(
+      find.textContaining(
+        '${routine.name} 운동 ${routine.exercises.length}개를 적용했어요.',
+      ),
+      findsOneWidget,
+    );
 
     state.dispose();
   });

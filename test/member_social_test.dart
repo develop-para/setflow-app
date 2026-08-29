@@ -210,19 +210,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final coachingStart = find.byKey(const ValueKey('coaching-start'));
     await tester.scrollUntilVisible(
-      find.text('코칭 시작'),
+      coachingStart,
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('코칭 시작'));
+    await tester.ensureVisible(coachingStart);
+    await tester.pumpAndSettle();
+    await tester.tap(coachingStart);
     await tester.pumpAndSettle();
     expect(find.text('1:1 코칭을 시작할까요?'), findsOneWidget);
 
-    await tester.tap(find.text('결제하고 시작'));
+    await tester.tap(find.byKey(const ValueKey('coaching-start-confirm')));
     await tester.pumpAndSettle();
     expect(consultation.status, ConsultationStatus.coaching);
-    expect(find.text('코칭 중'), findsOneWidget);
+    expect(find.byKey(const ValueKey('coaching-rating')), findsOneWidget);
   });
 
   test('routine import enforces paid access and the free plan limit', () async {

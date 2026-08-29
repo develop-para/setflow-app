@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import '../data/business_repository.dart';
 import '../services/push_service.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import '../widgets/common.dart';
 import 'account_deletion_screen.dart';
 import 'evidence_library_screen.dart';
@@ -789,6 +791,9 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
   late TextEditingController _nameController;
   late TextEditingController _keywordController;
   late TextEditingController _introController;
+  bool _acceptsOnlineConsultation = true;
+  bool _acceptsOfflineConsultation = false;
+  String? _primaryActivityRegionCode;
   bool _loaded = false;
 
   @override
@@ -804,6 +809,15 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
           facts[_isGym ? 'location' : 'keyword'] ?? (_isGym ? '' : '바디프로필 전문가'),
     );
     _introController = TextEditingController(text: facts['intro'] ?? '');
+    final profile = AppScope.of(context).businessWorkspace?.profile;
+    if (profile is TrainerBusinessProfile) {
+      _acceptsOnlineConsultation = profile.acceptsOnlineConsultation;
+      _acceptsOfflineConsultation = profile.acceptsOfflineConsultation;
+      _primaryActivityRegionCode = profile.serviceAreas
+          .where((area) => area.isPrimary)
+          .firstOrNull
+          ?.regionCode;
+    }
     _loaded = true;
   }
 
@@ -824,12 +838,33 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
           TextButton(
             onPressed: () async {
               if (!(_formKey.currentState?.validate() ?? false)) return;
+              if (!_isGym &&
+                  !_acceptsOnlineConsultation &&
+                  !_acceptsOfflineConsultation) {
+                AppSnackbar.error(context, '온라인 또는 오프라인 상담을 하나 이상 선택해주세요.');
+                return;
+              }
+              if (!_isGym &&
+                  _acceptsOfflineConsultation &&
+                  _primaryActivityRegionCode == null) {
+                AppSnackbar.error(context, '오프라인 상담의 주요 활동 지역을 선택해주세요.');
+                return;
+              }
               try {
                 await AppScope.of(context).updateBusinessProfile(
                   role: widget.role,
                   displayName: _nameController.text.trim(),
                   keyword: _keywordController.text.trim(),
                   intro: _introController.text.trim(),
+                  acceptsOnlineConsultation: _isGym
+                      ? null
+                      : _acceptsOnlineConsultation,
+                  acceptsOfflineConsultation: _isGym
+                      ? null
+                      : _acceptsOfflineConsultation,
+                  primaryActivityRegionCode: _isGym
+                      ? null
+                      : _primaryActivityRegionCode,
                 );
               } catch (_) {
                 if (context.mounted) {
@@ -904,6 +939,68 @@ class _BusinessProfileEditScreenState extends State<BusinessProfileEditScreen> {
                 maxLines: 4,
                 maxLength: 150,
               ),
+              if (!_isGym) ...[
+                const SizedBox(height: SetflowSpacing.xxl),
+                Text(
+                  '상담 방식과 활동 지역',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: SetflowSpacing.xs),
+                Text(
+                  '오프라인 상담은 회원이 선택한 지역과 일치할 때만 자동 배정됩니다.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.sm),
+                SwitchListTile.adaptive(
+                  key: const ValueKey('trainer-accepts-online'),
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(SetflowIcons.onlineConsultation),
+                  title: const Text('온라인 상담'),
+                  subtitle: const Text('채팅과 기록을 기반으로 상담합니다.'),
+                  value: _acceptsOnlineConsultation,
+                  onChanged: (value) =>
+                      setState(() => _acceptsOnlineConsultation = value),
+                ),
+                SwitchListTile.adaptive(
+                  key: const ValueKey('trainer-accepts-offline'),
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(SetflowIcons.offlineConsultation),
+                  title: const Text('오프라인 상담'),
+                  subtitle: const Text('주요 활동 지역 또는 소속 센터에서 상담합니다.'),
+                  value: _acceptsOfflineConsultation,
+                  onChanged: (value) =>
+                      setState(() => _acceptsOfflineConsultation = value),
+                ),
+                if (_acceptsOfflineConsultation) ...[
+                  const SizedBox(height: SetflowSpacing.sm),
+                  DropdownButtonFormField<String>(
+                    key: const ValueKey('trainer-primary-region'),
+                    initialValue:
+                        AppScope.of(context).serviceRegions.any(
+                          (region) => region.code == _primaryActivityRegionCode,
+                        )
+                        ? _primaryActivityRegionCode
+                        : null,
+                    decoration: const InputDecoration(labelText: '주요 활동 지역'),
+                    items: AppScope.of(context).serviceRegions
+                        .map(
+                          (region) => DropdownMenuItem(
+                            value: region.code,
+                            child: Text(region.name),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) =>
+                        setState(() => _primaryActivityRegionCode = value),
+                    validator: (value) =>
+                        _acceptsOfflineConsultation && value == null
+                        ? '주요 활동 지역을 선택해주세요.'
+                        : null,
+                  ),
+                ],
+              ],
             ],
           ),
         ),

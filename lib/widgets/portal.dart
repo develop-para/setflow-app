@@ -176,7 +176,15 @@ class _PortalSegment extends StatelessWidget {
 
 /// The switcher row every shell puts above its content.
 class PortalHeaderBar extends StatelessWidget {
-  const PortalHeaderBar({this.trailing, this.switcher = true, super.key});
+  const PortalHeaderBar({
+    this.leading,
+    this.trailing,
+    this.switcher = true,
+    super.key,
+  });
+
+  /// Optional shell-specific context on the left edge.
+  final Widget? leading;
 
   /// Optional shell-specific actions on the right edge.
   final Widget? trailing;
@@ -195,7 +203,7 @@ class PortalHeaderBar extends StatelessWidget {
     // The SafeArea stays even with nothing to show: the pages below strip their
     // own top inset because this bar already ate it, so collapsing the whole
     // widget would slide the first page under the status bar.
-    if (!showSwitcher && trailing == null) {
+    if (!showSwitcher && leading == null && trailing == null) {
       return const SafeArea(bottom: false, child: SizedBox.shrink());
     }
     return SafeArea(
@@ -207,6 +215,8 @@ class PortalHeaderBar extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             if (showSwitcher) const Center(child: PortalSwitcher()),
+            if (leading != null)
+              Positioned(left: SetflowSpacing.sm, child: leading!),
             if (trailing != null)
               Positioned(right: SetflowSpacing.sm, child: trailing!),
           ],

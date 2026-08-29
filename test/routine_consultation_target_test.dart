@@ -173,6 +173,33 @@ void main() {
     expect(repository.createdInputs.single.trainerId, isNot(_otherTrainerId));
   });
 
+  testWidgets('offline consultation sends the selected region for matching', (
+    tester,
+  ) async {
+    final repository = _FakeBusinessRepository();
+    await _pumpLiveScreen(
+      tester,
+      repository,
+      const ConsultationCreateScreen(),
+      serviceRegions: const [
+        ServiceRegion(code: '11', name: '서울특별시', sortOrder: 1),
+        ServiceRegion(code: '41', name: '경기도', sortOrder: 2),
+      ],
+    );
+
+    await tester.tap(find.text('오프라인'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('consultation-region')), findsOneWidget);
+
+    await _completeConsultationForm(tester);
+
+    expect(repository.createdInputs, hasLength(1));
+    expect(repository.createdInputs.single.mode, ConsultationMode.offline);
+    expect(repository.createdInputs.single.regionCode, '11');
+    expect(repository.createdInputs.single.trainerId, isNull);
+    expect(repository.createdInputs.single.gymId, isNull);
+  });
+
   testWidgets('live coaching payment, escrow, and rating CTAs stay disabled', (
     tester,
   ) async {
@@ -241,11 +268,13 @@ Future<AppState> _pumpLiveScreen(
   _FakeBusinessRepository repository,
   Widget screen, {
   List<PublicTrainer> trainers = const [],
+  List<ServiceRegion> serviceRegions = const [],
 }) async {
   await tester.binding.setSurfaceSize(const Size(480, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final state = AppState(businessRepository: repository)
-    ..publicTrainers = trainers;
+    ..publicTrainers = trainers
+    ..serviceRegions = serviceRegions;
   addTearDown(state.dispose);
   await tester.pumpWidget(
     AppScope(
@@ -258,7 +287,13 @@ Future<AppState> _pumpLiveScreen(
 }
 
 Future<void> _completeConsultationForm(WidgetTester tester) async {
-  await tester.enterText(_formField('운동 목표'), '주 3회 근력 향상');
+  final goal = _formField('운동 목표');
+  await tester.scrollUntilVisible(
+    goal,
+    300,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.enterText(goal, '주 3회 근력 향상');
   await tester.enterText(
     _formField('현재 운동 수준과 경험'),
     '헬스 3년 차이며 주 3회 꾸준히 운동합니다.',
@@ -334,6 +369,13 @@ class _FakeBusinessRepository implements BusinessRepository {
       trainerId: input.trainerId,
       gymId: input.gymId,
       routineId: input.routineId,
+      mode: input.mode,
+      requestedRegionCode: input.regionCode,
+      matchingSource: input.gymId != null
+          ? ConsultationMatchingSource.gym
+          : input.regionCode != null
+          ? ConsultationMatchingSource.region
+          : ConsultationMatchingSource.direct,
       status: BusinessConsultationStatus.pending,
       isRead: false,
       question: input.question,

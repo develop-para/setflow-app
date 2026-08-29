@@ -18,6 +18,7 @@ import '../widgets/portal.dart';
 import 'detail_screens.dart';
 import 'evidence_library_screen.dart';
 import 'member_mypage_screen.dart';
+import 'member_membership_screen.dart';
 import 'member_social_detail_screens.dart';
 import 'routine_editor_screen.dart';
 import 'together_screens.dart';
@@ -35,6 +36,134 @@ class MemberShell extends StatefulWidget {
 
   @override
   State<MemberShell> createState() => _MemberShellState();
+}
+
+class _WorkoutLocationHeaderButton extends StatelessWidget {
+  const _WorkoutLocationHeaderButton();
+
+  Future<void> _open(BuildContext context) async {
+    if (!await requireSignIn(context, reason: AuthReason.membership)) return;
+    if (!context.mounted) return;
+    final state = AppScope.of(context);
+    final result = await showSetflowSheet<String>(
+      context,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          0,
+          SetflowSpacing.gutter,
+          SetflowSpacing.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '현재 운동 장소',
+              style: Theme.of(sheetContext).textTheme.titleLarge,
+            ),
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(
+              '선택한 장소는 홈과 오프라인 상담의 기본 헬스장으로 사용됩니다.',
+              style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            if (state.workoutLocations.isEmpty)
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(SetflowIcons.location),
+                title: Text('등록한 운동 장소가 없어요'),
+              )
+            else
+              for (final location in state.workoutLocations)
+                ListTile(
+                  key: ValueKey('header-workout-location-${location.id}'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    location.isActive
+                        ? SetflowIcons.locationActive
+                        : SetflowIcons.location,
+                  ),
+                  title: Text(location.gymName),
+                  subtitle: location.gymAddress == null
+                      ? null
+                      : Text(
+                          location.gymAddress!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                  trailing: location.isActive
+                      ? const Icon(SetflowIcons.success)
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, location.id),
+                ),
+            const SizedBox(height: SetflowSpacing.sm),
+            AppButton(
+              key: const ValueKey('manage-workout-locations'),
+              label: '운동 장소 관리',
+              icon: SetflowIcons.settings,
+              variant: AppButtonVariant.outlined,
+              onPressed: () => Navigator.pop(sheetContext, 'manage'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted || result == null) return;
+    if (result == 'manage') {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(builder: (_) => const MemberMembershipScreen()),
+      );
+      return;
+    }
+    try {
+      await state.selectWorkoutLocation(result);
+    } catch (_) {
+      if (context.mounted) {
+        AppSnackbar.error(context, '운동 장소를 변경하지 못했어요.');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final location = AppScope.of(context).currentWorkoutLocation;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 108),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const ValueKey('home-workout-location'),
+          borderRadius: BorderRadius.circular(SetflowRadii.full),
+          onTap: () => _open(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SetflowSpacing.xs,
+              vertical: SetflowSpacing.xs,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(SetflowIcons.location, size: 18),
+                const SizedBox(width: SetflowSpacing.xxs),
+                Flexible(
+                  child: Text(
+                    location?.gymName ?? '운동 장소',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ),
+                const Icon(SetflowIcons.expand, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// 탭한 푸시가 여는 회원 셸의 페이지. 상세 화면(상담·게시글)은 main.dart가
@@ -181,7 +310,12 @@ class _MemberShellState extends State<MemberShell> {
             Column(
               children: [
                 if (!_inTogetherSession)
-                  PortalHeaderBar(switcher: index == _homePage),
+                  PortalHeaderBar(
+                    switcher: index == _homePage,
+                    leading: index == _homePage
+                        ? const _WorkoutLocationHeaderButton()
+                        : null,
+                  ),
                 // The header already ate the status-bar inset, so the per-page
                 // SafeArea below must not add it a second time. 아래도 같다:
                 // 바텀바가 떠 있으면 하단 인셋은 바가 먹는다 — 안 빼면 홈의
@@ -425,10 +559,11 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime? dragSource;
+  RoutineData? draggedRoutine;
 
   /// 이번 주가 기본이다. 홈에서 매일 보는 것은 "이번 주에 뭘 했나"지 달력
-  /// 전체가 아니고, 접혀 있어야 그 아래 이번 달 요약·전문가 루틴·함께 운동이
-  /// 첫 화면에 들어온다. 펼치면 [anchor]가 든 달 전체가 나온다.
+  /// 전체가 아니고, 접혀 있어야 그 아래 이번 달 요약·나의 루틴이 첫 화면에
+  /// 들어온다. 펼치면 [anchor]가 든 달 전체가 나온다.
   bool expanded = false;
 
   /// 접었을 때 남는 주를 정하는 날짜. 달을 바꿀 때마다 같이 옮겨서
@@ -644,10 +779,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             ),
                                             onTap: () =>
                                                 _handleDayTap(context, day),
-                                            onWorkoutDropped: (source) =>
-                                                _handleWorkoutDrop(
+                                            onItemDropped: (item) =>
+                                                _handleCalendarDrop(
                                                   context,
-                                                  source,
+                                                  item,
                                                   day,
                                                 ),
                                             onDragStarted: () {
@@ -697,7 +832,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             const SizedBox(height: SetflowSpacing.xl),
                             const _RecentBestsSection(),
                             const _RecentSessionsSection(),
-                            if (dragSource != null)
+                            const SizedBox(height: SetflowSpacing.xl),
+                            _MyRoutinePreviewSection(
+                              onDragStarted: (routine) {
+                                HapticFeedback.mediumImpact();
+                                setState(() => draggedRoutine = routine);
+                              },
+                              onDragEnded: () {
+                                if (mounted) {
+                                  setState(() => draggedRoutine = null);
+                                }
+                              },
+                            ),
+                            if (dragSource != null || draggedRoutine != null)
                               Container(
                                 margin: const EdgeInsets.only(top: 10),
                                 padding: const EdgeInsets.symmetric(
@@ -722,7 +869,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     const SizedBox(width: SetflowSpacing.sm),
                                     Expanded(
                                       child: Text(
-                                        '${dragSource!.month}월 ${dragSource!.day}일 운동을 다른 날짜 위에 놓아주세요',
+                                        draggedRoutine != null
+                                            ? '${draggedRoutine!.name}을 원하는 날짜 위에 놓아주세요'
+                                            : '${dragSource!.month}월 ${dragSource!.day}일 운동을 다른 날짜 위에 놓아주세요',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: SetflowFontSize.caption,
@@ -768,6 +917,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
     AppSnackbar.success(
       context,
       '${target.month}월 ${target.day}일에 운동 $copied개를 복사했어요.',
+    );
+  }
+
+  void _handleCalendarDrop(BuildContext context, Object item, DateTime target) {
+    if (item is DateTime) {
+      _handleWorkoutDrop(context, item, target);
+      return;
+    }
+    if (item is! RoutineData) return;
+    final added = AppScope.of(context).applyRoutine(item, target);
+    if (added == 0) {
+      AppSnackbar.info(context, '이 날짜에 루틴 운동이 이미 모두 있어요.');
+      return;
+    }
+    HapticFeedback.selectionClick();
+    AppSnackbar.success(
+      context,
+      '${target.month}월 ${target.day}일에 ${item.name} 운동 $added개를 적용했어요.',
     );
   }
 
@@ -1113,7 +1280,7 @@ class _CalendarCell extends StatelessWidget {
     required this.inMonth,
     required this.isToday,
     required this.onTap,
-    required this.onWorkoutDropped,
+    required this.onItemDropped,
     required this.onDragStarted,
     required this.onDragEnded,
   });
@@ -1124,7 +1291,7 @@ class _CalendarCell extends StatelessWidget {
   final bool inMonth;
   final bool isToday;
   final VoidCallback onTap;
-  final ValueChanged<DateTime> onWorkoutDropped;
+  final ValueChanged<Object> onItemDropped;
   final VoidCallback onDragStarted;
   final VoidCallback onDragEnded;
 
@@ -1184,10 +1351,13 @@ class _CalendarCell extends StatelessWidget {
       semanticLabel.write(', 코치 피드백 $feedbackCount개');
     }
 
-    return DragTarget<DateTime>(
-      onWillAcceptWithDetails: (details) =>
-          !DateUtils.isSameDay(details.data, date),
-      onAcceptWithDetails: (details) => onWorkoutDropped(details.data),
+    return DragTarget<Object>(
+      onWillAcceptWithDetails: (details) => switch (details.data) {
+        final DateTime source => !DateUtils.isSameDay(source, date),
+        RoutineData() => true,
+        _ => false,
+      },
+      onAcceptWithDetails: (details) => onItemDropped(details.data),
       builder: (context, candidates, rejected) {
         final isDropTarget = candidates.isNotEmpty;
         final cell = Opacity(
@@ -1353,7 +1523,7 @@ class _CalendarCell extends StatelessWidget {
         );
 
         if (!hasSession) return cell;
-        return LongPressDraggable<DateTime>(
+        return LongPressDraggable<Object>(
           data: date,
           onDragStarted: onDragStarted,
           onDragEnd: (_) => onDragEnded(),
@@ -2009,6 +2179,241 @@ class _RecentSessionsSection extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// 홈에서 바로 날짜에 적용하는 실제 내 루틴.
+///
+/// 카드를 길게 눌러 캘린더 날짜에 놓으면 [AppState.applyRoutine]이 기존
+/// 운동과 안전하게 병합한다.
+class _MyRoutinePreviewSection extends StatelessWidget {
+  const _MyRoutinePreviewSection({
+    required this.onDragStarted,
+    required this.onDragEnded,
+  });
+
+  final ValueChanged<RoutineData> onDragStarted;
+  final VoidCallback onDragEnded;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final routines = state.routines.take(4).toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionTitle(
+          '나의 루틴',
+          action: '전체 보기',
+          onAction: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const RoutinesScreen())),
+        ),
+        const SizedBox(height: SetflowSpacing.xs),
+        Text(
+          '루틴을 길게 눌러 위 캘린더의 원하는 날짜에 놓아주세요.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: SetflowSpacing.sm),
+        if (routines.isEmpty)
+          SetflowCard(
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const RoutinesScreen())),
+            child: Row(
+              children: [
+                const Icon(SetflowIcons.routine),
+                const SizedBox(width: SetflowSpacing.md),
+                Expanded(
+                  child: Text(
+                    '저장된 루틴이 없어요. 나의 루틴에서 먼저 만들어보세요.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+                const Icon(SetflowIcons.forward),
+              ],
+            ),
+          )
+        else
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final (index, routine) in routines.indexed) ...[
+                  if (index > 0) const SizedBox(width: SetflowSpacing.sm2),
+                  _MyRoutineHomeCard(
+                    routine: routine,
+                    onDragStarted: () => onDragStarted(routine),
+                    onDragEnded: onDragEnded,
+                  ),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _MyRoutineHomeCard extends StatelessWidget {
+  const _MyRoutineHomeCard({
+    required this.routine,
+    required this.onDragStarted,
+    required this.onDragEnded,
+  });
+
+  final RoutineData routine;
+  final VoidCallback onDragStarted;
+  final VoidCallback onDragEnded;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 250,
+      child: LongPressDraggable<Object>(
+        data: routine,
+        onDragStarted: onDragStarted,
+        onDragEnd: (_) => onDragEnded(),
+        feedback: Material(
+          elevation: 10,
+          color: theme.colorScheme.inverseSurface,
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SetflowSpacing.lg,
+              vertical: SetflowSpacing.md,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  SetflowIcons.routine,
+                  size: 18,
+                  color: theme.colorScheme.onInverseSurface,
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+                Text(
+                  '${routine.name} · ${routine.exercises.length}개 운동',
+                  style: TextStyle(
+                    color: theme.colorScheme.onInverseSurface,
+                    fontWeight: SetflowWeight.strong,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        childWhenDragging: Opacity(
+          opacity: .28,
+          child: _MyRoutineCardBody(routine: routine),
+        ),
+        child: _MyRoutineCardBody(routine: routine),
+      ),
+    );
+  }
+}
+
+class _MyRoutineCardBody extends StatelessWidget {
+  const _MyRoutineCardBody({required this.routine});
+
+  final RoutineData routine;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SetflowCard(
+      key: ValueKey('home-routine-${routine.id}'),
+      padding: const EdgeInsets.all(SetflowSpacing.lg),
+      onTap: () async {
+        final updated = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => RoutineEditorScreen(routine: routine),
+          ),
+        );
+        if (updated == true && context.mounted) {
+          AppSnackbar.success(context, '루틴 변경사항을 저장했어요.');
+        }
+      },
+      child: Semantics(
+        hint: '길게 눌러 캘린더 날짜에 적용',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: routine.color,
+                    borderRadius: BorderRadius.circular(SetflowRadii.full),
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+                Expanded(
+                  child: Text(
+                    '${routine.exercises.length}개 운동 · ${routine.level}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: SetflowWeight.medium,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            Text(
+              routine.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: SetflowFontSize.title,
+                fontWeight: FontWeight.w900,
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(
+              routine.description,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            Row(
+              children: [
+                Icon(
+                  SetflowIcons.home,
+                  size: 15,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: SetflowSpacing.xs),
+                Expanded(
+                  child: Text(
+                    '길게 눌러 날짜에 적용',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: SetflowWeight.strong,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

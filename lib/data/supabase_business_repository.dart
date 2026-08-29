@@ -23,6 +23,9 @@ const _consultationSelect = '''
   question,
   is_read,
   assigned_trainer_id,
+  consultation_mode,
+  matching_source,
+  requested_region_code,
   created_at,
   recommendation_profile_share:consultation_recommendation_profile_shares(
     schema_version,
@@ -202,6 +205,8 @@ class SupabaseBusinessRepository
         TopCoachingTrainerRepository,
         MemberSessionFeedbackRepository,
         BusinessMembershipRepository,
+        WorkoutLocationRepository,
+        TrainerConsultationSettingsRepository,
         RoutineShareRevocationRepository,
         ConsultationRecommendationProfileShareRepository {
   const SupabaseBusinessRepository(this._client);
@@ -898,16 +903,34 @@ class SupabaseBusinessRepository
     final trainerId = _validatedOptionalUuid(input.trainerId, 'trainerId');
     final gymId = _validatedOptionalUuid(input.gymId, 'gymId');
     final routineId = _validatedOptionalUuid(input.routineId, 'routineId');
-    if ((trainerId == null) == (gymId == null)) {
-      throw ArgumentError('Exactly one trainerId or gymId is required.');
+    final regionCode = _nullableString(input.regionCode);
+    switch (input.mode) {
+      case ConsultationMode.online:
+        if ((trainerId == null) == (gymId == null) || regionCode != null) {
+          throw ArgumentError(
+            'Online consultation requires one trainerId or gymId.',
+          );
+        }
+      case ConsultationMode.offline:
+        if (gymId != null) {
+          if (trainerId != null || regionCode != null) {
+            throw ArgumentError('Gym matching accepts only one gymId.');
+          }
+        } else if (regionCode == null) {
+          throw ArgumentError(
+            'Offline consultation requires a gymId or regionCode.',
+          );
+        }
     }
 
     final result = await _client.rpc(
-      'create_business_consultation',
+      'create_location_aware_consultation',
       params: {
         'request_id': requestId,
+        'consultation_mode': input.mode.databaseValue,
         'trainer_id': trainerId,
         'gym_id': gymId,
+        'region_code': regionCode,
         'routine_id': routineId,
         'specialty': _nullableString(input.specialty),
         'goal': _nullableString(input.goal),
@@ -923,12 +946,111 @@ class SupabaseBusinessRepository
           )),
     );
     if (consultation.userId != user.id ||
-        consultation.trainerId != trainerId ||
+        consultation.mode != input.mode ||
         consultation.gymId != gymId ||
-        consultation.routineId != routineId) {
+        consultation.requestedRegionCode != regionCode ||
+        consultation.routineId != routineId ||
+        (trainerId != null && consultation.trainerId != trainerId)) {
       throw StateError('Server returned a different consultation create.');
     }
     return consultation;
+  }
+
+  @override
+  Future<List<ServiceRegion>> listServiceRegions() async {
+    final rows = await _client
+        .from('service_regions')
+        .select('code,name,sort_order')
+        .eq('active', true)
+        .order('sort_order');
+    return List.unmodifiable(_mapListValue(rows).map(_serviceRegionFromRow));
+  }
+
+  @override
+  Future<List<GymDirectoryEntry>> listVerifiedGyms() async {
+    final rows = await _client
+        .from('gyms')
+        .select('id,name,address')
+        .eq('status', 'verified')
+        .order('name')
+        .limit(200);
+    return List.unmodifiable(_mapListValue(rows).map(_gymDirectoryFromRow));
+  }
+
+  @override
+  Future<List<MemberWorkoutLocation>> listMyWorkoutLocations() async {
+    final user = _requireUser();
+    final rows = await _client
+        .from('member_workout_locations')
+        .select('''
+          id,
+          user_id,
+          gym_id,
+          is_active,
+          last_selected_at,
+          created_at,
+          gym:gyms!member_workout_locations_gym_id_fkey(
+            id,
+            name,
+            address
+          )
+        ''')
+        .eq('user_id', user.id)
+        .order('is_active', ascending: false)
+        .order('last_selected_at', ascending: false, nullsFirst: false)
+        .order('created_at', ascending: false);
+    return List.unmodifiable(
+      _mapListValue(rows).map(_memberWorkoutLocationFromRow),
+    );
+  }
+
+  @override
+  Future<void> saveWorkoutLocation(String gymId) async {
+    await _client.rpc(
+      'set_my_workout_location',
+      params: {'gym_id': _validatedUuid(gymId, 'gymId')},
+    );
+  }
+
+  @override
+  Future<void> selectWorkoutLocation(String locationId) async {
+    await _client.rpc(
+      'select_my_workout_location',
+      params: {'location_id': _validatedUuid(locationId, 'locationId')},
+    );
+  }
+
+  @override
+  Future<void> removeWorkoutLocation(String locationId) async {
+    await _client.rpc(
+      'remove_my_workout_location',
+      params: {'location_id': _validatedUuid(locationId, 'locationId')},
+    );
+  }
+
+  @override
+  Future<void> updateTrainerConsultationSettings(
+    TrainerConsultationSettingsInput input,
+  ) async {
+    if (!input.acceptsOnline && !input.acceptsOffline) {
+      throw ArgumentError('At least one consultation mode is required.');
+    }
+    final regionCodes = input.regionCodes
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (input.acceptsOffline && regionCodes.isEmpty) {
+      throw ArgumentError('Offline consultation requires a service region.');
+    }
+    await _client.rpc(
+      'update_my_trainer_consultation_settings',
+      params: {
+        'accepts_online': input.acceptsOnline,
+        'accepts_offline': input.acceptsOffline,
+        'region_codes': regionCodes,
+      },
+    );
   }
 
   @override
@@ -2117,6 +2239,9 @@ class SupabaseBusinessRepository
 }
 
 TrainerBusinessProfile _trainerFromRow(Map<String, dynamic> row) {
+  final serviceAreas = _mapListValue(
+    row['service_areas'],
+  ).map(_trainerServiceAreaFromRow).toList(growable: false);
   return TrainerBusinessProfile(
     id: _requiredUuid(row, 'id'),
     userId: _nullableUuid(row['user_id']) ?? '',
@@ -2129,11 +2254,57 @@ TrainerBusinessProfile _trainerFromRow(Map<String, dynamic> row) {
     rating: _doubleValue(row['rating_avg']),
     postCount: _intValue(row['post_count']),
     coachingTotal: _intValue(row['coaching_total']),
+    acceptsOnlineConsultation: row.containsKey('accepts_online_consultation')
+        ? _boolValue(row['accepts_online_consultation'])
+        : true,
+    acceptsOfflineConsultation: _boolValue(row['accepts_offline_consultation']),
+    serviceAreas: List.unmodifiable(serviceAreas),
     isPublic: _boolValue(row['is_public']),
     verified: _boolValue(row['verified_badge']),
     status: _profileStatusFromDatabase(row['status']),
     createdAt: _nullableDateTime(row['created_at']),
     updatedAt: _nullableDateTime(row['updated_at']),
+  );
+}
+
+ServiceRegion _serviceRegionFromRow(Map<String, dynamic> row) {
+  return ServiceRegion(
+    code: _stringValue(row['code']),
+    name: _stringValue(row['name']),
+    sortOrder: _intValue(row['sort_order']),
+  );
+}
+
+TrainerServiceArea _trainerServiceAreaFromRow(Map<String, dynamic> row) {
+  return TrainerServiceArea(
+    regionCode: _stringValue(row['region_code']),
+    regionName: _stringValue(row['region_name']),
+    isPrimary: _boolValue(row['is_primary']),
+  );
+}
+
+GymDirectoryEntry _gymDirectoryFromRow(Map<String, dynamic> row) {
+  return GymDirectoryEntry(
+    id: _requiredUuid(row, 'id'),
+    name: _stringValue(row['name'], fallback: '헬스장'),
+    address: _nullableString(row['address']),
+  );
+}
+
+MemberWorkoutLocation _memberWorkoutLocationFromRow(Map<String, dynamic> row) {
+  final gym = _mapValue(row['gym']);
+  if (gym == null) {
+    throw const FormatException('Workout location has no gym.');
+  }
+  return MemberWorkoutLocation(
+    id: _requiredUuid(row, 'id'),
+    userId: _requiredUuid(row, 'user_id'),
+    gymId: _requiredUuid(row, 'gym_id'),
+    gymName: _stringValue(gym['name'], fallback: '헬스장'),
+    gymAddress: _nullableString(gym['address']),
+    isActive: _boolValue(row['is_active']),
+    lastSelectedAt: _nullableDateTime(row['last_selected_at']),
+    createdAt: _nullableDateTime(row['created_at']),
   );
 }
 
@@ -2558,6 +2729,11 @@ BusinessConsultation _consultationFromRow(Map<String, dynamic> row) {
     gymId: _nullableUuid(row['gym_id']),
     routineId: _nullableUuid(row['routine_id']),
     assignedTrainerId: _nullableUuid(row['assigned_trainer_id']),
+    mode: _consultationModeFromDatabase(row['consultation_mode']),
+    matchingSource: _consultationMatchingSourceFromDatabase(
+      row['matching_source'],
+    ),
+    requestedRegionCode: _nullableString(row['requested_region_code']),
     status: _consultationStatusFromDatabase(row['status']),
     isRead: _boolValue(row['is_read']),
     memberName:
@@ -2584,6 +2760,23 @@ BusinessConsultation _consultationFromRow(Map<String, dynamic> row) {
     ),
     messages: List.unmodifiable(messages),
   );
+}
+
+ConsultationMode _consultationModeFromDatabase(Object? value) {
+  return switch (value) {
+    'offline' => ConsultationMode.offline,
+    _ => ConsultationMode.online,
+  };
+}
+
+ConsultationMatchingSource _consultationMatchingSourceFromDatabase(
+  Object? value,
+) {
+  return switch (value) {
+    'region' => ConsultationMatchingSource.region,
+    'gym' => ConsultationMatchingSource.gym,
+    _ => ConsultationMatchingSource.direct,
+  };
 }
 
 BusinessConsultationMessage _consultationMessageFromRow(

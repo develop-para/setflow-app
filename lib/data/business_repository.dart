@@ -178,6 +178,9 @@ class TrainerBusinessProfile extends BusinessWorkspaceProfile {
     required this.rating,
     required this.postCount,
     required this.coachingTotal,
+    this.acceptsOnlineConsultation = true,
+    this.acceptsOfflineConsultation = false,
+    this.serviceAreas = const [],
     this.keyword,
     this.intro,
     this.imageUrl,
@@ -198,6 +201,9 @@ class TrainerBusinessProfile extends BusinessWorkspaceProfile {
   final double rating;
   final int postCount;
   final int coachingTotal;
+  final bool acceptsOnlineConsultation;
+  final bool acceptsOfflineConsultation;
+  final List<TrainerServiceArea> serviceAreas;
   final String? keyword;
   final String? intro;
   final String? imageUrl;
@@ -205,6 +211,60 @@ class TrainerBusinessProfile extends BusinessWorkspaceProfile {
   final String? centerName;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+}
+
+class ServiceRegion {
+  const ServiceRegion({
+    required this.code,
+    required this.name,
+    required this.sortOrder,
+  });
+
+  final String code;
+  final String name;
+  final int sortOrder;
+}
+
+class TrainerServiceArea {
+  const TrainerServiceArea({
+    required this.regionCode,
+    required this.regionName,
+    required this.isPrimary,
+  });
+
+  final String regionCode;
+  final String regionName;
+  final bool isPrimary;
+}
+
+class GymDirectoryEntry {
+  const GymDirectoryEntry({required this.id, required this.name, this.address});
+
+  final String id;
+  final String name;
+  final String? address;
+}
+
+class MemberWorkoutLocation {
+  const MemberWorkoutLocation({
+    required this.id,
+    required this.userId,
+    required this.gymId,
+    required this.gymName,
+    required this.isActive,
+    this.gymAddress,
+    this.lastSelectedAt,
+    this.createdAt,
+  });
+
+  final String id;
+  final String userId;
+  final String gymId;
+  final String gymName;
+  final String? gymAddress;
+  final bool isActive;
+  final DateTime? lastSelectedAt;
+  final DateTime? createdAt;
 }
 
 class GymBusinessProfile extends BusinessWorkspaceProfile {
@@ -815,6 +875,9 @@ class BusinessConsultation {
     required this.status,
     required this.isRead,
     required this.messages,
+    this.mode = ConsultationMode.online,
+    this.matchingSource = ConsultationMatchingSource.direct,
+    this.requestedRegionCode,
     this.trainerId,
     this.gymId,
     this.routineId,
@@ -839,6 +902,9 @@ class BusinessConsultation {
   final String? gymId;
   final String? routineId;
   final String? assignedTrainerId;
+  final ConsultationMode mode;
+  final ConsultationMatchingSource matchingSource;
+  final String? requestedRegionCode;
   final BusinessConsultationStatus status;
   final bool isRead;
   final String? memberName;
@@ -854,6 +920,30 @@ class BusinessConsultation {
   final DateTime? recommendationProfileSharedAt;
   final DateTime? recommendationProfileShareRevokedAt;
   final List<BusinessConsultationMessage> messages;
+}
+
+enum ConsultationMode {
+  online('online'),
+  offline('offline');
+
+  const ConsultationMode(this.databaseValue);
+
+  final String databaseValue;
+
+  String get label => switch (this) {
+    ConsultationMode.online => '온라인 상담',
+    ConsultationMode.offline => '오프라인 상담',
+  };
+}
+
+enum ConsultationMatchingSource {
+  direct('direct'),
+  region('region'),
+  gym('gym');
+
+  const ConsultationMatchingSource(this.databaseValue);
+
+  final String databaseValue;
 }
 
 class BusinessConsultationMessage {
@@ -1073,24 +1163,40 @@ class CreateConsultationInput {
   const CreateConsultationInput({
     required this.requestId,
     required this.question,
+    this.mode = ConsultationMode.online,
     this.trainerId,
     this.gymId,
     this.routineId,
     this.specialty,
     this.goal,
     this.level,
+    this.regionCode,
     this.recommendationProfile,
   });
 
   final String requestId;
+  final ConsultationMode mode;
   final String? trainerId;
   final String? gymId;
   final String? routineId;
   final String? specialty;
   final String? goal;
   final String? level;
+  final String? regionCode;
   final RecommendationProfile? recommendationProfile;
   final String question;
+}
+
+class TrainerConsultationSettingsInput {
+  const TrainerConsultationSettingsInput({
+    required this.acceptsOnline,
+    required this.acceptsOffline,
+    this.regionCodes = const [],
+  });
+
+  final bool acceptsOnline;
+  final bool acceptsOffline;
+  final List<String> regionCodes;
 }
 
 class TrainerApplicationInput {
@@ -1579,6 +1685,30 @@ abstract interface class BusinessMembershipRepository {
 
   Future<BusinessMember> endBusinessMembership(
     EndBusinessMembershipInput input,
+  );
+}
+
+/// Optional member capability for private workout-place preferences. These
+/// are not center memberships and never grant a gym access to workout data.
+abstract interface class WorkoutLocationRepository {
+  Future<List<ServiceRegion>> listServiceRegions();
+
+  Future<List<GymDirectoryEntry>> listVerifiedGyms();
+
+  Future<List<MemberWorkoutLocation>> listMyWorkoutLocations();
+
+  Future<void> saveWorkoutLocation(String gymId);
+
+  Future<void> selectWorkoutLocation(String locationId);
+
+  Future<void> removeWorkoutLocation(String locationId);
+}
+
+/// Optional trainer capability because legacy/demo repositories do not own
+/// the server-validated consultation availability settings.
+abstract interface class TrainerConsultationSettingsRepository {
+  Future<void> updateTrainerConsultationSettings(
+    TrainerConsultationSettingsInput input,
   );
 }
 

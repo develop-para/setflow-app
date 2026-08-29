@@ -690,6 +690,8 @@ class ConsultationData {
     required this.level,
     required this.question,
     required this.createdAt,
+    this.consultationMode = '온라인 상담',
+    this.consultationLocation,
     this.status = ConsultationStatus.waiting,
     this.response,
     this.rating,
@@ -704,6 +706,8 @@ class ConsultationData {
   final String level;
   final String question;
   final DateTime createdAt;
+  final String consultationMode;
+  final String? consultationLocation;
   ConsultationStatus status;
   String? response;
   int? rating;

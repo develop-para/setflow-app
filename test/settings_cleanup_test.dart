@@ -58,12 +58,12 @@ void main() {
       expect(find.text('운동 목표'), findsOneWidget);
     });
 
-    testWidgets('이용권 진입점도 하나 — 설정의 연결 센터 관리가 사라졌다', (tester) async {
+    testWidgets('운동 장소 진입점도 하나 — 설정의 연결 센터 관리가 사라졌다', (tester) async {
       await pump(tester, const SettingsScreen());
       expect(find.text('연결 센터 관리'), findsNothing);
 
       await pump(tester, const MyPageScreen());
-      expect(find.text('이용권'), findsOneWidget);
+      expect(find.text('운동 장소 및 센터'), findsOneWidget);
     });
   });
 

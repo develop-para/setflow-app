@@ -94,6 +94,12 @@ abstract final class SetflowIcons {
   static const coaching = Icons.forum_outlined;
   static const goal = Icons.flag_outlined;
   static const membership = Icons.confirmation_number_outlined;
+  static const location = Icons.location_on_outlined;
+  static const locationActive = Icons.location_on_rounded;
+  static const gym = Icons.apartment_rounded;
+  static const onlineConsultation = Icons.video_call_outlined;
+  static const offlineConsultation = Icons.handshake_outlined;
+  static const delete = Icons.delete_outline_rounded;
   static const settings = Icons.tune_rounded;
   static const signIn = Icons.login_rounded;
   static const signOut = Icons.logout_rounded;

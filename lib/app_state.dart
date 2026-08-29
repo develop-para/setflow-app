@@ -237,6 +237,8 @@ class AppState extends ChangeNotifier {
   List<BusinessInviteRecord> businessInvites = const [];
   List<BusinessCoachingSchedule> coachingSchedules = const [];
   List<BusinessMember> memberMemberships = const [];
+  List<ServiceRegion> serviceRegions = const [];
+  List<MemberWorkoutLocation> workoutLocations = const [];
   List<MemberSessionFeedback> memberSessionFeedbacks = const [];
   String? pendingRoutineShareToken;
   String? pendingBusinessInviteToken;
@@ -251,6 +253,10 @@ class AppState extends ChangeNotifier {
   bool memberSessionFeedbackLoading = false;
   Object? memberSessionFeedbackError;
   Object? memberMembershipsError;
+  Object? workoutLocationsError;
+
+  MemberWorkoutLocation? get currentWorkoutLocation =>
+      workoutLocations.where((item) => item.isActive).firstOrNull;
 
   bool _verifiedAdmin = false;
   bool hasPaidPlan = false;
@@ -2216,6 +2222,38 @@ class AppState extends ChangeNotifier {
         memberMembershipsError = null;
       }
 
+      if (repository is WorkoutLocationRepository) {
+        final locationRepository = repository as WorkoutLocationRepository;
+        try {
+          serviceRegions = List.unmodifiable(
+            await locationRepository.listServiceRegions(),
+          );
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+        } catch (error) {
+          if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+          rememberAuxiliaryError(error);
+        }
+        if (resolvedRole == UserRole.member) {
+          try {
+            workoutLocations = List.unmodifiable(
+              await locationRepository.listMyWorkoutLocations(),
+            );
+            if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+            workoutLocationsError = null;
+          } catch (error) {
+            if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+            workoutLocationsError = error;
+          }
+        } else {
+          workoutLocations = const [];
+          workoutLocationsError = null;
+        }
+      } else {
+        serviceRegions = const [];
+        workoutLocations = const [];
+        workoutLocationsError = null;
+      }
+
       if (resolvedRole == UserRole.trainer || resolvedRole == UserRole.gym) {
         try {
           final refreshedOutgoingShares = List<RoutineShareRecord>.unmodifiable(
@@ -2453,11 +2491,24 @@ class AppState extends ChangeNotifier {
           return ConsultationData(
             id: record.id,
             trainerName: record.trainerName ?? record.gymName ?? '담당 전문가',
-            specialty: record.goal ?? '맞춤 운동 상담',
+            specialty: record.specialty ?? '맞춤 운동 상담',
             goal: record.goal ?? '',
             level: record.level ?? '',
             question: record.question ?? '',
             createdAt: record.createdAt ?? DateTime.now(),
+            consultationMode: record.mode.label,
+            consultationLocation: switch (record.matchingSource) {
+              ConsultationMatchingSource.region =>
+                serviceRegions
+                        .where(
+                          (region) => region.code == record.requestedRegionCode,
+                        )
+                        .firstOrNull
+                        ?.name ??
+                    record.requestedRegionCode,
+              ConsultationMatchingSource.gym => record.gymName,
+              ConsultationMatchingSource.direct => record.gymName,
+            },
             status: switch (record.status) {
               BusinessConsultationStatus.answered ||
               BusinessConsultationStatus.replied => ConsultationStatus.answered,
@@ -2517,6 +2568,14 @@ class AppState extends ChangeNotifier {
           'routineImportsChange': '등록 루틴',
           'keyword': trainer.keyword ?? '',
           'intro': trainer.intro ?? '',
+          'acceptsOnlineConsultation': '${trainer.acceptsOnlineConsultation}',
+          'acceptsOfflineConsultation': '${trainer.acceptsOfflineConsultation}',
+          'primaryActivityRegion':
+              trainer.serviceAreas
+                  .where((area) => area.isPrimary)
+                  .firstOrNull
+                  ?.regionName ??
+              '',
         });
       case final GymBusinessProfile gym:
         facts.addAll({
@@ -3419,6 +3478,8 @@ class AppState extends ChangeNotifier {
     required String goal,
     required String level,
     required String question,
+    ConsultationMode mode = ConsultationMode.online,
+    String? regionCode,
     RecommendationProfile? sharedRecommendationProfile,
   }) async {
     final repository = businessRepository;
@@ -3433,6 +3494,14 @@ class AppState extends ChangeNotifier {
           level: level,
           question: question,
           createdAt: DateTime.now(),
+          consultationMode: mode.label,
+          consultationLocation: regionCode == null
+              ? null
+              : serviceRegions
+                        .where((region) => region.code == regionCode)
+                        .firstOrNull
+                        ?.name ??
+                    regionCode,
           sharedRecommendationProfile: sharedRecommendationProfile,
         ),
       );
@@ -3445,7 +3514,9 @@ class AppState extends ChangeNotifier {
       throw ArgumentError('트레이너와 센터 상담 대상을 동시에 지정할 수 없습니다.');
     }
     String? resolvedTrainerId = trainerId;
-    if (resolvedTrainerId == null && gymId == null) {
+    if (mode == ConsultationMode.online &&
+        resolvedTrainerId == null &&
+        gymId == null) {
       final matchingTrainers = publicTrainers
           .where((trainer) => trainer.profile.displayName == trainerName)
           .take(2)
@@ -3455,13 +3526,22 @@ class AppState extends ChangeNotifier {
       }
       resolvedTrainerId = matchingTrainers.firstOrNull?.profile.id;
     }
-    if (resolvedTrainerId == null && gymId == null) {
+    if (mode == ConsultationMode.online &&
+        resolvedTrainerId == null &&
+        gymId == null) {
       throw StateError('선택한 트레이너 정보를 찾을 수 없습니다.');
     }
-    final targetId = resolvedTrainerId ?? gymId!;
+    if (mode == ConsultationMode.offline &&
+        gymId == null &&
+        (regionCode?.trim().isEmpty ?? true)) {
+      throw StateError('오프라인 상담 지역 또는 헬스장을 선택해주세요.');
+    }
+    final targetId = resolvedTrainerId ?? gymId ?? 'region:${regionCode!}';
     final requestKey = _businessRpcRequestKey('create_consultation', {
       'trainerId': resolvedTrainerId,
       'gymId': gymId,
+      'mode': mode.databaseValue,
+      'regionCode': regionCode?.trim(),
       'routineId': routineId,
       'specialty': specialty.trim(),
       'goal': goal.trim(),
@@ -3479,8 +3559,10 @@ class AppState extends ChangeNotifier {
       await repository.createConsultation(
         CreateConsultationInput(
           requestId: requestId,
+          mode: mode,
           trainerId: resolvedTrainerId,
           gymId: gymId,
+          regionCode: regionCode,
           routineId: routineId,
           specialty: specialty,
           goal: goal,
@@ -4301,6 +4383,9 @@ class AppState extends ChangeNotifier {
     required String displayName,
     required String keyword,
     required String intro,
+    bool? acceptsOnlineConsultation,
+    bool? acceptsOfflineConsultation,
+    String? primaryActivityRegionCode,
   }) async {
     final repository = businessRepository;
     final profile = businessWorkspace?.profile;
@@ -4322,6 +4407,23 @@ class AppState extends ChangeNotifier {
       await _runBusinessMutation<void>(
         _businessProfileMutationKey(profile.id),
         (accountEpoch) async {
+          if (profile is TrainerBusinessProfile &&
+              acceptsOnlineConsultation != null &&
+              acceptsOfflineConsultation != null) {
+            if (repository is! TrainerConsultationSettingsRepository) {
+              throw StateError('트레이너 상담 설정을 저장할 수 없습니다.');
+            }
+            await (repository as TrainerConsultationSettingsRepository)
+                .updateTrainerConsultationSettings(
+                  TrainerConsultationSettingsInput(
+                    acceptsOnline: acceptsOnlineConsultation,
+                    acceptsOffline: acceptsOfflineConsultation,
+                    regionCodes: primaryActivityRegionCode == null
+                        ? const []
+                        : [primaryActivityRegionCode],
+                  ),
+                );
+          }
           await repository.updateProfile(input);
           if (!_isCurrentAccount(accountEpoch)) return;
           await _refreshBusinessData(
@@ -4336,8 +4438,114 @@ class AppState extends ChangeNotifier {
     facts['displayName'] = displayName;
     facts[role == UserRole.gym ? 'location' : 'keyword'] = keyword;
     facts['intro'] = intro;
+    if (role == UserRole.trainer) {
+      if (acceptsOnlineConsultation != null) {
+        facts['acceptsOnlineConsultation'] = '$acceptsOnlineConsultation';
+      }
+      if (acceptsOfflineConsultation != null) {
+        facts['acceptsOfflineConsultation'] = '$acceptsOfflineConsultation';
+      }
+      final selectedRegion = serviceRegions
+          .where((item) => item.code == primaryActivityRegionCode)
+          .firstOrNull;
+      facts['primaryActivityRegion'] = selectedRegion?.name ?? '';
+    }
     _schedulePersist();
     notifyListeners();
+  }
+
+  Future<List<GymDirectoryEntry>> loadVerifiedGyms() async {
+    final repository = businessRepository;
+    if (repository is! WorkoutLocationRepository) return const [];
+    return List.unmodifiable(
+      await (repository as WorkoutLocationRepository).listVerifiedGyms(),
+    );
+  }
+
+  Future<void> refreshWorkoutLocations() async {
+    final repository = businessRepository;
+    if (repository is! WorkoutLocationRepository) return;
+    try {
+      serviceRegions = List.unmodifiable(
+        await (repository as WorkoutLocationRepository).listServiceRegions(),
+      );
+      workoutLocations = List.unmodifiable(
+        await (repository as WorkoutLocationRepository)
+            .listMyWorkoutLocations(),
+      );
+      workoutLocationsError = null;
+      notifyListeners();
+    } catch (error) {
+      workoutLocationsError = error;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> saveWorkoutLocation(String gymId) async {
+    final repository = businessRepository;
+    if (repository is! WorkoutLocationRepository) {
+      throw StateError('운동 장소 저장을 지원하지 않습니다.');
+    }
+    await _runBusinessMutation<void>('workout-location:save:$gymId', (
+      accountEpoch,
+    ) async {
+      await (repository as WorkoutLocationRepository).saveWorkoutLocation(
+        gymId,
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      workoutLocations = List.unmodifiable(
+        await (repository as WorkoutLocationRepository)
+            .listMyWorkoutLocations(),
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      workoutLocationsError = null;
+      notifyListeners();
+    });
+  }
+
+  Future<void> selectWorkoutLocation(String locationId) async {
+    final repository = businessRepository;
+    if (repository is! WorkoutLocationRepository) {
+      throw StateError('운동 장소 선택을 지원하지 않습니다.');
+    }
+    await _runBusinessMutation<void>('workout-location:select:$locationId', (
+      accountEpoch,
+    ) async {
+      await (repository as WorkoutLocationRepository).selectWorkoutLocation(
+        locationId,
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      workoutLocations = List.unmodifiable(
+        await (repository as WorkoutLocationRepository)
+            .listMyWorkoutLocations(),
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      workoutLocationsError = null;
+      notifyListeners();
+    });
+  }
+
+  Future<void> removeWorkoutLocation(String locationId) async {
+    final repository = businessRepository;
+    if (repository is! WorkoutLocationRepository) {
+      throw StateError('운동 장소 삭제를 지원하지 않습니다.');
+    }
+    await _runBusinessMutation<void>('workout-location:remove:$locationId', (
+      accountEpoch,
+    ) async {
+      await (repository as WorkoutLocationRepository).removeWorkoutLocation(
+        locationId,
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      workoutLocations = List.unmodifiable(
+        await (repository as WorkoutLocationRepository)
+            .listMyWorkoutLocations(),
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
+      workoutLocationsError = null;
+      notifyListeners();
+    });
   }
 
   void setBusinessPlan({
@@ -5590,6 +5798,8 @@ class AppState extends ChangeNotifier {
     _memberSharingPreferences = null;
     memberSessionFeedbacks = const [];
     memberMemberships = const [];
+    serviceRegions = const [];
+    workoutLocations = const [];
     incomingRoutineShares = const [];
     outgoingRoutineShares = const [];
     businessInvites = const [];
@@ -5604,6 +5814,7 @@ class AppState extends ChangeNotifier {
     memberSessionFeedbackLoading = false;
     memberSessionFeedbackError = null;
     memberMembershipsError = null;
+    workoutLocationsError = null;
     _memberFeedbackRequestSequence++;
     _memberConsultationRequestSequence++;
     _businessMutations.clear();

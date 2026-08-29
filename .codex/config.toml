@@ -1,7 +1,8 @@
 [mcp_servers.notion]
+enabled = false
 command = "powershell.exe"
 args = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/notion-mcp.ps1"]
 cwd = "."
-required = true
+required = false
 startup_timeout_sec = 60
 default_tools_approval_mode = "writes"

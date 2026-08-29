@@ -64,7 +64,7 @@ void main() {
     () {
       final sql = File(
         'supabase/migrations/20260816035904_business_membership_lifecycle.sql',
-      ).readAsStringSync();
+      ).readAsStringSync().replaceAll('\r\n', '\n');
       final replayIndex = sql.indexOf('if v_response is not null then');
       final mutationIndex = sql.indexOf("if v_member.status = 'active' then");
 

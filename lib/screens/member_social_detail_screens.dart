@@ -9,6 +9,7 @@ import '../data/business_repository.dart';
 import '../data/community_repository.dart';
 import '../services/post_media_picker.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
 import '../widgets/recommendation_profile_summary.dart';
@@ -1370,6 +1371,11 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
   bool isTrainerSearchLoadingMore = false;
   bool isTopCoachingTrainersLoading = false;
   bool shareRecommendationProfile = false;
+  ConsultationMode consultationMode = ConsultationMode.online;
+  _OfflineLocationSource offlineLocationSource = _OfflineLocationSource.region;
+  String? selectedWorkoutLocationId;
+  String? selectedRegionCode;
+  bool locationSelectionInitialized = false;
   String? topCoachingTrainersError;
   int trainerSearchRevision = 0;
   int topCoachingTrainersRevision = 0;
@@ -1392,8 +1398,16 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (trainerSearchInitialized) return;
     final state = AppScope.of(context);
+    if (!locationSelectionInitialized) {
+      locationSelectionInitialized = true;
+      selectedWorkoutLocationId = state.currentWorkoutLocation?.id;
+      if (selectedWorkoutLocationId != null) {
+        offlineLocationSource = _OfflineLocationSource.gym;
+      }
+      selectedRegionCode = state.serviceRegions.firstOrNull?.code;
+    }
+    if (trainerSearchInitialized) return;
     final hasDirectTarget =
         widget.initialTrainerId != null || widget.initialGymId != null;
     if (!state.usesLiveBusinessData || hasDirectTarget) return;
@@ -1544,11 +1558,30 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
     late String specialty;
 
     if (state.usesLiveBusinessData) {
-      trainerId = widget.initialTrainerId ?? selectedTrainerId;
-      gymId = widget.initialGymId;
-      if (trainerId == null && gymId == null) {
-        AppSnackbar.error(context, '상담할 트레이너를 선택해주세요.');
-        return;
+      if (consultationMode == ConsultationMode.online) {
+        trainerId = widget.initialTrainerId ?? selectedTrainerId;
+        gymId = widget.initialGymId;
+        if (trainerId == null && gymId == null) {
+          AppSnackbar.error(context, '상담할 트레이너를 선택해주세요.');
+          return;
+        }
+      } else if (widget.initialGymId != null) {
+        gymId = widget.initialGymId;
+      } else if (offlineLocationSource == _OfflineLocationSource.gym) {
+        final location = state.workoutLocations
+            .where((item) => item.id == selectedWorkoutLocationId)
+            .firstOrNull;
+        if (location == null) {
+          AppSnackbar.error(context, '오프라인 상담을 받을 헬스장을 선택해주세요.');
+          return;
+        }
+        gymId = location.gymId;
+      } else {
+        trainerId = widget.initialTrainerId;
+        if (selectedRegionCode == null) {
+          AppSnackbar.error(context, '오프라인 상담 지역을 선택해주세요.');
+          return;
+        }
       }
 
       final selectedTrainer = trainerId == null
@@ -1558,7 +1591,8 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
           : state.publicTrainers
                 .where((item) => item.profile.id == trainerId)
                 .firstOrNull;
-      if (widget.initialTrainerId == null &&
+      if (consultationMode == ConsultationMode.online &&
+          widget.initialTrainerId == null &&
           trainerId != null &&
           selectedTrainer == null) {
         AppSnackbar.error(context, '선택한 트레이너 정보를 다시 확인해주세요.');
@@ -1567,10 +1601,22 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
       targetName =
           widget.initialTargetName ??
           selectedTrainer?.profile.displayName ??
-          (gymId == null ? '루틴 작성 트레이너' : '루틴 작성 센터');
+          (gymId == null
+              ? consultationMode == ConsultationMode.offline
+                    ? '지역 맞춤 트레이너'
+                    : '루틴 작성 트레이너'
+              : state.workoutLocations
+                        .where((item) => item.gymId == gymId)
+                        .firstOrNull
+                        ?.gymName ??
+                    '루틴 작성 센터');
       specialty =
           selectedTrainer?.specialties.firstOrNull ??
-          (gymId == null ? '맞춤 운동 상담' : '센터 루틴 상담');
+          (consultationMode == ConsultationMode.offline
+              ? '지역 맞춤 오프라인 상담'
+              : gymId == null
+              ? '맞춤 운동 상담'
+              : '센터 루틴 상담');
     } else {
       targetName = demoTrainer ?? demoTrainers.keys.first;
       specialty = demoTrainers[targetName] ?? '맞춤 운동 상담';
@@ -1590,6 +1636,11 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
         goal: goalController.text.trim(),
         level: levelController.text.trim(),
         question: questionController.text.trim(),
+        mode: consultationMode,
+        regionCode:
+            consultationMode == ConsultationMode.offline && gymId == null
+            ? selectedRegionCode
+            : null,
         sharedRecommendationProfile: shareRecommendationProfile
             ? state.recommendationProfile
             : null,
@@ -1843,6 +1894,130 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
               onPressed: isTrainerSearchLoadingMore ? null : _loadMoreTrainers,
             ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildConsultationMethod(BuildContext context, AppState state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('상담 방식', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: SetflowSpacing.sm),
+        SegmentedButton<ConsultationMode>(
+          key: const ValueKey('consultation-mode'),
+          segments: const [
+            ButtonSegment(
+              value: ConsultationMode.online,
+              icon: Icon(SetflowIcons.onlineConsultation),
+              label: Text('온라인'),
+            ),
+            ButtonSegment(
+              value: ConsultationMode.offline,
+              icon: Icon(SetflowIcons.offlineConsultation),
+              label: Text('오프라인'),
+            ),
+          ],
+          selected: {consultationMode},
+          onSelectionChanged: isSubmitting
+              ? null
+              : (selection) =>
+                    setState(() => consultationMode = selection.single),
+        ),
+        const SizedBox(height: SetflowSpacing.sm),
+        Text(
+          consultationMode == ConsultationMode.online
+              ? '기록과 질문을 확인할 트레이너를 직접 선택합니다.'
+              : '선택한 지역 또는 헬스장에서 상담 가능한 트레이너를 자동 배정합니다.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (consultationMode == ConsultationMode.offline) ...[
+          const SizedBox(height: SetflowSpacing.lg),
+          _buildOfflineLocation(context, state),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildOfflineLocation(BuildContext context, AppState state) {
+    if (widget.initialGymId != null) {
+      return InputDecorator(
+        decoration: const InputDecoration(labelText: '상담 장소'),
+        child: Text(
+          widget.initialTargetName ?? '선택한 센터',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+      );
+    }
+    final hasGyms = state.workoutLocations.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (hasGyms)
+          SegmentedButton<_OfflineLocationSource>(
+            key: const ValueKey('offline-location-source'),
+            segments: const [
+              ButtonSegment(
+                value: _OfflineLocationSource.gym,
+                icon: Icon(SetflowIcons.gym),
+                label: Text('내 헬스장'),
+              ),
+              ButtonSegment(
+                value: _OfflineLocationSource.region,
+                icon: Icon(SetflowIcons.location),
+                label: Text('지역 선택'),
+              ),
+            ],
+            selected: {offlineLocationSource},
+            onSelectionChanged: isSubmitting
+                ? null
+                : (selection) =>
+                      setState(() => offlineLocationSource = selection.single),
+          ),
+        if (hasGyms) const SizedBox(height: SetflowSpacing.md),
+        if (hasGyms && offlineLocationSource == _OfflineLocationSource.gym)
+          DropdownButtonFormField<String>(
+            key: const ValueKey('consultation-workout-location'),
+            initialValue:
+                state.workoutLocations.any(
+                  (item) => item.id == selectedWorkoutLocationId,
+                )
+                ? selectedWorkoutLocationId
+                : null,
+            decoration: const InputDecoration(labelText: '상담받을 헬스장'),
+            items: state.workoutLocations
+                .map(
+                  (location) => DropdownMenuItem(
+                    value: location.id,
+                    child: Text(location.gymName),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) =>
+                setState(() => selectedWorkoutLocationId = value),
+          )
+        else
+          DropdownButtonFormField<String>(
+            key: const ValueKey('consultation-region'),
+            initialValue:
+                state.serviceRegions.any(
+                  (item) => item.code == selectedRegionCode,
+                )
+                ? selectedRegionCode
+                : null,
+            decoration: const InputDecoration(labelText: '상담 지역'),
+            items: state.serviceRegions
+                .map(
+                  (region) => DropdownMenuItem(
+                    value: region.code,
+                    child: Text(region.name),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) => setState(() => selectedRegionCode = value),
+          ),
       ],
     );
   }
@@ -2114,9 +2289,17 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
             )
         ? selectedTrainerId
         : null;
+    final hasOfflineLocation =
+        widget.initialGymId != null ||
+        (offlineLocationSource == _OfflineLocationSource.gym
+            ? selectedWorkoutLocationId != null
+            : selectedRegionCode != null);
     final canSubmit =
         !isSubmitting &&
-        (!liveData || hasDirectTarget || selectableTrainerId != null);
+        (!liveData ||
+            (consultationMode == ConsultationMode.online
+                ? hasDirectTarget || selectableTrainerId != null
+                : hasOfflineLocation));
     return Scaffold(
       appBar: AppBar(title: const Text('새 상담 신청')),
       body: Form(
@@ -2133,7 +2316,11 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
               ),
             ),
             const SizedBox(height: SetflowSpacing.xl),
-            if (liveData && hasDirectTarget)
+            _buildConsultationMethod(context, state),
+            const SizedBox(height: SetflowSpacing.xl),
+            if (consultationMode == ConsultationMode.online &&
+                liveData &&
+                hasDirectTarget)
               InputDecorator(
                 decoration: const InputDecoration(labelText: '상담 대상'),
                 child: Text(
@@ -2143,7 +2330,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               )
-            else if (liveData)
+            else if (consultationMode == ConsultationMode.online && liveData)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -2152,7 +2339,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                   _buildTrainerSearch(context),
                 ],
               )
-            else
+            else if (consultationMode == ConsultationMode.online)
               DropdownButtonFormField<String>(
                 initialValue: demoTrainer,
                 isExpanded: true,
@@ -2220,6 +2407,8 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
   }
 }
 
+enum _OfflineLocationSource { gym, region }
+
 class ConsultationDetailScreen extends StatefulWidget {
   const ConsultationDetailScreen({required this.consultation, super.key});
 
@@ -2262,6 +2451,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                 child: const Text('취소'),
               ),
               FilledButton(
+                key: const ValueKey('coaching-start-confirm'),
                 onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('결제하고 시작'),
               ),
@@ -2271,6 +2461,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
         false;
     if (!confirmed || !mounted) return;
     AppScope.of(context).startCoaching(widget.consultation);
+    setState(() {});
     HapticFeedback.lightImpact();
     AppSnackbar.success(context, '1:1 코칭이 시작되었습니다.');
   }
@@ -2396,6 +2587,12 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                   ],
                 ),
                 const Divider(height: SetflowSpacing.xl),
+                _ConsultField(
+                  label: '상담 방식',
+                  value: consultation.consultationLocation == null
+                      ? consultation.consultationMode
+                      : '${consultation.consultationMode} · ${consultation.consultationLocation}',
+                ),
                 _ConsultField(label: '목표', value: consultation.goal),
                 _ConsultField(label: '현재 운동 수준과 경험', value: consultation.level),
                 _ConsultField(
