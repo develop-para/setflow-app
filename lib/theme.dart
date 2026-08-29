@@ -213,13 +213,16 @@ abstract final class SetflowTheme {
         // M3는 칩의 앞 아이콘을 primary로 칠한다 — 우리 primary는 라임이라
         // 밝은 칩 위에서 사라진다(1.2:1). 아이콘도 글자와 같은 색으로 간다.
         iconTheme: IconThemeData(color: scheme.onSurfaceVariant, size: 18),
-        backgroundColor: semantic.surfaceContainerLow,
-        selectedColor: scheme.primaryContainer,
+        // 고른 칩은 라임 채움(잉크 글자), 나머지는 선만. 회색 면과 라임 틴트가
+        // 아니라 채움/선의 대비로 고름을 말한다.
+        backgroundColor: Colors.transparent,
+        selectedColor: scheme.primary,
         disabledColor: semantic.surfaceContainerHigh,
         labelStyle: textTheme.labelMedium,
         secondaryLabelStyle: textTheme.labelMedium?.copyWith(
-          color: scheme.onPrimaryContainer,
+          color: scheme.onPrimary,
         ),
+        checkmarkColor: scheme.onPrimary,
         side: BorderSide(color: scheme.outlineVariant),
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.sm),

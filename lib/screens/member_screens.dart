@@ -3069,94 +3069,104 @@ class _MarketScreenState extends State<MarketScreen> {
               }),
             ),
           for (final (index, routine) in routines.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: SetflowCard(
-                key: ValueKey('market-card-$index'),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ExpertRoutineDetailScreen(routine: routine),
+            // 카드가 아니라 줄이다 — 이름, 설명, 메타(난이도 · 무료/유료 · 작성자).
+            // 무료/유료는 알약이 아니라 색 글자(성공색/보라)로만 구분한다.
+            InkWell(
+              key: ValueKey('market-card-$index'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ExpertRoutineDetailScreen(routine: routine),
+                ),
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: SetflowSpacing.lg,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                 ),
-                padding: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text(
+                            routine.name,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: SetflowSpacing.xs),
+                          Text(
+                            routine.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: SetflowSpacing.sm),
                           Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: context
-                                      .setflowColors
-                                      .surfaceContainerHigh,
-                                  borderRadius: BorderRadius.circular(
-                                    SetflowRadii.full,
-                                  ),
-                                ),
-                                child: Text(
-                                  routine.level,
-                                  style: const TextStyle(
-                                    fontSize: SetflowFontSize.small,
-                                    fontWeight: SetflowWeight.medium,
-                                  ),
-                                ),
+                              Text(
+                                routine.level,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
                               ),
-                              const Spacer(),
+                              Text(
+                                ' · ',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
                               _RoutineAccessBadge(
                                 accessTier: routine.accessTier,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: SetflowSpacing.md),
-                          Text(
-                            routine.name,
-                            style: const TextStyle(
-                              fontSize: SetflowFontSize.titleLarge,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: SetflowSpacing.xs2),
-                          Text(
-                            routine.description,
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                              fontSize: SetflowFontSize.label,
-                            ),
-                          ),
-                          const SizedBox(height: SetflowSpacing.md),
-                          Row(
-                            children: [
+                              Text(
+                                ' · ',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
                               Icon(
                                 Icons.verified_rounded,
                                 color: context.setflowColors.blue,
-                                size: 17,
+                                size: 14,
                               ),
-                              const SizedBox(width: SetflowSpacing.xs2),
-                              Expanded(
+                              const SizedBox(width: SetflowSpacing.xxs),
+                              Flexible(
                                 child: Text(
                                   routine.author,
-                                  style: const TextStyle(
-                                    fontSize: SetflowFontSize.caption,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelSmall,
                                 ),
                               ),
-                              const Icon(Icons.chevron_right),
                             ],
                           ),
                         ],
                       ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Icon(
+                      SetflowIcons.forward,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ],
                 ),
@@ -3176,38 +3186,15 @@ class _RoutineAccessBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPaid = accessTier == RoutineAccessTier.paid;
-    final color = isPaid
-        ? context.setflowColors.purple
-        : context.setflowColors.success;
+    // 알약이 아니라 색 글자다 — 무료는 성공색, 유료는 보라. 뜻이 있는 색만 쓴다.
     return Semantics(
       label: '${accessTier.label} 루틴',
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
-          borderRadius: BorderRadius.circular(SetflowRadii.full),
-          border: Border.all(color: color.withValues(alpha: .32)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isPaid
-                  ? Icons.workspace_premium_rounded
-                  : Icons.lock_open_rounded,
-              size: 13,
-              color: color,
-            ),
-            const SizedBox(width: SetflowSpacing.xs),
-            Text(
-              accessTier.label,
-              style: TextStyle(
-                color: color,
-                fontSize: SetflowFontSize.small,
-                fontWeight: SetflowWeight.medium,
-              ),
-            ),
-          ],
+      child: Text(
+        accessTier.label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: isPaid
+              ? context.setflowColors.purple
+              : context.setflowColors.success,
         ),
       ),
     );
