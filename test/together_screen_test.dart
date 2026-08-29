@@ -314,13 +314,16 @@ void main() {
     testWidgets('an activity card opens create with that activity chosen', (
       tester,
     ) async {
-      // 히어로(설명 카드)는 없다 — 종목 카드가 입구다. 크로스핏 카드를 누르면
-      // 방 만들기 시트가 크로스핏이 골라진 채로 열리고, 확인하면 그 방이다.
+      // 히어로(설명 카드)는 없다 — 종목은 큰 글자 셋이고, 고른 종목을 하단의
+      // 하나뿐인 행동이 따른다: "크로스핏 방 만들기". 시트도 그 종목으로 열린다.
       await pumpTogether(tester, repository: client('u-me', '나'));
       expect(find.text('떨어져 있어도'), findsNothing);
-      expect(find.byKey(const ValueKey('lobby-mode-together')), findsOneWidget);
+      expect(find.text('헬스 방 만들기'), findsOneWidget, reason: '기본은 헬스');
 
       await tester.tap(find.byKey(const ValueKey('lobby-mode-together')));
+      await tester.pumpAndSettle();
+      expect(find.text('크로스핏 방 만들기'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('together-create')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
@@ -338,11 +341,13 @@ void main() {
     });
 
     testWidgets('today\'s record is summarised on the lobby', (tester) async {
-      // 방은 오늘 기록의 세트를 전광판에 올린다 — 로비가 그걸 미리 말한다.
+      // 방은 오늘 기록의 세트를 전광판에 올린다 — 로비의 LED 티커가 그 숫자를
+      // 미리 켠다. 위치가 없으면 근처 항목은 빠지고 대시는 켜지 않는다.
       await pumpTogether(tester, repository: client('u-me', '나'));
-      expect(find.byKey(const ValueKey('lobby-today')), findsOneWidget);
-      expect(find.textContaining('오늘 기록이 아직 없어요'), findsOneWidget);
-      // 행동 둘은 하단 고정 바에 나란히 있다.
+      expect(find.byKey(const ValueKey('lobby-ticker')), findsOneWidget);
+      expect(find.text('오늘 세트'), findsOneWidget);
+      expect(find.text('--'), findsNothing);
+      // 행동은 하나(하단 고정), 코드는 여섯 칸 한 줄.
       expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
       expect(find.byKey(const ValueKey('together-join')), findsOneWidget);
     });

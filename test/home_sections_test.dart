@@ -101,6 +101,27 @@ void main() {
     expect(find.textContaining('지난주'), findsOneWidget);
   });
 
+  testWidgets(
+    'a first-ever lift is not a record, and zero volume is not "0kg"',
+    (tester) async {
+      // "일부러 만든 느낌": 한 번 한 종목의 첫 세트가 "최근 기록"에 오르고, 맨몸
+      // 세트가 "1세트 · 0kg"으로 찍혔다. 기록은 이전 최고를 넘었을 때만, kg은
+      // 볼륨이 있을 때만.
+      await pumpHome(
+        tester,
+        seed: (state) => finishWorkout(
+          state,
+          today().subtract(const Duration(days: 2)),
+          weight: 0,
+        ),
+      );
+
+      expect(find.text('최근 기록'), findsNothing, reason: '첫 기록은 갱신이 아니다');
+      expect(find.textContaining('0kg'), findsNothing);
+      expect(find.textContaining('세트'), findsWidgets);
+    },
+  );
+
   testWidgets('recent bests and recent sessions come from the record', (
     tester,
   ) async {

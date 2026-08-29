@@ -1417,6 +1417,16 @@ String _exercisesText(WorkoutSession session) {
   return others > 0 ? '$lead 외 $others종' : lead;
 }
 
+/// "3세트 · 400kg" — 볼륨이 0이면(맨몸·유산소) kg을 찍지 않는다. "1세트 · 0kg"은
+/// 틀린 숫자처럼 보인다. 유산소만 한 날은 시간으로 말한다.
+String _sessionSummaryText(WorkoutSession session, String unit) {
+  final sets = '${session.completedSets}세트';
+  if (session.volume > 0) return '$sets · ${_volumeText(session.volume, unit)}';
+  final minutes = session.cardioDurationSeconds ~/ 60;
+  if (minutes > 0) return '$sets · $minutes분';
+  return sets;
+}
+
 String _shortDate(DateTime date) =>
     '${date.month}/${date.day} (${_weekdayShort[date.weekday % 7]})';
 
@@ -1450,7 +1460,7 @@ class _TodaySection extends StatelessWidget {
                 const Spacer(),
                 Text(
                   finished
-                      ? '완료 · ${_volumeText(session.volume, state.weightUnit)}'
+                      ? '완료 · ${_sessionSummaryText(session, state.weightUnit)}'
                       : '$done/$total 세트',
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
@@ -1686,6 +1696,15 @@ class _RecentBestsSection extends StatelessWidget {
       if (summary == null) continue;
       final best = summary.weightPr;
       if (best.date.isBefore(cutoff)) continue;
+      // 기록은 **넘었을 때** 생긴다. 처음 한 번 한 종목의 첫 세트를 "최근 기록"으로
+      // 올리면 만들어 낸 숫자처럼 보인다("일부러 만든 느낌"). 그 날보다 앞선
+      // 세션이 있어야 — 즉 이전 최고를 갱신한 것이어야 — 여기 오른다.
+      final hasEarlier = sessions.any(
+        (session) =>
+            session.date.isBefore(best.date) &&
+            session.exercises.any((e) => e.template.id == template.id),
+      );
+      if (!hasEarlier) continue;
       rows.add((template, best));
     }
     if (rows.isEmpty) return const SizedBox.shrink();
@@ -1810,7 +1829,7 @@ class _RecentSessionsSection extends StatelessWidget {
                 ),
                 const SizedBox(width: SetflowSpacing.sm),
                 Text(
-                  '${session.completedSets}세트 · ${_volumeText(session.volume, state.weightUnit)}',
+                  _sessionSummaryText(session, state.weightUnit),
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                     fontFeatures: const [FontFeature.tabularFigures()],
