@@ -12,6 +12,7 @@ import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/dot_matrix.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
 import '../widgets/portal.dart';
@@ -1402,6 +1403,17 @@ class _CalendarCell extends StatelessWidget {
 
 const _weekdayShort = ['일', '월', '화', '수', '목', '금', '토'];
 
+/// 부위 색 — 운동 목록의 카테고리 카드와 같은 배정이다. 색은 의미(부위)에만 쓴다.
+/// 흑·백·라임 위에 얹는 유일한 "다른 색"이고, 라임(성취·지금)과 역할이 겹치지 않는다.
+Color _muscleColor(BuildContext context, String muscle) => switch (muscle) {
+  '가슴' => context.setflowColors.error,
+  '등' => context.setflowColors.blue,
+  '어깨' => context.setflowColors.teal,
+  '하체' => context.setflowColors.success,
+  '팔' => context.setflowColors.orange,
+  _ => Theme.of(context).colorScheme.onSurfaceVariant,
+};
+
 /// 세트가 하나라도 있는 날만 "운동한 날"이다. 최근순.
 List<WorkoutSession> _sessionsNewestFirst(AppState state) =>
     state.sessions.values.where((s) => s.totalSets > 0).toList()
@@ -1430,8 +1442,80 @@ String _sessionSummaryText(WorkoutSession session, String unit) {
 String _shortDate(DateTime date) =>
     '${date.month}/${date.day} (${_weekdayShort[date.weekday % 7]})';
 
-/// 오늘 — 기록이 있으면 진행률과 "이어서 기록", 없으면 지난 운동과 "오늘 운동 시작".
-/// 홈에서 가장 먼저 답해야 할 질문은 "오늘 뭐 하지"라서 달력 바로 아래다.
+/// 큰 숫자 하나 — 운동 앱의 주인공은 숫자다. 단위는 작게, 숫자는 tabular.
+class _Figure extends StatelessWidget {
+  const _Figure({
+    required this.value,
+    required this.unit,
+    this.label,
+    super.key,
+  });
+
+  final String value;
+  final String unit;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    final dim = theme.colorScheme.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichText(
+          maxLines: 1,
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: value,
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  color: ink,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              TextSpan(
+                text: unit,
+                style: theme.textTheme.labelMedium?.copyWith(color: dim),
+              ),
+            ],
+          ),
+        ),
+        if (label != null)
+          Text(label!, style: theme.textTheme.labelSmall?.copyWith(color: dim)),
+      ],
+    );
+  }
+}
+
+/// 헤어라인 한 줄 — 목록은 상자가 아니라 선으로 나눈다.
+class _HairlineRow extends StatelessWidget {
+  const _HairlineRow({required this.child, this.onTap, super.key});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.md),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// 오늘 — 홈의 무거운 구역, **잉크 블록**이다. 흰 본문 위 회색 카드가 아니라 검은 면
+/// 위에 큰 숫자와 라임 진행바. 전광판과 같은 팔레트(LedPalette)라 라이트·다크
+/// 어디서나 같은 얼굴이고, "오늘 뭐 하지"가 화면에서 제일 먼저 읽힌다.
 class _TodaySection extends StatelessWidget {
   const _TodaySection({required this.onOpenRecord});
 
@@ -1441,84 +1525,117 @@ class _TodaySection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = AppScope.of(context);
-    final muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
     final session = state.sessions[state.dateOnly(DateTime.now())];
-    if (session != null && session.totalSets > 0) {
-      final done = session.completedSets;
-      final total = session.totalSets;
-      final finished = done == total;
-      return SetflowCard(
-        key: const ValueKey('home-today'),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text('오늘', style: theme.textTheme.titleMedium),
-                const Spacer(),
-                Text(
-                  finished
-                      ? '완료 · ${_sessionSummaryText(session, state.weightUnit)}'
-                      : '$done/$total 세트',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: SetflowSpacing.xs),
-            Text(_exercisesText(session), style: theme.textTheme.bodyMedium),
-            const SizedBox(height: SetflowSpacing.sm2),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(SetflowRadii.full),
-              child: LinearProgressIndicator(
-                value: total == 0 ? 0 : done / total,
-                minHeight: 6,
-                backgroundColor: context.setflowColors.surfaceContainer,
-                // 달력과 같은 규칙: 진행 중은 브랜드, 다 끝나면 성공색.
-                color: finished
-                    ? context.setflowColors.success
-                    : theme.colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: SetflowSpacing.md),
-            AppButton(
-              key: const ValueKey('home-open-record'),
-              label: finished ? '오늘 기록 보기' : '이어서 기록',
-              icon: SetflowIcons.record,
-              onPressed: onOpenRecord,
-            ),
-          ],
-        ),
-      );
-    }
-    final last = _sessionsNewestFirst(state).firstOrNull;
-    return SetflowCard(
+    final active = session != null && session.totalSets > 0;
+    final done = active ? session.completedSets : 0;
+    final total = active ? session.totalSets : 0;
+    final finished = active && done == total;
+    final last = active ? null : _sessionsNewestFirst(state).firstOrNull;
+
+    final headline = active
+        ? _exercisesText(session)
+        : last == null
+        ? '첫 운동을 기록해 보세요'
+        : '오늘은 아직 기록 전이에요';
+    final sub = active
+        ? (finished
+              ? '완료 · ${_sessionSummaryText(session, state.weightUnit)}'
+              : '남은 세트 ${total - done}')
+        : last == null
+        ? '세트 하나면 달력에 오늘이 켜져요'
+        : '지난 운동 ${_shortDate(last.date)} · ${_exercisesText(last)} · ${last.completedSets}세트';
+    final action = active ? (finished ? '오늘 기록 보기' : '이어서 기록') : '오늘 운동 시작';
+
+    return Container(
       key: const ValueKey('home-today'),
+      padding: const EdgeInsets.fromLTRB(
+        SetflowSpacing.xl,
+        SetflowSpacing.lg,
+        SetflowSpacing.xl,
+        SetflowSpacing.lg,
+      ),
+      decoration: BoxDecoration(
+        color: LedPalette.panel,
+        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('오늘', style: theme.textTheme.titleMedium),
-          const SizedBox(height: SetflowSpacing.xs),
-          Text(
-            last == null
-                ? '첫 운동을 기록해 보세요. 세트 하나면 달력에 오늘이 켜져요.'
-                : '오늘은 아직 기록 전이에요.',
-            style: theme.textTheme.bodyMedium,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '오늘',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: LedPalette.dimText,
+                  letterSpacing: SetflowSpacing.xxs,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _shortDate(DateTime.now()),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: LedPalette.dimText,
+                ),
+              ),
+            ],
           ),
-          if (last != null) ...[
-            const SizedBox(height: SetflowSpacing.xxs),
-            Text(
-              '지난 운동 ${_shortDate(last.date)} · ${_exercisesText(last)} · ${last.completedSets}세트',
-              style: muted,
-            ),
-          ],
           const SizedBox(height: SetflowSpacing.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // 화면에서 가장 큰 숫자 — 끝낸 세트. display 굵기는 여기뿐이다.
+              Text(
+                '$done',
+                key: const ValueKey('home-today-done'),
+                style: theme.textTheme.displayMedium?.copyWith(
+                  color: finished ? LedPalette.lit : LedPalette.text,
+                  fontWeight: SetflowWeight.display,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  height: 1,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: SetflowSpacing.xs,
+                  bottom: SetflowSpacing.xs2,
+                ),
+                child: Text(
+                  '/$total 세트',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: LedPalette.muted,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.sm2),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(SetflowRadii.full),
+            child: LinearProgressIndicator(
+              value: total == 0 ? 0 : done / total,
+              minHeight: SetflowSpacing.xs2,
+              backgroundColor: LedPalette.off,
+              color: LedPalette.lit,
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+          Text(
+            headline,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: LedPalette.text,
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.xxs),
+          Text(
+            sub,
+            style: theme.textTheme.bodySmall?.copyWith(color: LedPalette.muted),
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
           AppButton(
             key: const ValueKey('home-open-record'),
-            label: '오늘 운동 시작',
+            label: action,
             icon: SetflowIcons.record,
             onPressed: onOpenRecord,
           ),
@@ -1528,8 +1645,8 @@ class _TodaySection extends StatelessWidget {
   }
 }
 
-/// 이번 주 — 일~토 일곱 칸과 합계, 지난주와의 차이. 달력이 "이 달"을 답한다면
-/// 이 줄은 "이번 주 리듬"을 답한다. 값은 전부 기록에서 센다.
+/// 이번 주 — 상자 없이. 점 일곱 개(한 날 = 라임, 오늘 = 잉크 테두리)와 큰 숫자 셋.
+/// 달력이 "이 달"을 답한다면 이 줄은 "이번 주 리듬"을 답한다.
 class _WeekSection extends StatelessWidget {
   const _WeekSection();
 
@@ -1561,59 +1678,73 @@ class _WeekSection extends StatelessWidget {
     final (workouts, sets, volume) = tally(days);
     final (lastWorkouts, _, _) = tally(lastWeek);
     final delta = workouts - lastWorkouts;
-    final deltaText = switch (delta) {
-      0 => '지난주와 같은 횟수',
-      > 0 => '지난주보다 $delta회 더',
-      _ => '지난주보다 ${-delta}회 적게',
-    };
+    final deltaText = workouts == 0 && lastWorkouts == 0
+        ? null
+        : switch (delta) {
+            0 => '지난주와 같은 횟수',
+            > 0 => '지난주보다 $delta회 더',
+            _ => '지난주보다 ${-delta}회 적게',
+          };
+    final volumeText = _volumeText(volume, state.weightUnit);
+    final volumeUnit = volumeText.endsWith('t') ? 't' : state.weightUnit;
+    final volumeValue = volumeText.substring(
+      0,
+      volumeText.length - volumeUnit.length,
+    );
 
     return Column(
+      key: const ValueKey('home-week'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionTitle('이번 주'),
-        const SizedBox(height: SetflowSpacing.sm),
-        SetflowCard(
-          key: const ValueKey('home-week'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  for (final day in days)
-                    Expanded(
-                      // 요일이 아니라 날짜다 — 요일 글자는 달력 머리에 이미
-                      // 있고(같은 글자가 둘이면 어느 쪽이 달력인지 헷갈린다),
-                      // 날짜는 "이번 주가 며칠부터"를 같이 답한다.
-                      child: _WeekDayDot(
-                        label: '${day.day}',
-                        done:
-                            (state.sessions[state.dateOnly(day)]?.totalSets ??
-                                0) >
-                            0,
-                        isToday: DateUtils.isSameDay(day, today),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: SetflowSpacing.md),
+        Row(
+          children: [
+            const Expanded(child: SectionTitle('이번 주')),
+            if (deltaText != null)
               Text(
-                workouts == 0
-                    ? '이번 주는 아직 기록이 없어요'
-                    : '$workouts회 · $sets세트 · ${_volumeText(volume, state.weightUnit)}',
-                style: theme.textTheme.bodyMedium,
-              ),
-              if (workouts > 0 || lastWorkouts > 0) ...[
-                const SizedBox(height: SetflowSpacing.xxs),
-                Text(
-                  deltaText,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                deltaText,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-              ],
+              ),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.md),
+        Row(
+          children: [
+            for (final day in days)
+              Expanded(
+                child: _WeekDayDot(
+                  label: '${day.day}',
+                  done:
+                      (state.sessions[state.dateOnly(day)]?.totalSets ?? 0) > 0,
+                  isToday: DateUtils.isSameDay(day, today),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.lg),
+        if (workouts == 0)
+          Text(
+            '이번 주는 아직 기록이 없어요',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Row(
+            children: [
+              _Figure(
+                key: const ValueKey('home-week-workouts'),
+                value: '$workouts',
+                unit: '회',
+                label: '운동',
+              ),
+              const SizedBox(width: SetflowSpacing.section),
+              _Figure(value: '$sets', unit: '세트', label: '완료'),
+              const SizedBox(width: SetflowSpacing.section),
+              _Figure(value: volumeValue, unit: volumeUnit, label: '볼륨'),
             ],
           ),
-        ),
       ],
     );
   }
@@ -1633,43 +1764,50 @@ class _WeekDayDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // 한 칸에 색 하나: 한 날 = 브랜드가 채운 원, 오늘(아직)은 브랜드 테두리,
-    // 나머지는 회색 면. 달력 칸과 같은 규칙이다.
+    // 한 칸에 색 하나: 한 날 = 라임이 채운 원(잉크 체크), 오늘(아직) = 잉크 테두리,
+    // 나머지는 헤어라인 원. 회색 면은 없다.
     return Column(
       children: [
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: SetflowSpacing.xs),
         Container(
-          width: 28,
-          height: 28,
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: done
-                ? theme.colorScheme.primary
-                : context.setflowColors.surfaceContainer,
-            border: isToday && !done
-                ? Border.all(color: theme.colorScheme.primary, width: 2)
-                : null,
+            color: done ? theme.colorScheme.primary : null,
+            border: done
+                ? null
+                : Border.all(
+                    color: isToday
+                        ? theme.colorScheme.onSurface
+                        : theme.colorScheme.outlineVariant,
+                    width: isToday ? 2 : 1,
+                  ),
           ),
           child: done
               ? Icon(
                   Icons.check_rounded,
-                  size: 16,
+                  size: 18,
                   color: theme.colorScheme.onPrimary,
                 )
               : null,
+        ),
+        const SizedBox(height: SetflowSpacing.xs),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: isToday
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.onSurfaceVariant,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ],
     );
   }
 }
 
-/// 최근 기록 — 최근 30일 안에 갱신된 종목별 최고 중량. 없으면 섹션이 없다.
+/// 최근 기록 — 최근 30일 안에 **이전 최고를 넘긴** 종목별 중량. 헤어라인 목록,
+/// 숫자 앞의 라임 네모가 "기록"이다. 없으면 섹션이 없다.
 class _RecentBestsSection extends StatelessWidget {
   const _RecentBestsSection();
 
@@ -1696,9 +1834,7 @@ class _RecentBestsSection extends StatelessWidget {
       if (summary == null) continue;
       final best = summary.weightPr;
       if (best.date.isBefore(cutoff)) continue;
-      // 기록은 **넘었을 때** 생긴다. 처음 한 번 한 종목의 첫 세트를 "최근 기록"으로
-      // 올리면 만들어 낸 숫자처럼 보인다("일부러 만든 느낌"). 그 날보다 앞선
-      // 세션이 있어야 — 즉 이전 최고를 갱신한 것이어야 — 여기 오른다.
+      // 기록은 넘었을 때 생긴다 — 그 날보다 앞선 세션이 있어야 한다.
       final hasEarlier = sessions.any(
         (session) =>
             session.date.isBefore(best.date) &&
@@ -1711,70 +1847,64 @@ class _RecentBestsSection extends StatelessWidget {
     rows.sort((a, b) => b.$2.date.compareTo(a.$2.date));
 
     return Column(
+      key: const ValueKey('home-bests'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionTitle('최근 기록'),
-        const SizedBox(height: SetflowSpacing.sm),
-        SetflowCard(
-          key: const ValueKey('home-bests'),
-          padding: const EdgeInsets.symmetric(
-            horizontal: SetflowSpacing.lg,
-            vertical: SetflowSpacing.sm,
-          ),
-          child: Column(
-            children: [
-              for (final (template, best) in rows.take(3))
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: SetflowSpacing.sm,
+        const SizedBox(height: SetflowSpacing.xs),
+        for (final (template, best) in rows.take(3))
+          _HairlineRow(
+            child: Row(
+              children: [
+                Container(
+                  width: SetflowSpacing.sm,
+                  height: SetflowSpacing.sm,
+                  margin: const EdgeInsets.only(right: SetflowSpacing.sm),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _muscleColor(context, template.muscle),
                   ),
-                  child: Row(
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        template.icon,
-                        size: 20,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: SetflowSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              template.name,
-                              style: theme.textTheme.bodyMedium,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              _shortDate(best.date),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: SetflowSpacing.sm),
                       Text(
-                        '${PerformanceEngine.formatWeight(best.set.weight)}${state.weightUnit} × ${best.set.reps}',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                        template.name,
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: SetflowSpacing.xxs),
+                      Text(
+                        _shortDate(best.date),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-            ],
+                Container(
+                  width: SetflowSpacing.sm,
+                  height: SetflowSpacing.sm,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+                _Figure(
+                  value: PerformanceEngine.formatWeight(best.set.weight),
+                  unit: '${state.weightUnit} × ${best.set.reps}',
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: SetflowSpacing.xl),
+        const SizedBox(height: SetflowSpacing.section),
       ],
     );
   }
 }
 
-/// 최근 운동 — 마지막 세 번. 탭하면 그날 기록으로. 없으면 섹션이 없다.
+/// 최근 운동 — 세트를 끝낸 최근 세 번(오늘 제외). 헤어라인 목록, 탭하면 그날로.
 class _RecentSessionsSection extends StatelessWidget {
   const _RecentSessionsSection();
 
@@ -1782,8 +1912,6 @@ class _RecentSessionsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = AppScope.of(context);
-    // 오늘은 위의 "오늘" 카드가 맡는다. 세트를 하나도 안 끝낸 날(계획만 있는
-    // 날)은 "운동"이 아니라 예정이라 여기 없다.
     final today = state.dateOnly(DateTime.now());
     final recent = _sessionsNewestFirst(
       state,
@@ -1793,15 +1921,11 @@ class _RecentSessionsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionTitle('최근 운동'),
-        const SizedBox(height: SetflowSpacing.sm),
-        for (final session in recent) ...[
-          SetflowCard(
+        const SizedBox(height: SetflowSpacing.xs),
+        for (final session in recent)
+          _HairlineRow(
             key: ValueKey(
               'home-recent-${session.date.year}${session.date.month}${session.date.day}',
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: SetflowSpacing.lg,
-              vertical: SetflowSpacing.md,
             ),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
@@ -1816,6 +1940,20 @@ class _RecentSessionsSection extends StatelessWidget {
                     _shortDate(session.date),
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                // 부위 색 점 — 그날의 첫 종목 부위. 색은 여기서만 의미를 갖는다.
+                Container(
+                  width: SetflowSpacing.sm,
+                  height: SetflowSpacing.sm,
+                  margin: const EdgeInsets.only(right: SetflowSpacing.sm),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _muscleColor(
+                      context,
+                      session.exercises.first.template.muscle,
                     ),
                   ),
                 ),
@@ -1844,8 +1982,6 @@ class _RecentSessionsSection extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: SetflowSpacing.sm),
-        ],
       ],
     );
   }

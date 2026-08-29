@@ -77,7 +77,12 @@ void main() {
     );
     final total = state.sessions[today()]!.totalSets;
 
-    expect(find.text('0/$total 세트'), findsOneWidget);
+    // 잉크 블록의 큰 숫자는 끝낸 세트, 그 옆 작은 글자가 전체다.
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('home-today-done'))).data,
+      '0',
+    );
+    expect(find.text('/$total 세트'), findsOneWidget);
     expect(find.text('이어서 기록'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('home-open-record')));
     expect(opened, 1);
@@ -95,7 +100,17 @@ void main() {
       },
     );
 
-    expect(find.textContaining('1회 · '), findsOneWidget);
+    // 상자 없는 큰 숫자 셋 — 첫 번째가 운동 횟수다.
+    // Text 위젯도 안에서 RichText를 만드니 첫 번째(숫자+단위)만 본다.
+    final workouts = tester.widget<RichText>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('home-week-workouts')),
+            matching: find.byType(RichText),
+          )
+          .first,
+    );
+    expect(workouts.text.toPlainText(), startsWith('1회'));
     // 이번 주 1회, 지난주 2회(오늘-7·오늘-8이 같은 주에 있을 수도, 아닐 수도
     // 있다 — 일요일이면 -7은 지난주 마지막 날이 아니라 이번 주 첫날이다).
     expect(find.textContaining('지난주'), findsOneWidget);
@@ -139,9 +154,17 @@ void main() {
 
     expect(find.text('최근 기록'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-bests')), findsOneWidget);
-    expect(find.textContaining('80kg × 8'), findsOneWidget);
+    final figures = tester
+        .widgetList<RichText>(
+          find.descendant(
+            of: find.byKey(const ValueKey('home-bests')),
+            matching: find.byType(RichText),
+          ),
+        )
+        .map((r) => r.text.toPlainText());
+    expect(figures, contains('80kg × 8'), reason: '넘긴 기록이 큰 숫자로');
     expect(find.text('최근 운동'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-today')), findsOneWidget);
-    expect(find.text('오늘은 아직 기록 전이에요.'), findsOneWidget);
+    expect(find.text('오늘은 아직 기록 전이에요'), findsOneWidget);
   });
 }
