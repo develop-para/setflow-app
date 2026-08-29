@@ -464,15 +464,12 @@ class _WorkoutSummaryBarState extends State<_WorkoutSummaryBar> {
         ? '${(session.volume / 1000).toStringAsFixed(1)}t'
         : '${session.volume.toStringAsFixed(0)}${widget.unit}';
     final elapsedLabel = _elapsedLabel;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 46),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: context.setflowColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(SetflowRadii.md),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
+    // 회색 상자·구분선 없이 숫자 셋이 페이지 위에 놓인다 — 홈의 월 요약과 같은
+    // 문법. 상자 안 상자 안 상자였던 화면의 첫 상자를 뺀 것이다.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.sm),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // 글자 크기를 키운 사용자에게 이 줄이 가장 먼저 넘쳤다. 토글은 눌러야
           // 하므로 크기를 지키고, 두 수치가 남는 폭을 나눠 갖는다.
@@ -482,12 +479,7 @@ class _WorkoutSummaryBarState extends State<_WorkoutSummaryBar> {
               value: volume,
             ),
           ),
-          Container(
-            width: 1,
-            height: 22,
-            margin: const EdgeInsets.symmetric(horizontal: 10),
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
+          const SizedBox(width: SetflowSpacing.xl),
           Flexible(
             child: _SummaryValue(
               label: '완료 세트',
@@ -497,12 +489,7 @@ class _WorkoutSummaryBarState extends State<_WorkoutSummaryBar> {
           // 첫 세트를 완료한 순간부터의 시간. 시작 전에는 자리도 없다 —
           // "0분"은 정보가 아니다.
           if (elapsedLabel != null) ...[
-            Container(
-              width: 1,
-              height: 22,
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
+            const SizedBox(width: SetflowSpacing.xl),
             Flexible(
               child: _SummaryValue(
                 key: const ValueKey('workout-elapsed'),
@@ -522,10 +509,16 @@ class _WorkoutSummaryBarState extends State<_WorkoutSummaryBar> {
                   widget.onRecommendationChanged(!widget.recommendationEnabled),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+                // 켜짐은 라임 채움(잉크 글자), 꺼짐은 선만 — 라임을 옅게 깔지 않는다.
                 decoration: BoxDecoration(
                   color: widget.recommendationEnabled
-                      ? SetflowColors.primary.withValues(alpha: .2)
-                      : Theme.of(context).colorScheme.surfaceContainerHigh,
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: widget.recommendationEnabled
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outlineVariant,
+                  ),
                   borderRadius: BorderRadius.circular(SetflowRadii.full),
                 ),
                 child: Row(
@@ -535,8 +528,8 @@ class _WorkoutSummaryBarState extends State<_WorkoutSummaryBar> {
                       Icons.auto_awesome_rounded,
                       size: 14,
                       color: widget.recommendationEnabled
-                          ? Theme.of(context).colorScheme.onSurface
-                          : SetflowColors.disabled,
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: SetflowSpacing.xs),
                     Text(
@@ -565,32 +558,25 @@ class _SummaryValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final theme = Theme.of(context);
+    return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 라벨이 먼저 줄어든다 — '볼륨'은 문맥으로 알 수 있지만 숫자는 아니다.
-        Flexible(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: SetflowFontSize.micro,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: SetflowWeight.strong,
-            ),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
-        const SizedBox(width: SetflowSpacing.xs),
-        Flexible(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: SetflowFontSize.caption,
-              fontWeight: SetflowWeight.medium,
-            ),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -911,8 +897,20 @@ class _ExerciseCardState extends State<_ExerciseCard> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final exercise = widget.exercise;
-    return SetflowCard(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+    // 종목은 카드가 아니라 **구역**이다 — 위에 헤어라인 하나, 이름 앞에 부위 색 점.
+    // 회색 상자 안에 세트 상자, 그 안에 값 상자가 있던 화면에서 바깥 상자를 뺐다.
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        0,
+        SetflowSpacing.md,
+        0,
+        SetflowSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+      ),
       child: Column(
         children: [
           ReorderableDelayedDragStartListener(
@@ -929,10 +927,16 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                       // 이 화면에서 가장 먼저 눈에 들어오는 요소였는데, 정작
                       // 아무 의미도 없는 장식이었다 — 봐야 할 것은 종목 이름과
                       // 세트다.
-                      Icon(
-                        exercise.template.icon,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        size: 24,
+                      Container(
+                        width: SetflowSpacing.sm2,
+                        height: SetflowSpacing.sm2,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: muscleColorOf(
+                            context,
+                            exercise.template.muscle,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: SetflowSpacing.md),
                       Expanded(
@@ -941,10 +945,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                           children: [
                             Text(
                               exercise.template.name,
-                              style: const TextStyle(
-                                fontSize: SetflowFontSize.title,
-                                fontWeight: FontWeight.w900,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                             Text(
                               exercise.sets.isNotEmpty &&
@@ -955,13 +956,12 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                   : '${exercise.template.muscle} · 상단을 길게 눌러 순서 이동',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: SetflowFontSize.tiny,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                           ],
                         ),
@@ -1460,18 +1460,16 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
       },
       child: AnimatedContainer(
         duration: SetflowMotion.standard,
-        padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
-        decoration: BoxDecoration(
-          color: widget.set.completed
-              ? context.setflowColors.teal.withValues(alpha: .09)
-              : context.setflowColors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(SetflowRadii.md),
-          border: Border.all(
-            color: widget.set.completed
-                ? context.setflowColors.teal.withValues(alpha: .35)
-                : Theme.of(context).colorScheme.outlineVariant,
-          ),
+        // 오른쪽 여백 12 = 힌트가 행을 미는 폭. 없으면 밀린 순간 마지막 단위("초")가
+        // 잘린다. 세트는 상자가 아니고 아래 선도 없다 — 값 칸의 밑줄이 이미 줄을
+        // 긋고 있어서, 행 밑선까지 있으면 두 줄이 겹쳐 보였다.
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.xs,
+          SetflowSpacing.sm,
+          SetflowSpacing.md,
+          SetflowSpacing.md,
         ),
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface),
         child: Column(
           children: [
             Row(
@@ -1782,17 +1780,36 @@ class _DialValueField extends StatelessWidget {
             canRequestFocus: false,
             mouseCursor: SystemMouseCursors.click,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: SetflowFontSize.body,
-              fontWeight: FontWeight.w900,
+            // 숫자가 주인공이다 — 회색 상자 대신 밑줄 하나 위의 큰 숫자.
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
             decoration: InputDecoration(
               labelText: label,
               suffixText: suffix,
+              suffixStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               isDense: true,
+              filled: false,
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 10,
+                horizontal: SetflowSpacing.xs,
+                vertical: SetflowSpacing.sm,
+              ),
+              border: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              disabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               ),
             ),
           ),
@@ -1949,37 +1966,24 @@ class _InlineSetRowState extends State<_InlineSetRow> {
       },
       child: AnimatedContainer(
         duration: SetflowMotion.standard,
-        padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
-        decoration: BoxDecoration(
-          color: widget.set.completed
-              ? context.setflowColors.teal.withValues(alpha: .09)
-              : context.setflowColors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(SetflowRadii.md),
-          border: Border.all(
-            color: widget.set.completed
-                ? context.setflowColors.teal.withValues(alpha: .35)
-                : Theme.of(context).colorScheme.outlineVariant,
-          ),
+        // 오른쪽 여백 12 = 힌트가 행을 미는 폭. 없으면 밀린 순간 마지막 단위("초")가
+        // 잘린다. 세트는 상자가 아니고 아래 선도 없다 — 값 칸의 밑줄이 이미 줄을
+        // 긋고 있어서, 행 밑선까지 있으면 두 줄이 겹쳐 보였다.
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.xs,
+          SetflowSpacing.sm,
+          SetflowSpacing.md,
+          SetflowSpacing.md,
         ),
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface),
         child: Column(
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(SetflowRadii.full),
-                  ),
-                  child: Text(
-                    '${widget.set.number}세트',
-                    style: const TextStyle(
-                      fontSize: SetflowFontSize.small,
-                      fontWeight: SetflowWeight.medium,
-                    ),
+                Text(
+                  '${widget.set.number}세트',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
                 const SizedBox(width: SetflowSpacing.sm),
@@ -2602,13 +2606,17 @@ class _CompletedSetLine extends StatelessWidget {
         onTap: onExpand,
         borderRadius: BorderRadius.circular(SetflowRadii.md),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+            horizontal: SetflowSpacing.xs,
+            vertical: SetflowSpacing.sm2,
+          ),
+          // 접힌 완료 세트는 라임 판이 아니라 한 줄이다 — 성공색 체크와 잉크 숫자.
+          // 라임을 옅게 깔던 primaryContainer는 "라임은 채우기"의 예외였고,
+          // 열다섯 줄이 쌓이면 화면이 연두색 판이 됐다.
           decoration: BoxDecoration(
-            // 완료는 회색이 아니라 브랜드다. primaryContainer는 라이트에선
-            // 라임 틴트, 다크에선 어두운 라임 컨테이너라 양쪽에서 "우리 색으로
-            // 끝냈다"로 읽힌다.
-            color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(SetflowRadii.md),
+            border: Border(
+              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
           ),
           child: Row(
             children: [
@@ -2622,10 +2630,9 @@ class _CompletedSetLine extends StatelessWidget {
               const SizedBox(width: SetflowSpacing.sm2),
               Text(
                 '$number$label',
-                style: TextStyle(
-                  fontSize: SetflowFontSize.caption,
-                  fontWeight: SetflowWeight.medium,
-                  color: theme.colorScheme.onPrimaryContainer,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
               const SizedBox(width: SetflowSpacing.sm2),
@@ -2634,10 +2641,8 @@ class _CompletedSetLine extends StatelessWidget {
                   summary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: SetflowFontSize.caption,
-                    fontWeight: FontWeight.w800,
-                    color: theme.colorScheme.onPrimaryContainer,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ),

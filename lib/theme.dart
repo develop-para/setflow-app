@@ -511,3 +511,17 @@ abstract final class SetflowTheme {
     );
   }
 }
+
+/// 부위 색 — 점·아이콘·라벨처럼 **작은 자리**에 쓰는 값(상태색 계열, 흰 배경 4.5:1).
+/// 달력 칸 같은 넓은 면에는 `SetflowMuscleFill`을 쓴다. 배정은 운동 목록의 카테고리
+/// 카드, 홈의 최근 기록, 기록 화면의 종목 헤더가 전부 이 한 곳을 본다.
+Color muscleColorOf(BuildContext context, String muscle) => switch (muscle) {
+  '가슴' => context.setflowColors.error,
+  '등' => context.setflowColors.blue,
+  '어깨' => context.setflowColors.teal,
+  '하체' => context.setflowColors.success,
+  '팔' => context.setflowColors.orange,
+  '복근' => context.setflowColors.purple,
+  '유산소' => context.setflowColors.info,
+  _ => Theme.of(context).colorScheme.onSurfaceVariant,
+};

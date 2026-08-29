@@ -1411,18 +1411,8 @@ class _CalendarCell extends StatelessWidget {
 
 const _weekdayShort = ['일', '월', '화', '수', '목', '금', '토'];
 
-/// 부위 색 — 운동 목록의 카테고리 카드와 같은 배정이다. 색은 의미(부위)에만 쓴다.
-/// 흑·백·라임 위에 얹는 유일한 "다른 색"이고, 라임(성취·지금)과 역할이 겹치지 않는다.
-Color _muscleColor(BuildContext context, String muscle) => switch (muscle) {
-  '가슴' => context.setflowColors.error,
-  '등' => context.setflowColors.blue,
-  '어깨' => context.setflowColors.teal,
-  '하체' => context.setflowColors.success,
-  '팔' => context.setflowColors.orange,
-  '복근' => context.setflowColors.purple,
-  '유산소' => context.setflowColors.info,
-  _ => Theme.of(context).colorScheme.onSurfaceVariant,
-};
+Color _muscleColor(BuildContext context, String muscle) =>
+    muscleColorOf(context, muscle);
 
 /// 달력 칸 채움 색 — 면 전용 팔레트(`SetflowMuscleFill`). 점·글자에 쓰는
 /// [_muscleColor]와 짝이 같다(가슴=빨강 계열 …), 밝기만 다르다.
