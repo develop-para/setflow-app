@@ -168,8 +168,7 @@ abstract final class SetflowTheme {
           ),
           textStyle: textTheme.labelLarge?.copyWith(
             fontSize: 15,
-            fontWeight: FontWeight.w900,
-            letterSpacing: .2,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -196,7 +195,7 @@ abstract final class SetflowTheme {
           ),
           textStyle: textTheme.labelLarge?.copyWith(
             fontSize: 15,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -255,8 +254,7 @@ abstract final class SetflowTheme {
           final selected = states.contains(WidgetState.selected);
           return textTheme.labelSmall?.copyWith(
             color: selected ? Colors.white : Colors.white54,
-            fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
-            letterSpacing: .2,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
           );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
@@ -294,8 +292,7 @@ abstract final class SetflowTheme {
         titleTextStyle: textTheme.titleLarge?.copyWith(
           fontSize: 18,
           height: 1.4,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.2,
+          fontWeight: FontWeight.w700,
           color: onSurface,
         ),
         contentTextStyle: textTheme.bodyMedium?.copyWith(
@@ -468,52 +465,49 @@ abstract final class SetflowTheme {
     );
 
     return TextTheme(
-      // Kinetic type scale — big confident numerals are the signature, with a
-      // sharp jump down to editorial labels. Displays run heavy, tight, and
-      // tabular so counters don't jitter; labels are the small-caps kickers.
+      // 프리텐다드에 맞춘 한글 스케일. 전에는 "Kinetic" — 라벨까지 w800에 +1.0 자간,
+      // 제목은 w800/w900 — 이었는데, 그건 라틴 소문자 대문자(small caps) 습관이라
+      // 한글에서는 글자가 흩어지고 뭉개져 "폰트가 어색하다 / 완성도가 떨어진다"로
+      // 읽혔다. 규칙: 한글에 양(+) 자간을 주지 않는다(프리텐다드는 0에서 맞춰져 있다),
+      // 24px 이상에서만 살짝 음(-) 자간, 굵기는 한 단계씩 내려 위계를 만든다 —
+      // 본문 400, 라벨 600, 제목 700, 숫자(display)만 900.
       displayLarge: style(
         52,
         FontWeight.w900,
         1.02,
-        letterSpacing: -2,
+        letterSpacing: -1.5,
         tabular: true,
       ),
       displayMedium: style(
         38,
         FontWeight.w900,
         1.05,
-        letterSpacing: -1.2,
+        letterSpacing: -1,
         tabular: true,
       ),
       displaySmall: style(
         28,
-        FontWeight.w900,
+        FontWeight.w800,
         1.1,
-        letterSpacing: -.6,
+        letterSpacing: -.5,
         tabular: true,
       ),
       headlineLarge: style(
         24,
         FontWeight.w800,
-        1.18,
-        letterSpacing: -.4,
+        1.2,
+        letterSpacing: -.3,
         tabular: true,
       ),
-      headlineMedium: style(
-        20,
-        FontWeight.w800,
-        1.25,
-        letterSpacing: -.2,
-        tabular: true,
-      ),
-      titleLarge: style(18, FontWeight.w800, 1.3, letterSpacing: -.2),
-      titleMedium: style(16, FontWeight.w700, 1.4),
-      bodyLarge: style(15, FontWeight.w500, 1.5),
-      bodyMedium: style(14, FontWeight.w500, 1.5),
-      labelLarge: style(13.5, FontWeight.w800, 1.2, letterSpacing: .2),
-      labelMedium: style(12, FontWeight.w700, 1.3, letterSpacing: .4),
-      labelSmall: style(11, FontWeight.w800, 1.2, letterSpacing: 1.0),
-      bodySmall: style(11.5, FontWeight.w500, 1.35),
+      headlineMedium: style(20, FontWeight.w700, 1.25, tabular: true),
+      titleLarge: style(18, FontWeight.w700, 1.3),
+      titleMedium: style(16, FontWeight.w600, 1.4),
+      bodyLarge: style(15, FontWeight.w400, 1.55),
+      bodyMedium: style(14, FontWeight.w400, 1.55),
+      labelLarge: style(13.5, FontWeight.w600, 1.2),
+      labelMedium: style(12, FontWeight.w600, 1.3),
+      labelSmall: style(11, FontWeight.w600, 1.2),
+      bodySmall: style(11.5, FontWeight.w400, 1.4),
     );
   }
 }

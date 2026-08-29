@@ -26,7 +26,7 @@ void main() {
       // Material's default dialog title is headlineSmall — 24sp, a size this
       // app uses nowhere else, which is what made every dialog look borrowed.
       expect(title!.fontSize, lessThan(22));
-      expect(title.fontWeight, FontWeight.w800);
+      expect(title.fontWeight, FontWeight.w700);
 
       // Body copy in these dialogs runs several lines of Korean; it needs the
       // leading or it sets as a block.

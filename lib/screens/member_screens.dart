@@ -183,16 +183,22 @@ class _MemberShellState extends State<MemberShell> {
                 if (!_inTogetherSession)
                   PortalHeaderBar(switcher: index == _homePage),
                 // The header already ate the status-bar inset, so the per-page
-                // SafeArea below must not add it a second time.
+                // SafeArea below must not add it a second time. 아래도 같다:
+                // 바텀바가 떠 있으면 하단 인셋은 바가 먹는다 — 안 빼면 홈의
+                // SafeArea가 제스처 바 높이(34px)만큼 바 위에 빈 띠를 남긴다
+                // ("바텀 내비게이션에 왜 저 여백이"). 바가 접힌 방 안에서는 남긴다.
+                // 한 번에 계산한다. `removePadding`과 `removeViewInsets`를 겹치면
+                // 둘 다 같은 바깥 context의 MediaQuery를 읽어서 안쪽 것이 바깥 것을
+                // 되돌린다 — 그래서 하단 인셋 제거가 먹지 않았다.
                 Expanded(
-                  child: MediaQuery.removePadding(
-                    context: context,
-                    removeTop: true,
-                    child: MediaQuery.removeViewInsets(
-                      context: context,
-                      removeBottom: true,
-                      child: IndexedStack(index: index, children: pages),
-                    ),
+                  child: MediaQuery(
+                    data: MediaQuery.of(context)
+                        .removePadding(
+                          removeTop: true,
+                          removeBottom: !_inTogetherSession,
+                        )
+                        .removeViewInsets(removeBottom: true),
+                    child: IndexedStack(index: index, children: pages),
                   ),
                 ),
               ],
@@ -1134,9 +1140,7 @@ class _CalendarCell extends StatelessWidget {
       for (final item in session?.exercises ?? const <WorkoutExercise>[])
         item.template.muscle,
     }.toList();
-    final muscleColors = [
-      for (final muscle in muscles) _muscleColor(context, muscle),
-    ];
+    final muscleFills = [for (final muscle in muscles) _muscleFill(muscle)];
     final resistanceVolumeLabel = session == null || session!.volume <= 0
         ? ''
         : session!.volume > 1000
@@ -1245,9 +1249,9 @@ class _CalendarCell extends StatelessWidget {
                   decoration: hasSession && !isDropTarget
                       ? BoxDecoration(
                           gradient: LinearGradient(
-                            colors: _muscleTints(
-                              muscleColors,
-                              dark: theme.brightness == Brightness.dark,
+                            colors: _muscleFills(
+                              muscleFills,
+                              completion: completion.clamp(0, 1).toDouble(),
                             ),
                           ),
                         )
@@ -1334,17 +1338,7 @@ class _CalendarCell extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: SetflowSpacing.xs),
-                              // 한 칸에서 색을 쓰는 곳은 여기 하나다. 막대의 색은 그날
-                              // 한 **부위**의 색이고, 두 부위 이상이면 그 색들이 그라데이션
-                              // 으로 섞인다(가슴+등 = 빨강→파랑). 길이는 완료율이다 —
-                              // 꽉 찼으면 다 한 날, 하다 만 날은 그만큼만.
-                              _MuscleBar(
-                                key: ValueKey(
-                                  'calendar-bar-${date.year}${date.month}${date.day}',
-                                ),
-                                colors: muscleColors,
-                                completion: completion.clamp(0, 1).toDouble(),
-                              ),
+                              // 막대는 없다 — 완료율은 채움의 진하기가 말한다.
                             ] else
                               const SizedBox(height: SetflowSpacing.xl),
                           ],
@@ -1430,56 +1424,28 @@ Color _muscleColor(BuildContext context, String muscle) => switch (muscle) {
   _ => Theme.of(context).colorScheme.onSurfaceVariant,
 };
 
-/// 칸 배경용 틴트 — 부위 색을 옅게. 라이트에서는 흰 바탕에 살짝, 다크에서는 조금
-/// 더 세게 얹어야 같은 정도로 보인다. 하나면 같은 색 둘(그라데이션 API 때문).
-List<Color> _muscleTints(List<Color> colors, {required bool dark}) {
-  final alpha = dark ? .34 : .22;
-  final tinted = [for (final c in colors) c.withValues(alpha: alpha)];
-  if (tinted.isEmpty) return [Colors.transparent, Colors.transparent];
-  if (tinted.length == 1) return [tinted.first, tinted.first];
-  return tinted;
-}
+/// 달력 칸 채움 색 — 면 전용 팔레트(`SetflowMuscleFill`). 점·글자에 쓰는
+/// [_muscleColor]와 짝이 같다(가슴=빨강 계열 …), 밝기만 다르다.
+Color _muscleFill(String muscle) => switch (muscle) {
+  '가슴' => SetflowMuscleFill.chest,
+  '등' => SetflowMuscleFill.back,
+  '어깨' => SetflowMuscleFill.shoulders,
+  '하체' => SetflowMuscleFill.legs,
+  '팔' => SetflowMuscleFill.arms,
+  '복근' => SetflowMuscleFill.core,
+  _ => SetflowMuscleFill.cardio,
+};
 
-/// 달력 칸의 막대 — 그날 부위 색(둘 이상이면 그라데이션), 길이는 완료율.
-class _MuscleBar extends StatelessWidget {
-  const _MuscleBar({required this.colors, required this.completion, super.key});
-
-  final List<Color> colors;
-  final double completion;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final stops = colors.isEmpty
-        ? [theme.colorScheme.primary, theme.colorScheme.primary]
-        : colors.length == 1
-        ? [colors.first, colors.first]
-        : colors;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(SetflowRadii.xs),
-      child: SizedBox(
-        height: 3,
-        width: double.infinity,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: ColoredBox(color: theme.colorScheme.outlineVariant),
-            ),
-            FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: completion,
-              heightFactor: 1,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: stops),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+/// 칸 채움 — 깃허브 잔디처럼. 색은 그날의 부위, **진하기는 완료율**이다: 계획만
+/// 있는 날은 연하게, 다 한 날은 원색. 두 부위면 그 색들이 그라데이션으로 이어진다.
+/// 하나면 같은 색 둘(그라데이션 API가 둘을 요구한다).
+List<Color> _muscleFills(List<Color> colors, {required double completion}) {
+  const floor = .45;
+  final alpha = floor + (1 - floor) * completion.clamp(0, 1);
+  final filled = [for (final c in colors) c.withValues(alpha: alpha)];
+  if (filled.isEmpty) return [Colors.transparent, Colors.transparent];
+  if (filled.length == 1) return [filled.first, filled.first];
+  return filled;
 }
 
 /// 세트가 하나라도 있는 날만 "운동한 날"이다. 최근순.

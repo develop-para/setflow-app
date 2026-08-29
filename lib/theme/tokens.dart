@@ -261,6 +261,21 @@ extension SetflowThemeContext on BuildContext {
 /// 이게 생기기 전엔 화면에 fontSize가 307군데 박혀 있었고 **서로 다른 값이 25종**이었다.
 /// 13과 13.5, 17과 18, 25·26·27이 한 앱 안에 같이 있었다 — 눈에는 "안 맞는다"로만 보이는
 /// 종류의 어긋남이다. 새 숫자를 만들지 말고 여기서 고를 것.
+/// 달력 칸 **채움 전용** 부위 색. 상태색(`SetflowColors.red` 등)은 글자용이라 5.6:1에
+/// 맞춘 어두운 값이고, 그걸 배경에 옅게 깔면 탁하다("색상이 완전 별로"). 여기 값은
+/// 면으로 쓰는 밝고 선명한 색이고 위에는 언제나 잉크 글자다(전부 4.5:1 이상). 면 자체가
+/// 색이라 라이트·다크에서 뒤집지 않는다. 글자·점·아이콘에는 쓰지 말 것 — 흰 배경 위에서
+/// 대비가 안 나온다.
+abstract final class SetflowMuscleFill {
+  static const chest = Color(0xFFFF6B6B);
+  static const back = Color(0xFF4D8DFF);
+  static const shoulders = Color(0xFF2EC4B6);
+  static const legs = Color(0xFF34C759);
+  static const arms = Color(0xFFFF9F43);
+  static const core = Color(0xFFA66CFF);
+  static const cardio = Color(0xFF4CC9F0);
+}
+
 abstract final class SetflowFontSize {
   /// 달력 칸의 볼륨, 세트 행의 보조 캡션. 이보다 작게 쓰지 않는다.
   static const micro = 9.0;
@@ -289,17 +304,17 @@ abstract final class SetflowFontSize {
 /// `theme.textTheme`의 역할이 이미 굵기를 정해 두므로, 역할을 쓰면 이 사다리는 자동으로 지켜진다.
 /// 굵기를 직접 적어야 할 때만 여기서 고를 것.
 abstract final class SetflowWeight {
-  /// 화면에서 가장 큰 숫자 — 볼륨, 1RM, 타이머. **여기 말고는 쓰지 않는다.**
+  /// 화면에서 가장 큰 숫자에만 — 볼륨·1RM·타이머.
   static const display = FontWeight.w900;
 
-  /// 섹션 제목, 카드의 이름.
-  static const strong = FontWeight.w800;
+  /// 제목·강조. 프리텐다드 한글은 Bold(700)에서 가장 또렷하다 — 800은 뭉갠다.
+  static const strong = FontWeight.w700;
 
-  /// 라벨, 칩, 작은 글자의 강조. 작은 글자는 굵기만 올려도 충분히 커 보인다.
-  static const medium = FontWeight.w700;
+  /// 본문 안의 강조, 라벨.
+  static const medium = FontWeight.w600;
 
   /// 본문.
-  static const regular = FontWeight.w500;
+  static const regular = FontWeight.w400;
 }
 
 abstract final class SetflowSpacing {
