@@ -2303,181 +2303,176 @@ class RoutinesScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: SetflowSpacing.lg),
+          // 루틴은 카드가 아니라 줄이다 — 헤어라인으로 나누고, 식별색 선 하나,
+          // 종목은 칩 무더기 대신 한 문장, 편집은 큰 테두리 버튼 대신 글자 버튼.
           for (final routine in state.routines)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: SetflowCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        // 루틴 식별색은 남긴다 — 모델에 실려 공유 카드에도
-                        // 나오는 정체성이다. 다만 카드에서 제일 큰 색 덩어리일
-                        // 이유는 없어서, 굵은 알약에서 가는 선으로 줄였다.
-                        Container(
-                          width: 4,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: routine.color,
-                            borderRadius: BorderRadius.circular(
-                              SetflowRadii.full,
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.lg),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // 루틴 식별색은 남긴다 — 모델에 실려 공유 카드에도
+                      // 나오는 정체성이다. 다만 카드에서 제일 큰 색 덩어리일
+                      // 이유는 없어서, 굵은 알약에서 가는 선으로 줄였다.
+                      Container(
+                        width: 4,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: routine.color,
+                          borderRadius: BorderRadius.circular(
+                            SetflowRadii.full,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: SetflowSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              routine.name,
+                              style: const TextStyle(
+                                fontSize: SetflowFontSize.titleLarge,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: SetflowSpacing.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                routine.name,
-                                style: const TextStyle(
-                                  fontSize: SetflowFontSize.titleLarge,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              Text(
-                                '${routine.exercises.length}개 운동 · ${routine.level}',
-                                style: TextStyle(
-                                  fontSize: SetflowFontSize.caption,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        PopupMenuButton<String>(
-                          itemBuilder: (_) => [
-                            PopupMenuItem(value: 'apply', child: Text('오늘 적용')),
-                            PopupMenuItem(value: 'edit', child: Text('수정')),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text(
-                                '삭제',
-                                style: TextStyle(
-                                  color: context.setflowColors.error,
-                                ),
+                            Text(
+                              '${routine.exercises.length}개 운동 · ${routine.level}',
+                              style: TextStyle(
+                                fontSize: SetflowFontSize.caption,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
-                          onSelected: (value) async {
-                            if (value == 'apply') {
-                              final added = state.applyRoutine(
-                                routine,
-                                DateTime.now(),
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        itemBuilder: (_) => [
+                          PopupMenuItem(value: 'apply', child: Text('오늘 적용')),
+                          PopupMenuItem(value: 'edit', child: Text('수정')),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text(
+                              '삭제',
+                              style: TextStyle(
+                                color: context.setflowColors.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onSelected: (value) async {
+                          if (value == 'apply') {
+                            final added = state.applyRoutine(
+                              routine,
+                              DateTime.now(),
+                            );
+                            if (added == 0) {
+                              AppSnackbar.info(
+                                context,
+                                '오늘 기록에 루틴 운동이 이미 모두 있어요.',
                               );
-                              if (added == 0) {
-                                AppSnackbar.info(
-                                  context,
-                                  '오늘 기록에 루틴 운동이 이미 모두 있어요.',
-                                );
-                              } else {
-                                AppSnackbar.success(
-                                  context,
-                                  '오늘 캘린더에 운동 $added개를 적용했어요.',
-                                );
-                              }
-                            } else if (value == 'edit') {
-                              await _editRoutine(context, routine);
-                            } else if (value == 'delete') {
-                              final confirmed =
-                                  await showDialog<bool>(
-                                    context: context,
-                                    builder: (dialogContext) => AlertDialog(
-                                      title: const Text('루틴을 삭제할까요?'),
-                                      content: Text(
-                                        '${routine.name} 루틴은 삭제 후 복구할 수 없습니다.',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(
-                                            dialogContext,
-                                            false,
-                                          ),
-                                          child: const Text('취소'),
-                                        ),
-                                        FilledButton(
-                                          onPressed: () => Navigator.pop(
-                                            dialogContext,
-                                            true,
-                                          ),
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor:
-                                                context.setflowColors.error,
-                                            foregroundColor: Colors.white,
-                                          ),
-                                          child: const Text('삭제'),
-                                        ),
-                                      ],
+                            } else {
+                              AppSnackbar.success(
+                                context,
+                                '오늘 캘린더에 운동 $added개를 적용했어요.',
+                              );
+                            }
+                          } else if (value == 'edit') {
+                            await _editRoutine(context, routine);
+                          } else if (value == 'delete') {
+                            final confirmed =
+                                await showDialog<bool>(
+                                  context: context,
+                                  builder: (dialogContext) => AlertDialog(
+                                    title: const Text('루틴을 삭제할까요?'),
+                                    content: Text(
+                                      '${routine.name} 루틴은 삭제 후 복구할 수 없습니다.',
                                     ),
-                                  ) ??
-                                  false;
-                              if (confirmed && context.mounted) {
-                                try {
-                                  final removed = await state.removeRoutine(
-                                    routine,
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext, false),
+                                        child: const Text('취소'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext, true),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor:
+                                              context.setflowColors.error,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text('삭제'),
+                                      ),
+                                    ],
+                                  ),
+                                ) ??
+                                false;
+                            if (confirmed && context.mounted) {
+                              try {
+                                final removed = await state.removeRoutine(
+                                  routine,
+                                );
+                                if (!context.mounted) return;
+                                if (removed) {
+                                  AppSnackbar.success(context, '루틴을 삭제했어요.');
+                                } else {
+                                  AppSnackbar.error(
+                                    context,
+                                    '삭제할 루틴을 찾지 못했어요.',
                                   );
-                                  if (!context.mounted) return;
-                                  if (removed) {
-                                    AppSnackbar.success(context, '루틴을 삭제했어요.');
-                                  } else {
-                                    AppSnackbar.error(
-                                      context,
-                                      '삭제할 루틴을 찾지 못했어요.',
-                                    );
-                                  }
-                                } catch (_) {
-                                  if (context.mounted) {
-                                    AppSnackbar.error(
-                                      context,
-                                      '루틴을 서버에서 삭제하지 못했어요. 다시 시도해주세요.',
-                                    );
-                                  }
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  AppSnackbar.error(
+                                    context,
+                                    '루틴을 서버에서 삭제하지 못했어요. 다시 시도해주세요.',
+                                  );
                                 }
                               }
                             }
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: SetflowSpacing.md2),
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  if (routine.description.isNotEmpty) ...[
+                    const SizedBox(height: SetflowSpacing.sm),
                     Text(
                       routine.description,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: SetflowSpacing.md2),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 7,
-                      children: routine.exercises
-                          .map(
-                            (item) => Chip(
-                              label: Text(
-                                item.name,
-                                style: const TextStyle(
-                                  fontSize: SetflowFontSize.small,
-                                ),
-                              ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    const SizedBox(height: SetflowSpacing.md),
-                    AppButton(
-                      label: '루틴 편집',
-                      icon: Icons.edit_rounded,
-                      variant: AppButtonVariant.outlined,
-                      onPressed: () => _editRoutine(context, routine),
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
-                ),
+                  const SizedBox(height: SetflowSpacing.xs),
+                  Text(
+                    routine.exercises.map((item) => item.name).join(' · '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.xs),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _editRoutine(context, routine),
+                      icon: const Icon(Icons.edit_rounded, size: 18),
+                      label: const Text('루틴 편집'),
+                    ),
+                  ),
+                ],
               ),
             ),
           if (state.routines.isEmpty)
@@ -3219,6 +3214,119 @@ class _RoutineAccessBadge extends StatelessWidget {
   }
 }
 
+/// 피드 한 줄 — 작성자·시간, 지표(제목 자리), 본문 두 줄, 오른쪽에 사진 또는 아이콘.
+class _CommunityRow extends StatelessWidget {
+  const _CommunityRow({required this.post, required this.onTap});
+
+  final CommunityPost post;
+  final VoidCallback onTap;
+
+  static String _ago(DateTime at) {
+    final d = DateTime.now().difference(at);
+    if (d.inMinutes < 1) return '방금';
+    if (d.inHours < 1) return '${d.inMinutes}분 전';
+    if (d.inDays < 1) return '${d.inHours}시간 전';
+    if (d.inDays < 7) return '${d.inDays}일 전';
+    return '${at.month}/${at.day}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Semantics(
+      button: true,
+      label: '${post.author}의 게시물, ${post.content}',
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.md),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            post.author,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: post.isMine
+                                  ? theme.colorScheme.onSurface
+                                  : muted,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          ' · ${_ago(post.createdAt)}',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: SetflowSpacing.xs),
+                    Text(
+                      post.metric,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    if (post.content.isNotEmpty) ...[
+                      const SizedBox(height: SetflowSpacing.xxs),
+                      Text(
+                        post.content,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(SetflowRadii.sm),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: post.imageUrl == null
+                      ? Center(child: Icon(post.icon, size: 26, color: muted))
+                      : Image.network(
+                          post.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Center(
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              size: 22,
+                              color: muted,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
   @override
@@ -3276,111 +3384,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
               actionLabel: '첫 게시물 작성',
               onAction: _compose,
             )
-          : GridView.builder(
-              padding: const EdgeInsets.fromLTRB(2, 4, 2, 100),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 2,
-                mainAxisSpacing: 2,
+          // 회색 타일 격자는 사진이 없는 게시물을 전부 "빈 칸"으로 보이게 했다.
+          // 피드는 **줄**이다: 헤어라인으로 나누고, 사진이 있으면 오른쪽에 작게,
+          // 없으면 종목 아이콘. 지표("하체 · 12세트 · 4.2t")가 제목 자리다 —
+          // 운동 피드에서 먼저 읽을 것은 문장이 아니라 숫자다.
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.gutter,
+                SetflowSpacing.xs,
+                SetflowSpacing.gutter,
+                100,
               ),
               itemCount: posts.length,
-              itemBuilder: (_, index) {
-                final post = posts[index];
-                return Semantics(
-                  button: true,
-                  label: '${post.author}의 게시물, ${post.content}',
-                  child: Material(
-                    // 사진이 없는 칸은 회색 판이다. 게시물마다 다른 파스텔을
-                    // 깔면 격자가 색상표가 되고, 정작 봐야 할 사진들이 그 사이에
-                    // 끼어 든 것처럼 보인다. 색은 의미가 있을 때만 쓴다.
-                    color: context.setflowColors.surfaceContainer,
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => CommunityPostDetailScreen(post: post),
-                        ),
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          if (post.imageUrl == null)
-                            Center(
-                              child: Icon(
-                                post.icon,
-                                size: 34,
-                                color: context.setflowColors.disabled,
-                              ),
-                            )
-                          else
-                            Image.network(
-                              post.imageUrl!,
-                              fit: BoxFit.cover,
-                              loadingBuilder: (context, child, progress) =>
-                                  progress == null
-                                  ? child
-                                  : const Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                              errorBuilder: (_, _, _) => Center(
-                                child: Icon(
-                                  Icons.broken_image_outlined,
-                                  size: 30,
-                                  color: context.setflowColors.disabled,
-                                ),
-                              ),
-                            ),
-                          Positioned(
-                            left: 7,
-                            right: 7,
-                            bottom: 6,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: post.imageUrl == null
-                                    ? Colors.transparent
-                                    : Colors.black54,
-                                borderRadius: BorderRadius.circular(
-                                  SetflowRadii.xs,
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 2,
-                                ),
-                                child: Text(
-                                  post.metric,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: post.imageUrl == null
-                                        ? null
-                                        : Colors.white,
-                                    fontSize: SetflowFontSize.micro,
-                                    fontWeight: SetflowWeight.medium,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (post.isMine)
-                            Positioned(
-                              top: 6,
-                              right: 6,
-                              child: Icon(
-                                Icons.person_rounded,
-                                size: 15,
-                                // 라이트 전용 잉크였다 — 다크에서 검정 칸 위
-                                // 검정 아이콘이라 내 게시물 표시가 사라졌다.
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+              itemBuilder: (_, index) => _CommunityRow(
+                post: posts[index],
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        CommunityPostDetailScreen(post: posts[index]),
                   ),
-                );
-              },
+                ),
+              ),
             ),
       floatingActionButton: FloatingActionButton(
         key: const ValueKey('community-compose'),

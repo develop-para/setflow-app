@@ -21,7 +21,6 @@ class MyPageScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = AppScope.of(context);
     final signedIn = Auth.instance.hasAuthenticatedUser;
     return Scaffold(
       appBar: AppBar(title: const Text('마이')),
@@ -33,49 +32,9 @@ class MyPageScreen extends StatelessWidget {
           28,
         ),
         children: [
-          SetflowCard(
-            child: Row(
-              children: [
-                Icon(SetflowIcons.myActive, color: SetflowColors.ink, size: 30),
-                const SizedBox(width: SetflowSpacing.lg),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        state.memberDisplayName.isEmpty
-                            ? '게스트'
-                            : state.memberDisplayName,
-                        style: const TextStyle(
-                          fontSize: SetflowFontSize.titleLarge,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: SetflowSpacing.xxs),
-                      Text(
-                        // "동기화 중"은 영원히 안 끝나는 작업처럼 읽힌다 — 상태가 아니라
-                        // 사실을 적는다.
-                        signedIn ? '기록이 계정에 백업돼요' : '로그인하면 기록이 백업돼요',
-                        style: TextStyle(
-                          fontSize: SetflowFontSize.caption,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!signedIn)
-                  TextButton(
-                    key: const ValueKey('mypage-sign-in'),
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                    ),
-                    child: const Text('로그인'),
-                  ),
-              ],
-            ),
-          ),
+          // 회색 카드가 아니라 **이름 + 내 숫자 셋**이다. 마이는 메뉴가 아니라
+          // "내가 얼마나 했나"부터 답해야 하고, 그 답은 기록에 이미 있다.
+          _ProfileBlock(signedIn: signedIn),
           const SizedBox(height: SetflowSpacing.xl),
           _MyPageEntry(
             key: const ValueKey('mypage-routines'),
@@ -126,6 +85,130 @@ class MyPageScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProfileBlock extends StatelessWidget {
+  const _ProfileBlock({required this.signedIn});
+
+  final bool signedIn;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = AppScope.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final sessions = state.sessions.values
+        .where((s) => s.completedSets > 0)
+        .toList();
+    final days = sessions.length;
+    final volume = sessions.fold<double>(0, (sum, s) => sum + s.volume);
+    final sets = sessions.fold<int>(0, (sum, s) => sum + s.completedSets);
+    final volumeText = volume >= 1000
+        ? (volume / 1000).toStringAsFixed(1)
+        : volume.round().toString();
+    final volumeUnit = volume >= 1000 ? 't' : state.weightUnit;
+    final name = state.memberDisplayName.isEmpty
+        ? '게스트'
+        : state.memberDisplayName;
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: SetflowSpacing.sm,
+        bottom: SetflowSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: theme.textTheme.headlineLarge),
+                    const SizedBox(height: SetflowSpacing.xxs),
+                    Text(
+                      // "동기화 중"은 영원히 안 끝나는 작업처럼 읽힌다 — 상태가
+                      // 아니라 사실을 적는다.
+                      signedIn ? '기록이 계정에 백업돼요' : '로그인하면 기록이 백업돼요',
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    ),
+                  ],
+                ),
+              ),
+              if (!signedIn)
+                TextButton(
+                  key: const ValueKey('mypage-sign-in'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                  ),
+                  child: const Text('로그인'),
+                ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.xl),
+          // 숫자 셋 — 전부 기기의 기록에서 센다. 0이어도 숨기지 않는다: "아직 0"은
+          // 시작 전이라는 사실이고, 마이에서 그 사실을 감출 이유가 없다.
+          Row(
+            children: [
+              _ProfileFigure(value: '$days', unit: '일', label: '운동한 날'),
+              const SizedBox(width: SetflowSpacing.section),
+              _ProfileFigure(value: '$sets', unit: '세트', label: '완료'),
+              const SizedBox(width: SetflowSpacing.section),
+              _ProfileFigure(
+                value: volumeText,
+                unit: volumeUnit,
+                label: '총 볼륨',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileFigure extends StatelessWidget {
+  const _ProfileFigure({
+    required this.value,
+    required this.unit,
+    required this.label,
+  });
+
+  final String value;
+  final String unit;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichText(
+          maxLines: 1,
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: value,
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              TextSpan(
+                text: unit,
+                style: theme.textTheme.labelMedium?.copyWith(color: muted),
+              ),
+            ],
+          ),
+        ),
+        Text(label, style: theme.textTheme.labelSmall?.copyWith(color: muted)),
+      ],
     );
   }
 }
