@@ -310,6 +310,44 @@ void main() {
     });
   });
 
+  group('the lobby is a list of rooms', () {
+    testWidgets('an activity card opens create with that activity chosen', (
+      tester,
+    ) async {
+      // 히어로(설명 카드)는 없다 — 종목 카드가 입구다. 크로스핏 카드를 누르면
+      // 방 만들기 시트가 크로스핏이 골라진 채로 열리고, 확인하면 그 방이다.
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      expect(find.text('떨어져 있어도'), findsNothing);
+      expect(find.byKey(const ValueKey('lobby-mode-together')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('lobby-mode-together')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
+      final code = tester
+          .widget<Text>(find.byKey(const ValueKey('together-code')))
+          .data!;
+      expect(
+        backend.partyByCode(code)!.mode,
+        PartyMode.together,
+        reason: '카드의 종목이 방의 종목이다',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('today\'s record is summarised on the lobby', (tester) async {
+      // 방은 오늘 기록의 세트를 전광판에 올린다 — 로비가 그걸 미리 말한다.
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      expect(find.byKey(const ValueKey('lobby-today')), findsOneWidget);
+      expect(find.textContaining('오늘 기록이 아직 없어요'), findsOneWidget);
+      // 행동 둘은 하단 고정 바에 나란히 있다.
+      expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
+      expect(find.byKey(const ValueKey('together-join')), findsOneWidget);
+    });
+  });
+
   group('the lobby', () {
     testWidgets('the how-to lives behind the question mark, not on the page', (
       tester,
