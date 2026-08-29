@@ -67,6 +67,18 @@
                     android:scheme="com.teampara.setflow"
                     android:host="together-join" />
             </intent-filter>
+            <!-- 초대 링크(https)를 브라우저 없이 앱이 받는다. 검증 파일은
+                 web/.well-known/assetlinks.json (Vercel). host를 바꾸면
+                 lib/services/setflow_web.dart 도 같이 바꿀 것. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="setflow-app.vercel.app"
+                    android:path="/together/join" />
+            </intent-filter>
         </activity>
         <service
             android:name=".RestTimerService"

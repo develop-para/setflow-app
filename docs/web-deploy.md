@@ -36,6 +36,28 @@ Vercel 빌더에는 Flutter가 없다. `tool/vercel_build.sh`가 매 빌드마�
   `index.html`·`flutter_bootstrap.js`·`flutter_service_worker.js`·`version.json`은 `no-cache` —
   이 넷이 캐시되면 **새 배포가 사용자에게 영원히 안 닿는다.**
 
+## 초대 링크 착지 페이지와 앱링크 검증 파일도 여기서 나간다
+
+`web/` 아래 파일은 Flutter 웹 빌드가 그대로 `build/web`으로 복사하므로 Vercel이 정적으로
+서빙한다. 앱 밖(메신저)에서 열리는 것들이 여기 산다:
+
+- `web/join.html` — 함께 방 초대 링크의 착지 페이지. `vercel.json`이 `/together/join`을 이
+  파일로 보낸다(SPA 폴백보다 **앞에** 있어야 한다). 열리면 커스텀 스킴으로 앱을 부르고,
+  앱이 없으면 코드를 보여 준다. 앱은 `SetflowWeb.togetherJoin(code)`로 이 주소를 만든다.
+- `web/.well-known/assetlinks.json` — 안드로이드 앱링크 검증. 업로드 키의 SHA-256이 들어
+  있고, 매니페스트의 `autoVerify` 인텐트 필터와 짝이다. 검증이 되면 링크가 브라우저 없이
+  앱으로 바로 간다. **서명 키를 바꾸면 이 파일도 바꿔야 한다**
+  (`keytool -list -v -keystore android/app/upload-keystore.jks -alias upload`).
+- iOS(`apple-app-site-association`)는 아직 없다 — Apple Team ID가 정해지면 같은 자리에 둔다.
+  그때까지 iOS는 Safari가 `join.html`을 열고 "앱에서 열기"로 넘어간다.
+
+도메인은 **`setflow-app.vercel.app`** 이다. `setflow.app`은 우리 것이 아니다(남의 DJ 사이트).
+도메인을 바꾸면 `lib/services/setflow_web.dart`, `AndroidManifest.xml`의 https host,
+`supabase/functions/join`(리다이렉트 예비 주소) 셋을 같이 바꾼다.
+
+Supabase 엣지 펑션에 페이지를 두지 못하는 이유: 기본 도메인의 HTML 응답을 게이트웨이가
+`text/plain` + sandbox CSP로 바꾼다. 커스텀 도메인 애드온이 있어야 풀린다.
+
 ## 인증은 웹에서 그대로 동작한다
 
 `signInWithSocial`이 모바일에서만 커스텀 스킴 리다이렉트를 쓰고 웹에서는 현재 origin을 쓴다

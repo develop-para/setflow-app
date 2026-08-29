@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.teampara.setflow",
+      "sha256_cert_fingerprints": [
+        "5A:02:40:32:E3:DB:69:E2:E6:ED:DA:93:52:CF:62:C6:FE:72:C6:C7:17:4A:28:83:32:37:E0:F5:CD:82:E1:03"
+      ]
+    }
+  }
+]

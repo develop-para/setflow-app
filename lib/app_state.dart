@@ -13,6 +13,7 @@ import 'data/routine_catalog_repository.dart';
 import 'data/together_repository.dart';
 import 'domain/cardio.dart';
 import 'models.dart';
+import 'services/setflow_web.dart';
 import 'services/cardio_prescription_engine.dart';
 import 'services/exercise_recommendation_engine.dart';
 import 'services/performance_engine.dart';
@@ -348,19 +349,15 @@ class AppState extends ChangeNotifier {
 
   List<RoutineData> get marketRoutines => List.unmodifiable(_marketRoutines);
 
-  /// 함께 방 초대 링크. 코드 여섯 글자만 싣는다 — 링크가 곧 코드라서, 링크를
-  /// 못 여는 곳(PC 카톡 등)에서도 사람이 읽고 칠 수 있다.
-  static Uri togetherInviteUri(String code) => Uri(
-    scheme: 'com.teampara.setflow',
-    host: 'together-join',
-    pathSegments: [code.trim().toUpperCase()],
-  );
+  /// 앱이 받는 초대 링크(커스텀 스킴). 보내는 링크는 레포지토리의 `inviteLink`.
+  static Uri togetherInviteUri(String code) => togetherSchemeInviteUri(code);
 
   void captureIncomingUri(Uri uri) {
     final joinCode = switch ((uri.scheme, uri.host)) {
       ('com.teampara.setflow', 'together-join') =>
         uri.pathSegments.firstOrNull ?? uri.queryParameters['code'],
-      ('https', 'setflow.app') when uri.path == '/together/join' =>
+      ('https', final host)
+          when host == SetflowWeb.host && uri.path == '/together/join' =>
         uri.queryParameters['code'],
       _ => null,
     };

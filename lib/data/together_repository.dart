@@ -287,6 +287,15 @@ class TogetherFailure implements Exception {
   String toString() => message;
 }
 
+/// 앱이 직접 받는 초대 링크(커스텀 스킴). `AppState.captureIncomingUri`가 이걸
+/// 코드로 되돌린다. 메신저는 https만 파란 링크로 그리므로, 어댑터의
+/// [TogetherRepository.inviteLink]는 보통 이 스킴으로 넘겨주는 https 페이지를 준다.
+Uri togetherSchemeInviteUri(String code) => Uri(
+  scheme: 'com.teampara.setflow',
+  host: 'together-join',
+  pathSegments: [code.trim().toUpperCase()],
+);
+
 abstract interface class TogetherRepository {
   /// Who this client is acting as. Null when signed out — every verb below
   /// needs an account, because a room with an anonymous member has no way to
@@ -302,6 +311,10 @@ abstract interface class TogetherRepository {
   });
 
   Future<TrainingParty> joinParty(String code);
+
+  /// 친구에게 보내는 초대 링크. 누르면 이 코드의 방으로 들어온다. 어디에 착지
+  /// 페이지를 두느냐는 어댑터의 일이다 — 화면은 링크를 만들지 않는다.
+  Uri inviteLink(String code);
 
   /// 근처에서 열린 공개방. 가까운 순, 좌표 없이 거리만.
   Future<List<NearbyParty>> listNearbyParties(GeoPoint at);
@@ -777,6 +790,9 @@ class MemoryTogetherRepository implements TogetherRepository {
     visibility: visibility,
     location: location,
   );
+
+  @override
+  Uri inviteLink(String code) => togetherSchemeInviteUri(code);
 
   @override
   Future<TrainingParty> joinParty(String code) async =>

@@ -6,6 +6,10 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/together/join",
+      "destination": "/join.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
@@ -51,6 +55,17 @@
     {
       "source": "/version.json",
       "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
+      "source": "/join.html",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
     }
   ]
 }

@@ -1,0 +1,70 @@
+<!doctype html>
+<!--
+  함께 방 초대 링크의 착지 페이지 — https://<web origin>/together/join?code=CODE
+  (vercel.json이 그 경로를 이 파일로 리라이트한다).
+
+  메신저가 파란 링크로 그려 주는 건 https뿐이라, 앱이 직접 받는 커스텀 스킴
+  (com.teampara.setflow://together-join/CODE)을 이 페이지로 감싼다. 열리자마자
+  스킴으로 넘어가고, 앱이 없어서 못 넘어간 사람에게는 코드를 크게 보여 준다 —
+  링크가 곧 코드다. 안드로이드는 .well-known/assetlinks.json 검증이 되면
+  브라우저를 거치지 않고 바로 앱이 받는다(그때 이 페이지는 안 열린다).
+
+  Supabase 엣지 펑션에 두지 않은 이유: 기본 도메인(*.supabase.co)의 HTML 응답은
+  게이트웨이가 text/plain + sandbox CSP로 바꿔 버린다(피싱 방지). 정적 파일은
+  Flutter 웹 빌드가 web/ 아래를 그대로 build/web 으로 복사한다.
+-->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Setflow 함께 운동 초대</title>
+<meta property="og:title" content="Setflow 함께 운동 초대">
+<meta property="og:description" content="Setflow에서 같이 운동해요. 링크를 열면 방으로 들어가요.">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+         background: #0B0B0C; color: #FAFAFA; }
+  main { width: min(100% - 36px, 400px); text-align: center; }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+  p { color: #A1A1A1; font-size: 14px; line-height: 1.5; margin: 0 0 24px; }
+  .code { font-size: 40px; font-weight: 900; letter-spacing: 8px; font-variant-numeric: tabular-nums;
+          background: #18181B; border-radius: 16px; padding: 20px 0 20px 8px; margin: 0 0 20px; }
+  a.btn { display: block; text-decoration: none; font-weight: 700; font-size: 16px;
+          background: #CCFF00; color: #0B0B0C; border-radius: 14px; padding: 16px; margin: 0 0 12px; }
+  .hint { font-size: 12px; margin: 0; }
+  .brand { font-weight: 900; letter-spacing: -0.5px; color: #CCFF00; font-size: 14px; margin: 0 0 32px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <p class="brand">SETFLOW</p>
+  <section id="ok" hidden>
+    <h1>함께 운동에 초대받았어요</h1>
+    <p>앱이 설치돼 있으면 바로 방으로 들어가요. 안 열리면 아래 코드를 앱의 함께 탭에서 입력하세요.</p>
+    <div class="code" id="code"></div>
+    <a class="btn" id="open" href="#">앱에서 열기</a>
+    <p class="hint">아직 앱이 없다면 초대한 사람에게 설치 링크를 받으세요. 방은 위 코드로 들어올 수 있어요.</p>
+  </section>
+  <section id="bad" hidden>
+    <h1>초대 링크가 잘못됐어요</h1>
+    <p>초대한 사람에게 링크를 다시 받거나, 앱의 함께 탭에서 코드로 참여해 주세요.</p>
+  </section>
+</main>
+<script>
+  (function () {
+    var raw = (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase();
+    var ok = /^[A-Z0-9]{4,8}$/.test(raw);
+    document.getElementById(ok ? 'ok' : 'bad').hidden = false;
+    if (!ok) return;
+    var open = 'com.teampara.setflow://together-join/' + raw;
+    document.getElementById('code').textContent = raw;
+    document.getElementById('open').href = open;
+    // 열리자마자 앱으로. 앱이 없으면 이동이 무시되고 이 페이지가 그대로 남는다.
+    setTimeout(function () { location.href = open; }, 50);
+  })();
+</script>
+</body>
+</html>

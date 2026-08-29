@@ -561,12 +561,13 @@ class _TogetherScreenState extends State<TogetherScreen> {
   );
 
   /// 링크와 코드를 같이 보낸다 — 링크는 한 번에 들어오는 길이고, 코드는
-  /// 링크를 못 여는 곳(PC·다른 메신저)에서의 예비다.
+  /// 링크를 못 여는 곳(PC·다른 메신저)에서의 예비다. 링크가 어디에 착지하는지는
+  /// 레포지토리가 정한다(운영은 https 페이지, 메모리는 스킴).
   Future<void> _shareInvite(BuildContext context, TrainingParty party) async {
     final box = context.findRenderObject() as RenderBox?;
     await Share.share(
       'Setflow에서 ${party.mode.label} 함께 해요.\n'
-      '${AppState.togetherInviteUri(party.code)}\n'
+      '${_repository!.inviteLink(party.code)}\n'
       '초대 코드: ${party.code}',
       subject: 'Setflow 함께 운동 초대',
       sharePositionOrigin: box == null

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models.dart';
+import '../services/setflow_web.dart';
 import 'app_snapshot_codec.dart';
 import 'together_repository.dart';
 
@@ -143,6 +144,12 @@ class SupabaseTogetherRepository implements TogetherRepository {
       createdAt: _time(json['created_at']) ?? DateTime.now(),
     );
   }
+
+  /// https 착지 페이지(`web/join.html`) — 열리면 커스텀 스킴으로 넘겨주고,
+  /// 앱이 없으면 코드를 보여 준다. 메신저에서 눌리는 링크는 https뿐이라서다.
+  /// 안드로이드는 assetlinks 검증이 되면 브라우저 없이 앱이 바로 받는다.
+  @override
+  Uri inviteLink(String code) => SetflowWeb.togetherJoin(code);
 
   @override
   Future<TrainingParty> joinParty(String code) => _rpc('join_training_party', {

@@ -9,6 +9,7 @@ import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/screens/together_screens.dart';
 import 'package:setflow/services/auth_service.dart';
 import 'package:setflow/services/location_service.dart';
+import 'package:setflow/services/setflow_web.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/widgets/bottom_bar.dart';
 import 'package:setflow/widgets/common.dart';
@@ -246,16 +247,31 @@ void main() {
       expect(state.pendingTogetherJoinCode, 'AB12CD');
 
       state.clearPendingTogetherJoinCode();
+      // 보내는 링크(https 착지 페이지)도 앱이 받으면 같은 코드다 — 안드로이드
+      // 앱링크가 검증되면 브라우저 없이 이 형태로 들어온다.
+      final web = SetflowWeb.togetherJoin('zz99zz');
+      expect(
+        web.toString(),
+        'https://setflow-app.vercel.app/together/join?code=ZZ99ZZ',
+      );
+      state.captureIncomingUri(web);
+      expect(state.pendingTogetherJoinCode, 'ZZ99ZZ');
+
+      // 남의 도메인(setflow.app은 우리 것이 아니다)은 받지 않는다.
+      state.clearPendingTogetherJoinCode();
       state.captureIncomingUri(
         Uri.parse('https://setflow.app/together/join?code=zz99zz'),
       );
-      expect(state.pendingTogetherJoinCode, 'ZZ99ZZ');
+      expect(state.pendingTogetherJoinCode, isNull);
 
       state.clearPendingTogetherJoinCode();
       state.captureIncomingUri(
         Uri.parse('com.teampara.setflow://routine-share/whatever'),
       );
       expect(state.pendingTogetherJoinCode, isNull);
+
+      // 보내는 링크는 레포지토리가 정한다 — 메모리 어댑터는 스킴 그대로다.
+      expect(client('u-me', '나').inviteLink('ab12cd'), link);
     });
 
     testWidgets('opening an invite link lands in that room', (tester) async {
