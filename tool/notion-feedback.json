@@ -1,0 +1,5 @@
+{
+  "_comment": "노션 '요청 사항' 보드(셋플로우 페이지 안의 칸반). tool/notion_feedback.dart 가 읽는다. 토큰은 여기 두지 않는다(.env.notion-mcp / NOTION_TOKEN).",
+  "databaseId": "3cbf3e53-ed67-801f-a683-d87dfcc7cf39",
+  "url": "https://app.notion.com/p/3cbf3e53ed67801fa683d87dfcc7cf39"
+}

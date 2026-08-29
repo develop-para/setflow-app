@@ -27,7 +27,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-const _notionVersion = '2022-06-28';
+import 'notion_api.dart';
 
 Future<void> main(List<String> args) async {
   final options = _Options.parse(args);
@@ -36,10 +36,11 @@ Future<void> main(List<String> args) async {
     exitCode = 64;
     return;
   }
-  final root = _repoRoot();
-  final token = _token(root);
+  final root = repoRoot();
+  final token = notionToken(root);
   final databaseId =
-      Platform.environment['NOTION_RELEASE_DB'] ?? _databaseIdFromConfig(root);
+      Platform.environment['NOTION_RELEASE_DB'] ??
+      configValue(root, 'notion-release.json', 'databaseId');
 
   final tag = options.tag ?? 'dist/${options.build}';
   if (!_tagExists(root, tag)) {
@@ -193,31 +194,15 @@ class _Options {
   }
 }
 
-// --- git --------------------------------------------------------------------
-
-String _repoRoot() =>
-    _git(Directory.current.path, ['rev-parse', '--show-toplevel']).trim();
-
-String _git(String cwd, List<String> args) {
-  final result = Process.runSync(
-    'git',
-    args,
-    workingDirectory: cwd,
-    stdoutEncoding: utf8,
-  );
-  if (result.exitCode != 0) {
-    throw ProcessException('git', args, '${result.stderr}', result.exitCode);
-  }
-  return result.stdout as String;
-}
+// --- git ---------------------------------------------------------------------
 
 bool _tagExists(String root, String tag) =>
-    _git(root, ['tag', '-l', tag]).trim().isNotEmpty;
+    runGit(root, ['tag', '-l', tag]).trim().isNotEmpty;
 
 String? _previousDistTag(String root, String tag) {
   final number = int.tryParse(tag.replaceFirst('dist/', ''));
   final tags =
-      _git(root, ['tag', '-l', 'dist/*'])
+      runGit(root, ['tag', '-l', 'dist/*'])
           .split('\n')
           .map((line) => line.trim())
           .where((line) => line.isNotEmpty)
@@ -231,7 +216,7 @@ String? _previousDistTag(String root, String tag) {
 }
 
 String _versionAtTag(String root, String tag) {
-  final pubspec = _git(root, ['show', '$tag:pubspec.yaml']);
+  final pubspec = runGit(root, ['show', '$tag:pubspec.yaml']);
   final match = RegExp(
     r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)',
     multiLine: true,
@@ -240,10 +225,10 @@ String _versionAtTag(String root, String tag) {
 }
 
 String _commitDate(String root, String tag) =>
-    _git(root, ['log', '-1', '--format=%cI', tag]).trim();
+    runGit(root, ['log', '-1', '--format=%cI', tag]).trim();
 
 List<String> _authors(String root, String range) {
-  final names = _git(root, [
+  final names = runGit(root, [
     'log',
     '--no-merges',
     '--format=%an',
@@ -259,56 +244,19 @@ List<String> _authors(String root, String range) {
 }
 
 List<String> _commits(String root, String range) =>
-    _git(root, ['log', '--no-merges', '--format=%h %s', range])
+    runGit(root, ['log', '--no-merges', '--format=%h %s', range])
         .split('\n')
         .map((line) => line.trim())
         .where((line) => line.isNotEmpty)
         .toList();
 
 String? _compareUrl(String root, String from, String to) {
-  final remote = _git(root, ['remote', 'get-url', 'origin']).trim();
+  final remote = runGit(root, ['remote', 'get-url', 'origin']).trim();
   final match = RegExp(
     r'github\.com[:/]([^/]+)/([^/.]+)(?:\.git)?$',
   ).firstMatch(remote);
   if (match == null) return null;
   return 'https://github.com/${match.group(1)}/${match.group(2)}/compare/$from...$to';
-}
-
-// --- config -----------------------------------------------------------------
-
-String _token(String root) {
-  final fromEnv = Platform.environment['NOTION_TOKEN'];
-  if (fromEnv != null && fromEnv.trim().isNotEmpty) return fromEnv.trim();
-  final file = File('$root/.env.notion-mcp');
-  if (!file.existsSync()) {
-    throw StateError(
-      'NOTION_TOKEN 환경변수도, .env.notion-mcp 파일도 없습니다. '
-      '.env.notion-mcp.example 을 복사해 토큰을 넣으세요.',
-    );
-  }
-  for (final line in file.readAsLinesSync()) {
-    final match = RegExp(r'^\s*NOTION_TOKEN\s*=\s*(.+)$').firstMatch(line);
-    if (match == null) continue;
-    var value = match.group(1)!.trim();
-    if (value.length >= 2 &&
-        (value.startsWith('"') && value.endsWith('"') ||
-            value.startsWith("'") && value.endsWith("'"))) {
-      value = value.substring(1, value.length - 1);
-    }
-    if (value.isEmpty || value.contains('replace_with')) break;
-    return value;
-  }
-  throw StateError('.env.notion-mcp 의 NOTION_TOKEN 이 비어 있거나 자리표시자입니다.');
-}
-
-String _databaseIdFromConfig(String root) {
-  final file = File('$root/tool/notion-release.json');
-  final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-  final id = json['databaseId'] as String?;
-  if (id == null || id.isEmpty) {
-    throw StateError('tool/notion-release.json 에 databaseId 가 없습니다.');
-  }
-  return id;
 }
 
 // --- page -------------------------------------------------------------------
@@ -433,10 +381,9 @@ class _Existing {
 }
 
 class _Notion {
-  _Notion(this._token);
+  _Notion(String token) : _api = NotionClient(token);
 
-  final String _token;
-  final _client = HttpClient();
+  final NotionClient _api;
 
   Future<_Existing?> findByBuild(String databaseId, int build) async {
     final json = await _call('POST', '/v1/databases/$databaseId/query', {
@@ -488,24 +435,5 @@ class _Notion {
     String method,
     String path,
     Map<String, dynamic>? body,
-  ) async {
-    final request = await _client.openUrl(
-      method,
-      Uri.parse('https://api.notion.com$path'),
-    );
-    request.headers.set('Authorization', 'Bearer $_token');
-    request.headers.set('Notion-Version', _notionVersion);
-    if (body != null) {
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(body));
-    }
-    final response = await request.close();
-    final text = await utf8.decodeStream(response);
-    if (response.statusCode >= 300) {
-      throw HttpException(
-        'Notion $method $path → ${response.statusCode}: $text',
-      );
-    }
-    return jsonDecode(text) as Map<String, dynamic>;
-  }
+  ) => _api.call(method, path, body);
 }
