@@ -158,18 +158,20 @@ void main() {
     );
 
     expect(find.text('가슴 · 등'), findsOneWidget);
-    final bar = find.byKey(
-      ValueKey('calendar-bar-${now.year}${now.month}${now.day}'),
+    // 막대가 아니라 **칸 배경**이 부위 색이다 — 가슴 틴트에서 등 틴트로.
+    final tint = find.byKey(
+      ValueKey('calendar-tint-${now.year}${now.month}${now.day}'),
     );
-    expect(bar, findsOneWidget);
-    final gradient = tester
-        .widgetList<DecoratedBox>(
-          find.descendant(of: bar, matching: find.byType(DecoratedBox)),
-        )
-        .map((d) => (d.decoration as BoxDecoration).gradient)
-        .whereType<LinearGradient>()
-        .single;
+    expect(tint, findsOneWidget);
+    final gradient =
+        (tester.widget<Ink>(tint).decoration! as BoxDecoration).gradient!
+            as LinearGradient;
     expect(gradient.colors.toSet(), hasLength(2), reason: '가슴색→등색 그라데이션');
+    expect(
+      gradient.colors.every((c) => c.a < 1),
+      isTrue,
+      reason: '배경은 옅은 틴트여야 글자가 읽힌다',
+    );
   });
 
   testWidgets('recent bests and recent sessions come from the record', (

@@ -1216,10 +1216,13 @@ class _CalendarCell extends StatelessWidget {
                 // 격자가 격자로 보인다. 운동한 날이 묻히지 않는 것은 색이 아니라
                 // 위계가 지킨다: 기록 있는 날만 더 진한 채움 + 테두리 + 내용을
                 // 갖고, 앞뒤 달에서 넘어온 칸은 칠하지 않아 달의 모양이 남는다.
+                // 운동한 날의 채움은 회색이 아니라 **부위 색 틴트**다 — 두 부위면
+                // 틴트가 그라데이션으로 이어진다. 채움은 Material이 아니라 아래
+                // Ink가 그린다(Material 색엔 그라데이션이 없다).
                 color: isDropTarget
                     ? theme.colorScheme.primaryContainer
                     : hasSession
-                    ? context.setflowColors.surfaceContainer
+                    ? Colors.transparent
                     : inMonth
                     ? context.setflowColors.surfaceContainerLow
                     : Colors.transparent,
@@ -1235,102 +1238,117 @@ class _CalendarCell extends StatelessWidget {
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: onTap,
-                  child: MediaQuery.withClampedTextScaling(
-                    // 달력 칸의 높이는 격자가 정한다 — 한 달이 한 화면에 들어와야
-                    // 달력이다. 그래서 이 안의 글자만 배율을 1.2배로 묶는다.
-                    // 나머지 화면은 시스템 설정을 그대로 따른다.
-                    maxScaleFactor: 1.2,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(4, 6, 4, 4),
-                      child: Column(
-                        children: [
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                constraints: const BoxConstraints(
-                                  minWidth: 24,
-                                  minHeight: 24,
-                                ),
-                                alignment: Alignment.center,
-                                decoration: isToday
-                                    ? BoxDecoration(
-                                        color: theme.colorScheme.primary,
-                                        shape: BoxShape.circle,
-                                      )
-                                    : null,
-                                child: Text(
-                                  '${date.day}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: SetflowWeight.medium,
-                                    color: isToday
-                                        ? theme.colorScheme.onPrimary
-                                        : isRestDay(date)
-                                        ? context.setflowColors.error
-                                        : date.weekday == DateTime.saturday
-                                        ? context.setflowColors.blue
-                                        : theme.colorScheme.onSurface,
-                                  ),
-                                ),
-                              ),
-                              if (feedbackCount > 0)
-                                Positioned(
-                                  right: 0,
-                                  child: Icon(
-                                    Icons.mark_chat_unread_rounded,
-                                    key: ValueKey(
-                                      'calendar-feedback-${date.year}-'
-                                      '${date.month}-${date.day}',
-                                    ),
-                                    size: 13,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                ),
-                            ],
+                child: Ink(
+                  key: ValueKey(
+                    'calendar-tint-${date.year}${date.month}${date.day}',
+                  ),
+                  decoration: hasSession && !isDropTarget
+                      ? BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _muscleTints(
+                              muscleColors,
+                              dark: theme.brightness == Brightness.dark,
+                            ),
                           ),
-                          const Spacer(),
-                          if (hasSession) ...[
-                            // 부위와 볼륨은 글자로만. 예전엔 완료율에 따라 teal/orange
-                            // 틴트를 깔았는데, 바로 위 오늘 표시가 라임이라 한 칸에
-                            // 색이 셋이었고 어느 것도 의미로 읽히지 않았다.
-                            Text(
-                              muscles.join(' · '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontSize: SetflowFontSize.micro,
-                                height: 1.25,
-                                fontWeight: SetflowWeight.medium,
-                              ),
+                        )
+                      : null,
+                  child: InkWell(
+                    onTap: onTap,
+                    child: MediaQuery.withClampedTextScaling(
+                      // 달력 칸의 높이는 격자가 정한다 — 한 달이 한 화면에 들어와야
+                      // 달력이다. 그래서 이 안의 글자만 배율을 1.2배로 묶는다.
+                      // 나머지 화면은 시스템 설정을 그대로 따른다.
+                      maxScaleFactor: 1.2,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 6, 4, 4),
+                        child: Column(
+                          children: [
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 24,
+                                    minHeight: 24,
+                                  ),
+                                  alignment: Alignment.center,
+                                  decoration: isToday
+                                      ? BoxDecoration(
+                                          color: theme.colorScheme.primary,
+                                          shape: BoxShape.circle,
+                                        )
+                                      : null,
+                                  child: Text(
+                                    '${date.day}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontWeight: SetflowWeight.medium,
+                                      color: isToday
+                                          ? theme.colorScheme.onPrimary
+                                          : isRestDay(date)
+                                          ? context.setflowColors.error
+                                          : date.weekday == DateTime.saturday
+                                          ? context.setflowColors.blue
+                                          : theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                                if (feedbackCount > 0)
+                                  Positioned(
+                                    right: 0,
+                                    child: Icon(
+                                      Icons.mark_chat_unread_rounded,
+                                      key: ValueKey(
+                                        'calendar-feedback-${date.year}-'
+                                        '${date.month}-${date.day}',
+                                      ),
+                                      size: 13,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                              ],
                             ),
-                            Text(
-                              activityLabel,
-                              maxLines: 1,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontSize: SetflowFontSize.micro,
-                                height: 1.2,
-                                fontWeight: FontWeight.w700,
+                            const Spacer(),
+                            if (hasSession) ...[
+                              // 부위와 볼륨은 글자로만. 예전엔 완료율에 따라 teal/orange
+                              // 틴트를 깔았는데, 바로 위 오늘 표시가 라임이라 한 칸에
+                              // 색이 셋이었고 어느 것도 의미로 읽히지 않았다.
+                              Text(
+                                muscles.join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                  fontSize: SetflowFontSize.micro,
+                                  height: 1.25,
+                                  fontWeight: SetflowWeight.medium,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: SetflowSpacing.xs),
-                            // 한 칸에서 색을 쓰는 곳은 여기 하나다. 막대의 색은 그날
-                            // 한 **부위**의 색이고, 두 부위 이상이면 그 색들이 그라데이션
-                            // 으로 섞인다(가슴+등 = 빨강→파랑). 길이는 완료율이다 —
-                            // 꽉 찼으면 다 한 날, 하다 만 날은 그만큼만.
-                            _MuscleBar(
-                              key: ValueKey(
-                                'calendar-bar-${date.year}${date.month}${date.day}',
+                              Text(
+                                activityLabel,
+                                maxLines: 1,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontSize: SetflowFontSize.micro,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                              colors: muscleColors,
-                              completion: completion.clamp(0, 1).toDouble(),
-                            ),
-                          ] else
-                            const SizedBox(height: SetflowSpacing.xl),
-                        ],
+                              const SizedBox(height: SetflowSpacing.xs),
+                              // 한 칸에서 색을 쓰는 곳은 여기 하나다. 막대의 색은 그날
+                              // 한 **부위**의 색이고, 두 부위 이상이면 그 색들이 그라데이션
+                              // 으로 섞인다(가슴+등 = 빨강→파랑). 길이는 완료율이다 —
+                              // 꽉 찼으면 다 한 날, 하다 만 날은 그만큼만.
+                              _MuscleBar(
+                                key: ValueKey(
+                                  'calendar-bar-${date.year}${date.month}${date.day}',
+                                ),
+                                colors: muscleColors,
+                                completion: completion.clamp(0, 1).toDouble(),
+                              ),
+                            ] else
+                              const SizedBox(height: SetflowSpacing.xl),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1411,6 +1429,16 @@ Color _muscleColor(BuildContext context, String muscle) => switch (muscle) {
   '유산소' => context.setflowColors.info,
   _ => Theme.of(context).colorScheme.onSurfaceVariant,
 };
+
+/// 칸 배경용 틴트 — 부위 색을 옅게. 라이트에서는 흰 바탕에 살짝, 다크에서는 조금
+/// 더 세게 얹어야 같은 정도로 보인다. 하나면 같은 색 둘(그라데이션 API 때문).
+List<Color> _muscleTints(List<Color> colors, {required bool dark}) {
+  final alpha = dark ? .34 : .22;
+  final tinted = [for (final c in colors) c.withValues(alpha: alpha)];
+  if (tinted.isEmpty) return [Colors.transparent, Colors.transparent];
+  if (tinted.length == 1) return [tinted.first, tinted.first];
+  return tinted;
+}
 
 /// 달력 칸의 막대 — 그날 부위 색(둘 이상이면 그라데이션), 길이는 완료율.
 class _MuscleBar extends StatelessWidget {
