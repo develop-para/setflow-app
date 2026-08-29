@@ -1127,11 +1127,16 @@ class _CalendarCell extends StatelessWidget {
     final theme = Theme.of(context);
     final completion = session?.completion ?? 0;
     final hasSession = (session?.totalSets ?? 0) > 0;
-    // 부위 첫 글자("가등")가 아니라 종목 이름을 적는다 — 달력을 보는 이유가
-    // "그날 뭘 했나"이고, 칸을 키운 것도 이걸 넣기 위해서다.
-    final exerciseNames =
-        session?.exercises.map((item) => item.template.name).take(2).toList() ??
-        const <String>[];
+    // 종목 이름은 칸에 안 들어간다("레그 프…"로 잘려서 아무것도 못 읽었다).
+    // 그날의 **부위**를 적는다 — 가슴 · 등. 부위는 짧고, 달력을 훑을 때 묻는 것도
+    // "이번 주 어디를 했나"다. 종목은 칸을 열면 있다.
+    final muscles = <String>{
+      for (final item in session?.exercises ?? const <WorkoutExercise>[])
+        item.template.muscle,
+    }.toList();
+    final muscleColors = [
+      for (final muscle in muscles) _muscleColor(context, muscle),
+    ];
     final resistanceVolumeLabel = session == null || session!.volume <= 0
         ? ''
         : session!.volume > 1000
@@ -1290,18 +1295,17 @@ class _CalendarCell extends StatelessWidget {
                             // 부위와 볼륨은 글자로만. 예전엔 완료율에 따라 teal/orange
                             // 틴트를 깔았는데, 바로 위 오늘 표시가 라임이라 한 칸에
                             // 색이 셋이었고 어느 것도 의미로 읽히지 않았다.
-                            for (final name in exerciseNames)
-                              Text(
-                                name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface,
-                                  fontSize: SetflowFontSize.micro,
-                                  height: 1.25,
-                                  fontWeight: SetflowWeight.medium,
-                                ),
+                            Text(
+                              muscles.join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                                fontSize: SetflowFontSize.micro,
+                                height: 1.25,
+                                fontWeight: SetflowWeight.medium,
                               ),
+                            ),
                             Text(
                               activityLabel,
                               maxLines: 1,
@@ -1313,23 +1317,16 @@ class _CalendarCell extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: SetflowSpacing.xs),
-                            // 한 칸에서 색을 쓰는 곳은 여기 하나다. 다 끝낸 날은
-                            // 성공색으로 꽉 차고, 하다 만 날은 브랜드가 그만큼만 찬다.
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                SetflowRadii.xs,
+                            // 한 칸에서 색을 쓰는 곳은 여기 하나다. 막대의 색은 그날
+                            // 한 **부위**의 색이고, 두 부위 이상이면 그 색들이 그라데이션
+                            // 으로 섞인다(가슴+등 = 빨강→파랑). 길이는 완료율이다 —
+                            // 꽉 찼으면 다 한 날, 하다 만 날은 그만큼만.
+                            _MuscleBar(
+                              key: ValueKey(
+                                'calendar-bar-${date.year}${date.month}${date.day}',
                               ),
-                              child: LinearProgressIndicator(
-                                value: completion.clamp(0, 1).toDouble(),
-                                minHeight: 3,
-                                backgroundColor:
-                                    theme.colorScheme.outlineVariant,
-                                valueColor: AlwaysStoppedAnimation(
-                                  completion >= 1
-                                      ? context.setflowColors.success
-                                      : theme.colorScheme.primary,
-                                ),
-                              ),
+                              colors: muscleColors,
+                              completion: completion.clamp(0, 1).toDouble(),
                             ),
                           ] else
                             const SizedBox(height: SetflowSpacing.xl),
@@ -1410,8 +1407,52 @@ Color _muscleColor(BuildContext context, String muscle) => switch (muscle) {
   '어깨' => context.setflowColors.teal,
   '하체' => context.setflowColors.success,
   '팔' => context.setflowColors.orange,
+  '복근' => context.setflowColors.purple,
+  '유산소' => context.setflowColors.info,
   _ => Theme.of(context).colorScheme.onSurfaceVariant,
 };
+
+/// 달력 칸의 막대 — 그날 부위 색(둘 이상이면 그라데이션), 길이는 완료율.
+class _MuscleBar extends StatelessWidget {
+  const _MuscleBar({required this.colors, required this.completion, super.key});
+
+  final List<Color> colors;
+  final double completion;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final stops = colors.isEmpty
+        ? [theme.colorScheme.primary, theme.colorScheme.primary]
+        : colors.length == 1
+        ? [colors.first, colors.first]
+        : colors;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(SetflowRadii.xs),
+      child: SizedBox(
+        height: 3,
+        width: double.infinity,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ColoredBox(color: theme.colorScheme.outlineVariant),
+            ),
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: completion,
+              heightFactor: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: stops),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// 세트가 하나라도 있는 날만 "운동한 날"이다. 최근순.
 List<WorkoutSession> _sessionsNewestFirst(AppState state) =>

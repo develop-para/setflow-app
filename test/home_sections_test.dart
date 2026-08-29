@@ -137,6 +137,41 @@ void main() {
     },
   );
 
+  testWidgets('a calendar day names its muscles and blends their colours', (
+    tester,
+  ) async {
+    // "종목보다 부위를 표기하는 게 나은 것 같아 … 2개 이상이면 그 색상을
+    // 그라데이션으로 섞으면 좋겠어." 칸 글자는 "가슴 · 등", 막대는 두 색.
+    final now = today();
+    await pumpHome(
+      tester,
+      seed: (state) {
+        state.addExercise(
+          now,
+          state.exercises.firstWhere((t) => t.muscle == '가슴'),
+        );
+        state.addExercise(
+          now,
+          state.exercises.firstWhere((t) => t.muscle == '등'),
+        );
+      },
+    );
+
+    expect(find.text('가슴 · 등'), findsOneWidget);
+    final bar = find.byKey(
+      ValueKey('calendar-bar-${now.year}${now.month}${now.day}'),
+    );
+    expect(bar, findsOneWidget);
+    final gradient = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(of: bar, matching: find.byType(DecoratedBox)),
+        )
+        .map((d) => (d.decoration as BoxDecoration).gradient)
+        .whereType<LinearGradient>()
+        .single;
+    expect(gradient.colors.toSet(), hasLength(2), reason: '가슴색→등색 그라데이션');
+  });
+
   testWidgets('recent bests and recent sessions come from the record', (
     tester,
   ) async {

@@ -3114,8 +3114,17 @@ List<_MuscleCategory> _muscleCategories(BuildContext context) => [
     Icons.sports_gymnastics_rounded,
     context.setflowColors.orange,
   ),
-  _MuscleCategory('복근', Icons.self_improvement_rounded, SetflowNeutral.n600),
-  _MuscleCategory('유산소', Icons.directions_run_rounded, SetflowNeutral.n600),
+  // 복근·유산소도 색을 갖는다 — 달력 막대가 부위 색이라 회색이면 "한 것"이 안 보인다.
+  _MuscleCategory(
+    '복근',
+    Icons.self_improvement_rounded,
+    context.setflowColors.purple,
+  ),
+  _MuscleCategory(
+    '유산소',
+    Icons.directions_run_rounded,
+    context.setflowColors.info,
+  ),
 ];
 
 class _MuscleCategoryCard extends StatelessWidget {
