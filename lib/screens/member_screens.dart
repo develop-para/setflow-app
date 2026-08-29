@@ -12,7 +12,6 @@ import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
-import '../widgets/dot_matrix.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
 import '../widgets/portal.dart';
@@ -1516,6 +1515,10 @@ class _HairlineRow extends StatelessWidget {
 /// 오늘 — 홈의 무거운 구역, **잉크 블록**이다. 흰 본문 위 회색 카드가 아니라 검은 면
 /// 위에 큰 숫자와 라임 진행바. 전광판과 같은 팔레트(LedPalette)라 라이트·다크
 /// 어디서나 같은 얼굴이고, "오늘 뭐 하지"가 화면에서 제일 먼저 읽힌다.
+/// 오늘 — 홈에서 제일 먼저 답할 질문이라 달력 바로 아래다. 검은 판은 아니다:
+/// 밝은 달력 밑에 검은 면이 예고 없이 떨어지면 붙여넣은 카드처럼 보였다("검은색이
+/// 바로 나오니까 어색"). 무게는 면이 아니라 **숫자**가 낸다 — 흰 바탕 위 가장 큰
+/// 숫자(끝낸 세트)와 라임 진행바. 검은 면은 함께 탭의 전광판 언어로 남긴다.
 class _TodaySection extends StatelessWidget {
   const _TodaySection({required this.onOpenRecord});
 
@@ -1525,6 +1528,7 @@ class _TodaySection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = AppScope.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
     final session = state.sessions[state.dateOnly(DateTime.now())];
     final active = session != null && session.totalSets > 0;
     final done = active ? session.completedSets : 0;
@@ -1548,15 +1552,11 @@ class _TodaySection extends StatelessWidget {
 
     return Container(
       key: const ValueKey('home-today'),
-      padding: const EdgeInsets.fromLTRB(
-        SetflowSpacing.xl,
-        SetflowSpacing.lg,
-        SetflowSpacing.xl,
-        SetflowSpacing.lg,
-      ),
+      padding: const EdgeInsets.only(top: SetflowSpacing.lg),
       decoration: BoxDecoration(
-        color: LedPalette.panel,
-        borderRadius: BorderRadius.circular(SetflowRadii.lg),
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1567,20 +1567,18 @@ class _TodaySection extends StatelessWidget {
               Text(
                 '오늘',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: LedPalette.dimText,
+                  color: muted,
                   letterSpacing: SetflowSpacing.xxs,
                 ),
               ),
               const Spacer(),
               Text(
                 _shortDate(DateTime.now()),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: LedPalette.dimText,
-                ),
+                style: theme.textTheme.labelSmall?.copyWith(color: muted),
               ),
             ],
           ),
-          const SizedBox(height: SetflowSpacing.md),
+          const SizedBox(height: SetflowSpacing.sm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -1589,7 +1587,6 @@ class _TodaySection extends StatelessWidget {
                 '$done',
                 key: const ValueKey('home-today-done'),
                 style: theme.textTheme.displayMedium?.copyWith(
-                  color: finished ? LedPalette.lit : LedPalette.text,
                   fontWeight: SetflowWeight.display,
                   fontFeatures: const [FontFeature.tabularFigures()],
                   height: 1,
@@ -1603,11 +1600,23 @@ class _TodaySection extends StatelessWidget {
                 child: Text(
                   '/$total 세트',
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color: LedPalette.muted,
+                    color: muted,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ),
+              const Spacer(),
+              // 다 끝냈으면 라임 점 하나 — 색은 여기서만, 글자가 아니라 표시로.
+              if (finished)
+                Container(
+                  width: SetflowSpacing.md,
+                  height: SetflowSpacing.md,
+                  margin: const EdgeInsets.only(bottom: SetflowSpacing.sm),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: SetflowSpacing.sm2),
@@ -1616,22 +1625,14 @@ class _TodaySection extends StatelessWidget {
             child: LinearProgressIndicator(
               value: total == 0 ? 0 : done / total,
               minHeight: SetflowSpacing.xs2,
-              backgroundColor: LedPalette.off,
-              color: LedPalette.lit,
+              backgroundColor: context.setflowColors.surfaceContainer,
+              color: theme.colorScheme.primary,
             ),
           ),
           const SizedBox(height: SetflowSpacing.lg),
-          Text(
-            headline,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: LedPalette.text,
-            ),
-          ),
+          Text(headline, style: theme.textTheme.titleMedium),
           const SizedBox(height: SetflowSpacing.xxs),
-          Text(
-            sub,
-            style: theme.textTheme.bodySmall?.copyWith(color: LedPalette.muted),
-          ),
+          Text(sub, style: theme.textTheme.bodySmall?.copyWith(color: muted)),
           const SizedBox(height: SetflowSpacing.lg),
           AppButton(
             key: const ValueKey('home-open-record'),

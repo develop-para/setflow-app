@@ -1289,11 +1289,14 @@ class _Lobby extends StatelessWidget {
           SetflowSpacing.xl,
         ),
         children: [
-          if (activeParty != null) ...[
-            _ActiveRoomBanner(party: activeParty!, onResume: onResume),
-            const SizedBox(height: SetflowSpacing.md),
-          ],
-          _LedTicker(nearby: nearby, todaySets: todaySets),
+          // 접어 둔 방이 있으면 검은 띠가 그 방의 줄이 된다 — 라임 배너를 따로
+          // 얹으면 라임·검정·라임이 겹쳐 개구리 배색이 됐다. 라임은 하단 버튼 하나.
+          _LedTicker(
+            nearby: nearby,
+            todaySets: todaySets,
+            activeParty: activeParty,
+            onResume: onResume,
+          ),
           if (error != null) ...[
             const SizedBox(height: SetflowSpacing.md),
             _Notice(message: error!),
@@ -1385,13 +1388,85 @@ class _Lobby extends StatelessWidget {
 /// 전광판의 언어를 한 줄만 빌린다 — 검은 띠 위에 도트 숫자. 큰 가짜 판이 아니라
 /// 얇은 티커라서, 위치가 꺼져 있으면 그 항목만 빠진다(대시를 켜지 않는다).
 class _LedTicker extends StatelessWidget {
-  const _LedTicker({required this.nearby, required this.todaySets});
+  const _LedTicker({
+    required this.nearby,
+    required this.todaySets,
+    this.activeParty,
+    this.onResume,
+  });
 
   final _NearbyStatus nearby;
   final int todaySets;
 
+  /// 접어 둔 방. 있으면 띠 전체가 "돌아가기"다.
+  final TrainingParty? activeParty;
+  final VoidCallback? onResume;
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final party = activeParty;
+    if (party != null) {
+      final n = party.members.length;
+      return Material(
+        color: LedPalette.panel,
+        borderRadius: BorderRadius.circular(SetflowRadii.sm),
+        child: InkWell(
+          key: const ValueKey('together-resume'),
+          onTap: onResume,
+          borderRadius: BorderRadius.circular(SetflowRadii.sm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SetflowSpacing.lg,
+              vertical: SetflowSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: SetflowSpacing.sm,
+                  height: SetflowSpacing.sm,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: LedPalette.lit,
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '진행 중인 방',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: LedPalette.muted,
+                        ),
+                      ),
+                      Text(
+                        n == 1
+                            ? '${party.mode.label} · 친구를 기다리는 중'
+                            : '${party.mode.label} · $n명',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: LedPalette.text,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // 검은 면 위 라임 글자는 16:1 — 여기서는 글자여도 된다.
+                Text(
+                  '돌아가기',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: LedPalette.lit,
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.xs),
+                const Icon(SetflowIcons.forward, color: LedPalette.lit),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final rooms = switch (nearby) {
       _NearbyRooms(:final rooms) => rooms,
       _ => null,
@@ -1664,62 +1739,6 @@ IconData _iconForMode(PartyMode mode) => switch (mode) {
   PartyMode.together => SetflowIcons.activityCrossfit,
   PartyMode.alternating => SetflowIcons.activityAlternate,
 };
-
-/// 접어 둔 방으로 돌아가는 배너. 방은 계속 돌고 있으니 "진행 중"이고,
-/// 탭 한 번이면 전광판이다. 브랜드 채움 위 전경은 언제나 잉크(onBrand).
-class _ActiveRoomBanner extends StatelessWidget {
-  const _ActiveRoomBanner({required this.party, required this.onResume});
-
-  final TrainingParty party;
-  final VoidCallback onResume;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final n = party.members.length;
-    return SetflowCard(
-      key: const ValueKey('together-resume'),
-      color: SetflowColors.brand,
-      onTap: onResume,
-      child: Row(
-        children: [
-          const Icon(SetflowIcons.together, color: SetflowColors.onBrand),
-          const SizedBox(width: SetflowSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '진행 중인 방',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: SetflowColors.onBrand,
-                  ),
-                ),
-                const SizedBox(height: SetflowSpacing.xxs),
-                Text(
-                  n == 1
-                      ? '${party.mode.label} · 친구를 기다리는 중'
-                      : '${party.mode.label} · $n명',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: SetflowColors.onBrand,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            '돌아가기',
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: SetflowColors.onBrand,
-            ),
-          ),
-          const SizedBox(width: SetflowSpacing.xs),
-          const Icon(SetflowIcons.forward, color: SetflowColors.onBrand),
-        ],
-      ),
-    );
-  }
-}
 
 class _NearbyHint extends StatelessWidget {
   const _NearbyHint({
