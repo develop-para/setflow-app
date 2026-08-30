@@ -552,8 +552,7 @@ class WorkoutSession {
   Duration? elapsedUntil(DateTime now) {
     final start = startedAt;
     if (start == null) return null;
-    final allDone = totalSets > 0 && completedSets == totalSets;
-    final end = allDone ? (endedAt ?? now) : now;
+    final end = isComplete ? (endedAt ?? now) : now;
     final elapsed = end.difference(start);
     return elapsed.isNegative ? Duration.zero : elapsed;
   }
@@ -580,6 +579,7 @@ class WorkoutSession {
   bool get hasCardio => exercises.any((exercise) => exercise.template.isCardio);
   bool get hasResistance =>
       exercises.any((exercise) => !exercise.template.isCardio);
+  bool get isComplete => totalSets > 0 && completedSets == totalSets;
   double get completion => totalSets == 0 ? 0 : completedSets / totalSets;
 }
 

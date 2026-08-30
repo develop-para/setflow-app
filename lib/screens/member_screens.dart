@@ -2078,8 +2078,11 @@ class _WeekSection extends StatelessWidget {
                 child: _WeekDayDot(
                   label: '${day.day}',
                   done:
-                      (state.sessions[state.dateOnly(day)]?.totalSets ?? 0) > 0,
+                      state.sessions[state.dateOnly(day)]?.isComplete ?? false,
                   isToday: DateUtils.isSameDay(day, today),
+                  key: ValueKey(
+                    'home-week-day-${day.year}-${day.month}-${day.day}',
+                  ),
                 ),
               ),
           ],
@@ -2114,6 +2117,7 @@ class _WeekSection extends StatelessWidget {
 
 class _WeekDayDot extends StatelessWidget {
   const _WeekDayDot({
+    super.key,
     required this.label,
     required this.done,
     required this.isToday,
@@ -2147,7 +2151,7 @@ class _WeekDayDot extends StatelessWidget {
           ),
           child: done
               ? Icon(
-                  Icons.check_rounded,
+                  SetflowIcons.setComplete,
                   size: 18,
                   color: theme.colorScheme.onPrimary,
                 )

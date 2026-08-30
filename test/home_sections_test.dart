@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/theme.dart';
+import 'package:setflow/theme/icons.dart';
 
 /// 달력 아래는 내 데이터다 — 오늘, 이번 주, 최근 기록, 최근 운동.
 ///
@@ -114,6 +115,42 @@ void main() {
     // 이번 주 1회, 지난주 2회(오늘-7·오늘-8이 같은 주에 있을 수도, 아닐 수도
     // 있다 — 일요일이면 -7은 지난주 마지막 날이 아니라 이번 주 첫날이다).
     expect(find.textContaining('지난주'), findsOneWidget);
+  });
+
+  testWidgets('this week checks a day only after every set is complete', (
+    tester,
+  ) async {
+    final date = today();
+    final state = await pumpHome(
+      tester,
+      seed: (state) => state.addExercise(date, state.exercises.first),
+    );
+    await state.toggleSet(
+      state.sessions[date]!.exercises.single.sets.first,
+      startRest: false,
+    );
+    await tester.pump();
+    final day = find.byKey(
+      ValueKey('home-week-day-${date.year}-${date.month}-${date.day}'),
+    );
+
+    expect(day, findsOneWidget);
+    expect(
+      find.descendant(of: day, matching: find.byIcon(SetflowIcons.setComplete)),
+      findsNothing,
+      reason: '일부 세트만 기록한 날은 완료로 표시하면 안 된다',
+    );
+
+    for (final set in state.sessions[date]!.exercises.single.sets.skip(1)) {
+      await state.toggleSet(set, startRest: false);
+    }
+    await tester.pump();
+
+    expect(
+      find.descendant(of: day, matching: find.byIcon(SetflowIcons.setComplete)),
+      findsOneWidget,
+      reason: '그날의 모든 세트를 끝낸 뒤에만 완료 체크가 표시돼야 한다',
+    );
   });
 
   testWidgets(
