@@ -527,6 +527,12 @@ void main() {
           queuedAt: DateTime.utc(2026, 8, 17),
         ),
       );
+      await repository.storeDocument('published-routines', {
+        'cachedAt': '2026-08-30T00:00:00.000Z',
+        'rows': [
+          {'id': 'routine-a'},
+        ],
+      });
       await repository.close();
       repository = await HiveAppRepository.openAtPath(
         directory.path,
@@ -538,6 +544,12 @@ void main() {
         ['근력 향상'],
       );
       expect(await repository.loadPending('account-b', const []), isNull);
+      expect(
+        await repository.loadDocument('published-routines'),
+        containsPair('rows', [
+          {'id': 'routine-a'},
+        ]),
+      );
     } finally {
       await repository?.close();
       if (await directory.exists()) await directory.delete(recursive: true);

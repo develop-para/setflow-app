@@ -5,12 +5,14 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import '../models.dart';
 import 'app_repository.dart';
 import 'app_snapshot_codec.dart';
+import 'backend_cache.dart';
 
 class HiveAppRepository
     implements
         AppRepository,
         AccountSnapshotOutbox,
         AccountSnapshotCache,
+        BackendDocumentCache,
         ClaimedLegacySnapshotSource {
   HiveAppRepository._(this._box);
 
@@ -18,6 +20,7 @@ class HiveAppRepository
   static const _snapshotOwnerKey = 'snapshot_owner_user_id';
   static const _pendingPrefix = 'pending_snapshot:';
   static const _accountSnapshotPrefix = 'account_snapshot:';
+  static const _backendCachePrefix = 'backend_cache:';
   static const _boxName = 'setflow_app_state_v1';
 
   final Box<String> _box;
@@ -191,4 +194,27 @@ class HiveAppRepository
   @override
   Future<void> clearPending(String userId) =>
       _box.delete('$_pendingPrefix${userId.trim()}');
+
+  @override
+  Future<Map<String, dynamic>?> loadDocument(String key) async {
+    final source = _box.get('$_backendCachePrefix${key.trim()}');
+    if (source == null || source.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(source);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> storeDocument(String key, Map<String, dynamic> document) async {
+    final normalizedKey = key.trim();
+    if (normalizedKey.isEmpty) {
+      throw ArgumentError.value(key, 'key', 'Must not be empty.');
+    }
+    await _box.put('$_backendCachePrefix$normalizedKey', jsonEncode(document));
+  }
 }

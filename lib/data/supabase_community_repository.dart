@@ -5,11 +5,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models.dart';
 import '../services/user_image_optimizer.dart';
+import 'backend_cache.dart';
 import 'community_repository.dart';
 
-class SupabaseCommunityRepository implements CommunityRepository {
-  SupabaseCommunityRepository(this._client, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+class SupabaseCommunityRepository
+    implements CommunityRepository, CachedBackendReadStatus {
+  SupabaseCommunityRepository(
+    this._client, {
+    DateTime Function()? now,
+    this.cache,
+  }) : _now = now ?? DateTime.now;
 
   static const _postsTable = 'posts';
   static const _commentsTable = 'comments';
@@ -20,15 +25,44 @@ class SupabaseCommunityRepository implements CommunityRepository {
   static const _postColumns =
       'id,user_id,author_name,content,metric,visual_key,image_url,'
       'image_color,location,routine_name,active_overlays,likes_count,created_at';
+  static const _cacheKeyPrefix = 'community-feed-v1';
 
   final SupabaseClient _client;
   final DateTime Function() _now;
+  final BackendDocumentCache? cache;
   int _uploadSequence = 0;
+  Object? _lastReadError;
+
+  String get _cacheKey =>
+      '$_cacheKeyPrefix:${_client.auth.currentUser?.id ?? 'guest'}';
+
+  @override
+  bool get isUsingCachedData => _lastReadError != null;
+
+  @override
+  Object? get lastReadError => _lastReadError;
 
   @override
   Future<List<CommunityPostRecord>> fetchPosts({
     int limit = 50,
     int offset = 0,
+  }) async {
+    try {
+      final records = await _fetchPostsRemote(limit: limit, offset: offset);
+      _lastReadError = null;
+      await _storeCachedRecords(records);
+      return records;
+    } catch (error, stackTrace) {
+      _lastReadError = error;
+      final cached = await _loadCachedRecords();
+      if (cached != null) return cached;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<List<CommunityPostRecord>> _fetchPostsRemote({
+    required int limit,
+    required int offset,
   }) async {
     final safeLimit = limit.clamp(1, 100);
     final safeOffset = offset < 0 ? 0 : offset;
@@ -129,6 +163,111 @@ class SupabaseCommunityRepository implements CommunityRepository {
           );
         })
         .toList(growable: false);
+  }
+
+  Future<void> _storeCachedRecords(List<CommunityPostRecord> records) async {
+    try {
+      await cache?.storeDocument(_cacheKey, {
+        'cachedAt': _now().toUtc().toIso8601String(),
+        'records': records.map(_recordToJson).toList(growable: false),
+      });
+    } catch (_) {
+      // A cache write is best effort. Keep the fresh server response visible.
+    }
+  }
+
+  Future<List<CommunityPostRecord>?> _loadCachedRecords() async {
+    try {
+      final document = await cache?.loadDocument(_cacheKey);
+      final records = document?['records'];
+      if (records is! List) return null;
+      return records
+          .whereType<Map>()
+          .map((record) => _recordFromJson(Map<String, dynamic>.from(record)))
+          .toList(growable: false);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic> _recordToJson(CommunityPostRecord record) => {
+    'post': {
+      'id': record.post.id,
+      'author': record.post.author,
+      'content': record.post.content,
+      'metric': record.post.metric,
+      'createdAt': record.post.createdAt.toUtc().toIso8601String(),
+      'visualKey': record.post.visualKey,
+      'color': record.post.color.toARGB32(),
+      'likes': record.post.likes,
+      'isLiked': record.post.isLiked,
+      'isMine': record.post.isMine,
+      'imageUrl': record.post.imageUrl,
+      'location': record.post.location,
+      'routineName': record.post.routineName,
+      'activeOverlays': record.post.activeOverlays,
+      'comments': record.post.comments
+          .map(
+            (comment) => {
+              'id': comment.id,
+              'author': comment.author,
+              'content': comment.content,
+              'createdAt': comment.createdAt.toUtc().toIso8601String(),
+            },
+          )
+          .toList(growable: false),
+    },
+    'authorUserId': record.authorUserId,
+    'imageUrl': record.imageUrl,
+    'imageStoragePath': record.imageStoragePath,
+    'location': record.location,
+    'routineName': record.routineName,
+    'activeOverlays': record.activeOverlays,
+  };
+
+  CommunityPostRecord _recordFromJson(Map<String, dynamic> record) {
+    final rawPost = record['post'];
+    if (rawPost is! Map) throw const FormatException('Missing cached post.');
+    final post = Map<String, dynamic>.from(rawPost);
+    final comments = post['comments'];
+    return CommunityPostRecord(
+      post: CommunityPost(
+        id: post['id']?.toString() ?? '',
+        author: post['author']?.toString() ?? '회원',
+        content: post['content']?.toString() ?? '',
+        metric: post['metric']?.toString() ?? '일상 기록',
+        createdAt: _dateTime(post['createdAt']),
+        visualKey: post['visualKey']?.toString() ?? 'strength',
+        color: Color(_integer(post['color'])),
+        likes: _integer(post['likes']),
+        isLiked: post['isLiked'] == true,
+        isMine: post['isMine'] == true,
+        imageUrl: _nullableText(post['imageUrl']),
+        location: _nullableText(post['location']),
+        routineName: _nullableText(post['routineName']),
+        activeOverlays: _stringList(post['activeOverlays']),
+        comments: comments is! List
+            ? const []
+            : comments
+                  .whereType<Map>()
+                  .map((raw) {
+                    final comment = Map<String, dynamic>.from(raw);
+                    return PostComment(
+                      id: comment['id']?.toString() ?? '',
+                      author: comment['author']?.toString() ?? '회원',
+                      content: comment['content']?.toString() ?? '',
+                      createdAt: _dateTime(comment['createdAt']),
+                    );
+                  })
+                  .toList(growable: false),
+      ),
+      authorUserId: record['authorUserId']?.toString() ?? '',
+      imageUrl: _nullableText(record['imageUrl']),
+      imageStoragePath: _nullableText(record['imageStoragePath']),
+      location: _nullableText(record['location']),
+      routineName: _nullableText(record['routineName']),
+      activeOverlays: _stringList(record['activeOverlays']),
+    );
   }
 
   @override

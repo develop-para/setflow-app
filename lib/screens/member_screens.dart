@@ -3623,6 +3623,13 @@ class _MarketScreenState extends State<MarketScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
         children: [
+          if (state.cloudSyncError != null) ...[
+            _CachedCloudDataNotice(
+              hasCachedData: state.isUsingCachedCloudData,
+              onRetry: state.refreshCloudData,
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+          ],
           AppTextField(
             controller: searchController,
             onChanged: (_) => setState(() {}),
@@ -3960,36 +3967,65 @@ class _CommunityScreenState extends State<CommunityScreen> {
           ),
         ],
       ),
-      body: posts.isEmpty
-          ? EmptyState(
-              icon: Icons.photo_library_outlined,
-              title: '아직 게시물이 없어요',
-              message: '첫 운동 기록을 공유하고 서로 응원해보세요.',
-              actionLabel: '첫 게시물 작성',
-              onAction: _compose,
-            )
-          // 회색 타일 격자는 사진이 없는 게시물을 전부 "빈 칸"으로 보이게 했다.
-          // 피드는 **줄**이다: 헤어라인으로 나누고, 사진이 있으면 오른쪽에 작게,
-          // 없으면 종목 아이콘. 지표("하체 · 12세트 · 4.2t")가 제목 자리다 —
-          // 운동 피드에서 먼저 읽을 것은 문장이 아니라 숫자다.
-          : ListView.builder(
+      body: Column(
+        children: [
+          if (state.cloudSyncError != null && posts.isNotEmpty)
+            Padding(
               padding: const EdgeInsets.fromLTRB(
                 SetflowSpacing.gutter,
                 SetflowSpacing.xs,
                 SetflowSpacing.gutter,
-                100,
+                SetflowSpacing.xs,
               ),
-              itemCount: posts.length,
-              itemBuilder: (_, index) => _CommunityRow(
-                post: posts[index],
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        CommunityPostDetailScreen(post: posts[index]),
-                  ),
-                ),
+              child: _CachedCloudDataNotice(
+                hasCachedData: state.isUsingCachedCloudData,
+                onRetry: state.refreshCloudData,
               ),
             ),
+          Expanded(
+            child: posts.isEmpty
+                ? EmptyState(
+                    icon: state.cloudSyncError == null
+                        ? Icons.photo_library_outlined
+                        : SetflowIcons.cloudUnavailable,
+                    title: state.cloudSyncError == null
+                        ? '아직 게시물이 없어요'
+                        : '서버 연결이 불안정해요',
+                    message: state.cloudSyncError == null
+                        ? '첫 운동 기록을 공유하고 서로 응원해보세요.'
+                        : '연결이 복구되면 게시물을 다시 불러올 수 있어요.',
+                    actionLabel: state.cloudSyncError == null
+                        ? '첫 게시물 작성'
+                        : '다시 연결',
+                    onAction: state.cloudSyncError == null
+                        ? _compose
+                        : state.refreshCloudData,
+                  )
+                // 회색 타일 격자는 사진이 없는 게시물을 전부 "빈 칸"으로 보이게 했다.
+                // 피드는 **줄**이다: 헤어라인으로 나누고, 사진이 있으면 오른쪽에 작게,
+                // 없으면 종목 아이콘. 지표("하체 · 12세트 · 4.2t")가 제목 자리다 —
+                // 운동 피드에서 먼저 읽을 것은 문장이 아니라 숫자다.
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(
+                      SetflowSpacing.gutter,
+                      SetflowSpacing.xs,
+                      SetflowSpacing.gutter,
+                      100,
+                    ),
+                    itemCount: posts.length,
+                    itemBuilder: (_, index) => _CommunityRow(
+                      post: posts[index],
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CommunityPostDetailScreen(post: posts[index]),
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         key: const ValueKey('community-compose'),
         onPressed: _compose,
@@ -4004,6 +4040,49 @@ class _CommunityScreenState extends State<CommunityScreen> {
           side: BorderSide(color: Theme.of(context).colorScheme.onSurface),
         ),
         child: const Icon(SetflowIcons.addExercise),
+      ),
+    );
+  }
+}
+
+class _CachedCloudDataNotice extends StatelessWidget {
+  const _CachedCloudDataNotice({
+    required this.hasCachedData,
+    required this.onRetry,
+  });
+
+  final bool hasCachedData;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('cached-cloud-data-notice'),
+      padding: const EdgeInsets.all(SetflowSpacing.sm),
+      decoration: BoxDecoration(
+        color: colors.secondaryContainer,
+        borderRadius: BorderRadius.circular(SetflowRadii.md),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            SetflowIcons.cloudUnavailable,
+            color: colors.onSecondaryContainer,
+          ),
+          const SizedBox(width: SetflowSpacing.sm),
+          Expanded(
+            child: Text(
+              hasCachedData
+                  ? '서버 연결이 불안정해 저장된 데이터를 표시하고 있어요.'
+                  : '서버 연결이 불안정해 일부 데이터를 불러오지 못했어요.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.onSecondaryContainer,
+              ),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('다시 연결')),
+        ],
       ),
     );
   }

@@ -121,6 +121,7 @@ abstract final class SetflowIcons {
   // --- feedback -------------------------------------------------------------
   static const error = Icons.error_outline_rounded;
   static const success = Icons.check_circle_outline_rounded;
+  static const cloudUnavailable = Icons.cloud_off_outlined;
 
   // --- pro portal -----------------------------------------------------------
   /// 트레이너 등록 / 승인이 필요한 자격. 포탈 스위처의 프로 쪽도 이 글리프다 —

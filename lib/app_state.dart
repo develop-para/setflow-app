@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
 import 'data/business_repository.dart';
+import 'data/backend_cache.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
 import 'data/routine_catalog_repository.dart';
@@ -143,6 +144,16 @@ class AppState extends ChangeNotifier {
   Object? persistenceError;
   Object? persistenceSyncError;
   Object? cloudSyncError;
+
+  bool get isUsingCachedCloudData =>
+      _isUsingCachedData(routineCatalogRepository) ||
+      _isUsingCachedData(communityRepository);
+
+  static bool _isUsingCachedData(Object? repository) =>
+      repository is CachedBackendReadStatus && repository.isUsingCachedData;
+
+  static Object? _cachedReadError(Object? repository) =>
+      repository is CachedBackendReadStatus ? repository.lastReadError : null;
 
   UserRole role = UserRole.guest;
   bool isDarkMode = false;
@@ -2061,6 +2072,8 @@ class AppState extends ChangeNotifier {
         _marketRoutines
           ..clear()
           ..addAll(catalog.map(_routineFromCatalog));
+        final cachedError = _cachedReadError(routineRepository);
+        if (cachedError != null) rememberError(cachedError);
       } catch (error) {
         if (!_isCurrentAccount(accountEpoch)) return;
         rememberError(error);
@@ -2091,6 +2104,8 @@ class AppState extends ChangeNotifier {
         communityPosts
           ..clear()
           ..addAll(records.map((record) => record.post));
+        final cachedError = _cachedReadError(sharedCommunityRepository);
+        if (cachedError != null) rememberError(cachedError);
       } catch (error) {
         if (!_isCurrentAccount(accountEpoch)) return;
         rememberError(error);
@@ -2098,6 +2113,20 @@ class AppState extends ChangeNotifier {
     }
 
     if (firstError case final Object error) throw error;
+  }
+
+  Future<void> refreshCloudData() async {
+    final accountEpoch = _accountEpoch;
+    try {
+      await _refreshCloudData(expectedAccountEpoch: accountEpoch);
+      if (!_isCurrentAccount(accountEpoch)) return;
+      cloudSyncError = null;
+    } catch (error) {
+      if (!_isCurrentAccount(accountEpoch)) return;
+      cloudSyncError = error;
+    } finally {
+      if (_isCurrentAccount(accountEpoch)) notifyListeners();
+    }
   }
 
   Future<void> _refreshBusinessData(
@@ -5710,6 +5739,8 @@ class AppState extends ChangeNotifier {
     _marketRoutines
       ..clear()
       ..addAll(catalog.map(_routineFromCatalog));
+    final cachedError = _cachedReadError(repository);
+    if (cachedError != null) cloudSyncError = cachedError;
     notifyListeners();
   }
 

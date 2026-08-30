@@ -1,18 +1,36 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models.dart';
+import 'backend_cache.dart';
 import 'routine_catalog_repository.dart';
 
-class SupabaseRoutineCatalogRepository implements RoutineCatalogRepository {
-  const SupabaseRoutineCatalogRepository(this._client);
+class SupabaseRoutineCatalogRepository
+    implements RoutineCatalogRepository, CachedBackendReadStatus {
+  SupabaseRoutineCatalogRepository(
+    this._client, {
+    this.cache,
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
+
+  static const _cacheKey = 'published-routine-catalog-v1';
 
   final SupabaseClient _client;
+  final BackendDocumentCache? cache;
+  final DateTime Function() _now;
+  Object? _lastReadError;
+
+  @override
+  bool get isUsingCachedData => _lastReadError != null;
+
+  @override
+  Object? get lastReadError => _lastReadError;
 
   @override
   Future<List<RoutineCatalogItem>> listPublished() async {
-    final rows = await _client
-        .from('market_routines')
-        .select('''
+    try {
+      final rows = await _client
+          .from('market_routines')
+          .select('''
           id,
           coaching_routine_id,
           title,
@@ -49,12 +67,53 @@ class SupabaseRoutineCatalogRepository implements RoutineCatalogRepository {
               )
             )
           )
-        ''')
-        .eq('status', 'published')
-        .eq('coaching_routine.status', 'approved')
-        .order('created_at', ascending: false);
+          ''')
+          .eq('status', 'published')
+          .eq('coaching_routine.status', 'approved')
+          .order('created_at', ascending: false);
 
-    return rows.map(routineCatalogItemFromSupabaseRow).toList(growable: false);
+      final normalizedRows = rows
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList(growable: false);
+      final items = normalizedRows
+          .map(routineCatalogItemFromSupabaseRow)
+          .toList(growable: false);
+      _lastReadError = null;
+      await _storeCache(normalizedRows);
+      return items;
+    } catch (error, stackTrace) {
+      _lastReadError = error;
+      final cached = await _loadCache();
+      if (cached != null) return cached;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<void> _storeCache(List<Map<String, dynamic>> rows) async {
+    try {
+      await cache?.storeDocument(_cacheKey, {
+        'cachedAt': _now().toUtc().toIso8601String(),
+        'rows': rows,
+      });
+    } catch (_) {
+      // A cache write must never turn a successful server refresh into an
+      // error. The previous cache remains a valid fallback.
+    }
+  }
+
+  Future<List<RoutineCatalogItem>?> _loadCache() async {
+    try {
+      final document = await cache?.loadDocument(_cacheKey);
+      final rawRows = document?['rows'];
+      if (rawRows is! List) return null;
+      return rawRows
+          .whereType<Map>()
+          .map((row) => Map<String, dynamic>.from(row))
+          .map(routineCatalogItemFromSupabaseRow)
+          .toList(growable: false);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

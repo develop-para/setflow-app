@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_state.dart';
 import 'data/app_repository.dart';
+import 'data/backend_cache.dart';
 import 'data/business_repository.dart';
 import 'data/hive_app_repository.dart';
 import 'data/community_repository.dart';
@@ -23,6 +24,7 @@ import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
 import 'screens/splash_screen.dart';
 import 'services/auth_service.dart';
+import 'services/data_api_circuit_client.dart';
 import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
@@ -39,6 +41,10 @@ Future<void> main() async {
   await Supabase.initialize(
     url: SupabaseConfig.projectUrl,
     publishableKey: SupabaseConfig.publishableKey,
+    httpClient: DataApiCircuitClient(),
+    // One failed request is enough to open the shared circuit. SDK-level
+    // retries otherwise multiply every 503 before the app can use its cache.
+    postgrestOptions: const PostgrestClientOptions(retryEnabled: false),
     authOptions: const FlutterAuthClientOptions(
       authFlowType: AuthFlowType.pkce,
     ),
@@ -62,15 +68,20 @@ Future<void> main() async {
     Supabase.instance.client,
     migrationSource: migrationSource,
   );
+  final backendCache = migrationSource is BackendDocumentCache
+      ? migrationSource as BackendDocumentCache
+      : null;
   runApp(
     SetflowApp(
       repository: repository,
       businessRepository: SupabaseBusinessRepository(Supabase.instance.client),
       routineCatalogRepository: SupabaseRoutineCatalogRepository(
         Supabase.instance.client,
+        cache: backendCache,
       ),
       communityRepository: SupabaseCommunityRepository(
         Supabase.instance.client,
+        cache: backendCache,
       ),
       togetherRepository: SupabaseTogetherRepository(
         Supabase.instance.client,

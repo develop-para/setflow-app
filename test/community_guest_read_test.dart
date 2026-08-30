@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
+import 'package:setflow/data/backend_cache.dart';
 import 'package:setflow/data/community_repository.dart';
 import 'package:setflow/data/supabase_community_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -43,6 +44,26 @@ void main() {
     expect(backend.requestedResources, contains('post_likes'));
     expect(posts.single.post.isLiked, isTrue);
     expect(posts.single.post.isMine, isTrue);
+  });
+
+  test('the last feed remains available during a Data API outage', () async {
+    final backend = await _CommunityBackend.start();
+    final cache = _MemoryBackendCache();
+    addTearDown(backend.close);
+    final repository = SupabaseCommunityRepository(
+      backend.client,
+      cache: cache,
+    );
+
+    final fresh = await repository.fetchPosts();
+    backend.failDataApi = true;
+    final fallback = await repository.fetchPosts();
+
+    expect(fresh.single.post.content, '오늘 하체 100% 완료');
+    expect(fallback.single.post.content, fresh.single.post.content);
+    expect(fallback.single.post.comments.single.content, '멋져요!');
+    expect(repository.isUsingCachedData, isTrue);
+    expect(repository.lastReadError, isNotNull);
   });
 
   test('app state loads the shared feed while signed out', () async {
@@ -116,6 +137,7 @@ class _CommunityBackend {
   final HttpServer _server;
   final SupabaseClient client;
   final List<String> requestedResources = [];
+  bool failDataApi = false;
 
   static Future<_CommunityBackend> start({String? signedInAs}) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -123,6 +145,7 @@ class _CommunityBackend {
       'http://${server.address.host}:${server.port}',
       'test-anon-key',
       authOptions: const AuthClientOptions(autoRefreshToken: false),
+      postgrestOptions: const PostgrestClientOptions(retryEnabled: false),
     );
     final backend = _CommunityBackend._(server, client);
     server.listen(backend._handle);
@@ -154,6 +177,19 @@ class _CommunityBackend {
 
   Future<void> _handle(HttpRequest request) async {
     await request.drain<void>();
+    if (failDataApi) {
+      request.response
+        ..statusCode = HttpStatus.serviceUnavailable
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'code': 'PGRST002',
+            'message': 'Could not query the database for the schema cache.',
+          }),
+        );
+      await request.response.close();
+      return;
+    }
     final resource = request.uri.pathSegments.last;
     requestedResources.add(resource);
     final Object body = switch (resource) {
@@ -194,5 +230,18 @@ class _CommunityBackend {
       ..headers.contentType = ContentType.json
       ..write(jsonEncode(body));
     await request.response.close();
+  }
+}
+
+class _MemoryBackendCache implements BackendDocumentCache {
+  final Map<String, Map<String, dynamic>> _documents = {};
+
+  @override
+  Future<Map<String, dynamic>?> loadDocument(String key) async =>
+      _documents[key];
+
+  @override
+  Future<void> storeDocument(String key, Map<String, dynamic> document) async {
+    _documents[key] = document;
   }
 }
