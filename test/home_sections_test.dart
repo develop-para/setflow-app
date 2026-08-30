@@ -4,13 +4,14 @@ import 'package:setflow/app_state.dart';
 import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/theme.dart';
 
-/// 달력 아래는 필요한 내 데이터만 둔다 — 최근 기록, 최근 운동, 나의 루틴.
+/// 달력 아래는 내 데이터다 — 오늘, 이번 주, 최근 기록, 최근 운동.
 ///
-/// 오늘 진행 블록과 이번 주 요약, 전문가 루틴 광고, 함께 운동 광고는 홈에서
-/// 제거됐다. 기록 기반 섹션은 값이 없으면 섹션째 사라진다.
+/// 전에는 전문가 루틴 미리보기와 함께 운동 광고 카드였다. 여기 있는 것은 전부
+/// 기기의 기록에서 계산한 값이고, 값이 없으면 섹션째 사라진다.
 void main() {
   Future<AppState> pumpHome(
     WidgetTester tester, {
+    VoidCallback? onOpenRecord,
     void Function(AppState state)? seed,
   }) async {
     await tester.binding.setSurfaceSize(const Size(393, 1400));
@@ -25,7 +26,7 @@ void main() {
         notifier: state,
         child: MaterialApp(
           theme: SetflowTheme.light,
-          home: const Scaffold(body: CalendarScreen()),
+          home: Scaffold(body: CalendarScreen(onOpenRecord: onOpenRecord)),
         ),
       ),
     );
@@ -48,15 +49,15 @@ void main() {
     }
   }
 
-  testWidgets('a fresh account hides removed summaries and empty sections', (
+  testWidgets('a fresh account sees today, this week, and no empty sections', (
     tester,
   ) async {
     await pumpHome(tester);
 
-    expect(find.byKey(const ValueKey('home-today')), findsNothing);
-    expect(find.text('오늘 운동 시작'), findsNothing);
-    expect(find.byKey(const ValueKey('home-week')), findsNothing);
-    expect(find.text('이번 주는 아직 기록이 없어요'), findsNothing);
+    expect(find.byKey(const ValueKey('home-today')), findsOneWidget);
+    expect(find.text('오늘 운동 시작'), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-week')), findsOneWidget);
+    expect(find.text('이번 주는 아직 기록이 없어요'), findsOneWidget);
     // 값이 없는 섹션은 빈 카드로 자리를 차지하지 않는다.
     expect(find.text('최근 기록'), findsNothing);
     expect(find.text('최근 운동'), findsNothing);
@@ -65,20 +66,29 @@ void main() {
     expect(find.text('함께 운동'), findsNothing);
   });
 
-  testWidgets('today summary stays removed when an active record exists', (
+  testWidgets('today card follows the record and opens the record tab', (
     tester,
   ) async {
-    await pumpHome(
+    var opened = 0;
+    final state = await pumpHome(
       tester,
+      onOpenRecord: () => opened++,
       seed: (state) => state.addExercise(today(), state.exercises.first),
     );
+    final total = state.sessions[today()]!.totalSets;
 
-    expect(find.byKey(const ValueKey('home-today')), findsNothing);
-    expect(find.byKey(const ValueKey('home-today-done')), findsNothing);
-    expect(find.text('이어서 기록'), findsNothing);
+    // 잉크 블록의 큰 숫자는 끝낸 세트, 그 옆 작은 글자가 전체다.
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('home-today-done'))).data,
+      '0',
+    );
+    expect(find.text('/$total 세트'), findsOneWidget);
+    expect(find.text('이어서 기록'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('home-open-record')));
+    expect(opened, 1);
   });
 
-  testWidgets('weekly summary stays removed when weekly records exist', (
+  testWidgets('this week counts workouts and compares with last week', (
     tester,
   ) async {
     await pumpHome(
@@ -90,9 +100,20 @@ void main() {
       },
     );
 
-    expect(find.byKey(const ValueKey('home-week')), findsNothing);
-    expect(find.byKey(const ValueKey('home-week-workouts')), findsNothing);
-    expect(find.textContaining('지난주'), findsNothing);
+    // 상자 없는 큰 숫자 셋 — 첫 번째가 운동 횟수다.
+    // Text 위젯도 안에서 RichText를 만드니 첫 번째(숫자+단위)만 본다.
+    final workouts = tester.widget<RichText>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('home-week-workouts')),
+            matching: find.byType(RichText),
+          )
+          .first,
+    );
+    expect(workouts.text.toPlainText(), startsWith('1회'));
+    // 이번 주 1회, 지난주 2회(오늘-7·오늘-8이 같은 주에 있을 수도, 아닐 수도
+    // 있다 — 일요일이면 -7은 지난주 마지막 날이 아니라 이번 주 첫날이다).
+    expect(find.textContaining('지난주'), findsOneWidget);
   });
 
   testWidgets(
@@ -180,7 +201,7 @@ void main() {
         .map((r) => r.text.toPlainText());
     expect(figures, contains('80kg × 8'), reason: '넘긴 기록이 큰 숫자로');
     expect(find.text('최근 운동'), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-today')), findsNothing);
-    expect(find.text('오늘은 아직 기록 전이에요'), findsNothing);
+    expect(find.byKey(const ValueKey('home-today')), findsOneWidget);
+    expect(find.text('오늘은 아직 기록 전이에요'), findsOneWidget);
   });
 }
