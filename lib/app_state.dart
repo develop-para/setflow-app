@@ -458,6 +458,12 @@ class AppState extends ChangeNotifier {
       if (snapshot == null || _repositoryHasPendingSave) {
         _schedulePersist();
       }
+      // The local account is ready, so the shell must be allowed to render now.
+      // Cloud reads can spend tens of seconds in the Supabase client's
+      // transient-error retries. If the splash timer already elapsed while the
+      // local snapshot was opening, waiting until those reads finish before
+      // notifying leaves the launch screen up for the whole retry window.
+      if (_isCurrentAccount(accountEpoch)) notifyListeners();
       try {
         await _refreshCloudData(expectedAccountEpoch: accountEpoch);
         if (!_isCurrentAccount(accountEpoch)) return;

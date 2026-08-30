@@ -20,6 +20,11 @@ class FirebasePushService implements PushService {
   /// 초기화를 시도하고, 되면 살아 있는 서비스를 돌려준다. 실패하면
   /// [DisabledPushService]로 떨어진다 — 호출부는 차이를 몰라도 된다.
   static Future<PushService> create() async {
+    // This project has no Firebase web app/options. Calling initializeApp()
+    // without them always asserts before the first Flutter frame and only adds
+    // noise to local startup; web push stays explicitly disabled until it is
+    // configured as a supported channel.
+    if (kIsWeb) return const DisabledPushService();
     try {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();

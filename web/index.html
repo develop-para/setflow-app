@@ -92,10 +92,66 @@
       right: 0;
     }
 
+    #boot-error {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      padding: 24px;
+      background: #FFFFFF;
+      color: #111113;
+      font-family: Arial, "Apple SD Gothic Neo", sans-serif;
+      text-align: center;
+    }
+
+    #boot-error[hidden] {
+      display: none;
+    }
+
+    .boot-error__panel {
+      width: min(100%, 320px);
+    }
+
+    .boot-error__title {
+      margin: 0 0 10px;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .boot-error__message {
+      margin: 0 0 24px;
+      color: #626268;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .boot-error__retry {
+      width: 100%;
+      min-height: 48px;
+      border: 0;
+      border-radius: 14px;
+      background: #B7F500;
+      color: #111113;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
     @media (prefers-color-scheme: dark) {
       body {
         background-color: #0B0B0C;
           }
+
+      #boot-error {
+        background: #0B0B0C;
+        color: #F6F6F7;
+      }
+
+      .boot-error__message {
+        color: #A6A6AD;
+      }
     }
   </style>
   <script id="splash-screen-script">
@@ -103,6 +159,19 @@
       document.getElementById("splash")?.remove();
       document.getElementById("splash-branding")?.remove();
       document.body.style.background = "transparent";
+    }
+
+    function showFlutterBootstrapError(message) {
+      removeSplashFromWeb();
+      const error = document.getElementById("boot-error");
+      const detail = document.getElementById("boot-error-message");
+      if (detail && message) detail.textContent = message;
+      if (error) error.hidden = false;
+    }
+
+    function finishFlutterBootstrap() {
+      removeSplashFromWeb();
+      document.getElementById("boot-error")?.remove();
     }
   </script>
 </head>
@@ -112,6 +181,22 @@
       <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
       <img class="center" aria-hidden="true" src="splash/img/light-1x.png" alt="">
   </picture>
+
+  <section id="boot-error" role="alert" aria-live="assertive" hidden>
+    <div class="boot-error__panel">
+      <h1 class="boot-error__title">앱을 시작하지 못했어요</h1>
+      <p id="boot-error-message" class="boot-error__message">
+        네트워크 연결을 확인한 뒤 다시 시도해주세요.
+      </p>
+      <button
+        class="boot-error__retry"
+        type="button"
+        onclick="window.location.reload()"
+      >
+        다시 시도
+      </button>
+    </div>
+  </section>
   
   
   <!--

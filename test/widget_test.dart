@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/app_repository.dart';
+import 'package:setflow/data/routine_catalog_repository.dart';
 import 'package:setflow/main.dart';
 import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/widgets/bottom_bar.dart';
@@ -16,6 +19,30 @@ void main() {
     expect(find.text('홈'), findsWidgets);
     expect(find.text('마이'), findsWidgets);
     expect(find.byKey(const Key('welcome-email-sign-in')), findsNothing);
+  });
+
+  testWidgets('late local restore releases splash during cloud outage', (
+    tester,
+  ) async {
+    final local = _PendingAppRepository();
+    final catalog = _PendingRoutineCatalogRepository();
+    await tester.pumpWidget(
+      SetflowApp(repository: local, routineCatalogRepository: catalog),
+    );
+    await tester.pump(const Duration(milliseconds: 1900));
+    expect(find.byKey(const ValueKey('setflow-loading-logo')), findsOneWidget);
+
+    local.complete();
+    await tester.pump();
+    await catalog.started.future;
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(SetflowActionNavBar), findsOneWidget);
+    expect(find.byKey(const ValueKey('setflow-loading-logo')), findsNothing);
+
+    catalog.complete();
+    await tester.pump();
   });
 
   testWidgets('logout waits for settings route before replacing member shell', (
@@ -60,4 +87,46 @@ void main() {
     expect(find.byType(MemberShell), findsOneWidget);
     expect(find.text('로그아웃'), findsNothing);
   });
+}
+
+class _PendingAppRepository implements AppRepository {
+  final _result = Completer<AppSnapshot?>();
+
+  void complete() {
+    if (!_result.isCompleted) _result.complete(null);
+  }
+
+  @override
+  Future<AppSnapshot?> load(List<ExerciseTemplate> exerciseCatalog) =>
+      _result.future;
+
+  @override
+  Future<void> save(AppSnapshot snapshot) async {}
+
+  @override
+  Future<void> clear() async {}
+}
+
+class _PendingRoutineCatalogRepository implements RoutineCatalogRepository {
+  final started = Completer<void>();
+  final _result = Completer<List<RoutineCatalogItem>>();
+
+  void complete() {
+    if (!_result.isCompleted) _result.complete(const []);
+  }
+
+  @override
+  Future<List<RoutineCatalogItem>> listPublished() {
+    if (!started.isCompleted) started.complete();
+    return _result.future;
+  }
+
+  @override
+  Future<bool> hasActivePaidPlan() async => false;
+
+  @override
+  Future<void> updateAccessTier(
+    String routineId,
+    RoutineCatalogAccessTier accessTier,
+  ) async {}
 }
