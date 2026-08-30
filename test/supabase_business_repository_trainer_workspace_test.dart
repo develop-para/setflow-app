@@ -39,6 +39,8 @@ void main() {
     'member_assignments',
     'consultations',
     'coaching_routines',
+    'list_my_coaching_connections',
+    'coaching_session_records',
   ]) {
     test(
       'core trainer workspace failure still propagates: $resource',
@@ -144,7 +146,10 @@ class _TrainerWorkspaceBackend {
         'month_settled': 0,
         'overdue_feedbacks': 0,
       },
-      'member_assignments' || 'coaching_routines' => const [],
+      'member_assignments' ||
+      'coaching_routines' ||
+      'list_my_coaching_connections' ||
+      'coaching_session_records' => const [],
       'consultations' => [
         {
           'id': _consultationId,

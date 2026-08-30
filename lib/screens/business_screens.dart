@@ -1279,6 +1279,10 @@ class GymOperationsPage extends StatelessWidget {
               .where((item) => !_hasBusinessReply(item))
               .length
         : int.tryParse(facts['consultations'] ?? '') ?? 0;
+    final visitingTrainerCount = state.coachingSessionRecords
+        .map((item) => item.trainerId)
+        .toSet()
+        .length;
     return Scaffold(
       appBar: AppBar(title: const Text('운영')),
       body: ListView(
@@ -1328,8 +1332,10 @@ class GymOperationsPage extends StatelessWidget {
             icon: Icons.badge_outlined,
             color: context.setflowColors.purple,
             title: '트레이너',
-            subtitle: '담당 회원과 성과',
-            value: '${facts['trainers'] ?? '0'}명',
+            subtitle: '소속 및 우리 지점 수업 기록',
+            value: state.usesLiveBusinessData
+                ? '${state.businessTrainers.length} + $visitingTrainerCount명'
+                : '${facts['trainers'] ?? '0'}명',
             onTap: () => _open(context, const TrainerManagementPage()),
           ),
           const SizedBox(height: SetflowSpacing.md),
@@ -1651,6 +1657,62 @@ String _formatBusinessWon(double value) {
   return digits.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
 }
 
+class _CoachingSessionRecordCard extends StatelessWidget {
+  const _CoachingSessionRecordCard({required this.record});
+
+  final CoachingSessionRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = record.sessionDate;
+    return SetflowCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  record.title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              Text(
+                '${date.month}/${date.day}',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.xs),
+          Text('${record.trainerName} · ${record.gymName}'),
+          const SizedBox(height: SetflowSpacing.sm),
+          Text(record.sessionSummary),
+          if (record.routineTitle != null || record.routineSummary != null) ...[
+            const Divider(height: SetflowSpacing.xl),
+            Text(
+              '루틴 · ${record.routineTitle ?? '직접 구성'}',
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            if (record.routineSummary != null) Text(record.routineSummary!),
+          ],
+          if (record.consultationSummary != null) ...[
+            const Divider(height: SetflowSpacing.xl),
+            Text(
+              '상담 요약',
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            Text(record.consultationSummary!),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class PeoplePage extends StatefulWidget {
   const PeoplePage({required this.role, super.key});
   final UserRole role;
@@ -1680,19 +1742,74 @@ class _PeoplePageState extends State<PeoplePage> {
   Widget build(BuildContext context) {
     final gym = widget.role == UserRole.gym;
     final state = AppScope.of(context);
-    final people = state.usesLiveBusinessData
-        ? state.businessMembers
-              .map(
-                (member) => (
-                  member.name,
-                  member.goal ?? '목표 미등록',
-                  _relativeBusinessDate(member.lastActivityAt),
-                  member.completionRate.round().clamp(0, 100).toInt(),
-                  member.id,
-                ),
-              )
-              .toList(growable: false)
-        : demoPeople;
+    final List<(String, String, String, int, String?)> people;
+    if (!state.usesLiveBusinessData) {
+      people = demoPeople;
+    } else if (gym) {
+      final sharedMemberIds = state.businessMembers
+          .map((item) => item.userId)
+          .whereType<String>()
+          .toSet();
+      final sharedPeople = <(String, String, String, int, String?)>[];
+      for (final record in state.coachingSessionRecords) {
+        if (!sharedMemberIds.add(record.memberUserId)) continue;
+        final sessionCount = state.coachingSessionRecords
+            .where((item) => item.memberUserId == record.memberUserId)
+            .length;
+        sharedPeople.add((
+          record.memberName,
+          record.memberGoal ?? '목표 미등록',
+          _relativeBusinessDate(record.sharedAt),
+          sessionCount,
+          'shared:${record.memberUserId}',
+        ));
+      }
+      people = [
+        ...state.businessMembers.map(
+          (member) => (
+            member.name,
+            member.goal ?? '목표 미등록',
+            _relativeBusinessDate(member.lastActivityAt),
+            member.completionRate.round().clamp(0, 100).toInt(),
+            member.id,
+          ),
+        ),
+        ...sharedPeople,
+      ];
+    } else {
+      final connectedUserIds = state.coachingConnections
+          .where((item) => item.isActive)
+          .map((item) => item.memberUserId)
+          .toSet();
+      people = [
+        ...state.coachingConnections
+            .where((item) => item.isActive)
+            .map(
+              (connection) => (
+                connection.memberName,
+                connection.memberGoal ?? '목표 미등록',
+                _relativeBusinessDate(connection.lastSessionAt),
+                connection.sessionCount,
+                'coaching:${connection.id}',
+              ),
+            ),
+        ...state.businessMembers
+            .where(
+              (member) =>
+                  member.userId == null ||
+                  !connectedUserIds.contains(member.userId),
+            )
+            .map(
+              (member) => (
+                member.name,
+                member.goal ?? '목표 미등록',
+                _relativeBusinessDate(member.lastActivityAt),
+                member.completionRate.round().clamp(0, 100).toInt(),
+                member.id,
+              ),
+            ),
+      ];
+    }
     final assignments = state.dashboardFor(UserRole.gym).facts;
     final assignedMemberIds = state.businessWorkspace?.assignments
         .where((assignment) => assignment.active)
@@ -1772,6 +1889,10 @@ class _PeoplePageState extends State<PeoplePage> {
                     itemCount: filtered.length,
                     itemBuilder: (_, index) {
                       final person = filtered[index];
+                      final isCoachingConnection =
+                          person.$5?.startsWith('coaching:') ?? false;
+                      final isSharedGymMember =
+                          person.$5?.startsWith('shared:') ?? false;
                       final liveAssignment = state
                           .businessWorkspace
                           ?.assignments
@@ -1822,7 +1943,11 @@ class _PeoplePageState extends State<PeoplePage> {
                                     ),
                                     const SizedBox(height: SetflowSpacing.xs),
                                     Text(
-                                      gym
+                                      isSharedGymMember
+                                          ? '${person.$2} · 이 헬스장 공유 수업'
+                                          : isCoachingConnection
+                                          ? '${person.$2} · 개인 코칭 연결'
+                                          : gym
                                           ? '${person.$2} · 담당 $assignedTrainerName'
                                           : '${person.$2} · 마지막 기록 ${person.$3}',
                                       style: Theme.of(context)
@@ -1841,16 +1966,23 @@ class _PeoplePageState extends State<PeoplePage> {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    '${person.$4}%',
+                                    isCoachingConnection || isSharedGymMember
+                                        ? '${person.$4}회'
+                                        : '${person.$4}%',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w900,
-                                      color: person.$4 >= 80
+                                      color:
+                                          isCoachingConnection ||
+                                              isSharedGymMember ||
+                                              person.$4 >= 80
                                           ? context.setflowColors.success
                                           : context.setflowColors.orange,
                                     ),
                                   ),
                                   Text(
-                                    '완료율',
+                                    isCoachingConnection || isSharedGymMember
+                                        ? '공유 수업'
+                                        : '완료율',
                                     style: Theme.of(context).textTheme.bodySmall
                                         ?.copyWith(
                                           color: Theme.of(
@@ -1886,7 +2018,13 @@ class _PeoplePageState extends State<PeoplePage> {
               icon: const Icon(Icons.person_add_alt_1),
               label: const Text('초대'),
             )
-          : null,
+          : FloatingActionButton.extended(
+              heroTag: 'trainer-member-invite',
+              tooltip: '개인 코칭 회원 초대',
+              onPressed: () => _showCoachingInviteSheet(context),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('회원 초대'),
+            ),
     );
   }
 
@@ -1902,6 +2040,21 @@ class _PeoplePageState extends State<PeoplePage> {
     BuildContext context,
     (String, String, String, int, String?) person,
   ) async {
+    final personId = person.$5;
+    if (personId?.startsWith('coaching:') ?? false) {
+      await _showCoachingConnection(
+        context,
+        personId!.substring('coaching:'.length),
+      );
+      return;
+    }
+    if (personId?.startsWith('shared:') ?? false) {
+      await _showSharedGymMember(
+        context,
+        personId!.substring('shared:'.length),
+      );
+      return;
+    }
     final feedbackController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     Future<void>? sheetCompleted;
@@ -2204,6 +2357,219 @@ class _PeoplePageState extends State<PeoplePage> {
     );
     await sheetCompleted;
     feedbackController.dispose();
+  }
+
+  Future<void> _showCoachingConnection(
+    BuildContext context,
+    String connectionId,
+  ) async {
+    final state = AppScope.of(context);
+    final connection = state.coachingConnections
+        .where((item) => item.id == connectionId)
+        .firstOrNull;
+    if (connection == null) return;
+    final records = state.coachingSessionRecords
+        .where((item) => item.coachingId == connection.id)
+        .toList(growable: false);
+    await showSetflowSheet<void>(
+      context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .72,
+        builder: (_, controller) => ListView(
+          controller: controller,
+          padding: SetflowInsets.pageListTight,
+          children: [
+            Text(
+              connection.memberName,
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(
+              '${connection.memberGoal ?? '목표 미등록'} · 개인 코칭 ${connection.sessionCount}회',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.md2),
+            const SetflowCard(
+              child: Text(
+                '코칭 캘린더에서 회원과 실제 수업 헬스장을 선택해 일정을 만들 수 있습니다. 수업 후 기록을 공유하면 해당 헬스장에는 그 수업 내용만 전달됩니다.',
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            const SectionTitle('공유한 수업 기록'),
+            const SizedBox(height: SetflowSpacing.sm),
+            if (records.isEmpty)
+              const EmptyState(
+                icon: Icons.event_note_outlined,
+                title: '아직 공유한 수업이 없어요',
+                message: '헬스장이 지정된 일정을 완료하면서 수업 기록을 공유해보세요.',
+              )
+            else
+              for (final record in records)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: SetflowSpacing.sm),
+                  child: _CoachingSessionRecordCard(record: record),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSharedGymMember(
+    BuildContext context,
+    String memberUserId,
+  ) async {
+    final records = AppScope.of(context).coachingSessionRecords
+        .where((item) => item.memberUserId == memberUserId)
+        .toList(growable: false);
+    if (records.isEmpty) return;
+    final latest = records.first;
+    await showSetflowSheet<void>(
+      context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .76,
+        builder: (_, controller) => ListView(
+          controller: controller,
+          padding: SetflowInsets.pageListTight,
+          children: [
+            Text(
+              latest.memberName,
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(
+              '이 헬스장에서 공유된 수업 ${records.length}건 · ${latest.memberGoal ?? '목표 미등록'}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.md2),
+            const SetflowCard(
+              child: Text(
+                '이 화면은 고용·소속 명단이 아닙니다. 우리 헬스장에서 진행되고 회원이 동의한 수업 기록만 표시합니다.',
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            const SectionTitle('수업별 공유 내역'),
+            const SizedBox(height: SetflowSpacing.sm),
+            for (final record in records)
+              Padding(
+                padding: const EdgeInsets.only(bottom: SetflowSpacing.sm),
+                child: _CoachingSessionRecordCard(record: record),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCoachingInviteSheet(BuildContext context) async {
+    final nameController = TextEditingController();
+    Future<void>? sheetCompleted;
+    var creating = false;
+    CoachingConnectionInviteCreation? creation;
+    await showSetflowSheet<void>(
+      context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+        return StatefulBuilder(
+          builder: (context, setSheetState) => SafeArea(
+            top: false,
+            child: Padding(
+              padding: SetflowInsets.pageForm,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '개인 코칭 회원 초대',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: SetflowSpacing.sm),
+                  Text(
+                    '센터 소속과 무관하게 회원 동의로 연결합니다. 수업 기록은 실제 수업한 헬스장에 해당 수업 단위로만 공유됩니다.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.xl),
+                  if (creation == null) ...[
+                    AppTextField(
+                      key: const Key('coaching-invite-name'),
+                      controller: nameController,
+                      label: '회원 이름 (선택)',
+                      hint: '초대 링크를 구분할 이름',
+                    ),
+                    const SizedBox(height: SetflowSpacing.md2),
+                    PrimaryButton(
+                      key: const Key('coaching-invite-create'),
+                      label: creating ? '보안 링크 생성 중...' : '7일 초대 링크 만들기',
+                      onPressed: creating
+                          ? null
+                          : () async {
+                              setSheetState(() => creating = true);
+                              try {
+                                final result = await AppScope.of(context)
+                                    .createCoachingConnectionInvite(
+                                      recipientName: nameController.text,
+                                    );
+                                if (sheetContext.mounted) {
+                                  setSheetState(() => creation = result);
+                                }
+                              } catch (_) {
+                                if (sheetContext.mounted) {
+                                  AppSnackbar.error(
+                                    sheetContext,
+                                    '회원 초대 링크를 만들지 못했어요.',
+                                  );
+                                }
+                              } finally {
+                                if (sheetContext.mounted) {
+                                  setSheetState(() => creating = false);
+                                }
+                              }
+                            },
+                    ),
+                  ] else ...[
+                    SelectableText(
+                      creation!.uri?.toString() ?? '이 요청에서는 보안 토큰이 이미 발급되었습니다.',
+                    ),
+                    const SizedBox(height: SetflowSpacing.md2),
+                    PrimaryButton(
+                      label: '초대 링크 복사',
+                      onPressed: creation!.uri == null
+                          ? null
+                          : () async {
+                              await Clipboard.setData(
+                                ClipboardData(text: creation!.uri.toString()),
+                              );
+                              if (sheetContext.mounted) {
+                                AppSnackbar.success(
+                                  sheetContext,
+                                  '개인 코칭 초대 링크를 복사했어요.',
+                                );
+                              }
+                            },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    await sheetCompleted;
+    nameController.dispose();
   }
 
   Future<bool> _confirmEndMembership(
@@ -4735,6 +5101,10 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
       };
       return matchesQuery && matchesFilter;
     }).toList();
+    final visitingTrainerCount = state.coachingSessionRecords
+        .map((item) => item.trainerId)
+        .toSet()
+        .length;
 
     return Scaffold(
       appBar: AppBar(
@@ -4782,6 +5152,51 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
               ],
             ),
           ),
+          if (state.usesLiveBusinessData && visitingTrainerCount > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.lg,
+                0,
+                SetflowSpacing.lg,
+                SetflowSpacing.md,
+              ),
+              child: SetflowCard(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const VisitingTrainerSessionsPage(),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.location_on_outlined,
+                      color: context.setflowColors.teal,
+                    ),
+                    const SizedBox(width: SetflowSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '우리 지점 수업 트레이너',
+                            style: TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            '고용 여부와 무관 · 공유된 수업 기록 기준',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '$visitingTrainerCount명',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const Icon(Icons.chevron_right_rounded),
+                  ],
+                ),
+              ),
+            ),
           Expanded(
             child: visible.isEmpty
                 ? EmptyState(
@@ -4967,6 +5382,114 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
       ),
     );
   }
+}
+
+class VisitingTrainerSessionsPage extends StatelessWidget {
+  const VisitingTrainerSessionsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final records = AppScope.of(context).coachingSessionRecords;
+    final trainerIds = <String>[];
+    for (final record in records) {
+      if (!trainerIds.contains(record.trainerId)) {
+        trainerIds.add(record.trainerId);
+      }
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('우리 지점 수업 트레이너')),
+      body: trainerIds.isEmpty
+          ? const EmptyState(
+              icon: Icons.location_off_outlined,
+              title: '공유된 외부 수업이 없어요',
+              message: '트레이너가 이 지점의 수업 기록을 공유하면 여기에 표시됩니다.',
+            )
+          : ListView.builder(
+              padding: SetflowInsets.pageList,
+              itemCount: trainerIds.length,
+              itemBuilder: (context, index) {
+                final trainerRecords = records
+                    .where((item) => item.trainerId == trainerIds[index])
+                    .toList(growable: false);
+                final latest = trainerRecords.first;
+                final memberCount = trainerRecords
+                    .map((item) => item.memberUserId)
+                    .toSet()
+                    .length;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+                  child: SetflowCard(
+                    onTap: () => _showTrainerRecords(
+                      context,
+                      latest.trainerName,
+                      trainerRecords,
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          child: Text(latest.trainerName.characters.first),
+                        ),
+                        const SizedBox(width: SetflowSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                latest.trainerName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              Text(
+                                '회원 $memberCount명 · 공유 수업 ${trainerRecords.length}건',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  Future<void> _showTrainerRecords(
+    BuildContext context,
+    String trainerName,
+    List<CoachingSessionRecord> records,
+  ) => showSetflowSheet<void>(
+    context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: .78,
+      builder: (_, controller) => ListView(
+        controller: controller,
+        padding: SetflowInsets.pageListTight,
+        children: [
+          Text(trainerName, style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: SetflowSpacing.xs),
+          Text(
+            '우리 헬스장에서 실제 진행되어 공유된 기록만 표시됩니다. 센터 소속 또는 고용 관계를 의미하지 않습니다.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.xl),
+          for (final record in records)
+            Padding(
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.sm),
+              child: _CoachingSessionRecordCard(record: record),
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 class AdminUsersPage extends StatefulWidget {

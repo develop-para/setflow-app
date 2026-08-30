@@ -117,6 +117,7 @@ class AppState extends ChangeNotifier {
   final Map<String, BusinessMemberDetail> _businessMemberDetails = {};
   final Map<String, Object> _businessMemberDetailErrors = {};
   final Map<String, String> _businessInviteAcceptRequestIds = {};
+  final Map<String, String> _coachingInviteAcceptRequestIds = {};
   final Map<String, String> _sessionFeedbackRequestIds = {};
   final Map<String, String> _membershipEndRequestIds = {};
   final Map<String, String> _personalRoutineSaveRequestIds = {};
@@ -127,6 +128,7 @@ class AppState extends ChangeNotifier {
   final Map<String, String> _consultationReplyRequestIds = {};
   final Map<String, String> _stableBusinessRpcRequestIds = {};
   final Map<String, DateTime> _businessInviteCreateExpiresAt = {};
+  final Map<String, DateTime> _coachingInviteCreateExpiresAt = {};
   final Set<String> _uncertainRoutineShareLinkRoutineIds = {};
   final Map<String, Map<String, String?>> _personalRoutineBaseExerciseIds = {};
   Future<void>? _signOutInFlight;
@@ -242,6 +244,7 @@ class AppState extends ChangeNotifier {
   List<MemberSessionFeedback> memberSessionFeedbacks = const [];
   String? pendingRoutineShareToken;
   String? pendingBusinessInviteToken;
+  String? pendingCoachingInviteToken;
 
   /// 초대 링크로 들어온 함께 방 코드. 셸이 함께 탭을 열고, 화면이 그 코드로
   /// 참여한 뒤 지운다(`clearPendingTogetherJoinCode`).
@@ -334,6 +337,10 @@ class AppState extends ChangeNotifier {
       _businessMemberDetailErrors[memberId];
   List<BusinessMember> get businessMembers =>
       businessWorkspace?.members ?? const [];
+  List<CoachingConnection> get coachingConnections =>
+      businessWorkspace?.coachingConnections ?? const [];
+  List<CoachingSessionRecord> get coachingSessionRecords =>
+      businessWorkspace?.sessionRecords ?? const [];
   List<GymTrainerRecord> get businessTrainers =>
       businessWorkspace?.trainers ?? const [];
   List<BusinessConsultation> get businessConsultations =>
@@ -388,8 +395,20 @@ class AppState extends ChangeNotifier {
         uri.queryParameters['token']?.trim(),
       _ => null,
     };
-    if (businessToken == null || businessToken.isEmpty) return;
-    pendingBusinessInviteToken = businessToken;
+    if (businessToken != null && businessToken.isNotEmpty) {
+      pendingBusinessInviteToken = businessToken;
+      notifyListeners();
+      return;
+    }
+    final coachingToken = switch ((uri.scheme, uri.host)) {
+      ('com.teampara.setflow', 'coaching-invite') =>
+        uri.pathSegments.firstOrNull?.trim(),
+      ('https', 'setflow.app') when uri.path == '/invite/coaching' =>
+        uri.queryParameters['token']?.trim(),
+      _ => null,
+    };
+    if (coachingToken == null || coachingToken.isEmpty) return;
+    pendingCoachingInviteToken = coachingToken;
     notifyListeners();
   }
 
@@ -410,6 +429,12 @@ class AppState extends ChangeNotifier {
   void clearPendingBusinessInviteToken() {
     if (pendingBusinessInviteToken == null) return;
     pendingBusinessInviteToken = null;
+    notifyListeners();
+  }
+
+  void clearPendingCoachingInviteToken() {
+    if (pendingCoachingInviteToken == null) return;
+    pendingCoachingInviteToken = null;
     notifyListeners();
   }
 
@@ -4031,6 +4056,8 @@ class AppState extends ChangeNotifier {
     required int startMinutes,
     required int endMinutes,
     String? memberId,
+    String? connectionId,
+    String? gymId,
   }) {
     final normalizedTitle = title.trim();
     if (normalizedTitle.isEmpty) throw ArgumentError('일정 제목을 입력해주세요.');
@@ -4042,13 +4069,16 @@ class AppState extends ChangeNotifier {
       final schedule = BusinessCoachingSchedule(
         id: 'demo-schedule-${DateTime.now().microsecondsSinceEpoch}',
         trainerId: 'demo-trainer',
-        memberUserId: memberId == null ? null : 'demo-member-user',
+        memberUserId: memberId == null && connectionId == null
+            ? null
+            : 'demo-member-user',
+        gymId: gymId,
         title: normalizedTitle,
         date: DateTime(date.year, date.month, date.day),
         startMinutes: startMinutes,
         endMinutes: endMinutes,
         trainerName: '김코치',
-        memberName: memberId == null ? null : '박민지',
+        memberName: memberId == null && connectionId == null ? null : '박민지',
         createdAt: DateTime.now(),
       );
       coachingSchedules = _sortedCoachingSchedules([
@@ -4064,6 +4094,10 @@ class AppState extends ChangeNotifier {
     }
 
     BusinessMember? member;
+    CoachingConnection? connection;
+    if (memberId != null && connectionId != null) {
+      throw ArgumentError('센터 회원과 개인 연결 회원을 동시에 선택할 수 없습니다.');
+    }
     if (memberId != null) {
       member = businessMembers.where((item) => item.id == memberId).firstOrNull;
       if (member == null || member.userId == null) {
@@ -4080,11 +4114,26 @@ class AppState extends ChangeNotifier {
         throw StateError('현재 트레이너에게 배정된 회원이 아닙니다.');
       }
     }
+    if (connectionId != null) {
+      connection = coachingConnections
+          .where(
+            (item) =>
+                item.id == connectionId &&
+                item.trainerId == profile.id &&
+                item.isActive,
+          )
+          .firstOrNull;
+      if (connection == null) {
+        throw StateError('활성 상태인 개인 코칭 회원이 아닙니다.');
+      }
+    }
+    final resolvedMemberUserId = member?.userId ?? connection?.memberUserId;
+    final resolvedGymId = gymId ?? member?.gymId;
 
     final requestKey = [
       profile.id,
-      member?.userId ?? '',
-      member?.gymId ?? '',
+      resolvedMemberUserId ?? '',
+      resolvedGymId ?? '',
       DateTime(date.year, date.month, date.day).toIso8601String(),
       startMinutes,
       endMinutes,
@@ -4102,8 +4151,8 @@ class AppState extends ChangeNotifier {
           CreateCoachingScheduleInput(
             requestId: requestId,
             trainerId: profile.id,
-            memberUserId: member?.userId,
-            gymId: member?.gymId,
+            memberUserId: resolvedMemberUserId,
+            gymId: resolvedGymId,
             title: normalizedTitle,
             date: date,
             startMinutes: startMinutes,
@@ -4111,8 +4160,8 @@ class AppState extends ChangeNotifier {
           ),
         );
         if (created.trainerId != profile.id ||
-            created.memberUserId != member?.userId ||
-            created.gymId != member?.gymId) {
+            created.memberUserId != resolvedMemberUserId ||
+            created.gymId != resolvedGymId) {
           throw StateError('요청한 관계와 다른 일정이 반환되었습니다.');
         }
         final enriched = _enrichCoachingScheduleNames(created);
@@ -4315,6 +4364,145 @@ class AppState extends ChangeNotifier {
           if (_isCurrentAccount(accountEpoch)) businessError = error;
         }
         return result;
+      },
+    );
+  }
+
+  Future<CoachingConnectionInviteCreation> createCoachingConnectionInvite({
+    String? recipientName,
+    Duration validFor = const Duration(days: 7),
+  }) {
+    final repository = businessRepository;
+    if (repository is! MobileCoachingRepository) {
+      throw StateError('이 앱 버전에서는 개인 회원 연결을 지원하지 않습니다.');
+    }
+    final mobileRepository = repository as MobileCoachingRepository;
+    final profile = businessWorkspace?.profile;
+    if (role != UserRole.trainer || profile is! TrainerBusinessProfile) {
+      throw StateError('승인된 트레이너만 회원 연결 초대를 만들 수 있습니다.');
+    }
+    final normalizedName = _normalizedBusinessRequestText(recipientName);
+    final requestKey =
+        _businessRpcRequestKey('create_coaching_connection_invite', {
+          'trainerId': profile.id,
+          'recipientName': normalizedName,
+          'validForMicroseconds': validFor.inMicroseconds,
+        });
+    final requestId = _stableBusinessRpcRequestId(requestKey);
+    return _runBusinessMutation<CoachingConnectionInviteCreation>(
+      'coaching-invite:create:$requestId',
+      (accountEpoch) async {
+        final expiresAt = _coachingInviteCreateExpiresAt.putIfAbsent(
+          requestKey,
+          () => DateTime.now().toUtc().add(validFor),
+        );
+        final result = await mobileRepository.createCoachingConnectionInvite(
+          requestId: requestId,
+          expiresAt: expiresAt,
+          recipientName: normalizedName,
+        );
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          _coachingInviteCreateExpiresAt.remove(requestKey);
+        }
+        return result;
+      },
+    );
+  }
+
+  Future<CoachingConnectionAcceptance> acceptCoachingConnectionInviteToken([
+    String? token,
+  ]) {
+    final repository = businessRepository;
+    if (repository is! MobileCoachingRepository) {
+      throw StateError('이 앱 버전에서는 개인 회원 연결을 지원하지 않습니다.');
+    }
+    final mobileRepository = repository as MobileCoachingRepository;
+    final normalizedToken = (token ?? pendingCoachingInviteToken)?.trim();
+    if (normalizedToken == null || normalizedToken.isEmpty) {
+      throw ArgumentError('초대 토큰이 없습니다.');
+    }
+    final requestId = _coachingInviteAcceptRequestIds.putIfAbsent(
+      normalizedToken,
+      _newUuidV4,
+    );
+    return _runBusinessMutation<CoachingConnectionAcceptance>(
+      'coaching-invite:accept:$normalizedToken',
+      (accountEpoch) async {
+        final result = await mobileRepository.acceptCoachingConnectionInvite(
+          normalizedToken,
+          requestId: requestId,
+        );
+        if (!_isCurrentAccount(accountEpoch)) return result;
+        pendingCoachingInviteToken = null;
+        _coachingInviteAcceptRequestIds.remove(normalizedToken);
+        try {
+          await _refreshBusinessData(
+            businessRepository!,
+            expectedAccountEpoch: accountEpoch,
+          );
+        } catch (error) {
+          if (_isCurrentAccount(accountEpoch)) businessError = error;
+        }
+        return result;
+      },
+    );
+  }
+
+  Future<CoachingSessionRecord> publishCoachingSessionRecord({
+    required String scheduleId,
+    required String sessionSummary,
+    String? routineId,
+    String? routineSummary,
+    String? consultationSummary,
+  }) {
+    final repository = businessRepository;
+    if (repository is! MobileCoachingRepository) {
+      throw StateError('수업 공유 기록 저장을 지원하지 않습니다.');
+    }
+    final mobileRepository = repository as MobileCoachingRepository;
+    final normalizedSummary = sessionSummary.trim();
+    if (normalizedSummary.isEmpty) {
+      throw ArgumentError('수업 내용을 입력해주세요.');
+    }
+    final requestKey =
+        _businessRpcRequestKey('publish_coaching_session_record', {
+          'scheduleId': scheduleId,
+          'routineId': routineId,
+          'sessionSummary': normalizedSummary,
+          'routineSummary': routineSummary?.trim(),
+          'consultationSummary': consultationSummary?.trim(),
+        });
+    return _runBusinessMutation<CoachingSessionRecord>(
+      'coaching-session:publish:$scheduleId',
+      (accountEpoch) async {
+        final record = await mobileRepository.publishCoachingSessionRecord(
+          PublishCoachingSessionRecordInput(
+            requestId: _stableBusinessRpcRequestId(requestKey),
+            scheduleId: scheduleId,
+            routineId: _normalizedBusinessRequestText(routineId),
+            sessionSummary: normalizedSummary,
+            routineSummary: _normalizedBusinessRequestText(routineSummary),
+            consultationSummary: _normalizedBusinessRequestText(
+              consultationSummary,
+            ),
+          ),
+        );
+        _completeBusinessRpcRequest(
+          requestKey,
+          expectedAccountEpoch: accountEpoch,
+        );
+        if (_isCurrentAccount(accountEpoch)) {
+          await _refreshBusinessData(
+            businessRepository!,
+            expectedAccountEpoch: accountEpoch,
+          );
+          await refreshCoachingSchedules();
+        }
+        return record;
       },
     );
   }
@@ -5819,6 +6007,7 @@ class AppState extends ChangeNotifier {
     _memberConsultationRequestSequence++;
     _businessMutations.clear();
     _businessInviteAcceptRequestIds.clear();
+    _coachingInviteAcceptRequestIds.clear();
     _sessionFeedbackRequestIds.clear();
     _membershipEndRequestIds.clear();
     _personalRoutineSaveRequestIds.clear();
@@ -5829,6 +6018,7 @@ class AppState extends ChangeNotifier {
     _consultationReplyRequestIds.clear();
     _stableBusinessRpcRequestIds.clear();
     _businessInviteCreateExpiresAt.clear();
+    _coachingInviteCreateExpiresAt.clear();
     _uncertainRoutineShareLinkRoutineIds.clear();
     _personalRoutineBaseExerciseIds.clear();
     if (businessRepository == null) {
@@ -6175,6 +6365,11 @@ class AppState extends ChangeNotifier {
         : businessMembers
               .where((item) => item.userId == schedule.memberUserId)
               .firstOrNull;
+    final connection = schedule.memberUserId == null
+        ? null
+        : coachingConnections
+              .where((item) => item.memberUserId == schedule.memberUserId)
+              .firstOrNull;
     final profile = businessWorkspace?.profile;
     final trainerName = switch (profile) {
       TrainerBusinessProfile(:final id, :final displayName)
@@ -6202,7 +6397,7 @@ class AppState extends ChangeNotifier {
       startMinutes: schedule.startMinutes,
       endMinutes: schedule.endMinutes,
       trainerName: trainerName ?? schedule.trainerName,
-      memberName: member?.name ?? schedule.memberName,
+      memberName: member?.name ?? connection?.memberName ?? schedule.memberName,
       gymName: gymName ?? schedule.gymName,
       createdAt: schedule.createdAt,
       completedAt: schedule.completedAt,

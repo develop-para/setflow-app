@@ -333,6 +333,8 @@ class BusinessWorkspaceData {
     this.consultations = const [],
     this.ownedRoutines = const [],
     this.applications = const [],
+    this.coachingConnections = const [],
+    this.sessionRecords = const [],
     this.memberSharingPreferences,
   });
 
@@ -346,6 +348,8 @@ class BusinessWorkspaceData {
   final List<BusinessConsultation> consultations;
   final List<OwnedCoachingRoutine> ownedRoutines;
   final List<BusinessApplication> applications;
+  final List<CoachingConnection> coachingConnections;
+  final List<CoachingSessionRecord> sessionRecords;
   final MemberSharingPreferences? memberSharingPreferences;
 
   BusinessDashboardMetrics get dashboard => dashboardStats;
@@ -356,6 +360,117 @@ class BusinessWorkspaceData {
 }
 
 typedef BusinessWorkspace = BusinessWorkspaceData;
+
+class CoachingConnection {
+  const CoachingConnection({
+    required this.id,
+    required this.trainerId,
+    required this.memberUserId,
+    required this.memberName,
+    required this.trainerName,
+    required this.status,
+    required this.createdAt,
+    this.memberGoal,
+    this.programName,
+    this.startDate,
+    this.sessionCount = 0,
+    this.lastSessionAt,
+  });
+
+  final String id;
+  final String trainerId;
+  final String memberUserId;
+  final String memberName;
+  final String trainerName;
+  final String? memberGoal;
+  final String? programName;
+  final String status;
+  final DateTime? startDate;
+  final DateTime createdAt;
+  final int sessionCount;
+  final DateTime? lastSessionAt;
+
+  bool get isActive => status == 'active';
+}
+
+class CoachingConnectionInviteCreation {
+  const CoachingConnectionInviteCreation({
+    required this.tokenIssued,
+    this.token,
+    this.uri,
+  });
+
+  final bool tokenIssued;
+  final String? token;
+  final Uri? uri;
+}
+
+class CoachingConnectionAcceptance {
+  const CoachingConnectionAcceptance({required this.accepted, this.connection});
+
+  final bool accepted;
+  final CoachingConnection? connection;
+}
+
+class CoachingSessionRecord {
+  const CoachingSessionRecord({
+    required this.id,
+    required this.coachingId,
+    required this.scheduleId,
+    required this.trainerId,
+    required this.memberUserId,
+    required this.gymId,
+    required this.title,
+    required this.sessionDate,
+    required this.memberName,
+    required this.trainerName,
+    required this.gymName,
+    required this.sessionSummary,
+    required this.sharedAt,
+    this.routineId,
+    this.memberGoal,
+    this.routineTitle,
+    this.routineSummary,
+    this.consultationSummary,
+  });
+
+  final String id;
+  final String coachingId;
+  final String scheduleId;
+  final String trainerId;
+  final String memberUserId;
+  final String gymId;
+  final String? routineId;
+  final String title;
+  final DateTime sessionDate;
+  final String memberName;
+  final String trainerName;
+  final String gymName;
+  final String? memberGoal;
+  final String? routineTitle;
+  final String? routineSummary;
+  final String? consultationSummary;
+  final String sessionSummary;
+  final DateTime sharedAt;
+}
+
+class PublishCoachingSessionRecordInput {
+  const PublishCoachingSessionRecordInput({
+    required this.requestId,
+    required this.scheduleId,
+    required this.sessionSummary,
+    this.routineId,
+    this.routineSummary,
+    this.consultationSummary,
+  });
+
+  final String requestId;
+  final String scheduleId;
+  final String? routineId;
+  final String sessionSummary;
+  final String? routineSummary;
+  final String? consultationSummary;
+}
 
 class BusinessMember {
   const BusinessMember({
@@ -1667,6 +1782,29 @@ abstract interface class BusinessRepository {
   );
 
   Future<void> deletePersonalRoutine(String routineId, {String? requestId});
+}
+
+/// Live capability for member-consented, location-independent coaching.
+///
+/// Kept separate from [BusinessRepository] so older adapters cannot silently
+/// claim that a center assignment is equivalent to a direct member consent.
+abstract interface class MobileCoachingRepository {
+  Future<List<CoachingConnection>> listCoachingConnections();
+
+  Future<CoachingConnectionInviteCreation> createCoachingConnectionInvite({
+    required String requestId,
+    required DateTime expiresAt,
+    String? recipientName,
+  });
+
+  Future<CoachingConnectionAcceptance> acceptCoachingConnectionInvite(
+    String token, {
+    required String requestId,
+  });
+
+  Future<CoachingSessionRecord> publishCoachingSessionRecord(
+    PublishCoachingSessionRecordInput input,
+  );
 }
 
 /// Optional live-data capability for the signed-in member's coach feedback.

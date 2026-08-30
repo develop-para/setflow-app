@@ -408,6 +408,22 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
+                if (state.pendingBusinessInviteToken == null &&
+                    state.pendingCoachingInviteToken != null)
+                  Positioned(
+                    left: SetflowSpacing.md,
+                    right: SetflowSpacing.md,
+                    top: SetflowSpacing.sm,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 400),
+                          child: _CoachingInviteBanner(state: state),
+                        ),
+                      ),
+                    ),
+                  ),
                 // 휴식은 두 모습을 갖는다. 기본은 화면을 덮는 판 — 세트 사이에 폰을
                 // 들면 딴짓이 시작되고 휴식이 끝난 줄도 모른다. "화면 보기"로 접으면
                 // 타이머는 그대로 가면서 아래 슬림 바로 내려온다.
@@ -548,6 +564,106 @@ class _BusinessInviteBannerState extends State<_BusinessInviteBanner> {
         AppSnackbar.success(context, '센터와 계정이 연결됐어요.');
       } else {
         AppSnackbar.error(context, '만료되었거나 취소된 초대예요.');
+      }
+    } catch (_) {
+      if (mounted) {
+        AppSnackbar.error(context, '초대를 수락하지 못했어요. 링크를 확인해주세요.');
+      }
+    } finally {
+      if (mounted) setState(() => _accepting = false);
+    }
+  }
+}
+
+class _CoachingInviteBanner extends StatefulWidget {
+  const _CoachingInviteBanner({required this.state});
+
+  final AppState state;
+
+  @override
+  State<_CoachingInviteBanner> createState() => _CoachingInviteBannerState();
+}
+
+class _CoachingInviteBannerState extends State<_CoachingInviteBanner> {
+  bool _accepting = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final signedIn =
+        widget.state.businessAccess != null &&
+        widget.state.role != UserRole.guest;
+    return Material(
+      elevation: 12,
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(SetflowRadii.lg),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(SetflowSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.handshake_outlined,
+                  color: SetflowColors.primary,
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+                const Expanded(
+                  child: Text(
+                    '트레이너 연결 초대가 도착했어요',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '나중에 확인',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _accepting
+                      ? null
+                      : widget.state.clearPendingCoachingInviteToken,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            Text(
+              signedIn
+                  ? '수락하면 트레이너가 일정을 만들 수 있고, 수업한 헬스장에는 해당 수업 기록만 공유됩니다.'
+                  : '로그인한 뒤 같은 초대 링크를 다시 열어주세요.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const Key('coaching-invite-accept'),
+                onPressed: !signedIn || _accepting ? null : _accept,
+                icon: _accepting
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle_outline_rounded),
+                label: Text(_accepting ? '연결 중...' : '동의하고 연결'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _accept() async {
+    setState(() => _accepting = true);
+    try {
+      final result = await widget.state.acceptCoachingConnectionInviteToken();
+      if (!mounted) return;
+      if (result.accepted) {
+        AppSnackbar.success(context, '트레이너와 개인 코칭이 연결됐어요.');
+      } else {
+        AppSnackbar.error(context, '만료된 초대예요.');
       }
     } catch (_) {
       if (mounted) {

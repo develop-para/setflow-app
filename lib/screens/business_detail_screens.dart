@@ -208,7 +208,13 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         profile.id == schedule.trainerId;
     final pending =
         state.isUpdatingCoachingSchedule(schedule.id) ||
-        state.isDeletingCoachingSchedule(schedule.id);
+        state.isDeletingCoachingSchedule(schedule.id) ||
+        state.isBusinessMutationPending(
+          'coaching-session:publish:${schedule.id}',
+        );
+    final sharedRecord = state.coachingSessionRecords
+        .where((item) => item.scheduleId == schedule.id)
+        .firstOrNull;
     final counterpart =
         schedule.memberName ??
         schedule.gymName ??
@@ -260,6 +266,19 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             else if (canManage) ...[
+              if (schedule.memberUserId != null && schedule.gymId != null)
+                IconButton(
+                  key: Key('coaching-session-share-${schedule.id}'),
+                  tooltip: sharedRecord == null ? '수업 기록 공유' : '공유 완료',
+                  onPressed: sharedRecord == null
+                      ? () => _showPublishRecordSheet(context, schedule)
+                      : null,
+                  icon: Icon(
+                    sharedRecord == null
+                        ? Icons.ios_share_outlined
+                        : Icons.verified_outlined,
+                  ),
+                ),
               Checkbox(
                 key: Key('coaching-schedule-complete-${schedule.id}'),
                 value: schedule.isCompleted,
@@ -313,6 +332,162 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     }
   }
 
+  Future<void> _showPublishRecordSheet(
+    BuildContext context,
+    BusinessCoachingSchedule schedule,
+  ) async {
+    final state = AppScope.of(context);
+    final sessionController = TextEditingController();
+    final routineController = TextEditingController();
+    final consultationController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    String? routineId;
+    var saving = false;
+    Future<void>? sheetCompleted;
+    await showSetflowSheet<void>(
+      context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
+        return StatefulBuilder(
+          builder: (context, setSheetState) => AnimatedPadding(
+            duration: const Duration(milliseconds: 180),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+            ),
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: SetflowInsets.pageForm,
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '수업 기록 공유',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: SetflowSpacing.sm),
+                      Text(
+                        '${schedule.memberName ?? '회원'} · ${schedule.gymName ?? '선택한 헬스장'}',
+                      ),
+                      const SizedBox(height: SetflowSpacing.xs),
+                      Text(
+                        '이 수업의 요약만 회원과 실제 수업 헬스장에 공유됩니다.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: SetflowSpacing.xl),
+                      DropdownButtonFormField<String?>(
+                        key: const Key('coaching-session-routine'),
+                        initialValue: routineId,
+                        decoration: const InputDecoration(
+                          labelText: '진행 루틴 (선택)',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('루틴 연결 안 함'),
+                          ),
+                          for (final routine in state.ownedBusinessRoutines)
+                            DropdownMenuItem<String?>(
+                              value: routine.id,
+                              child: Text(routine.title),
+                            ),
+                        ],
+                        onChanged: saving
+                            ? null
+                            : (value) => setSheetState(() => routineId = value),
+                      ),
+                      const SizedBox(height: SetflowSpacing.md),
+                      AppTextField(
+                        key: const Key('coaching-session-summary'),
+                        controller: sessionController,
+                        label: '수업 내용',
+                        hint: '진행 운동, 강도, 회원 반응을 요약해주세요.',
+                        maxLines: 4,
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? '수업 내용을 입력해주세요.'
+                            : null,
+                      ),
+                      const SizedBox(height: SetflowSpacing.md),
+                      AppTextField(
+                        controller: routineController,
+                        label: '루틴 상세 (선택)',
+                        hint: '세트 구성이나 다음 수업 조정 내용을 적어주세요.',
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: SetflowSpacing.md),
+                      AppTextField(
+                        controller: consultationController,
+                        label: '상담 요약 (선택)',
+                        hint: '이번 수업과 관련해 합의한 내용만 적어주세요.',
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: SetflowSpacing.xl),
+                      PrimaryButton(
+                        key: const Key('coaching-session-publish'),
+                        label: saving ? '공유 중...' : '수업 완료 및 공유',
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                if (!(formKey.currentState?.validate() ??
+                                    false)) {
+                                  return;
+                                }
+                                setSheetState(() => saving = true);
+                                try {
+                                  await state.publishCoachingSessionRecord(
+                                    scheduleId: schedule.id,
+                                    routineId: routineId,
+                                    sessionSummary: sessionController.text,
+                                    routineSummary: routineController.text,
+                                    consultationSummary:
+                                        consultationController.text,
+                                  );
+                                  if (!sheetContext.mounted ||
+                                      !context.mounted) {
+                                    return;
+                                  }
+                                  Navigator.pop(sheetContext);
+                                  showMessage(
+                                    context,
+                                    '회원과 ${schedule.gymName ?? '수업 헬스장'}에 기록을 공유했습니다.',
+                                  );
+                                } catch (_) {
+                                  if (sheetContext.mounted) {
+                                    showMessage(
+                                      sheetContext,
+                                      '수업 기록을 공유하지 못했습니다.',
+                                    );
+                                  }
+                                } finally {
+                                  if (sheetContext.mounted) {
+                                    setSheetState(() => saving = false);
+                                  }
+                                }
+                              },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    await sheetCompleted;
+    sessionController.dispose();
+    routineController.dispose();
+    consultationController.dispose();
+  }
+
   Future<void> _deleteSchedule(
     BuildContext context,
     BusinessCoachingSchedule schedule,
@@ -346,12 +521,26 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
   Future<void> _showCreateScheduleDialog(BuildContext context) async {
     final state = AppScope.of(context);
     final titleController = TextEditingController();
+    List<GymDirectoryEntry> verifiedGyms = const [];
+    try {
+      verifiedGyms = await state.loadVerifiedGyms();
+    } catch (_) {
+      // The dialog still supports online or location-undecided schedules.
+    }
+    if (!context.mounted) {
+      titleController.dispose();
+      return;
+    }
     var date = DateTime.now();
     var start = const TimeOfDay(hour: 10, minute: 0);
     var end = const TimeOfDay(hour: 11, minute: 0);
-    String? memberId;
+    String? participantKey;
+    String? gymId;
     final linkedMembers = state.businessMembers
         .where((member) => member.userId != null)
+        .toList(growable: false);
+    final connections = state.coachingConnections
+        .where((connection) => connection.isActive)
         .toList(growable: false);
     Future<void>? dialogCompleted;
 
@@ -379,7 +568,7 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                   const SizedBox(height: SetflowSpacing.sm2),
                   DropdownButtonFormField<String?>(
                     key: const Key('coaching-schedule-member'),
-                    initialValue: memberId,
+                    initialValue: participantKey,
                     decoration: const InputDecoration(labelText: '회원'),
                     items: [
                       const DropdownMenuItem<String?>(
@@ -388,14 +577,46 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                       ),
                       for (final member in linkedMembers)
                         DropdownMenuItem<String?>(
-                          value: member.id,
-                          child: Text(member.name),
+                          value: 'member:${member.id}',
+                          child: Text('${member.name} · 센터 배정'),
+                        ),
+                      for (final connection in connections)
+                        DropdownMenuItem<String?>(
+                          value: 'coaching:${connection.id}',
+                          child: Text('${connection.memberName} · 개인 코칭'),
                         ),
                     ],
-                    onChanged: (value) =>
-                        setDialogState(() => memberId = value),
+                    onChanged: (value) => setDialogState(() {
+                      participantKey = value;
+                      if (!(value?.startsWith('coaching:') ?? false)) {
+                        gymId = null;
+                      }
+                    }),
                   ),
                   const SizedBox(height: SetflowSpacing.sm2),
+                  if (participantKey?.startsWith('coaching:') ?? false) ...[
+                    DropdownButtonFormField<String?>(
+                      key: const Key('coaching-schedule-gym'),
+                      initialValue: gymId,
+                      decoration: const InputDecoration(
+                        labelText: '실제 수업 헬스장',
+                        helperText: '수업 기록은 선택한 헬스장에만 공유됩니다.',
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('온라인 / 장소 미정'),
+                        ),
+                        for (final gym in verifiedGyms)
+                          DropdownMenuItem<String?>(
+                            value: gym.id,
+                            child: Text(gym.name),
+                          ),
+                      ],
+                      onChanged: (value) => setDialogState(() => gymId = value),
+                    ),
+                    const SizedBox(height: SetflowSpacing.sm2),
+                  ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.event_outlined),
@@ -480,7 +701,13 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         date: date,
         startMinutes: start.hour * 60 + start.minute,
         endMinutes: end.hour * 60 + end.minute,
-        memberId: memberId,
+        memberId: participantKey?.startsWith('member:') ?? false
+            ? participantKey!.substring('member:'.length)
+            : null,
+        connectionId: participantKey?.startsWith('coaching:') ?? false
+            ? participantKey!.substring('coaching:'.length)
+            : null,
+        gymId: gymId,
       );
       if (context.mounted) showMessage(context, '코칭 일정을 추가했습니다.');
     } catch (error) {

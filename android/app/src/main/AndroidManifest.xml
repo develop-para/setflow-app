@@ -65,6 +65,14 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="com.teampara.setflow"
+                    android:host="coaching-invite" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="com.teampara.setflow"
                     android:host="together-join" />
             </intent-filter>
             <!-- 초대 링크(https)를 브라우저 없이 앱이 받는다. 검증 파일은

@@ -198,6 +198,27 @@ const _coachingScheduleSelect = '''
   )
 ''';
 
+const _coachingSessionRecordSelect = '''
+  id,
+  coaching_id,
+  schedule_id,
+  trainer_id,
+  member_user_id,
+  gym_id,
+  routine_id,
+  title,
+  session_date,
+  member_name_snapshot,
+  trainer_name_snapshot,
+  gym_name_snapshot,
+  member_goal_snapshot,
+  routine_title_snapshot,
+  routine_summary,
+  consultation_summary,
+  session_summary,
+  shared_at
+''';
+
 class SupabaseBusinessRepository
     implements
         BusinessRepository,
@@ -207,6 +228,7 @@ class SupabaseBusinessRepository
         BusinessMembershipRepository,
         WorkoutLocationRepository,
         TrainerConsultationSettingsRepository,
+        MobileCoachingRepository,
         RoutineShareRevocationRepository,
         ConsultationRecommendationProfileShareRepository {
   const SupabaseBusinessRepository(this._client);
@@ -394,6 +416,14 @@ class SupabaseBusinessRepository
           .select(_routineSelect)
           .eq('trainer_id', trainer.id)
           .order('updated_at', ascending: false),
+      _client.rpc('list_my_coaching_connections'),
+      _client
+          .from('coaching_session_records')
+          .select(_coachingSessionRecordSelect)
+          .eq('trainer_id', trainer.id)
+          .order('session_date', ascending: false)
+          .order('shared_at', ascending: false)
+          .limit(200),
     ]);
 
     final assignmentRows = _mapListValue(results[1]);
@@ -425,6 +455,8 @@ class SupabaseBusinessRepository
       assignments: List.unmodifiable(assignmentRows.map(_assignmentFromRow)),
       consultations: _consultationList(results[2]),
       ownedRoutines: _routineList(results[3]),
+      coachingConnections: _coachingConnectionList(results[4]),
+      sessionRecords: _coachingSessionRecordList(results[5]),
     );
   }
 
@@ -534,6 +566,13 @@ class SupabaseBusinessRepository
           .select(_routineSelect)
           .eq('gym_id', gym.id)
           .order('updated_at', ascending: false),
+      _client
+          .from('coaching_session_records')
+          .select(_coachingSessionRecordSelect)
+          .eq('gym_id', gym.id)
+          .order('session_date', ascending: false)
+          .order('shared_at', ascending: false)
+          .limit(200),
     ]);
 
     final consultations = _consultationList(results[4]);
@@ -569,6 +608,7 @@ class SupabaseBusinessRepository
       ),
       consultations: consultations,
       ownedRoutines: _routineList(results[5]),
+      sessionRecords: _coachingSessionRecordList(results[6]),
     );
   }
 
@@ -622,6 +662,13 @@ class SupabaseBusinessRepository
     final results = await Future.wait<Object?>([
       listMyConsultations(),
       loadMySharingPreferences(),
+      _client.rpc('list_my_coaching_connections'),
+      _client
+          .from('coaching_session_records')
+          .select(_coachingSessionRecordSelect)
+          .order('session_date', ascending: false)
+          .order('shared_at', ascending: false)
+          .limit(200),
     ]);
     return BusinessWorkspaceData(
       role: UserRole.member,
@@ -629,6 +676,8 @@ class SupabaseBusinessRepository
       dashboardStats: const BusinessDashboardMetrics(),
       consultations: results[0] as List<BusinessConsultation>,
       memberSharingPreferences: results[1] as MemberSharingPreferences,
+      coachingConnections: _coachingConnectionList(results[2]),
+      sessionRecords: _coachingSessionRecordList(results[3]),
     );
   }
 
@@ -845,6 +894,137 @@ class SupabaseBusinessRepository
       throw const FormatException('Coaching schedule RPC returned no row.');
     }
     return _coachingScheduleFromRow(row);
+  }
+
+  @override
+  Future<List<CoachingConnection>> listCoachingConnections() async {
+    _requireUser();
+    final rows = await _client.rpc('list_my_coaching_connections');
+    return _coachingConnectionList(rows);
+  }
+
+  @override
+  Future<CoachingConnectionInviteCreation> createCoachingConnectionInvite({
+    required String requestId,
+    required DateTime expiresAt,
+    String? recipientName,
+  }) async {
+    _requireUser();
+    final normalizedExpiresAt = expiresAt.toUtc();
+    final now = DateTime.now().toUtc();
+    if (!normalizedExpiresAt.isAfter(now.add(const Duration(minutes: 4))) ||
+        normalizedExpiresAt.isAfter(now.add(const Duration(days: 31)))) {
+      throw ArgumentError.value(
+        expiresAt,
+        'expiresAt',
+        'Must be between 5 minutes and 30 days from now.',
+      );
+    }
+    final result = await _client.rpc(
+      'create_coaching_connection_invite',
+      params: {
+        'request_id': _validatedUuid(requestId, 'requestId'),
+        'expires_at': normalizedExpiresAt.toIso8601String(),
+        'recipient_name': _boundedOptionalText(
+          recipientName,
+          'recipientName',
+          120,
+        ),
+      },
+    );
+    final row = _mapValue(result);
+    if (row == null || _mapValue(row['invite']) == null) {
+      throw StateError('Coaching connection invite was not returned.');
+    }
+    final tokenIssued = _boolValue(row['token_issued']);
+    final token = _nullableString(row['token']);
+    if (tokenIssued &&
+        (token == null || !_inviteTokenPattern.hasMatch(token))) {
+      throw const FormatException('Server returned an invalid invite token.');
+    }
+    return CoachingConnectionInviteCreation(
+      tokenIssued: tokenIssued,
+      token: token,
+      uri: token == null
+          ? null
+          : Uri(
+              scheme: 'com.teampara.setflow',
+              host: 'coaching-invite',
+              path: '/$token',
+            ),
+    );
+  }
+
+  @override
+  Future<CoachingConnectionAcceptance> acceptCoachingConnectionInvite(
+    String token, {
+    required String requestId,
+  }) async {
+    _requireUser();
+    final normalizedToken = token.trim().toLowerCase();
+    if (!_inviteTokenPattern.hasMatch(normalizedToken)) {
+      throw ArgumentError.value(token, 'token', 'Invalid invite token.');
+    }
+    final result = await _client.rpc(
+      'accept_coaching_connection_invite',
+      params: {
+        'token': normalizedToken,
+        'request_id': _validatedUuid(requestId, 'requestId'),
+      },
+    );
+    final row = _mapValue(result);
+    if (row == null) {
+      throw StateError('Coaching connection acceptance was not returned.');
+    }
+    final connectionRow = _mapValue(row['connection']);
+    return CoachingConnectionAcceptance(
+      accepted: _boolValue(row['accepted']),
+      connection: connectionRow == null
+          ? null
+          : _coachingConnectionFromRow(connectionRow),
+    );
+  }
+
+  @override
+  Future<CoachingSessionRecord> publishCoachingSessionRecord(
+    PublishCoachingSessionRecordInput input,
+  ) async {
+    _requireUser();
+    final sessionSummary = _requiredTrimmed(
+      input.sessionSummary,
+      'sessionSummary',
+    );
+    if (sessionSummary.length > 2000) {
+      throw ArgumentError.value(
+        input.sessionSummary,
+        'sessionSummary',
+        'Must be at most 2000 characters.',
+      );
+    }
+    final result = await _client.rpc(
+      'publish_coaching_session_record',
+      params: {
+        'request_id': _validatedUuid(input.requestId, 'requestId'),
+        'schedule_id': _validatedUuid(input.scheduleId, 'scheduleId'),
+        'routine_id': _validatedOptionalUuid(input.routineId, 'routineId'),
+        'session_summary': sessionSummary,
+        'routine_summary': _boundedOptionalText(
+          input.routineSummary,
+          'routineSummary',
+          2000,
+        ),
+        'consultation_summary': _boundedOptionalText(
+          input.consultationSummary,
+          'consultationSummary',
+          2000,
+        ),
+      },
+    );
+    final row = _mapValue(result);
+    if (row == null) {
+      throw StateError('Published coaching session record was not returned.');
+    }
+    return _coachingSessionRecordFromRow(row);
   }
 
   @override
@@ -2606,6 +2786,64 @@ BusinessCoachingSchedule _coachingScheduleFromRow(Map<String, dynamic> row) {
     gymName: _nullableString(gym?['name']),
     createdAt: createdAt,
     completedAt: _nullableDateTime(row['completed_at']),
+  );
+}
+
+List<CoachingConnection> _coachingConnectionList(Object? value) =>
+    List.unmodifiable(_mapListValue(value).map(_coachingConnectionFromRow));
+
+CoachingConnection _coachingConnectionFromRow(Map<String, dynamic> row) {
+  final createdAt = _nullableDateTime(row['created_at']);
+  if (createdAt == null) {
+    throw const FormatException('Coaching connection timestamp is missing.');
+  }
+  final startDate = _nullableDateTime(row['start_date']);
+  return CoachingConnection(
+    id: _requiredUuid(row, 'id'),
+    trainerId: _requiredUuid(row, 'trainer_id'),
+    memberUserId: _requiredUuid(row, 'member_user_id'),
+    memberName: _stringValue(row['member_name'], fallback: '회원'),
+    trainerName: _stringValue(row['trainer_name'], fallback: '트레이너'),
+    memberGoal: _nullableString(row['member_goal']),
+    programName: _nullableString(row['program_name']),
+    status: _stringValue(row['status'], fallback: 'active'),
+    startDate: startDate == null
+        ? null
+        : DateTime(startDate.year, startDate.month, startDate.day),
+    createdAt: createdAt,
+    sessionCount: _intValue(row['session_count']),
+    lastSessionAt: _nullableDateTime(row['last_session_at']),
+  );
+}
+
+List<CoachingSessionRecord> _coachingSessionRecordList(Object? value) =>
+    List.unmodifiable(_mapListValue(value).map(_coachingSessionRecordFromRow));
+
+CoachingSessionRecord _coachingSessionRecordFromRow(Map<String, dynamic> row) {
+  final sessionDate = _nullableDateTime(row['session_date']);
+  final sharedAt = _nullableDateTime(row['shared_at']);
+  if (sessionDate == null || sharedAt == null) {
+    throw const FormatException('Coaching session record date is missing.');
+  }
+  return CoachingSessionRecord(
+    id: _requiredUuid(row, 'id'),
+    coachingId: _requiredUuid(row, 'coaching_id'),
+    scheduleId: _requiredUuid(row, 'schedule_id'),
+    trainerId: _requiredUuid(row, 'trainer_id'),
+    memberUserId: _requiredUuid(row, 'member_user_id'),
+    gymId: _requiredUuid(row, 'gym_id'),
+    routineId: _nullableUuid(row['routine_id']),
+    title: _stringValue(row['title'], fallback: '코칭 수업'),
+    sessionDate: DateTime(sessionDate.year, sessionDate.month, sessionDate.day),
+    memberName: _stringValue(row['member_name_snapshot'], fallback: '회원'),
+    trainerName: _stringValue(row['trainer_name_snapshot'], fallback: '트레이너'),
+    gymName: _stringValue(row['gym_name_snapshot'], fallback: '수업 헬스장'),
+    memberGoal: _nullableString(row['member_goal_snapshot']),
+    routineTitle: _nullableString(row['routine_title_snapshot']),
+    routineSummary: _nullableString(row['routine_summary']),
+    consultationSummary: _nullableString(row['consultation_summary']),
+    sessionSummary: _stringValue(row['session_summary']),
+    sharedAt: sharedAt,
   );
 }
 
