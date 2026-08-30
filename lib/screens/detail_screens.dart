@@ -920,13 +920,13 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             ],
           ],
           SettingSection.privacy => [
-            SwitchListTile(
-              title: const Text('담당 트레이너에게 체성분 공유'),
-              subtitle: const Text('몸무게·체성분처럼 별도 동의한 정보만 공유됩니다.'),
-              value: _shareBodyData,
-              onChanged: _savingPrivacy
-                  ? null
-                  : (value) => _savePrivacy(shareBodyData: value),
+            const ListTile(
+              key: ValueKey('setting-class-health-consent'),
+              leading: Icon(Icons.health_and_safety_outlined),
+              title: Text('건강정보는 수업마다 직접 선택'),
+              subtitle: Text(
+                '예정된 코칭에서 트레이너와 헬스장 각각의 제공 여부를 선택합니다. 수업 완료·취소 시 접근이 자동 종료됩니다.',
+              ),
             ),
             SwitchListTile(
               title: const Text('담당자에게 운동 기록 공유'),

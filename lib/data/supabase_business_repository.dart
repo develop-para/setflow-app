@@ -195,6 +195,20 @@ const _coachingScheduleSelect = '''
   ),
   gym:gyms(
     name
+  ),
+  health_consent:coaching_health_consents!coaching_health_consents_schedule_id_fkey(
+    schedule_id,
+    member_user_id,
+    trainer_id,
+    gym_id,
+    share_with_trainer,
+    share_with_gym,
+    trainer_consented_at,
+    trainer_revoked_at,
+    gym_consented_at,
+    gym_revoked_at,
+    created_at,
+    updated_at
   )
 ''';
 
@@ -229,6 +243,7 @@ class SupabaseBusinessRepository
         WorkoutLocationRepository,
         TrainerConsultationSettingsRepository,
         MobileCoachingRepository,
+        CoachingHealthConsentRepository,
         RoutineShareRevocationRepository,
         ConsultationRecommendationProfileShareRepository {
   const SupabaseBusinessRepository(this._client);
@@ -707,7 +722,9 @@ class SupabaseBusinessRepository
     final row = await _client
         .from('user_consents')
         .update({
-          'share_body_data': preferences.shareBodyData,
+          // The legacy account-wide switch is always retired. Health access
+          // is changed only on an individual coaching schedule.
+          'share_body_data': false,
           'share_workout_records': preferences.shareWorkoutRecords,
           'marketing': preferences.marketing,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -1025,6 +1042,46 @@ class SupabaseBusinessRepository
       throw StateError('Published coaching session record was not returned.');
     }
     return _coachingSessionRecordFromRow(row);
+  }
+
+  @override
+  Future<CoachingHealthConsent> setCoachingHealthConsent({
+    required String scheduleId,
+    required bool shareWithTrainer,
+    required bool shareWithGym,
+    required String requestId,
+  }) async {
+    _requireUser();
+    final result = await _client.rpc(
+      'set_coaching_health_consent',
+      params: {
+        'schedule_id': _validatedUuid(scheduleId, 'scheduleId'),
+        'share_with_trainer': shareWithTrainer,
+        'share_with_gym': shareWithGym,
+        'request_id': _validatedUuid(requestId, 'requestId'),
+      },
+    );
+    final row = _mapValue(result);
+    if (row == null) {
+      throw StateError('Health consent was not returned.');
+    }
+    return _coachingHealthConsentFromRow(row);
+  }
+
+  @override
+  Future<CoachingHealthOverview> getCoachingHealthOverview(
+    String scheduleId,
+  ) async {
+    _requireUser();
+    final result = await _client.rpc(
+      'get_coaching_health_overview',
+      params: {'schedule_id': _validatedUuid(scheduleId, 'scheduleId')},
+    );
+    final row = _mapValue(result);
+    if (row == null) {
+      throw StateError('Health overview was not returned.');
+    }
+    return _coachingHealthOverviewFromRow(row);
   }
 
   @override
@@ -2772,6 +2829,7 @@ BusinessCoachingSchedule _coachingScheduleFromRow(Map<String, dynamic> row) {
   final trainer = _mapValue(row['trainer']);
   final member = _mapValue(row['member']);
   final gym = _mapValue(row['gym']);
+  final healthConsent = _mapValue(row['health_consent']);
   return BusinessCoachingSchedule(
     id: _requiredUuid(row, 'id'),
     trainerId: _requiredUuid(row, 'trainer_id'),
@@ -2786,6 +2844,85 @@ BusinessCoachingSchedule _coachingScheduleFromRow(Map<String, dynamic> row) {
     gymName: _nullableString(gym?['name']),
     createdAt: createdAt,
     completedAt: _nullableDateTime(row['completed_at']),
+    healthConsent: healthConsent == null
+        ? null
+        : _coachingHealthConsentFromRow(healthConsent),
+  );
+}
+
+CoachingHealthConsent _coachingHealthConsentFromRow(Map<String, dynamic> row) {
+  final createdAt = _nullableDateTime(row['created_at']);
+  final updatedAt = _nullableDateTime(row['updated_at']);
+  if (createdAt == null || updatedAt == null) {
+    throw const FormatException('Health consent timestamps are missing.');
+  }
+  return CoachingHealthConsent(
+    scheduleId: _requiredUuid(row, 'schedule_id'),
+    memberUserId: _requiredUuid(row, 'member_user_id'),
+    trainerId: _requiredUuid(row, 'trainer_id'),
+    gymId: _requiredUuid(row, 'gym_id'),
+    shareWithTrainer: _boolValue(row['share_with_trainer']),
+    shareWithGym: _boolValue(row['share_with_gym']),
+    trainerConsentedAt: _nullableDateTime(row['trainer_consented_at']),
+    trainerRevokedAt: _nullableDateTime(row['trainer_revoked_at']),
+    gymConsentedAt: _nullableDateTime(row['gym_consented_at']),
+    gymRevokedAt: _nullableDateTime(row['gym_revoked_at']),
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+}
+
+CoachingHealthOverview _coachingHealthOverviewFromRow(
+  Map<String, dynamic> row,
+) {
+  final profile = _mapValue(row['profile']) ?? const <String, dynamic>{};
+  final readAt = _nullableDateTime(row['read_at']);
+  if (readAt == null) {
+    throw const FormatException('Health overview read timestamp is missing.');
+  }
+  final bodyCompositions = _mapListValue(
+    row['body_compositions'],
+  ).map(_coachingBodyCompositionFromRow).toList(growable: false);
+  return CoachingHealthOverview(
+    scheduleId: _requiredUuid(row, 'schedule_id'),
+    memberUserId: _requiredUuid(row, 'member_user_id'),
+    trainerId: _requiredUuid(row, 'trainer_id'),
+    gymId: _requiredUuid(row, 'gym_id'),
+    accessRole: _stringValue(row['access_role']),
+    memberName: _stringValue(row['member_name'], fallback: '회원'),
+    accessEndsOnCompletion: _boolValue(row['access_ends_on_completion']),
+    heightCm: _nullableDouble(profile['height_cm']),
+    weightKg: _nullableDouble(profile['weight_kg']),
+    age: _nullableInt(profile['age']),
+    gender: _nullableString(profile['gender']),
+    goal: _nullableString(profile['goal']),
+    profileUpdatedAt: _nullableDateTime(profile['updated_at']),
+    recommendationProfile: RecommendationProfile.tryFromJson(
+      row['recommendation_profile'],
+    ),
+    recommendationProfileUpdatedAt: _nullableDateTime(
+      row['recommendation_profile_updated_at'],
+    ),
+    bodyCompositions: List.unmodifiable(bodyCompositions),
+    readAt: readAt,
+  );
+}
+
+CoachingBodyComposition _coachingBodyCompositionFromRow(
+  Map<String, dynamic> row,
+) {
+  final recordDate = _nullableDateTime(row['record_date']);
+  if (recordDate == null) {
+    throw const FormatException('Body composition date is missing.');
+  }
+  return CoachingBodyComposition(
+    id: _requiredUuid(row, 'id'),
+    recordDate: DateTime(recordDate.year, recordDate.month, recordDate.day),
+    weightKg: _nullableDouble(row['weight_kg']),
+    skeletalMuscleMass: _nullableDouble(row['skeletal_muscle_mass']),
+    bodyFatPercent: _nullableDouble(row['body_fat_pct']),
+    bmi: _nullableDouble(row['bmi']),
+    source: _stringValue(row['source'], fallback: '직접 입력'),
   );
 }
 

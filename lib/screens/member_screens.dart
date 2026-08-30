@@ -1020,7 +1020,7 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '읽기 전용',
+                  '공유 여부 선택',
                   style: TextStyle(
                     fontSize: SetflowFontSize.tiny,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1031,7 +1031,15 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
             const SizedBox(height: SetflowSpacing.sm),
             for (var index = 0; index < upcoming.length; index++) ...[
               if (index > 0) const Divider(height: 16),
-              _MemberScheduleRow(schedule: upcoming[index]),
+              _MemberScheduleRow(
+                schedule: upcoming[index],
+                onTap: upcoming[index].isCompleted
+                    ? null
+                    : () => _showMemberHealthConsentSheet(
+                        context,
+                        upcoming[index],
+                      ),
+              ),
             ],
           ],
         ),
@@ -1041,70 +1049,201 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
 }
 
 class _MemberScheduleRow extends StatelessWidget {
-  const _MemberScheduleRow({required this.schedule});
+  const _MemberScheduleRow({required this.schedule, required this.onTap});
 
   final BusinessCoachingSchedule schedule;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final startHour = (schedule.startMinutes ~/ 60).toString().padLeft(2, '0');
     final startMinute = (schedule.startMinutes % 60).toString().padLeft(2, '0');
-    return Row(
-      children: [
-        Container(
-          width: 44,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: context.setflowColors.blue.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(SetflowRadii.sm),
-          ),
-          child: Column(
-            children: [
-              Text(
-                '${schedule.date.month}/${schedule.date.day}',
-                style: const TextStyle(
-                  fontSize: SetflowFontSize.tiny,
-                  fontWeight: SetflowWeight.medium,
-                ),
+    return InkWell(
+      key: Key('member-health-consent-open-${schedule.id}'),
+      borderRadius: BorderRadius.circular(SetflowRadii.sm),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: context.setflowColors.blue.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(SetflowRadii.sm),
               ),
-              Text(
-                '$startHour:$startMinute',
-                style: const TextStyle(fontSize: SetflowFontSize.tiny),
+              child: Column(
+                children: [
+                  Text(
+                    '${schedule.date.month}/${schedule.date.day}',
+                    style: const TextStyle(
+                      fontSize: SetflowFontSize.tiny,
+                      fontWeight: SetflowWeight.medium,
+                    ),
+                  ),
+                  Text(
+                    '$startHour:$startMinute',
+                    style: const TextStyle(fontSize: SetflowFontSize.tiny),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: SetflowSpacing.sm2),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    schedule.title,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  Text(
+                    schedule.trainerName ?? schedule.gymName ?? '담당 트레이너',
+                    style: TextStyle(
+                      fontSize: SetflowFontSize.small,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              schedule.isCompleted
+                  ? Icons.check_circle_rounded
+                  : schedule.healthConsent?.shareWithTrainer == true ||
+                        schedule.healthConsent?.shareWithGym == true
+                  ? Icons.health_and_safety_rounded
+                  : Icons.chevron_right_rounded,
+              size: 18,
+              color: schedule.isCompleted
+                  ? context.setflowColors.success
+                  : schedule.healthConsent?.shareWithTrainer == true ||
+                        schedule.healthConsent?.shareWithGym == true
+                  ? context.setflowColors.blue
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ],
         ),
-        const SizedBox(width: SetflowSpacing.sm2),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                schedule.title,
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
-              Text(
-                schedule.trainerName ?? schedule.gymName ?? '담당 트레이너',
-                style: TextStyle(
-                  fontSize: SetflowFontSize.small,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Icon(
-          schedule.isCompleted
-              ? Icons.check_circle_rounded
-              : Icons.chevron_right_rounded,
-          size: 18,
-          color: schedule.isCompleted
-              ? context.setflowColors.success
-              : Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ],
+      ),
     );
   }
+}
+
+Future<void> _showMemberHealthConsentSheet(
+  BuildContext context,
+  BusinessCoachingSchedule schedule,
+) async {
+  final state = AppScope.of(context);
+  var shareWithTrainer = schedule.healthConsent?.shareWithTrainer ?? false;
+  var shareWithGym = schedule.healthConsent?.shareWithGym ?? false;
+  var saving = false;
+  await showSetflowSheet<void>(
+    context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (context, setSheetState) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: SetflowInsets.pageForm,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '이 수업의 건강정보 제공',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              Text(
+                '${schedule.trainerName ?? '담당 트레이너'} · ${schedule.gymName ?? '수업 헬스장'}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+              Text(
+                '승인하면 현재 프로필, 신체 정보와 체성분, 통증·부상, 회복 상태의 최신값을 볼 수 있습니다. 전체 건강정보 사본은 수업 기록에 저장하지 않습니다.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
+              SwitchListTile(
+                key: const Key('health-consent-trainer'),
+                contentPadding: EdgeInsets.zero,
+                title: Text('${schedule.trainerName ?? '담당 트레이너'}에게 제공'),
+                subtitle: const Text('이 수업을 준비하고 진행하는 동안만 열람할 수 있어요.'),
+                value: shareWithTrainer,
+                onChanged: saving
+                    ? null
+                    : (value) => setSheetState(() => shareWithTrainer = value),
+              ),
+              SwitchListTile(
+                key: const Key('health-consent-gym'),
+                contentPadding: EdgeInsets.zero,
+                title: Text('${schedule.gymName ?? '수업 헬스장'}에 제공'),
+                subtitle: const Text('해당 지점 운영 계정만 이 수업 동안 열람할 수 있어요.'),
+                value: shareWithGym,
+                onChanged: saving
+                    ? null
+                    : (value) => setSheetState(() => shareWithGym = value),
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              Container(
+                padding: const EdgeInsets.all(SetflowSpacing.md),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(SetflowRadii.md),
+                ),
+                child: const Text(
+                  '수업 완료 또는 취소 즉시 접근이 자동 종료됩니다. 다음 수업에서는 다시 선택합니다.',
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.small,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.xl),
+              PrimaryButton(
+                key: const Key('health-consent-save'),
+                label: saving ? '저장 중...' : '선택 저장',
+                onPressed: saving
+                    ? null
+                    : () async {
+                        setSheetState(() => saving = true);
+                        try {
+                          await state.updateCoachingHealthConsent(
+                            scheduleId: schedule.id,
+                            shareWithTrainer: shareWithTrainer,
+                            shareWithGym: shareWithGym,
+                          );
+                          if (!sheetContext.mounted || !context.mounted) return;
+                          Navigator.pop(sheetContext);
+                          AppSnackbar.success(
+                            context,
+                            '이 수업의 건강정보 제공 설정을 저장했어요.',
+                          );
+                        } catch (_) {
+                          if (sheetContext.mounted) {
+                            AppSnackbar.error(
+                              sheetContext,
+                              '건강정보 제공 설정을 저장하지 못했어요.',
+                            );
+                          }
+                        } finally {
+                          if (sheetContext.mounted) {
+                            setSheetState(() => saving = false);
+                          }
+                        }
+                      },
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _MonthArrowButton extends StatelessWidget {

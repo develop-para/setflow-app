@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/recommendation_profile_summary.dart';
 
 enum BusinessTool {
   calendar,
@@ -215,6 +216,18 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     final sharedRecord = state.coachingSessionRecords
         .where((item) => item.scheduleId == schedule.id)
         .firstOrNull;
+    final healthConsent = schedule.healthConsent;
+    final showsHealthAccess =
+        schedule.memberUserId != null &&
+        schedule.gymId != null &&
+        (widget.role == UserRole.trainer || widget.role == UserRole.gym);
+    final canViewHealth =
+        !schedule.isCompleted &&
+        switch (widget.role) {
+          UserRole.trainer => healthConsent?.shareWithTrainer ?? false,
+          UserRole.gym => healthConsent?.shareWithGym ?? false,
+          _ => false,
+        };
     final counterpart =
         schedule.memberName ??
         schedule.gymName ??
@@ -259,6 +272,23 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
                 ],
               ),
             ),
+            if (showsHealthAccess)
+              IconButton(
+                key: Key('coaching-health-view-${schedule.id}'),
+                tooltip: canViewHealth
+                    ? '회원 건강정보 열람'
+                    : schedule.isCompleted
+                    ? '수업 종료로 접근 만료'
+                    : '회원 동의 대기 중',
+                onPressed: canViewHealth
+                    ? () => _showHealthOverviewSheet(context, schedule)
+                    : null,
+                icon: Icon(
+                  canViewHealth
+                      ? Icons.health_and_safety_rounded
+                      : Icons.health_and_safety_outlined,
+                ),
+              ),
             if (pending)
               const SizedBox(
                 width: 24,
@@ -313,6 +343,22 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     } catch (_) {
       if (context.mounted) showMessage(context, '일정을 불러오지 못했습니다.');
     }
+  }
+
+  Future<void> _showHealthOverviewSheet(
+    BuildContext context,
+    BusinessCoachingSchedule schedule,
+  ) async {
+    final overview = AppScope.of(
+      context,
+    ).loadCoachingHealthOverview(schedule.id);
+    await showSetflowSheet<void>(
+      context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) =>
+          _CoachingHealthOverviewSheet(schedule: schedule, overview: overview),
+    );
   }
 
   Future<void> _toggleSchedule(
@@ -1113,6 +1159,152 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
         ),
       ),
   ];
+}
+
+class _CoachingHealthOverviewSheet extends StatelessWidget {
+  const _CoachingHealthOverviewSheet({
+    required this.schedule,
+    required this.overview,
+  });
+
+  final BusinessCoachingSchedule schedule;
+  final Future<CoachingHealthOverview> overview;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: FutureBuilder<CoachingHealthOverview>(
+      future: overview,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 80),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final data = snapshot.data;
+        if (data == null) {
+          return Padding(
+            padding: SetflowInsets.pageForm,
+            child: _ScheduleMessageCard(
+              icon: Icons.lock_outline_rounded,
+              title: '건강정보를 열 수 없어요',
+              subtitle: schedule.isCompleted
+                  ? '수업 완료로 회원 동의가 자동 만료됐습니다.'
+                  : '회원 동의가 철회됐거나 서버에서 권한을 확인하지 못했습니다.',
+            ),
+          );
+        }
+        final facts = <(String, String)>[
+          if (data.heightCm != null)
+            ('키', '${data.heightCm!.toStringAsFixed(1)} cm'),
+          if (data.weightKg != null)
+            ('현재 체중', '${data.weightKg!.toStringAsFixed(1)} kg'),
+          if (data.age != null) ('나이', '${data.age}세'),
+          if (data.gender != null) ('성별', data.gender!),
+          if (data.goal != null) ('운동 목표', data.goal!),
+        ];
+        return SingleChildScrollView(
+          padding: SetflowInsets.pageForm,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${data.memberName}님의 건강정보',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: SetflowSpacing.xs),
+              Text(
+                '${schedule.title} · ${schedule.gymName ?? '수업 헬스장'}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+              Container(
+                padding: const EdgeInsets.all(SetflowSpacing.md),
+                decoration: BoxDecoration(
+                  color: context.setflowColors.blue.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(SetflowRadii.md),
+                ),
+                child: const Text(
+                  '회원이 이 수업에 한해 제공한 최신 정보입니다. 열람 사실은 회원의 감사 기록에 남고 수업 완료·취소 시 접근이 종료됩니다.',
+                  style: TextStyle(
+                    fontSize: SetflowFontSize.small,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.xl),
+              const SectionTitle('기본 건강 정보'),
+              const SizedBox(height: SetflowSpacing.sm),
+              if (facts.isEmpty)
+                const Text('등록된 기본 건강 정보가 없습니다.')
+              else
+                SetflowCard(
+                  child: Column(
+                    children: [
+                      for (var index = 0; index < facts.length; index++) ...[
+                        if (index > 0) const Divider(height: 1),
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(facts[index].$1),
+                          trailing: Text(
+                            facts[index].$2,
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              const SizedBox(height: SetflowSpacing.xl),
+              const SectionTitle('통증·부상·회복 상태'),
+              const SizedBox(height: SetflowSpacing.sm),
+              if (data.recommendationProfile case final profile?)
+                RecommendationProfileSummary(profile: profile)
+              else
+                const Text('회원이 등록한 통증·부상·회복 정보가 없습니다.'),
+              const SizedBox(height: SetflowSpacing.xl),
+              const SectionTitle('최근 체성분'),
+              const SizedBox(height: SetflowSpacing.sm),
+              if (data.bodyCompositions.isEmpty)
+                const Text('등록된 체성분 기록이 없습니다.')
+              else
+                for (final composition in data.bodyCompositions.take(5))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: SetflowSpacing.sm),
+                    child: SetflowCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${composition.recordDate.year}.${composition.recordDate.month.toString().padLeft(2, '0')}.${composition.recordDate.day.toString().padLeft(2, '0')}',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: SetflowSpacing.xs),
+                          Text(
+                            [
+                              if (composition.weightKg != null)
+                                '체중 ${composition.weightKg!.toStringAsFixed(1)}kg',
+                              if (composition.skeletalMuscleMass != null)
+                                '골격근 ${composition.skeletalMuscleMass!.toStringAsFixed(1)}kg',
+                              if (composition.bodyFatPercent != null)
+                                '체지방 ${composition.bodyFatPercent!.toStringAsFixed(1)}%',
+                              if (composition.bmi != null)
+                                'BMI ${composition.bmi!.toStringAsFixed(1)}',
+                            ].join(' · '),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 }
 
 class _ScheduleMessageCard extends StatelessWidget {

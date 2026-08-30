@@ -123,6 +123,7 @@ class AppState extends ChangeNotifier {
   final Map<String, String> _personalRoutineSaveRequestIds = {};
   final Map<String, String> _personalRoutineDeleteRequestIds = {};
   final Map<String, String> _coachingScheduleCreateRequestIds = {};
+  final Map<String, String> _coachingHealthConsentRequestIds = {};
   final Map<String, String> _consultationAssignRequestIds = {};
   final Map<String, String> _consultationCreateRequestIds = {};
   final Map<String, String> _consultationReplyRequestIds = {};
@@ -319,6 +320,8 @@ class AppState extends ChangeNotifier {
       isBusinessMutationPending('coaching-schedule:update:$scheduleId');
   bool isDeletingCoachingSchedule(String scheduleId) =>
       isBusinessMutationPending('coaching-schedule:delete:$scheduleId');
+  bool isSavingCoachingHealthConsent(String scheduleId) =>
+      isBusinessMutationPending('coaching-health:consent:$scheduleId');
   bool isCreatingBusinessInvite(BusinessInviteKind kind) =>
       _businessMutations.keys.any(
         (key) =>
@@ -4258,6 +4261,128 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  Future<CoachingHealthConsent> updateCoachingHealthConsent({
+    required String scheduleId,
+    required bool shareWithTrainer,
+    required bool shareWithGym,
+  }) async {
+    final schedule = coachingSchedules
+        .where((item) => item.id == scheduleId)
+        .firstOrNull;
+    if (schedule == null ||
+        schedule.memberUserId == null ||
+        schedule.gymId == null) {
+      throw StateError('회원과 실제 수업 헬스장이 지정된 일정이 필요합니다.');
+    }
+    if (schedule.isCompleted) {
+      throw StateError('완료된 수업의 건강정보 동의는 변경할 수 없습니다.');
+    }
+
+    final currentUserId = businessAccess?.userId;
+    if (role != UserRole.member ||
+        currentUserId == null ||
+        currentUserId != schedule.memberUserId) {
+      throw StateError('해당 수업의 회원만 건강정보 제공 여부를 선택할 수 있습니다.');
+    }
+
+    final repository = businessRepository;
+    if (repository == null) {
+      final now = DateTime.now();
+      final previous = schedule.healthConsent;
+      final consent = CoachingHealthConsent(
+        scheduleId: schedule.id,
+        memberUserId: schedule.memberUserId!,
+        trainerId: schedule.trainerId,
+        gymId: schedule.gymId!,
+        shareWithTrainer: shareWithTrainer,
+        shareWithGym: shareWithGym,
+        trainerConsentedAt: shareWithTrainer
+            ? previous?.trainerConsentedAt ?? now
+            : previous?.trainerConsentedAt,
+        trainerRevokedAt:
+            !shareWithTrainer && (previous?.shareWithTrainer ?? false)
+            ? now
+            : previous?.trainerRevokedAt,
+        gymConsentedAt: shareWithGym
+            ? previous?.gymConsentedAt ?? now
+            : previous?.gymConsentedAt,
+        gymRevokedAt: !shareWithGym && (previous?.shareWithGym ?? false)
+            ? now
+            : previous?.gymRevokedAt,
+        createdAt: previous?.createdAt ?? now,
+        updatedAt: now,
+      );
+      coachingSchedules = _replaceCoachingSchedule(
+        _copyCoachingSchedule(schedule, healthConsent: consent),
+      );
+      notifyListeners();
+      return consent;
+    }
+    if (repository is! CoachingHealthConsentRepository) {
+      throw StateError('수업별 건강정보 동의 기능이 연결되지 않았습니다.');
+    }
+
+    // The health overview reads the current account snapshot. Flush the
+    // member's latest survey and body profile before opening access.
+    await syncPersistenceToServer();
+    final requestKey = '$scheduleId|$shareWithTrainer|$shareWithGym';
+    final requestId = _coachingHealthConsentRequestIds.putIfAbsent(
+      requestKey,
+      _newUuidV4,
+    );
+    return _runBusinessMutation<CoachingHealthConsent>(
+      'coaching-health:consent:$scheduleId',
+      (accountEpoch) async {
+        final consent = await (repository as CoachingHealthConsentRepository)
+            .setCoachingHealthConsent(
+              scheduleId: scheduleId,
+              shareWithTrainer: shareWithTrainer,
+              shareWithGym: shareWithGym,
+              requestId: requestId,
+            );
+        if (consent.scheduleId != schedule.id ||
+            consent.memberUserId != schedule.memberUserId ||
+            consent.trainerId != schedule.trainerId ||
+            consent.gymId != schedule.gymId) {
+          throw StateError('요청한 수업과 다른 건강정보 동의가 반환되었습니다.');
+        }
+        if (_isCurrentAccount(accountEpoch)) {
+          _coachingHealthConsentRequestIds.remove(requestKey);
+          coachingSchedules = _replaceCoachingSchedule(
+            _copyCoachingSchedule(schedule, healthConsent: consent),
+          );
+          notifyListeners();
+        }
+        return consent;
+      },
+    );
+  }
+
+  Future<CoachingHealthOverview> loadCoachingHealthOverview(
+    String scheduleId,
+  ) async {
+    final schedule = coachingSchedules
+        .where((item) => item.id == scheduleId)
+        .firstOrNull;
+    if (schedule == null) throw StateError('일정을 찾을 수 없습니다.');
+    if (schedule.isCompleted && role != UserRole.member) {
+      throw StateError('수업이 종료되어 건강정보 접근이 만료되었습니다.');
+    }
+    final repository = businessRepository;
+    if (repository is! CoachingHealthConsentRepository) {
+      throw StateError('수업별 건강정보 열람 기능이 연결되지 않았습니다.');
+    }
+    final overview = await (repository as CoachingHealthConsentRepository)
+        .getCoachingHealthOverview(scheduleId);
+    if (overview.scheduleId != schedule.id ||
+        overview.memberUserId != schedule.memberUserId ||
+        overview.trainerId != schedule.trainerId ||
+        overview.gymId != schedule.gymId) {
+      throw StateError('요청한 수업과 다른 건강정보가 반환되었습니다.');
+    }
+    return overview;
+  }
+
   Future<BusinessInviteCreation> createGymBusinessInvite({
     required BusinessInviteKind kind,
     String? memberId,
@@ -6013,6 +6138,7 @@ class AppState extends ChangeNotifier {
     _personalRoutineSaveRequestIds.clear();
     _personalRoutineDeleteRequestIds.clear();
     _coachingScheduleCreateRequestIds.clear();
+    _coachingHealthConsentRequestIds.clear();
     _consultationAssignRequestIds.clear();
     _consultationCreateRequestIds.clear();
     _consultationReplyRequestIds.clear();
@@ -6401,6 +6527,7 @@ class AppState extends ChangeNotifier {
       gymName: gymName ?? schedule.gymName,
       createdAt: schedule.createdAt,
       completedAt: schedule.completedAt,
+      healthConsent: schedule.healthConsent,
     );
   }
 
@@ -6437,6 +6564,7 @@ BusinessCoachingSchedule _copyCoachingSchedule(
   BusinessCoachingSchedule source, {
   DateTime? completedAt,
   bool clearCompletedAt = false,
+  CoachingHealthConsent? healthConsent,
 }) => BusinessCoachingSchedule(
   id: source.id,
   trainerId: source.trainerId,
@@ -6451,6 +6579,7 @@ BusinessCoachingSchedule _copyCoachingSchedule(
   gymName: source.gymName,
   createdAt: source.createdAt,
   completedAt: clearCompletedAt ? null : completedAt ?? source.completedAt,
+  healthConsent: healthConsent ?? source.healthConsent,
 );
 
 bool _isUuid(String value) => RegExp(

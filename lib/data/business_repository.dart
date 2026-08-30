@@ -454,6 +454,96 @@ class CoachingSessionRecord {
   final DateTime sharedAt;
 }
 
+class CoachingHealthConsent {
+  const CoachingHealthConsent({
+    required this.scheduleId,
+    required this.memberUserId,
+    required this.trainerId,
+    required this.gymId,
+    required this.shareWithTrainer,
+    required this.shareWithGym,
+    required this.createdAt,
+    required this.updatedAt,
+    this.trainerConsentedAt,
+    this.trainerRevokedAt,
+    this.gymConsentedAt,
+    this.gymRevokedAt,
+  });
+
+  final String scheduleId;
+  final String memberUserId;
+  final String trainerId;
+  final String gymId;
+  final bool shareWithTrainer;
+  final bool shareWithGym;
+  final DateTime? trainerConsentedAt;
+  final DateTime? trainerRevokedAt;
+  final DateTime? gymConsentedAt;
+  final DateTime? gymRevokedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+}
+
+class CoachingBodyComposition {
+  const CoachingBodyComposition({
+    required this.id,
+    required this.recordDate,
+    required this.source,
+    this.weightKg,
+    this.skeletalMuscleMass,
+    this.bodyFatPercent,
+    this.bmi,
+  });
+
+  final String id;
+  final DateTime recordDate;
+  final double? weightKg;
+  final double? skeletalMuscleMass;
+  final double? bodyFatPercent;
+  final double? bmi;
+  final String source;
+}
+
+class CoachingHealthOverview {
+  const CoachingHealthOverview({
+    required this.scheduleId,
+    required this.memberUserId,
+    required this.trainerId,
+    required this.gymId,
+    required this.accessRole,
+    required this.memberName,
+    required this.accessEndsOnCompletion,
+    required this.bodyCompositions,
+    required this.readAt,
+    this.heightCm,
+    this.weightKg,
+    this.age,
+    this.gender,
+    this.goal,
+    this.profileUpdatedAt,
+    this.recommendationProfile,
+    this.recommendationProfileUpdatedAt,
+  });
+
+  final String scheduleId;
+  final String memberUserId;
+  final String trainerId;
+  final String gymId;
+  final String accessRole;
+  final String memberName;
+  final bool accessEndsOnCompletion;
+  final double? heightCm;
+  final double? weightKg;
+  final int? age;
+  final String? gender;
+  final String? goal;
+  final DateTime? profileUpdatedAt;
+  final RecommendationProfile? recommendationProfile;
+  final DateTime? recommendationProfileUpdatedAt;
+  final List<CoachingBodyComposition> bodyCompositions;
+  final DateTime readAt;
+}
+
 class PublishCoachingSessionRecordInput {
   const PublishCoachingSessionRecordInput({
     required this.requestId,
@@ -721,6 +811,7 @@ class BusinessCoachingSchedule {
     this.memberName,
     this.gymName,
     this.completedAt,
+    this.healthConsent,
   });
 
   final String id;
@@ -736,6 +827,7 @@ class BusinessCoachingSchedule {
   final String? gymName;
   final DateTime createdAt;
   final DateTime? completedAt;
+  final CoachingHealthConsent? healthConsent;
 
   bool get isCompleted => completedAt != null;
 }
@@ -1805,6 +1897,21 @@ abstract interface class MobileCoachingRepository {
   Future<CoachingSessionRecord> publishCoachingSessionRecord(
     PublishCoachingSessionRecordInput input,
   );
+}
+
+/// Optional live capability for member-owned, class-scoped health access.
+///
+/// Consent is independent for the scheduled trainer and actual gym. The
+/// server must reject reads after the schedule is completed or cancelled.
+abstract interface class CoachingHealthConsentRepository {
+  Future<CoachingHealthConsent> setCoachingHealthConsent({
+    required String scheduleId,
+    required bool shareWithTrainer,
+    required bool shareWithGym,
+    required String requestId,
+  });
+
+  Future<CoachingHealthOverview> getCoachingHealthOverview(String scheduleId);
 }
 
 /// Optional live-data capability for the signed-in member's coach feedback.
