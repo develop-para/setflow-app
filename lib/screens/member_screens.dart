@@ -2248,12 +2248,16 @@ class _MyRoutinePreviewSection extends StatelessWidget {
             ),
           )
         else
-          for (final routine in routines)
-            _MyRoutineHomeCard(
-              routine: routine,
-              onDragStarted: () => onDragStarted(routine),
-              onDragEnded: onDragEnded,
-            ),
+          _RoutineTileGrid(
+            children: [
+              for (final routine in routines)
+                _MyRoutineHomeCard(
+                  routine: routine,
+                  onDragStarted: () => onDragStarted(routine),
+                  onDragEnded: onDragEnded,
+                ),
+            ],
+          ),
       ],
     );
   }
@@ -2272,68 +2276,83 @@ class _MyRoutineHomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return LongPressDraggable<Object>(
-      data: routine,
-      onDragStarted: onDragStarted,
-      onDragEnd: (_) => onDragEnded(),
-      feedback: Material(
-        elevation: 10,
-        color: theme.colorScheme.inverseSurface,
-        borderRadius: BorderRadius.circular(SetflowRadii.md),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: SetflowSpacing.lg,
-            vertical: SetflowSpacing.md,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                SetflowIcons.routine,
-                size: 18,
-                color: theme.colorScheme.onInverseSurface,
-              ),
-              const SizedBox(width: SetflowSpacing.sm),
-              Text(
-                '${routine.name} · ${routine.exercises.length}개 운동',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: theme.colorScheme.onInverseSurface,
-                ),
-              ),
-            ],
+    // 들어 올리면 타일 그대로 떠서 달력으로 간다 — 놓이면 그 모양이 칸이 된다.
+    return LayoutBuilder(
+      builder: (context, constraints) => LongPressDraggable<Object>(
+        data: routine,
+        onDragStarted: onDragStarted,
+        onDragEnd: (_) => onDragEnded(),
+        feedback: Material(
+          elevation: 12,
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+          child: SizedBox(
+            width: constraints.maxWidth,
+            child: _RoutineTile(routine: routine),
           ),
         ),
+        childWhenDragging: Opacity(
+          opacity: .28,
+          child: _RoutineTile(routine: routine),
+        ),
+        child: _RoutineTile(
+          key: ValueKey('home-routine-${routine.id}'),
+          routine: routine,
+          semanticsHint: '길게 눌러 캘린더 날짜에 적용',
+          onTap: () async {
+            final updated = await Navigator.of(context).push<bool>(
+              MaterialPageRoute(
+                builder: (_) => RoutineEditorScreen(routine: routine),
+              ),
+            );
+            if (updated == true && context.mounted) {
+              AppSnackbar.success(context, '루틴 변경사항을 저장했어요.');
+            }
+          },
+        ),
       ),
-      childWhenDragging: Opacity(
-        opacity: .28,
-        child: _MyRoutineCardBody(routine: routine),
-      ),
-      child: _MyRoutineCardBody(routine: routine),
     );
   }
 }
 
-/// 루틴 스와치 — 이 루틴이 달력에 놓이면 보일 모습 그대로(부위 색 잔디 칸)에 종목 수.
-/// 왼쪽 색 막대("저 바 왼쪽 마음에 안 들어") 대신이다. 색은 루틴 고유색이 아니라
-/// 루틴이 다루는 **부위**의 색이라 뜻이 있고, 달력과 같은 문법이다.
-/// "3개 운동 · 중급 · 가슴 · 등" — 개수, 난이도, 다루는 부위 순.
-String _routineMeta(RoutineData routine) {
-  final muscles = <String>{
-    for (final exercise in routine.exercises) exercise.muscle,
-  };
-  return [
-    '${routine.exercises.length}개 운동',
-    routine.level,
-    ...muscles,
-  ].join(' · ');
+/// 2열 격자 — 폭은 부모에서 받고, 높이는 내용이 정한다(글자 배율이 커져도 안 잘린다).
+class _RoutineTileGrid extends StatelessWidget {
+  const _RoutineTileGrid({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = (constraints.maxWidth - SetflowSpacing.sm) / 2;
+        return Wrap(
+          spacing: SetflowSpacing.sm,
+          runSpacing: SetflowSpacing.sm,
+          children: [
+            for (final child in children) SizedBox(width: width, child: child),
+          ],
+        );
+      },
+    );
+  }
 }
 
-class _RoutineSwatch extends StatelessWidget {
-  const _RoutineSwatch({required this.routine});
+/// 루틴 타일 — 달력 칸과 같은 얼굴. 부위 색 잔디 채움 위에 종목 수(큰 숫자), 이름,
+/// 부위·난이도. 글자는 잉크(채움 색이 밝다). 오른쪽 위에 메뉴가 들어갈 자리.
+class _RoutineTile extends StatelessWidget {
+  const _RoutineTile({
+    required this.routine,
+    this.onTap,
+    this.trailing,
+    this.semanticsHint,
+    super.key,
+  });
 
   final RoutineData routine;
-  static const size = 44.0;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+  final String? semanticsHint;
 
   @override
   Widget build(BuildContext context) {
@@ -2344,87 +2363,101 @@ class _RoutineSwatch extends StatelessWidget {
     final fills = _muscleFills([
       for (final muscle in muscles) _muscleFill(muscle),
     ], completion: 1);
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: fills,
-        ),
-        borderRadius: BorderRadius.circular(SetflowRadii.sm),
-      ),
-      child: Text(
-        '${routine.exercises.length}',
-        style: theme.textTheme.titleLarge?.copyWith(
-          color: SetflowColors.ink,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-      ),
-    );
-  }
-}
-
-/// 루틴 한 줄 — 부위 스와치, 이름, 개수·난이도·부위, 오른쪽에 끌기 손잡이. 탭하면 편집.
-class _MyRoutineCardBody extends StatelessWidget {
-  const _MyRoutineCardBody({required this.routine});
-
-  final RoutineData routine;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
-    return InkWell(
-      key: ValueKey('home-routine-${routine.id}'),
-      onTap: () async {
-        final updated = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(
-            builder: (_) => RoutineEditorScreen(routine: routine),
-          ),
-        );
-        if (updated == true && context.mounted) {
-          AppSnackbar.success(context, '루틴 변경사항을 저장했어요.');
-        }
-      },
-      child: Semantics(
-        hint: '길게 눌러 캘린더 날짜에 적용',
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.md),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-            ),
-          ),
-          child: Row(
-            children: [
-              _RoutineSwatch(routine: routine),
-              const SizedBox(width: SetflowSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      routine.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: SetflowSpacing.xxs),
-                    Text(
-                      _routineMeta(routine),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(color: muted),
-                    ),
-                  ],
-                ),
+    const ink = SetflowColors.ink;
+    final radius = BorderRadius.circular(SetflowRadii.md);
+    return Semantics(
+      hint: semanticsHint,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: fills,
               ),
-              const SizedBox(width: SetflowSpacing.sm),
-              Icon(Icons.drag_indicator_rounded, color: muted),
-            ],
+              borderRadius: radius,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.md2,
+                SetflowSpacing.sm,
+                SetflowSpacing.sm,
+                SetflowSpacing.md2,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                            top: SetflowSpacing.xs,
+                          ),
+                          child: RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: '${routine.exercises.length}',
+                                  style: theme.textTheme.headlineLarge
+                                      ?.copyWith(
+                                        color: ink,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures(),
+                                        ],
+                                      ),
+                                ),
+                                TextSpan(
+                                  text: ' 종목',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: ink,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (trailing != null)
+                        trailing!
+                      else
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            top: SetflowSpacing.xs,
+                            right: SetflowSpacing.xs,
+                          ),
+                          child: Icon(
+                            Icons.drag_indicator_rounded,
+                            size: 20,
+                            color: ink.withValues(alpha: .55),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: SetflowSpacing.md),
+                  Text(
+                    routine.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(color: ink),
+                  ),
+                  const SizedBox(height: SetflowSpacing.xxs),
+                  Text(
+                    [...muscles, routine.level].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: ink.withValues(alpha: .7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -2722,167 +2755,21 @@ class RoutinesScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: SetflowSpacing.lg),
-          // 루틴은 카드가 아니라 줄이다 — 헤어라인으로 나누고, 식별색 선 하나,
-          // 종목은 칩 무더기 대신 한 문장, 편집은 큰 테두리 버튼 대신 글자 버튼.
-          for (final routine in state.routines)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.lg),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
+          // 루틴은 **타일**이다 — 집어서 달력에 놓는 물건이니 달력 칸처럼 생겼다
+          // (부위 색 잔디 칸 + 종목 수 + 이름). 목록이 아니라 격자. 줄로 만들었더니
+          // "끌 수 있다"는 감이 죽었다. 메뉴(오늘 적용·수정·삭제)는 타일 귀퉁이.
+          _RoutineTileGrid(
+            children: [
+              for (final routine in state.routines)
+                _RoutineTile(
+                  key: ValueKey('routines-tile-${routine.id}'),
+                  routine: routine,
+                  onTap: () => _editRoutine(context, routine),
+                  trailing: _routineMenu(context, state, routine),
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      // 식별색 막대 대신 부위 스와치 — 홈의 나의 루틴과 같은 얼굴.
-                      _RoutineSwatch(routine: routine),
-                      const SizedBox(width: SetflowSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              routine.name,
-                              style: const TextStyle(
-                                fontSize: SetflowFontSize.titleLarge,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            Text(
-                              '${routine.exercises.length}개 운동 · ${routine.level}',
-                              style: TextStyle(
-                                fontSize: SetflowFontSize.caption,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      PopupMenuButton<String>(
-                        itemBuilder: (_) => [
-                          PopupMenuItem(value: 'apply', child: Text('오늘 적용')),
-                          PopupMenuItem(value: 'edit', child: Text('수정')),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text(
-                              '삭제',
-                              style: TextStyle(
-                                color: context.setflowColors.error,
-                              ),
-                            ),
-                          ),
-                        ],
-                        onSelected: (value) async {
-                          if (value == 'apply') {
-                            final added = state.applyRoutine(
-                              routine,
-                              DateTime.now(),
-                            );
-                            if (added == 0) {
-                              AppSnackbar.info(
-                                context,
-                                '오늘 기록에 루틴 운동이 이미 모두 있어요.',
-                              );
-                            } else {
-                              AppSnackbar.success(
-                                context,
-                                '오늘 캘린더에 운동 $added개를 적용했어요.',
-                              );
-                            }
-                          } else if (value == 'edit') {
-                            await _editRoutine(context, routine);
-                          } else if (value == 'delete') {
-                            final confirmed =
-                                await showDialog<bool>(
-                                  context: context,
-                                  builder: (dialogContext) => AlertDialog(
-                                    title: const Text('루틴을 삭제할까요?'),
-                                    content: Text(
-                                      '${routine.name} 루틴은 삭제 후 복구할 수 없습니다.',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(dialogContext, false),
-                                        child: const Text('취소'),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () =>
-                                            Navigator.pop(dialogContext, true),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor:
-                                              context.setflowColors.error,
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        child: const Text('삭제'),
-                                      ),
-                                    ],
-                                  ),
-                                ) ??
-                                false;
-                            if (confirmed && context.mounted) {
-                              try {
-                                final removed = await state.removeRoutine(
-                                  routine,
-                                );
-                                if (!context.mounted) return;
-                                if (removed) {
-                                  AppSnackbar.success(context, '루틴을 삭제했어요.');
-                                } else {
-                                  AppSnackbar.error(
-                                    context,
-                                    '삭제할 루틴을 찾지 못했어요.',
-                                  );
-                                }
-                              } catch (_) {
-                                if (context.mounted) {
-                                  AppSnackbar.error(
-                                    context,
-                                    '루틴을 서버에서 삭제하지 못했어요. 다시 시도해주세요.',
-                                  );
-                                }
-                              }
-                            }
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  if (routine.description.isNotEmpty) ...[
-                    const SizedBox(height: SetflowSpacing.sm),
-                    Text(
-                      routine.description,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                  const SizedBox(height: SetflowSpacing.xs),
-                  Text(
-                    routine.exercises.map((item) => item.name).join(' · '),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: SetflowSpacing.xs),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => _editRoutine(context, routine),
-                      icon: const Icon(Icons.edit_rounded, size: 18),
-                      label: const Text('루틴 편집'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
           if (state.routines.isEmpty)
             EmptyState(
               icon: Icons.playlist_add_rounded,
@@ -2908,6 +2795,73 @@ class RoutinesScreen extends StatelessWidget {
       ),
     );
   }
+
+  /// 오늘 적용 · 수정 · 삭제. 타일 귀퉁이의 ⋮.
+  Widget _routineMenu(
+    BuildContext context,
+    AppState state,
+    RoutineData routine,
+  ) => PopupMenuButton<String>(
+    itemBuilder: (_) => [
+      PopupMenuItem(value: 'apply', child: Text('오늘 적용')),
+      PopupMenuItem(value: 'edit', child: Text('수정')),
+      PopupMenuItem(
+        value: 'delete',
+        child: Text('삭제', style: TextStyle(color: context.setflowColors.error)),
+      ),
+    ],
+    onSelected: (value) async {
+      if (value == 'apply') {
+        final added = state.applyRoutine(routine, DateTime.now());
+        if (added == 0) {
+          AppSnackbar.info(context, '오늘 기록에 루틴 운동이 이미 모두 있어요.');
+        } else {
+          AppSnackbar.success(context, '오늘 캘린더에 운동 $added개를 적용했어요.');
+        }
+      } else if (value == 'edit') {
+        await _editRoutine(context, routine);
+      } else if (value == 'delete') {
+        final confirmed =
+            await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('루틴을 삭제할까요?'),
+                content: Text('${routine.name} 루틴은 삭제 후 복구할 수 없습니다.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('취소'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: context.setflowColors.error,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('삭제'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+        if (confirmed && context.mounted) {
+          try {
+            final removed = await state.removeRoutine(routine);
+            if (!context.mounted) return;
+            if (removed) {
+              AppSnackbar.success(context, '루틴을 삭제했어요.');
+            } else {
+              AppSnackbar.error(context, '삭제할 루틴을 찾지 못했어요.');
+            }
+          } catch (_) {
+            if (context.mounted) {
+              AppSnackbar.error(context, '루틴을 서버에서 삭제하지 못했어요. 다시 시도해주세요.');
+            }
+          }
+        }
+      }
+    },
+  );
 
   Future<void> _createRoutine(BuildContext context) async {
     final state = AppScope.of(context);

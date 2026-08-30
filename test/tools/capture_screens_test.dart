@@ -179,7 +179,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // 루틴 편집기 — 카드의 편집 버튼이 여는 실제 편집 화면.
-    await tester.tap(find.text('루틴 편집').first);
+    await tester.tap(find.byType(PopupMenuButton<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('수정'));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/routine_editor.png');
     await tester.pageBack();
