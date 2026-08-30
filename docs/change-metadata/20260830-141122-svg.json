@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "change_id": "20260830-141122-svg",
+  "created_at": "2026-08-30T14:11:22+09:00",
+  "repository": "setflow",
+  "branch": "main",
+  "baseline_commit": "9f9c2377aa1f3300740f14ae19e415ebdbff43cf",
+  "request": "가슴, 등, 어깨 등 부위별 SVG 아이콘을 만든다.",
+  "title": "운동 부위 SVG 아이콘 세트",
+  "purpose": "운동 부위를 작은 화면에서도 빠르게 구분할 수 있는 일관된 벡터 아이콘 자산을 제공한다.",
+  "files": [
+    {
+      "path": "pubspec.yaml",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 98,
+          "new_end": 98
+        }
+      ],
+      "working_tree_sha256": "e6b24e9f37d98b4efafac9465c73f66d3603935b314460ddec3b2be12e3a470e",
+      "symbols": [
+        "flutter.assets"
+      ],
+      "purpose": "새로 만든 가슴·등·어깨·하체·팔·복근·유산소 SVG 자산을 Flutter 애플리케이션 번들에 포함한다.",
+      "previous_behavior": "Flutter 자산 목록에 부위 아이콘 디렉터리가 없어 해당 SVG 파일들을 런타임에서 불러올 수 없었다.",
+      "new_behavior": "assets/icons/muscles/ 아래의 일곱 SVG 아이콘이 애플리케이션 자산 번들에 포함된다.",
+      "data_impact": "없음. 사용자 데이터, 운영 데이터, 데이터베이스 스키마를 읽거나 변경하지 않는다.",
+      "access_control_impact": "없음. 인증, 역할, 권한 검사에는 변화가 없다.",
+      "risks": [
+        "SVG를 실제 화면에 연결할 때 사용하는 렌더러와 색상 필터 방식에 따라 획 두께나 색상이 다르게 보일 수 있다.",
+        "자산 번들 크기가 약 3KB 증가한다."
+      ],
+      "rollback": "pubspec.yaml의 assets/icons/muscles/ 항목과 assets/icons/muscles/ 아래 일곱 SVG 파일을 함께 제거한다. 데이터 호환성 제약은 없다."
+    }
+  ],
+  "production_safety": {
+    "operational_data": "운영 데이터를 읽거나 생성·수정·삭제하지 않았다.",
+    "schema_migration": "없음. 마이그레이션과 백필이 필요하지 않은 정적 자산 변경이다.",
+    "external_side_effects": [
+      "없음. 배포, 외부 API 호출, 메시지 전송을 수행하지 않았다."
+    ]
+  },
+  "verification": [
+    {
+      "command": "Get-ChildItem assets\\icons\\muscles\\*.svg | ForEach-Object { [xml](Get-Content -Raw $_.FullName) | Out-Null }",
+      "result": "passed",
+      "evidence": "일곱 SVG 파일 모두 PowerShell XML 파서로 읽혔다."
+    },
+    {
+      "command": "Chrome headless contact-sheet render at 64px and 24px",
+      "result": "passed",
+      "evidence": "가슴·등·어깨·하체·팔·복근·유산소 아이콘이 두 크기에서 렌더링되고 서로 구분되는 것을 육안 확인했다."
+    },
+    {
+      "command": "dart run tool/check_architecture.dart",
+      "result": "passed",
+      "evidence": "종료 코드 0으로 아키텍처 검사가 완료됐다."
+    },
+    {
+      "command": "dart format lib test",
+      "result": "passed",
+      "evidence": "169개 파일을 검사했고 변경된 파일은 없었다."
+    },
+    {
+      "command": "flutter analyze",
+      "result": "passed",
+      "evidence": "No issues found."
+    },
+    {
+      "command": "flutter test",
+      "result": "passed",
+      "evidence": "603개 테스트가 통과했고 5개는 기존 조건에 따라 skip됐다."
+    }
+  ],
+  "residual_risks": [
+    "SVG 자산은 아직 기존 Material 운동 아이콘을 대체하도록 화면에 연결되지 않았다.",
+    "실제 화면에 연결할 때 각 아이콘에 부위명을 담은 Semantics 레이블을 제공해야 한다."
+  ],
+  "commit": "same-as-metadata-file"
+}

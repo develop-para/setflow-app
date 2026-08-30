@@ -99,6 +99,7 @@ flutter:
 
   assets:
     - assets/branding/setflow_mark.png
+    - assets/icons/muscles/
 
   fonts:
     - family: Pretendard
