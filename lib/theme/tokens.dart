@@ -267,13 +267,15 @@ extension SetflowThemeContext on BuildContext {
 /// 색이라 라이트·다크에서 뒤집지 않는다. 글자·점·아이콘에는 쓰지 말 것 — 흰 배경 위에서
 /// 대비가 안 나온다.
 abstract final class SetflowMuscleFill {
-  static const chest = Color(0xFFFF6B6B);
-  static const back = Color(0xFF4D8DFF);
-  static const shoulders = Color(0xFF2EC4B6);
-  static const legs = Color(0xFF34C759);
-  static const arms = Color(0xFFFF9F43);
-  static const core = Color(0xFFA66CFF);
-  static const cardio = Color(0xFF4CC9F0);
+  // 일곱 색이 한 밝기 띠(잉크 글자 4.5:1 이상)에 있되, 네온을 한 단계 눌렀다.
+  // 한 면에는 **한 색**만 칠한다 — 세 색을 섞은 그라데이션은 무지개가 됐다.
+  static const chest = Color(0xFFF2695E);
+  static const back = Color(0xFF4C7DF0);
+  static const shoulders = Color(0xFF26B5A8);
+  static const legs = Color(0xFF3DB86A);
+  static const arms = Color(0xFFF2A23A);
+  static const core = Color(0xFF9B7BF5);
+  static const cardio = Color(0xFF47B4E3);
 }
 
 abstract final class SetflowFontSize {

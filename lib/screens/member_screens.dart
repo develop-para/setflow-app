@@ -1308,7 +1308,10 @@ class _CalendarCell extends StatelessWidget {
       for (final item in session?.exercises ?? const <WorkoutExercise>[])
         item.template.muscle,
     }.toList();
-    final muscleFills = [for (final muscle in muscles) _muscleFill(muscle)];
+    final dominant = _dominantMuscle([
+      for (final item in session?.exercises ?? const <WorkoutExercise>[])
+        item.template.muscle,
+    ]);
     final resistanceVolumeLabel = session == null || session!.volume <= 0
         ? ''
         : session!.volume > 1000
@@ -1420,8 +1423,10 @@ class _CalendarCell extends StatelessWidget {
                   decoration: hasSession && !isDropTarget
                       ? BoxDecoration(
                           gradient: LinearGradient(
-                            colors: _muscleFills(
-                              muscleFills,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: _muscleShade(
+                              _muscleFill(dominant ?? ''),
                               completion: completion.clamp(0, 1).toDouble(),
                             ),
                           ),
@@ -1600,13 +1605,35 @@ Color _muscleFill(String muscle) => switch (muscle) {
 /// 칸 채움 — 깃허브 잔디처럼. 색은 그날의 부위, **진하기는 완료율**이다: 계획만
 /// 있는 날은 연하게, 다 한 날은 원색. 두 부위면 그 색들이 그라데이션으로 이어진다.
 /// 하나면 같은 색 둘(그라데이션 API가 둘을 요구한다).
-List<Color> _muscleFills(List<Color> colors, {required double completion}) {
+/// 종목이 가장 많은 부위. 같으면 먼저 나온 쪽. 비어 있으면 null.
+String? _dominantMuscle(Iterable<String> muscles) {
+  final counts = <String, int>{};
+  for (final muscle in muscles) {
+    counts[muscle] = (counts[muscle] ?? 0) + 1;
+  }
+  String? best;
+  var bestCount = 0;
+  for (final entry in counts.entries) {
+    if (entry.value > bestCount) {
+      best = entry.key;
+      bestCount = entry.value;
+    }
+  }
+  return best;
+}
+
+/// 한 면에는 한 색 — 깃허브 잔디처럼. [base]와 그것을 살짝 어둡게 한 톤 둘로
+/// 깊이만 주고, 진하기는 완료율이다(계획만 있는 날 45%, 다 한 날 100%).
+/// 세 색을 섞은 그라데이션은 무지개가 됐다("색상이 너무 별로").
+List<Color> _muscleShade(Color base, {required double completion}) {
   const floor = .45;
   final alpha = floor + (1 - floor) * completion.clamp(0, 1);
-  final filled = [for (final c in colors) c.withValues(alpha: alpha)];
-  if (filled.isEmpty) return [Colors.transparent, Colors.transparent];
-  if (filled.length == 1) return [filled.first, filled.first];
-  return filled;
+  final hsl = HSLColor.fromColor(base);
+  final deep = hsl
+      .withLightness((hsl.lightness - .10).clamp(0.0, 1.0))
+      .withSaturation((hsl.saturation + .05).clamp(0.0, 1.0))
+      .toColor();
+  return [base.withValues(alpha: alpha), deep.withValues(alpha: alpha)];
 }
 
 /// 세트가 하나라도 있는 날만 "운동한 날"이다. 최근순.
@@ -2248,7 +2275,9 @@ class _MyRoutinePreviewSection extends StatelessWidget {
             ),
           )
         else
-          _RoutineTileGrid(
+          // 홈은 캐러셀 — 하나면 꽉 찬 타일, 둘 이상이면 옆 타일이 살짝 보이게
+          // 넘긴다("2개 이상 되면 캐러셀"). 다 펼쳐 보는 격자는 내 루틴 화면.
+          _RoutineCarousel(
             children: [
               for (final routine in routines)
                 _MyRoutineHomeCard(
@@ -2315,6 +2344,48 @@ class _MyRoutineHomeCard extends StatelessWidget {
   }
 }
 
+/// 홈의 루틴 캐러셀. 한 장이면 그대로, 둘 이상이면 PageView 로 옆 장이 12% 보인다.
+/// 높이는 글자 배율을 따라 자란다 — 페이지뷰는 높이를 정해 줘야 한다.
+class _RoutineCarousel extends StatefulWidget {
+  const _RoutineCarousel({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  State<_RoutineCarousel> createState() => _RoutineCarouselState();
+}
+
+class _RoutineCarouselState extends State<_RoutineCarousel> {
+  final _controller = PageController(viewportFraction: .88);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.children.length == 1) return widget.children.single;
+    final height = MediaQuery.textScalerOf(context).scale(132);
+    return SizedBox(
+      height: height,
+      child: PageView(
+        controller: _controller,
+        padEnds: false,
+        clipBehavior: Clip.none,
+        children: [
+          for (final child in widget.children)
+            Padding(
+              padding: const EdgeInsets.only(right: SetflowSpacing.sm),
+              child: child,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 2열 격자 — 폭은 부모에서 받고, 높이는 내용이 정한다(글자 배율이 커져도 안 잘린다).
 class _RoutineTileGrid extends StatelessWidget {
   const _RoutineTileGrid({required this.children});
@@ -2360,9 +2431,13 @@ class _RoutineTile extends StatelessWidget {
     final muscles = <String>{
       for (final exercise in routine.exercises) exercise.muscle,
     }.toList();
-    final fills = _muscleFills([
-      for (final muscle in muscles) _muscleFill(muscle),
-    ], completion: 1);
+    final dominant =
+        _dominantMuscle([for (final e in routine.exercises) e.muscle]) ?? '';
+    final fills = _muscleShade(_muscleFill(dominant), completion: 1);
+    final others = [
+      for (final m in muscles)
+        if (m != dominant) m,
+    ];
     const ink = SetflowColors.ink;
     final radius = BorderRadius.circular(SetflowRadii.md);
     return Semantics(
@@ -2447,13 +2522,34 @@ class _RoutineTile extends StatelessWidget {
                     style: theme.textTheme.titleMedium?.copyWith(color: ink),
                   ),
                   const SizedBox(height: SetflowSpacing.xxs),
-                  Text(
-                    [...muscles, routine.level].join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: ink.withValues(alpha: .7),
-                    ),
+                  Row(
+                    children: [
+                      // 나머지 부위는 점으로 — 색을 섞지 않고도 "여러 부위"가 읽힌다.
+                      for (final muscle in others) ...[
+                        Container(
+                          width: SetflowSpacing.sm,
+                          height: SetflowSpacing.sm,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _muscleFill(muscle),
+                            border: Border.all(
+                              color: ink.withValues(alpha: .35),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: SetflowSpacing.xs),
+                      ],
+                      Expanded(
+                        child: Text(
+                          [...muscles, routine.level].join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: ink.withValues(alpha: .7),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
