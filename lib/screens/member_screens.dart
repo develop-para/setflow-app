@@ -812,8 +812,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               onPressed: _toggleExpanded,
                             ),
                             const SizedBox(height: SetflowSpacing.md),
-                            _TodaySection(onOpenRecord: widget.onOpenRecord),
-                            const SizedBox(height: SetflowSpacing.xl),
+                            // 나의 루틴은 달력 바로 아래 — 놓을 곳 옆에 놓을 것이 있다.
                             _MyRoutinePreviewSection(
                               onDragStarted: (routine) {
                                 HapticFeedback.mediumImpact();
@@ -825,6 +824,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 }
                               },
                             ),
+                            const SizedBox(height: SetflowSpacing.xl),
+                            _TodaySection(onOpenRecord: widget.onOpenRecord),
                             const SizedBox(height: SetflowSpacing.xl),
                             const _WeekSection(),
                             const SizedBox(height: SetflowSpacing.xl),
@@ -1745,14 +1746,10 @@ class _TodaySection extends StatelessWidget {
         : '지난 운동 ${_shortDate(last.date)} · ${_exercisesText(last)} · ${last.completedSets}세트';
     final action = active ? (finished ? '오늘 기록 보기' : '이어서 기록') : '오늘 운동 시작';
 
+    // 윗선은 없다 — 바로 위 나의 루틴 목록의 끝선이 이미 경계다(두 줄이 겹쳐 보였다).
     return Container(
       key: const ValueKey('home-today'),
-      padding: const EdgeInsets.only(top: SetflowSpacing.lg),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
+      padding: const EdgeInsets.only(top: SetflowSpacing.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2317,7 +2314,60 @@ class _MyRoutineHomeCard extends StatelessWidget {
   }
 }
 
-/// 루틴 한 줄 — 식별색 선, 이름, 개수·난이도, 오른쪽에 끌기 손잡이. 탭하면 편집.
+/// 루틴 스와치 — 이 루틴이 달력에 놓이면 보일 모습 그대로(부위 색 잔디 칸)에 종목 수.
+/// 왼쪽 색 막대("저 바 왼쪽 마음에 안 들어") 대신이다. 색은 루틴 고유색이 아니라
+/// 루틴이 다루는 **부위**의 색이라 뜻이 있고, 달력과 같은 문법이다.
+/// "3개 운동 · 중급 · 가슴 · 등" — 개수, 난이도, 다루는 부위 순.
+String _routineMeta(RoutineData routine) {
+  final muscles = <String>{
+    for (final exercise in routine.exercises) exercise.muscle,
+  };
+  return [
+    '${routine.exercises.length}개 운동',
+    routine.level,
+    ...muscles,
+  ].join(' · ');
+}
+
+class _RoutineSwatch extends StatelessWidget {
+  const _RoutineSwatch({required this.routine});
+
+  final RoutineData routine;
+  static const size = 44.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muscles = <String>{
+      for (final exercise in routine.exercises) exercise.muscle,
+    }.toList();
+    final fills = _muscleFills([
+      for (final muscle in muscles) _muscleFill(muscle),
+    ], completion: 1);
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: fills,
+        ),
+        borderRadius: BorderRadius.circular(SetflowRadii.sm),
+      ),
+      child: Text(
+        '${routine.exercises.length}',
+        style: theme.textTheme.titleLarge?.copyWith(
+          color: SetflowColors.ink,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+/// 루틴 한 줄 — 부위 스와치, 이름, 개수·난이도·부위, 오른쪽에 끌기 손잡이. 탭하면 편집.
 class _MyRoutineCardBody extends StatelessWidget {
   const _MyRoutineCardBody({required this.routine});
 
@@ -2350,14 +2400,7 @@ class _MyRoutineCardBody extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 3,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: routine.color,
-                  borderRadius: BorderRadius.circular(SetflowRadii.full),
-                ),
-              ),
+              _RoutineSwatch(routine: routine),
               const SizedBox(width: SetflowSpacing.md),
               Expanded(
                 child: Column(
@@ -2371,7 +2414,7 @@ class _MyRoutineCardBody extends StatelessWidget {
                     ),
                     const SizedBox(height: SetflowSpacing.xxs),
                     Text(
-                      '${routine.exercises.length}개 운동 · ${routine.level}',
+                      _routineMeta(routine),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(color: muted),
@@ -2696,19 +2739,8 @@ class RoutinesScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      // 루틴 식별색은 남긴다 — 모델에 실려 공유 카드에도
-                      // 나오는 정체성이다. 다만 카드에서 제일 큰 색 덩어리일
-                      // 이유는 없어서, 굵은 알약에서 가는 선으로 줄였다.
-                      Container(
-                        width: 4,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: routine.color,
-                          borderRadius: BorderRadius.circular(
-                            SetflowRadii.full,
-                          ),
-                        ),
-                      ),
+                      // 식별색 막대 대신 부위 스와치 — 홈의 나의 루틴과 같은 얼굴.
+                      _RoutineSwatch(routine: routine),
                       const SizedBox(width: SetflowSpacing.md),
                       Expanded(
                         child: Column(
