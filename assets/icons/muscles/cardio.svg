@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <title>유산소</title>
-  <circle cx="43" cy="10" r="6" fill="#F1F1F1" stroke="#111111" stroke-width="2.4"/>
-  <path d="m36 18-10 9 8 9 10-4 4-10-12-4Z" fill="#47B4E3" stroke="#111111" stroke-linejoin="round" stroke-width="2.4"/>
-  <path d="m29 25-10 4-7 10M44 22l8 7 7-4M35 35 25 45 12 57M42 33l6 12 10 9" fill="none" stroke="#111111" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
-  <path d="M5 19h14M4 27h9M6 35h5" fill="none" stroke="#47B4E3" stroke-linecap="round" stroke-width="2.4"/>
-</svg>

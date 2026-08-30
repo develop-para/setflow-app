@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0",
+  "change_id": "20260830-161700-png",
+  "created_at": "2026-08-30T16:17:00+09:00",
+  "repository": "setflow",
+  "branch": "main",
+  "baseline_commit": "09f886b667319ec5a8cdcafda78a13327310bcb2",
+  "request": "참고 이미지 느낌의 부위별 아이콘을 SVG가 아닌 이미지로 만든다.",
+  "title": "운동 부위 마스코트 PNG",
+  "purpose": "운동 부위 아이콘을 참고 이미지와 같은 귀여운 운동기구 캐릭터 세트로 교체한다.",
+  "files": [
+    {
+      "path": "lib/theme/muscle_illustrations.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": 1,
+          "old_end": 1,
+          "new_start": 1,
+          "new_end": 1
+        },
+        {
+          "old_start": 3,
+          "old_end": 9,
+          "new_start": 3,
+          "new_end": 9
+        }
+      ],
+      "working_tree_sha256": "00ab1e0a46bea51720999b41f24d6f60b0ac377349ee94ab759456387a63e54d",
+      "symbols": [
+        "SetflowMuscleIllustrations"
+      ],
+      "purpose": "일곱 운동 부위의 자산 경로를 기존 SVG에서 새 투명 PNG 마스코트로 전환한다.",
+      "previous_behavior": "부위별 경로가 단순 인체 실루엣 SVG 파일을 가리켰다.",
+      "new_behavior": "부위별 경로가 벤치프레스·랫풀다운·숄더프레스·스쿼트랙·덤벨·앱휠·트레드밀 마스코트 PNG를 가리킨다.",
+      "data_impact": "없음. 정적 자산 경로만 바뀌며 사용자·운영 데이터를 읽거나 쓰지 않는다.",
+      "access_control_impact": "없음. 인증과 역할 및 권한 검사에는 변화가 없다.",
+      "risks": [
+        "일곱 PNG의 합계가 약 7.15MB여서 앱 번들 크기가 기존 SVG보다 증가한다.",
+        "PNG는 SVG처럼 임의 배율에서 완전한 벡터 선명도를 유지하지 않지만 1254px 원본이라 일반 아이콘 크기에는 충분하다."
+      ],
+      "rollback": "이 파일의 경로를 .svg로 복구하고 일곱 PNG를 제거한 뒤 기준 커밋의 SVG 파일을 복원한다. 데이터 호환성 제약은 없다."
+    },
+    {
+      "path": "test/muscle_illustrations_test.dart",
+      "change_type": "modified",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": 5,
+          "old_end": 5,
+          "new_start": 5,
+          "new_end": 5
+        },
+        {
+          "old_start": 11,
+          "old_end": 11,
+          "new_start": 11,
+          "new_end": 11
+        }
+      ],
+      "working_tree_sha256": "bd971830afa900083dbdcfdac5f01dcc41cbc0a40f6413a5f8fe3e84aefd1830",
+      "symbols": [
+        "every exercise category maps to a distinct PNG mascot"
+      ],
+      "purpose": "일곱 부위가 서로 다른 PNG 마스코트 경로를 유지하는지 회귀 검사한다.",
+      "previous_behavior": "테스트는 일곱 경로가 서로 다르고 .svg로 끝나는지 확인했다.",
+      "new_behavior": "테스트는 일곱 경로가 서로 다르고 .png로 끝나는지 확인한다.",
+      "data_impact": "없음. 메모리 안의 상수 문자열만 검사한다.",
+      "access_control_impact": "없음. 권한 관련 코드를 실행하지 않는다.",
+      "risks": [
+        "파일 존재 여부와 픽셀 투명도는 이 단위 테스트만으로 검증되지 않아 별도 이미지 검사로 보완했다."
+      ],
+      "rollback": "자산 경로를 SVG로 되돌릴 때 테스트 이름과 확장자 단언도 .svg로 복구한다. 운영 데이터에는 영향이 없다."
+    }
+  ],
+  "production_safety": {
+    "operational_data": "운영 데이터를 읽거나 생성·수정·삭제하지 않았다.",
+    "schema_migration": "없음. 정적 이미지 자산과 경로 상수만 변경했다.",
+    "external_side_effects": [
+      "내장 이미지 생성 도구로 원본 마스코트와 투명 배경 버전을 생성하고 선택한 결과를 프로젝트에 복사했다.",
+      "배포, 메시지 전송, 운영 시스템 변경은 수행하지 않았다."
+    ]
+  },
+  "verification": [
+    {
+      "command": "System.Drawing PNG dimension, pixel format, and four-corner alpha validation",
+      "result": "passed",
+      "evidence": "일곱 파일이 모두 1254x1254 Format32bppArgb이고 네 모서리 알파가 0 또는 안티앨리어싱 경계값 1이었다."
+    },
+    {
+      "command": "Chrome headless contact-sheet render at 128px and 56px",
+      "result": "passed",
+      "evidence": "흰 카드 위에서 일곱 마스코트의 투명 배경, 장비 실루엣, 부위 색상, 작은 크기 식별성을 육안 확인했다."
+    },
+    {
+      "command": "dart run tool/check_architecture.dart",
+      "result": "passed",
+      "evidence": "종료 코드 0으로 아키텍처 검사가 완료됐다."
+    },
+    {
+      "command": "dart format lib test",
+      "result": "passed",
+      "evidence": "171개 파일을 검사했고 변경된 파일은 없었다."
+    },
+    {
+      "command": "flutter analyze",
+      "result": "passed",
+      "evidence": "No issues found."
+    },
+    {
+      "command": "flutter test",
+      "result": "passed",
+      "evidence": "새 PNG 경로 검사를 포함해 605개 테스트가 통과했고 5개는 기존 조건에 따라 skip됐다."
+    }
+  ],
+  "residual_risks": [
+    "마스코트 PNG와 경로 사전은 준비됐지만 기존 Material 운동 아이콘을 실제 화면에서 대체하도록 연결하지는 않았다.",
+    "상용 배포 전 참고 이미지와 구별되는 독창성과 브랜드 적합성을 최종 디자인 리뷰할 필요가 있다.",
+    "앱 번들 크기를 줄여야 하면 별도 승인 후 해상도별 최적화 자산을 만들 수 있다."
+  ],
+  "commit": "same-as-metadata-file"
+}

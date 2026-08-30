@@ -1,12 +1,12 @@
-/// Asset paths for the illustrated muscle-category SVG set.
+/// Asset paths for the illustrated muscle-category mascot set.
 abstract final class SetflowMuscleIllustrations {
-  static const chest = 'assets/icons/muscles/chest.svg';
-  static const back = 'assets/icons/muscles/back.svg';
-  static const shoulders = 'assets/icons/muscles/shoulders.svg';
-  static const legs = 'assets/icons/muscles/legs.svg';
-  static const arms = 'assets/icons/muscles/arms.svg';
-  static const core = 'assets/icons/muscles/core.svg';
-  static const cardio = 'assets/icons/muscles/cardio.svg';
+  static const chest = 'assets/icons/muscles/chest.png';
+  static const back = 'assets/icons/muscles/back.png';
+  static const shoulders = 'assets/icons/muscles/shoulders.png';
+  static const legs = 'assets/icons/muscles/legs.png';
+  static const arms = 'assets/icons/muscles/arms.png';
+  static const core = 'assets/icons/muscles/core.png';
+  static const cardio = 'assets/icons/muscles/cardio.png';
 
   static String forMuscle(String muscle) => switch (muscle) {
     '가슴' => chest,
