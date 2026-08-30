@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0",
+  "change_id": "20260830-151604-source-change",
+  "created_at": "2026-08-30T15:16:04+09:00",
+  "repository": "setflow",
+  "branch": "main",
+  "baseline_commit": "512bf88da326d246bd564c49219b0d64072547bf",
+  "request": "운동 부위 SVG를 일러스트 느낌으로 다시 만든다.",
+  "title": "운동 부위 일러스트 개선",
+  "purpose": "기존 기호형 SVG를 인체와 강조 부위가 함께 읽히는 컬러 일러스트로 교체하고 안정적인 자산 경로 매핑을 제공한다.",
+  "files": [
+    {
+      "path": "lib/theme/muscle_illustrations.dart",
+      "change_type": "added",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1,
+          "new_end": 21
+        }
+      ],
+      "working_tree_sha256": "1c218dfa4b582364c3bb7c7d476c14cf8814caebd06e41118da3983d7c47a8cb",
+      "symbols": [
+        "SetflowMuscleIllustrations",
+        "SetflowMuscleIllustrations.forMuscle"
+      ],
+      "purpose": "일곱 운동 부위 이름을 새 SVG 일러스트 자산 경로에 연결하는 단일 경로 사전을 제공한다.",
+      "previous_behavior": "File did not exist in the baseline commit.",
+      "new_behavior": "가슴·등·어깨·하체·팔·복근·유산소가 각각 고유한 SVG 경로로 결정되며 알 수 없는 값은 가슴 일러스트로 폴백한다.",
+      "data_impact": "없음. 정적 자산 경로만 반환하며 사용자·운영 데이터를 읽거나 쓰지 않는다.",
+      "access_control_impact": "없음. 인증과 역할 및 권한 검사에는 변화가 없다.",
+      "risks": [
+        "새 부위명이 추가될 때 매핑을 함께 추가하지 않으면 가슴 일러스트로 표시될 수 있다."
+      ],
+      "rollback": "이 파일과 대응 테스트를 제거하고 일곱 SVG 파일을 기준 커밋 512bf88 상태로 되돌린다. 데이터 호환성 제약은 없다."
+    },
+    {
+      "path": "test/muscle_illustrations_test.dart",
+      "change_type": "added",
+      "previous_path": null,
+      "line_ranges": [
+        {
+          "old_start": null,
+          "old_end": null,
+          "new_start": 1,
+          "new_end": 13
+        }
+      ],
+      "working_tree_sha256": "13fdefb40e3f30e2a4f16d225907721c323f25d652bbd63c68593f64a3c42b3e",
+      "symbols": [
+        "every exercise category maps to a distinct SVG illustration"
+      ],
+      "purpose": "지원하는 일곱 부위가 서로 다른 SVG 경로를 유지하는지 회귀 검사한다.",
+      "previous_behavior": "File did not exist in the baseline commit.",
+      "new_behavior": "중복 경로 또는 SVG가 아닌 경로가 등록되면 테스트가 실패한다.",
+      "data_impact": "없음. 메모리 안의 상수 문자열만 검사한다.",
+      "access_control_impact": "없음. 권한 관련 코드를 실행하지 않는다.",
+      "risks": [
+        "파일 존재 여부와 SVG 시각 품질은 이 단위 테스트만으로 검증되지 않는다. 별도 XML 파싱과 렌더링 검사로 보완했다."
+      ],
+      "rollback": "SetflowMuscleIllustrations 경로 사전을 제거할 때 이 테스트도 함께 제거한다. 운영 데이터에는 영향이 없다."
+    }
+  ],
+  "production_safety": {
+    "operational_data": "운영 데이터를 읽거나 생성·수정·삭제하지 않았다.",
+    "schema_migration": "없음. 정적 SVG와 자산 경로 상수만 변경했다.",
+    "external_side_effects": [
+      "없음. 배포, 외부 API 호출, 메시지 전송을 수행하지 않았다."
+    ]
+  },
+  "verification": [
+    {
+      "command": "PowerShell XML parse, 64x64 viewBox, and title validation for assets/icons/muscles/*.svg",
+      "result": "passed",
+      "evidence": "일곱 파일 모두 유효한 XML이고 0 0 64 64 viewBox와 한글 title을 가진다."
+    },
+    {
+      "command": "Chrome headless contact-sheet render at 88px and 40px",
+      "result": "passed",
+      "evidence": "흰색 카드와 검은 배경 조합에서 일곱 일러스트의 윤곽과 부위별 강조색을 육안 확인했다."
+    },
+    {
+      "command": "dart run tool/check_architecture.dart",
+      "result": "passed",
+      "evidence": "종료 코드 0으로 아키텍처 검사가 완료됐다."
+    },
+    {
+      "command": "dart format lib test",
+      "result": "passed",
+      "evidence": "171개 파일을 검사했고 변경된 파일은 없었다."
+    },
+    {
+      "command": "flutter analyze",
+      "result": "passed",
+      "evidence": "No issues found."
+    },
+    {
+      "command": "flutter test",
+      "result": "passed",
+      "evidence": "새 매핑 테스트를 포함해 604개 테스트가 통과했고 5개는 기존 조건에 따라 skip됐다."
+    }
+  ],
+  "residual_risks": [
+    "새 일러스트 자산과 경로 사전은 준비됐지만 기존 Material 운동 아이콘을 실제 화면에서 대체하도록 연결하지는 않았다.",
+    "앱 화면에 연결할 때 SVG 렌더러와 Semantics 레이블을 함께 추가해야 한다."
+  ],
+  "commit": "same-as-metadata-file"
+}

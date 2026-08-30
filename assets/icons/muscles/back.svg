@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <g fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
-    <path d="m18 8.5-5.5 2.5L8 18l3 5.5V39h26V23.5l3-5.5-4.5-7L30 8.5"/>
-    <path d="M24 12v26"/>
-    <path d="M23.5 17 17 14l-5 4.5 3 13.5 8.5 4"/>
-    <path d="M24.5 17 31 14l5 4.5L33 32l-8.5 4"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>등</title>
+  <circle cx="32" cy="10" r="6" fill="#F1F1F1" stroke="#111111" stroke-width="2.4"/>
+  <path d="M25 18 15 22a12 12 0 0 0-7 11v21h48V33a12 12 0 0 0-7-11l-10-4c-2 2-4 3-7 3s-5-1-7-3Z" fill="#F1F1F1" stroke="#111111" stroke-linejoin="round" stroke-width="2.4"/>
+  <path d="m30 24-9-3-6 7 3 17 11 6 3-15-2-12Z" fill="#4C7DF0" stroke="#111111" stroke-linejoin="round" stroke-width="2.2"/>
+  <path d="m34 24 9-3 6 7-3 17-11 6-3-15 2-12Z" fill="#4C7DF0" stroke="#111111" stroke-linejoin="round" stroke-width="2.2"/>
+  <path d="M32 23v28M23 27l7 5M41 27l-7 5" fill="none" stroke="#111111" stroke-linecap="round" stroke-width="2.2"/>
 </svg>

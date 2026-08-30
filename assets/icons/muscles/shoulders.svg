@@ -1,9 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <g fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
-    <circle cx="24" cy="11" r="5"/>
-    <path d="M17 18.5 11 20a7 7 0 0 0-5 6.7V31h9l2 10"/>
-    <path d="m31 18.5 6 1.5a7 7 0 0 1 5 6.7V31h-9l-2 10"/>
-    <path d="M17 18.5c1.5 2 3.8 3 7 3s5.5-1 7-3"/>
-    <path d="M15 31v-5.5M33 31v-5.5"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>어깨</title>
+  <circle cx="32" cy="10" r="6" fill="#F1F1F1" stroke="#111111" stroke-width="2.4"/>
+  <path d="M25 18 15 22a12 12 0 0 0-7 11v21h48V33a12 12 0 0 0-7-11l-10-4c-2 2-4 3-7 3s-5-1-7-3Z" fill="#F1F1F1" stroke="#111111" stroke-linejoin="round" stroke-width="2.4"/>
+  <path d="M25 19 15 22a12 12 0 0 0-6.8 8.5C13 32 18 31 21.5 28S25.5 22 25 19Z" fill="#26B5A8" stroke="#111111" stroke-linejoin="round" stroke-width="2.2"/>
+  <path d="m39 19 10 3a12 12 0 0 1 6.8 8.5C51 32 46 31 42.5 28S38.5 22 39 19Z" fill="#26B5A8" stroke="#111111" stroke-linejoin="round" stroke-width="2.2"/>
+  <path d="M23 37h18M20 45h24" fill="none" stroke="#111111" stroke-linecap="round" stroke-width="2.2"/>
 </svg>

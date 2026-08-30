@@ -1,9 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <g fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
-    <path d="M14 7h20l-1.5 15-3 8L28 42h-7l-1-12-4.5-8z"/>
-    <path d="M24 8v18"/>
-    <path d="m15.5 22 7.5 4-3 4"/>
-    <path d="m32.5 22-7.5 4 4.5 4"/>
-    <path d="M20 41h-6M28 41h6"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>하체</title>
+  <path d="M18 7h28l-2 21-7 10-2 18H24l-2-18-7-10-2-21Z" fill="#F1F1F1" stroke="#111111" stroke-linejoin="round" stroke-width="2.4"/>
+  <path d="M18 17h12l-1 18-6 9-2-16Z" fill="#3DB86A" stroke="#111111" stroke-linejoin="round" stroke-width="2.2"/>
+  <path d="M46 17H34l1 18 6 9 2-16Z" fill="#3DB86A" stroke="#111111" stroke-linejoin="round" stroke-width="2.2"/>
+  <path d="M32 8v27M24 47l-1 9h-8M40 47l1 9h8" fill="none" stroke="#111111" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"/>
+  <path d="M16 17h32" fill="none" stroke="#111111" stroke-linecap="round" stroke-width="2.2"/>
 </svg>
