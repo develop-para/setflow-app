@@ -24,7 +24,6 @@ import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
 import 'screens/splash_screen.dart';
 import 'services/auth_service.dart';
-import 'services/data_api_circuit_client.dart';
 import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
@@ -41,10 +40,6 @@ Future<void> main() async {
   await Supabase.initialize(
     url: SupabaseConfig.projectUrl,
     publishableKey: SupabaseConfig.publishableKey,
-    httpClient: DataApiCircuitClient(),
-    // One failed request is enough to open the shared circuit. SDK-level
-    // retries otherwise multiply every 503 before the app can use its cache.
-    postgrestOptions: const PostgrestClientOptions(retryEnabled: false),
     authOptions: const FlutterAuthClientOptions(
       authFlowType: AuthFlowType.pkce,
     ),

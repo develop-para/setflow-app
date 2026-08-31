@@ -21,7 +21,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # by hand for real releases. The build number here is a placeholder for plain
 # `flutter run`; every distributed build overrides it with --build-number set
 # to the commit count. See docs/versioning.md.
-version: 1.13.3+1
+version: 1.13.4+1
 
 environment:
   sdk: ^3.12.2
@@ -42,9 +42,6 @@ dependencies:
   intl: ^0.20.3
   hive_ce_flutter: ^2.3.4
   supabase_flutter: 2.17.2
-  # Supabase.initialize accepts a BaseClient. Pin the transport we use for the
-  # Data API circuit breaker instead of relying on a transitive version.
-  http: 1.6.0
   image_picker: ^1.2.3
   # Pure-Dart codec keeps image validation/downsampling identical on mobile,
   # web and Windows. Pin it because upload bytes are part of our data contract.
@@ -58,6 +55,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Repository outage tests use MockClient without changing production HTTP.
+  http: 1.6.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

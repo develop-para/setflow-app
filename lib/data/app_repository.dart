@@ -209,6 +209,31 @@ abstract interface class DeferredSyncAppRepository {
   Future<void> syncPending();
 }
 
+/// Repository capability for restoring device data before a cloud read.
+///
+/// The startup shell must not wait for a slow or unavailable backend when a
+/// durable account cache already exists. [AppState] uses this capability to
+/// render the local snapshot first, then calls [AppRepository.load] again to
+/// reconcile with the authoritative server in the background.
+abstract interface class LocalFirstAppRepository {
+  Future<AppSnapshot?> loadLocal(List<ExerciseTemplate> exerciseCatalog);
+}
+
+/// The server snapshot advanced after this device queued its local mutation.
+///
+/// This is deliberately a domain error rather than a PostgREST type so the
+/// application layer stays portable to another backend.
+class AppSnapshotVersionConflict implements Exception {
+  const AppSnapshotVersionConflict([
+    this.message = 'Snapshot version conflict.',
+  ]);
+
+  final String message;
+
+  @override
+  String toString() => 'AppSnapshotVersionConflict: $message';
+}
+
 /// 지금 걸려 있는 탈퇴 요청. 유예 중이면 [purgeAfter]까지 되돌릴 수 있다.
 class AccountDeletionRequest {
   const AccountDeletionRequest({

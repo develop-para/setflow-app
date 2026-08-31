@@ -263,6 +263,49 @@ void main() {
 
   group('SupabaseAppRepository durable account outbox', () {
     test(
+      'local cache initializes the shell before a delayed server read',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final loadGate = Completer<void>();
+        gateway.loadGate = loadGate;
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(
+            _snapshot(goals: const ['서버 최신 목표']),
+          ),
+          updatedAt: DateTime.utc(2026, 8, 31, 12),
+        );
+        final localStore = _MemoryOutbox();
+        localStore.cachedByUser['account-a'] = _snapshot(
+          goals: const ['기기 캐시 목표'],
+        );
+        final state = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: localStore,
+            cache: localStore,
+          ),
+        );
+        addTearDown(state.dispose);
+
+        var completed = false;
+        final initialization = state.initialize().whenComplete(() {
+          completed = true;
+        });
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(state.isInitialized, isTrue);
+        expect(state.goals, ['기기 캐시 목표']);
+        expect(completed, isFalse);
+
+        loadGate.complete();
+        await initialization;
+
+        expect(state.goals, ['서버 최신 목표']);
+      },
+    );
+
+    test(
       'completed set weight survives an offline restart before cloud sync',
       () async {
         final directory = await Directory.systemTemp.createTemp(
@@ -454,6 +497,58 @@ void main() {
         expect(restored?.goals, ['근력 향상']);
         expect(restored?.heightCm, 180);
         expect(restarted.lastSyncError, isA<StateError>());
+      },
+    );
+
+    test(
+      'version conflict merges stable collections and retries once',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final outbox = _MemoryOutbox();
+        final remoteBase = _snapshot(
+          goals: const ['기존 목표'],
+          routines: [_routine('shared-routine')],
+        );
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(remoteBase),
+          updatedAt: DateTime.utc(2026, 8, 31, 10),
+        );
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: outbox,
+          cache: outbox,
+        );
+        await repository.load(const []);
+        await repository.save(
+          _snapshot(
+            goals: const ['로컬 목표'],
+            routines: [_routine('local-routine')],
+          ),
+        );
+
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(
+            _snapshot(
+              goals: const ['다른 기기 목표'],
+              routines: [_routine('remote-routine')],
+            ),
+          ),
+          updatedAt: DateTime.utc(2026, 8, 31, 11),
+        );
+
+        await repository.syncPending();
+
+        final stored = AppSnapshotCodec.fromJson(
+          gateway.rows['account-a']!.payload,
+          const [],
+        );
+        expect(stored?.goals, ['로컬 목표']);
+        expect(
+          stored?.routines.map((routine) => routine.id),
+          unorderedEquals(['remote-routine', 'local-routine']),
+        );
+        expect(outbox.pendingByUser, isNot(contains('account-a')));
+        expect(gateway.expectedSaveUserIds, ['account-a', 'account-a']);
       },
     );
 
@@ -852,6 +947,7 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
   final Map<String, SupabaseAppSnapshotRow> rows = {};
   int saveFailuresRemaining = 0;
   int loadFailuresRemaining = 0;
+  Completer<void>? loadGate;
   int _version = 0;
   void Function()? beforeServerAuthorization;
   final List<String> expectedSaveUserIds = [];
@@ -905,6 +1001,7 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
 
   @override
   Future<SupabaseAppSnapshotRow?> loadSnapshot(String userId) async {
+    await loadGate?.future;
     if (loadFailuresRemaining > 0) {
       loadFailuresRemaining--;
       throw StateError('network unavailable');
@@ -933,7 +1030,7 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
     }
     final serverVersion = rows[userId]?.updatedAt;
     if (!_sameVersion(serverVersion, expectedUpdatedAt)) {
-      throw StateError('snapshot version conflict');
+      throw const AppSnapshotVersionConflict();
     }
     final updatedAt = DateTime.utc(2026, 8, 16, 0, 0, ++_version);
     rows[userId] = SupabaseAppSnapshotRow(

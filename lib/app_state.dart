@@ -455,7 +455,12 @@ class AppState extends ChangeNotifier {
   Future<void> initialize() async {
     final accountEpoch = _accountEpoch;
     try {
-      final snapshot = await _repository.load(exercises);
+      final localFirstRepository = _repository is LocalFirstAppRepository
+          ? _repository as LocalFirstAppRepository
+          : null;
+      var snapshot = localFirstRepository == null
+          ? await _repository.load(exercises)
+          : await localFirstRepository.loadLocal(exercises);
       if (!_isCurrentAccount(accountEpoch)) {
         _initialized = true;
         return;
@@ -466,7 +471,11 @@ class AppState extends ChangeNotifier {
       _initialized = true;
       persistenceError = null;
       persistenceSyncError = _repositorySyncError;
-      if (snapshot == null || _repositoryHasPendingSave) {
+      // A missing local cache does not mean the account is empty. Wait for the
+      // authoritative read before creating a default snapshot, otherwise a
+      // fresh install can race and conflict with an existing cloud account.
+      if (localFirstRepository == null &&
+          (snapshot == null || _repositoryHasPendingSave)) {
         _schedulePersist();
       }
       // The local account is ready, so the shell must be allowed to render now.
@@ -475,6 +484,33 @@ class AppState extends ChangeNotifier {
       // local snapshot was opening, waiting until those reads finish before
       // notifying leaves the launch screen up for the whole retry window.
       if (_isCurrentAccount(accountEpoch)) notifyListeners();
+
+      if (localFirstRepository != null) {
+        final localSnapshot = snapshot;
+        try {
+          snapshot = await _repository.load(exercises);
+          if (!_isCurrentAccount(accountEpoch)) return;
+          if (snapshot != null) {
+            _applySnapshot(snapshot);
+          } else if (localSnapshot != null && _repositorySyncError == null) {
+            // A successful empty response is authoritative. The device cache
+            // may describe data deleted from another device, so remove it from
+            // memory instead of showing a resurrected account for this run.
+            _resetForSignedOutUser();
+          }
+          persistenceSyncError = _repositorySyncError;
+          if ((snapshot == null && _repositorySyncError == null) ||
+              _repositoryHasPendingSave) {
+            _schedulePersist();
+          }
+          notifyListeners();
+        } catch (error) {
+          if (!_isCurrentAccount(accountEpoch)) return;
+          persistenceSyncError = error;
+          notifyListeners();
+        }
+      }
+
       try {
         await _refreshCloudData(expectedAccountEpoch: accountEpoch);
         if (!_isCurrentAccount(accountEpoch)) return;

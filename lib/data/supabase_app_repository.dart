@@ -96,16 +96,24 @@ class _SupabaseClientAppRemoteGateway implements SupabaseAppRemoteGateway {
     required List<Map<String, Object?>> sessions,
     required DateTime? expectedUpdatedAt,
   }) async {
-    final result = await _client.rpc(
-      'save_my_account_snapshot',
-      params: {
-        'expected_user_id': expectedUserId,
-        'schema_version': schemaVersion,
-        'payload': payload,
-        'sessions': sessions,
-        'expected_updated_at': expectedUpdatedAt?.toIso8601String(),
-      },
-    );
+    late final dynamic result;
+    try {
+      result = await _client.rpc(
+        'save_my_account_snapshot',
+        params: {
+          'expected_user_id': expectedUserId,
+          'schema_version': schemaVersion,
+          'payload': payload,
+          'sessions': sessions,
+          'expected_updated_at': expectedUpdatedAt?.toIso8601String(),
+        },
+      );
+    } on PostgrestException catch (error) {
+      if (_isSnapshotConflict(error)) {
+        throw AppSnapshotVersionConflict(error.message);
+      }
+      rethrow;
+    }
     final resultMap = result is Map
         ? Map<String, dynamic>.from(result)
         : const <String, dynamic>{};
@@ -122,13 +130,25 @@ class _SupabaseClientAppRemoteGateway implements SupabaseAppRemoteGateway {
   Future<void> clearSnapshot({
     required String expectedUserId,
     required DateTime? expectedUpdatedAt,
-  }) => _client.rpc<void>(
-    'clear_my_account_data',
-    params: {
-      'expected_user_id': expectedUserId,
-      'expected_updated_at': expectedUpdatedAt?.toIso8601String(),
-    },
-  );
+  }) async {
+    try {
+      await _client.rpc<void>(
+        'clear_my_account_data',
+        params: {
+          'expected_user_id': expectedUserId,
+          'expected_updated_at': expectedUpdatedAt?.toIso8601String(),
+        },
+      );
+    } on PostgrestException catch (error) {
+      if (_isSnapshotConflict(error)) {
+        throw AppSnapshotVersionConflict(error.message);
+      }
+      rethrow;
+    }
+  }
+
+  static bool _isSnapshotConflict(PostgrestException error) =>
+      error.code == 'PT409' || error.code == '40001';
 
   @override
   Future<Map<String, dynamic>> requestAccountDeletion(String? reason) async {
@@ -181,6 +201,7 @@ class SupabaseAppRepository
         AppRepository,
         PendingSaveAwareRepository,
         DeferredSyncAppRepository,
+        LocalFirstAppRepository,
         GuestDataAdoption,
         AccountDeletion,
         PushTokenRegistry {
@@ -212,7 +233,10 @@ class SupabaseAppRepository
 
   DateTime? _lastServerUpdatedAt;
   DateTime? _pendingExpectedServerUpdatedAt;
+  DateTime? _pendingQueuedAt;
   AppSnapshot? _pendingSnapshot;
+  AppSnapshot? _cachedSnapshot;
+  List<ExerciseTemplate> _exerciseCatalog = const [];
   String? _loadedUserId;
   bool _hasPendingSave = false;
   Object? _lastSyncError;
@@ -293,13 +317,16 @@ class SupabaseAppRepository
   }
 
   @override
-  Future<AppSnapshot?> load(List<ExerciseTemplate> exerciseCatalog) async {
+  Future<AppSnapshot?> loadLocal(List<ExerciseTemplate> exerciseCatalog) async {
+    _exerciseCatalog = List<ExerciseTemplate>.of(exerciseCatalog);
     final userId = _gateway.currentUserId;
     if (userId == null) {
       _loadedUserId = null;
       _lastServerUpdatedAt = null;
       _pendingExpectedServerUpdatedAt = null;
+      _pendingQueuedAt = null;
       _pendingSnapshot = null;
+      _cachedSnapshot = null;
       _hasPendingSave = false;
       _lastSyncError = null;
       // The guest gets their own device-local records back. Returning null
@@ -310,18 +337,43 @@ class SupabaseAppRepository
       _loadedUserId = userId;
       _lastServerUpdatedAt = null;
       _pendingExpectedServerUpdatedAt = null;
+      _pendingQueuedAt = null;
       _pendingSnapshot = null;
+      _cachedSnapshot = null;
       _hasPendingSave = false;
       _lastSyncError = null;
     }
 
     final pending = await _outbox?.loadPending(userId, exerciseCatalog);
     final cached = await _cache?.loadCached(userId, exerciseCatalog);
+    _cachedSnapshot = cached;
     if (pending != null) {
       _hasPendingSave = true;
       _pendingSnapshot = pending.snapshot;
       _pendingExpectedServerUpdatedAt = pending.expectedServerUpdatedAt;
+      _pendingQueuedAt = pending.queuedAt.toUtc();
+    } else {
+      _hasPendingSave = false;
+      _pendingSnapshot = null;
+      _pendingExpectedServerUpdatedAt = null;
+      _pendingQueuedAt = null;
     }
+    return pending?.snapshot ?? cached;
+  }
+
+  @override
+  Future<AppSnapshot?> load(List<ExerciseTemplate> exerciseCatalog) async {
+    final localSnapshot = await loadLocal(exerciseCatalog);
+    final userId = _gateway.currentUserId;
+    if (userId == null) return localSnapshot;
+    final pending = _pendingSnapshot == null
+        ? null
+        : PendingAppSnapshot(
+            snapshot: _pendingSnapshot!,
+            queuedAt: _pendingQueuedAt ?? DateTime.now().toUtc(),
+            expectedServerUpdatedAt: _pendingExpectedServerUpdatedAt,
+          );
+    final cached = _cachedSnapshot;
 
     SupabaseAppSnapshotRow? row;
     try {
@@ -346,6 +398,8 @@ class SupabaseAppRepository
         _hasPendingSave = false;
         _pendingSnapshot = null;
         _pendingExpectedServerUpdatedAt = null;
+        _pendingQueuedAt = null;
+        _cachedSnapshot = serverSnapshot;
         await _tryReconcileNormalizedWorkouts(serverSnapshot, userId);
         return serverSnapshot;
       }
@@ -359,9 +413,35 @@ class SupabaseAppRepository
             stageFirst: false,
           );
           _lastSyncError = null;
+          return pending.snapshot;
+        } on AppSnapshotVersionConflict {
+          try {
+            final resolved = await _resolveVersionConflict(
+              pending.snapshot,
+              userId,
+              pendingQueuedAt: pending.queuedAt,
+            );
+            _lastSyncError = null;
+            return resolved;
+          } catch (resolutionError) {
+            _lastSyncError = resolutionError;
+          }
         } catch (error) {
           // Keep showing the newest local mutation and retry via AppState. The
           // durable outbox remains intact until Supabase acknowledges it.
+          _lastSyncError = error;
+        }
+      } else {
+        try {
+          final resolved = await _resolveVersionConflict(
+            pending.snapshot,
+            userId,
+            pendingQueuedAt: pending.queuedAt,
+            currentRow: row,
+          );
+          _lastSyncError = null;
+          return resolved;
+        } catch (error) {
           _lastSyncError = error;
         }
       }
@@ -370,6 +450,7 @@ class SupabaseAppRepository
 
     if (serverSnapshot != null) {
       await _cache?.storeCached(userId, serverSnapshot);
+      _cachedSnapshot = serverSnapshot;
       await _tryReconcileNormalizedWorkouts(serverSnapshot, userId);
       return serverSnapshot;
     }
@@ -377,6 +458,7 @@ class SupabaseAppRepository
     // A successful empty server response is authoritative. Do not resurrect a
     // stale cache that may have been deleted from another device.
     if (cached != null) await _cache?.clearCached(userId);
+    _cachedSnapshot = null;
 
     final claimedSource = _claimedSource;
     if (claimedSource == null) return null;
@@ -485,27 +567,101 @@ class SupabaseAppRepository
         stageFirst: false,
       );
       _lastSyncError = null;
+    } on AppSnapshotVersionConflict {
+      try {
+        await _resolveVersionConflict(
+          snapshot,
+          userId,
+          pendingQueuedAt: _pendingQueuedAt ?? DateTime.now().toUtc(),
+        );
+        _lastSyncError = null;
+      } catch (resolutionError) {
+        _lastSyncError = resolutionError;
+        Error.throwWithStackTrace(resolutionError, StackTrace.current);
+      }
     } catch (error) {
       _lastSyncError = error;
       rethrow;
     }
   });
 
-  Future<void> _stageForUser(String userId, AppSnapshot snapshot) async {
+  Future<AppSnapshot> _resolveVersionConflict(
+    AppSnapshot localSnapshot,
+    String userId, {
+    required DateTime pendingQueuedAt,
+    SupabaseAppSnapshotRow? currentRow,
+  }) async {
+    final row = currentRow ?? await _gateway.loadSnapshot(userId);
+    if (_gateway.currentUserId != userId) {
+      throw StateError(
+        'Authenticated account changed during conflict recovery.',
+      );
+    }
+    final remoteSnapshot = row == null
+        ? null
+        : AppSnapshotCodec.fromJson(row.payload, _exerciseCatalog);
+    if (remoteSnapshot != null &&
+        _sameSnapshot(remoteSnapshot, localSnapshot)) {
+      _lastServerUpdatedAt = row!.updatedAt?.toUtc();
+      await _cache?.storeCached(userId, remoteSnapshot);
+      await _outbox?.clearPending(userId);
+      _cachedSnapshot = remoteSnapshot;
+      _hasPendingSave = false;
+      _pendingSnapshot = null;
+      _pendingExpectedServerUpdatedAt = null;
+      _pendingQueuedAt = null;
+      return remoteSnapshot;
+    }
+
+    _lastServerUpdatedAt = row?.updatedAt?.toUtc();
+    final preferLocal =
+        row?.updatedAt == null ||
+        !pendingQueuedAt.toUtc().isBefore(row!.updatedAt!.toUtc());
+    final resolved = remoteSnapshot == null
+        ? localSnapshot
+        : _mergeSnapshots(
+            remoteSnapshot,
+            localSnapshot,
+            preferLocal: preferLocal,
+          );
+    await _stageForUser(
+      userId,
+      resolved,
+      expectedUpdatedAt: _lastServerUpdatedAt,
+    );
+    await _saveForUser(
+      resolved,
+      userId,
+      expectedUpdatedAt: _lastServerUpdatedAt,
+      stageFirst: false,
+    );
+    return resolved;
+  }
+
+  Future<void> _stageForUser(
+    String userId,
+    AppSnapshot snapshot, {
+    DateTime? expectedUpdatedAt,
+  }) async {
     final outbox = _outbox;
     if (outbox == null) return;
-    final expected = _pendingExpectedServerUpdatedAt ?? _lastServerUpdatedAt;
+    final expected =
+        expectedUpdatedAt ??
+        _pendingExpectedServerUpdatedAt ??
+        _lastServerUpdatedAt;
+    final queuedAt = DateTime.now().toUtc();
     await outbox.stagePending(
       userId,
       PendingAppSnapshot(
         snapshot: snapshot,
-        queuedAt: DateTime.now().toUtc(),
+        queuedAt: queuedAt,
         expectedServerUpdatedAt: expected,
       ),
     );
     _hasPendingSave = true;
     _pendingSnapshot = snapshot;
     _pendingExpectedServerUpdatedAt = expected;
+    _pendingQueuedAt = queuedAt;
   }
 
   Future<void> _saveForUser(
@@ -531,10 +687,12 @@ class SupabaseAppRepository
     // idempotent instead of reusing the stale pre-write version.
     _pendingExpectedServerUpdatedAt = _lastServerUpdatedAt;
     await _cache?.storeCached(userId, snapshot);
+    _cachedSnapshot = snapshot;
     await _outbox?.clearPending(userId);
     _hasPendingSave = false;
     _pendingSnapshot = null;
     _pendingExpectedServerUpdatedAt = null;
+    _pendingQueuedAt = null;
   }
 
   Future<T> _serialize<T>(Future<T> Function() operation) {
@@ -619,7 +777,9 @@ class SupabaseAppRepository
     await _cache?.clearCached(userId);
     _lastServerUpdatedAt = null;
     _pendingExpectedServerUpdatedAt = null;
+    _pendingQueuedAt = null;
     _pendingSnapshot = null;
+    _cachedSnapshot = null;
     _hasPendingSave = false;
     _lastSyncError = null;
   });
@@ -632,6 +792,79 @@ class SupabaseAppRepository
   bool _sameSnapshot(AppSnapshot left, AppSnapshot right) =>
       jsonEncode(AppSnapshotCodec.toJson(left)) ==
       jsonEncode(AppSnapshotCodec.toJson(right));
+
+  AppSnapshot _mergeSnapshots(
+    AppSnapshot remote,
+    AppSnapshot local, {
+    required bool preferLocal,
+  }) {
+    final remotePayload = AppSnapshotCodec.toJson(remote);
+    final localPayload = AppSnapshotCodec.toJson(local);
+    final preferred = preferLocal ? localPayload : remotePayload;
+    final secondary = preferLocal ? remotePayload : localPayload;
+    final merged = <String, dynamic>{
+      ...secondary,
+      ...preferred,
+      'preferences': _mergeJsonMaps(
+        secondary['preferences'],
+        preferred['preferences'],
+      ),
+      'profile': _mergeJsonMaps(secondary['profile'], preferred['profile']),
+      'customExercises': _mergeJsonLists(
+        secondary['customExercises'],
+        preferred['customExercises'],
+        key: 'id',
+      ),
+      'sessions': _mergeJsonLists(
+        secondary['sessions'],
+        preferred['sessions'],
+        key: 'date',
+      ),
+      'routines': _mergeJsonLists(
+        secondary['routines'],
+        preferred['routines'],
+        key: 'id',
+      ),
+      'communityPosts': _mergeJsonLists(
+        secondary['communityPosts'],
+        preferred['communityPosts'],
+        key: 'id',
+      ),
+      'consultations': _mergeJsonLists(
+        secondary['consultations'],
+        preferred['consultations'],
+        key: 'id',
+      ),
+      'businessDashboards': _mergeJsonLists(
+        secondary['businessDashboards'],
+        preferred['businessDashboards'],
+        key: 'role',
+      ),
+    };
+    return AppSnapshotCodec.fromJson(merged, _exerciseCatalog) ?? local;
+  }
+
+  Map<String, dynamic> _mergeJsonMaps(Object? secondary, Object? preferred) => {
+    if (secondary is Map) ...Map<String, dynamic>.from(secondary),
+    if (preferred is Map) ...Map<String, dynamic>.from(preferred),
+  };
+
+  List<Map<String, dynamic>> _mergeJsonLists(
+    Object? secondary,
+    Object? preferred, {
+    required String key,
+  }) {
+    final merged = <String, Map<String, dynamic>>{};
+    for (final source in [secondary, preferred]) {
+      if (source is! List) continue;
+      for (final value in source.whereType<Map>()) {
+        final item = Map<String, dynamic>.from(value);
+        final itemKey = item[key]?.toString();
+        if (itemKey != null && itemKey.isNotEmpty) merged[itemKey] = item;
+      }
+    }
+    return merged.values.toList(growable: false);
+  }
 
   AppSnapshot _sanitizeClaimedLegacySnapshot(AppSnapshot source) {
     const seededRoutineIds = {'mine_1', 'mine_2'};
