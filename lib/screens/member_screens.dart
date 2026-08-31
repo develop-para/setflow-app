@@ -2513,8 +2513,6 @@ class _RoutinePebble extends StatelessWidget {
     final theme = Theme.of(context);
     final dominant =
         _dominantMuscle([for (final e in routine.exercises) e.muscle]) ?? '';
-    final fills = _muscleShade(_muscleFill(dominant), completion: 1);
-    const ink = SetflowColors.ink;
     final radius = BorderRadius.circular(SetflowRadii.xl);
     return Semantics(
       hint: semanticsHint,
@@ -2526,12 +2524,11 @@ class _RoutinePebble extends StatelessWidget {
             onTap: onTap,
             borderRadius: radius,
             child: Ink(
+              // 원색 채움은 마스코트와 부딪힌다("배경색을 저걸로 하면
+              // 안되겠다") — 마스코트가 이미 부위 색을 입고 있어서, 판은
+              // 달력 칸처럼 옅은 틴트로 물러나고 캐릭터가 주인공이 된다.
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: fills,
-                ),
+                color: _muscleFill(dominant).withValues(alpha: .16),
                 borderRadius: radius,
               ),
               child: Padding(
@@ -2557,13 +2554,15 @@ class _RoutinePebble extends StatelessWidget {
                       routine.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge?.copyWith(color: ink),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                     const SizedBox(height: SetflowSpacing.xxs),
                     Text(
                       '${routine.exercises.length}종목',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: ink.withValues(alpha: .65),
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
