@@ -11,6 +11,7 @@ import '../data/business_repository.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
+import '../theme/muscle_illustrations.dart';
 import '../widgets/common.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
@@ -2418,17 +2419,24 @@ class _MyRoutinePreviewSection extends StatelessWidget {
             ),
           )
         else
-          // 홈은 캐러셀 — 하나면 꽉 찬 타일, 둘 이상이면 옆 타일이 살짝 보이게
-          // 넘긴다("2개 이상 되면 캐러셀"). 다 펼쳐 보는 격자는 내 루틴 화면.
-          _RoutineCarousel(
-            children: [
-              for (final routine in routines)
-                _MyRoutineHomeCard(
-                  routine: routine,
-                  onDragStarted: () => onDragStarted(routine),
-                  onDragEnded: onDragEnded,
-                ),
-            ],
+          // 조약돌 줄 — 슬래브 캐러셀 대신 손에 쥐는 크기다("조약돌 같은
+          // 크기로", 사용자). 높이는 내용이 정하고, 넘치면 옆으로 민다.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final (index, routine) in routines.indexed) ...[
+                  if (index > 0) const SizedBox(width: SetflowSpacing.sm),
+                  _MyRoutineHomeCard(
+                    routine: routine,
+                    onDragStarted: () => onDragStarted(routine),
+                    onDragEnded: onDragEnded,
+                  ),
+                ],
+              ],
+            ),
           ),
       ],
     );
@@ -2448,82 +2456,122 @@ class _MyRoutineHomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 들어 올리면 타일 그대로 떠서 달력으로 간다 — 놓이면 그 모양이 칸이 된다.
-    return LayoutBuilder(
-      builder: (context, constraints) => LongPressDraggable<Object>(
-        data: routine,
-        onDragStarted: onDragStarted,
-        onDragEnd: (_) => onDragEnded(),
-        feedback: Material(
-          elevation: 12,
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(SetflowRadii.md),
-          child: SizedBox(
-            width: constraints.maxWidth,
-            child: _RoutineTile(routine: routine),
-          ),
-        ),
-        childWhenDragging: Opacity(
-          opacity: .28,
-          child: _RoutineTile(routine: routine),
-        ),
-        child: _RoutineTile(
-          key: ValueKey('home-routine-${routine.id}'),
-          routine: routine,
-          semanticsHint: '길게 눌러 캘린더 날짜에 적용',
-          onTap: () async {
-            final updated = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                builder: (_) => RoutineEditorScreen(routine: routine),
-              ),
-            );
-            if (updated == true && context.mounted) {
-              AppSnackbar.success(context, '루틴 변경사항을 저장했어요.');
-            }
-          },
-        ),
+    // 들어 올리면 조약돌 그대로 떠서 달력으로 간다.
+    return LongPressDraggable<Object>(
+      data: routine,
+      onDragStarted: onDragStarted,
+      onDragEnd: (_) => onDragEnded(),
+      feedback: Material(
+        elevation: 12,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(SetflowRadii.xl),
+        child: _RoutinePebble(routine: routine),
+      ),
+      childWhenDragging: Opacity(
+        opacity: .28,
+        child: _RoutinePebble(routine: routine),
+      ),
+      child: _RoutinePebble(
+        key: ValueKey('home-routine-${routine.id}'),
+        routine: routine,
+        semanticsHint: '길게 눌러 캘린더 날짜에 적용',
+        onTap: () async {
+          final updated = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => RoutineEditorScreen(routine: routine),
+            ),
+          );
+          if (updated == true && context.mounted) {
+            AppSnackbar.success(context, '루틴 변경사항을 저장했어요.');
+          }
+        },
       ),
     );
   }
 }
 
-/// 홈의 루틴 캐러셀. 한 장이면 그대로, 둘 이상이면 PageView 로 옆 장이 12% 보인다.
-/// 높이는 글자 배율을 따라 자란다 — 페이지뷰는 높이를 정해 줘야 한다.
-class _RoutineCarousel extends StatefulWidget {
-  const _RoutineCarousel({required this.children});
+/// 조약돌 — 홈의 루틴은 화면을 덮는 슬래브가 아니라 손에 쥐는 크기다.
+/// 부위 색 잔디 채움 위에 부위 마스코트가 서고, 이름과 종목 수가 아래 줄.
+/// 길게 눌러 달력에 놓기와 탭-편집은 큰 타일 시절과 같다. 전부 펼친 격자와
+/// 관리는 내 루틴 화면(_RoutineTile) 몫이다.
+class _RoutinePebble extends StatelessWidget {
+  const _RoutinePebble({
+    required this.routine,
+    this.onTap,
+    this.semanticsHint,
+    super.key,
+  });
 
-  final List<Widget> children;
+  static const width = 108.0;
 
-  @override
-  State<_RoutineCarousel> createState() => _RoutineCarouselState();
-}
-
-class _RoutineCarouselState extends State<_RoutineCarousel> {
-  final _controller = PageController(viewportFraction: .88);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final RoutineData routine;
+  final VoidCallback? onTap;
+  final String? semanticsHint;
 
   @override
   Widget build(BuildContext context) {
-    if (widget.children.length == 1) return widget.children.single;
-    final height = MediaQuery.textScalerOf(context).scale(132);
-    return SizedBox(
-      height: height,
-      child: PageView(
-        controller: _controller,
-        padEnds: false,
-        clipBehavior: Clip.none,
-        children: [
-          for (final child in widget.children)
-            Padding(
-              padding: const EdgeInsets.only(right: SetflowSpacing.sm),
-              child: child,
+    final theme = Theme.of(context);
+    final dominant =
+        _dominantMuscle([for (final e in routine.exercises) e.muscle]) ?? '';
+    final fills = _muscleShade(_muscleFill(dominant), completion: 1);
+    const ink = SetflowColors.ink;
+    final radius = BorderRadius.circular(SetflowRadii.xl);
+    return Semantics(
+      hint: semanticsHint,
+      child: SizedBox(
+        width: width,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: fills,
+                ),
+                borderRadius: radius,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.sm,
+                  SetflowSpacing.md,
+                  SetflowSpacing.sm,
+                  SetflowSpacing.md,
+                ),
+                child: Column(
+                  children: [
+                    Image.asset(
+                      SetflowMuscleIllustrations.forMuscle(dominant),
+                      height: 52,
+                      fit: BoxFit.contain,
+                      // 원본이 큰 PNG라 디코드 크기를 묶는다 — 조약돌 하나에
+                      // 원본 픽셀을 다 올릴 이유가 없다.
+                      cacheHeight: 208,
+                      filterQuality: FilterQuality.medium,
+                    ),
+                    const SizedBox(height: SetflowSpacing.sm),
+                    Text(
+                      routine.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(color: ink),
+                    ),
+                    const SizedBox(height: SetflowSpacing.xxs),
+                    Text(
+                      '${routine.exercises.length}종목',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: ink.withValues(alpha: .65),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -2559,14 +2607,12 @@ class _RoutineTile extends StatelessWidget {
     required this.routine,
     this.onTap,
     this.trailing,
-    this.semanticsHint,
     super.key,
   });
 
   final RoutineData routine;
   final VoidCallback? onTap;
   final Widget? trailing;
-  final String? semanticsHint;
 
   @override
   Widget build(BuildContext context) {
@@ -2583,119 +2629,111 @@ class _RoutineTile extends StatelessWidget {
     ];
     const ink = SetflowColors.ink;
     final radius = BorderRadius.circular(SetflowRadii.md);
-    return Semantics(
-      hint: semanticsHint,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radius,
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: fills,
-              ),
-              borderRadius: radius,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: fills,
             ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                SetflowSpacing.md2,
-                SetflowSpacing.sm,
-                SetflowSpacing.sm,
-                SetflowSpacing.md2,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(
-                            top: SetflowSpacing.xs,
-                          ),
-                          child: RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: '${routine.exercises.length}',
-                                  style: theme.textTheme.headlineLarge
-                                      ?.copyWith(
-                                        color: ink,
-                                        fontFeatures: const [
-                                          FontFeature.tabularFigures(),
-                                        ],
-                                      ),
+            borderRadius: radius,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              SetflowSpacing.md2,
+              SetflowSpacing.sm,
+              SetflowSpacing.sm,
+              SetflowSpacing.md2,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: SetflowSpacing.xs),
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '${routine.exercises.length}',
+                                style: theme.textTheme.headlineLarge?.copyWith(
+                                  color: ink,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
                                 ),
-                                TextSpan(
-                                  text: ' 종목',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    color: ink,
-                                  ),
+                              ),
+                              TextSpan(
+                                text: ' 종목',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: ink,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      if (trailing != null)
-                        trailing!
-                      else
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: SetflowSpacing.xs,
-                            right: SetflowSpacing.xs,
-                          ),
-                          child: Icon(
-                            Icons.drag_indicator_rounded,
-                            size: 20,
-                            color: ink.withValues(alpha: .55),
-                          ),
+                    ),
+                    if (trailing != null)
+                      trailing!
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          top: SetflowSpacing.xs,
+                          right: SetflowSpacing.xs,
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: SetflowSpacing.md),
-                  Text(
-                    routine.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(color: ink),
-                  ),
-                  const SizedBox(height: SetflowSpacing.xxs),
-                  Row(
-                    children: [
-                      // 나머지 부위는 점으로 — 색을 섞지 않고도 "여러 부위"가 읽힌다.
-                      for (final muscle in others) ...[
-                        Container(
-                          width: SetflowSpacing.sm,
-                          height: SetflowSpacing.sm,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _muscleFill(muscle),
-                            border: Border.all(
-                              color: ink.withValues(alpha: .35),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: SetflowSpacing.xs),
-                      ],
-                      Expanded(
-                        child: Text(
-                          [...muscles, routine.level].join(' · '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: ink.withValues(alpha: .7),
-                          ),
+                        child: Icon(
+                          Icons.drag_indicator_rounded,
+                          size: 20,
+                          color: ink.withValues(alpha: .55),
                         ),
                       ),
+                  ],
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                Text(
+                  routine.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(color: ink),
+                ),
+                const SizedBox(height: SetflowSpacing.xxs),
+                Row(
+                  children: [
+                    // 나머지 부위는 점으로 — 색을 섞지 않고도 "여러 부위"가 읽힌다.
+                    for (final muscle in others) ...[
+                      Container(
+                        width: SetflowSpacing.sm,
+                        height: SetflowSpacing.sm,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _muscleFill(muscle),
+                          border: Border.all(color: ink.withValues(alpha: .35)),
+                        ),
+                      ),
+                      const SizedBox(width: SetflowSpacing.xs),
                     ],
-                  ),
-                ],
-              ),
+                    Expanded(
+                      child: Text(
+                        [...muscles, routine.level].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: ink.withValues(alpha: .7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
