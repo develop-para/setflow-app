@@ -2532,42 +2532,61 @@ class _SwipeableSetState extends State<_SwipeableSet>
         ? (widget.set.completed ? SetflowIcons.undo : SetflowIcons.setComplete)
         : Icons.delete_outline_rounded;
 
-    return ColoredBox(
-      color: fill.withValues(alpha: .10 + .40 * strength),
-      child: Align(
-        alignment: logging ? Alignment.centerLeft : Alignment.centerRight,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: AnimatedScale(
-            // A small kick at the threshold: the row has to say "let go now"
-            // without the thumb leaving the glass to look for a label.
-            scale: passed ? 1.08 : 1,
-            duration: SetflowMotion.micro,
-            child: Opacity(
-              opacity: (.45 + .55 * strength).clamp(0.0, 1.0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: fill,
-                  borderRadius: BorderRadius.circular(SetflowRadii.full),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 17, color: accent),
-                    const SizedBox(width: SetflowSpacing.xs2),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: SetflowFontSize.caption,
-                        fontWeight: SetflowWeight.medium,
-                        color: accent,
-                      ),
+    // 전체를 채우는 워시가 아니라 **드러난 만큼만 자라는 둥근 패널**이다.
+    // 워시는 행과 만나는 안쪽 경계가 직각으로 잘려서, 행의 둥근 모서리 옆에
+    // 각진 색 조각이 그대로 노출됐다(실기기 캡처로 확인). 패널 폭을
+    // progress에 묶으면 네 모서리가 전부 둥근 채로 행을 따라 자란다.
+    return FractionallySizedBox(
+      alignment: logging ? Alignment.centerLeft : Alignment.centerRight,
+      widthFactor: progress.clamp(0.0, 1.0),
+      heightFactor: 1,
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: fill.withValues(alpha: .10 + .40 * strength),
+          borderRadius: BorderRadius.circular(SetflowRadii.md),
+        ),
+        child: Align(
+          alignment: logging ? Alignment.centerLeft : Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            // 패널이 칩보다 좁은 초기 프레임에서 칩은 줄어들지 않고 패널의
+            // 둥근 클립 밖으로 잘려 나간다 — fit.none이 오버플로 에러 없이
+            // 자연 크기를 유지하게 한다.
+            child: FittedBox(
+              fit: BoxFit.none,
+              child: AnimatedScale(
+                // A small kick at the threshold: the row has to say "let go now"
+                // without the thumb leaving the glass to look for a label.
+                scale: passed ? 1.08 : 1,
+                duration: SetflowMotion.micro,
+                child: Opacity(
+                  opacity: (.45 + .55 * strength).clamp(0.0, 1.0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-                  ],
+                    decoration: BoxDecoration(
+                      color: fill,
+                      borderRadius: BorderRadius.circular(SetflowRadii.full),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 17, color: accent),
+                        const SizedBox(width: SetflowSpacing.xs2),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: SetflowFontSize.caption,
+                            fontWeight: SetflowWeight.medium,
+                            color: accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
