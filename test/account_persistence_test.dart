@@ -393,6 +393,28 @@ void main() {
       expect(restarted.hasPendingSave, isFalse);
     });
 
+    test('a mutation reaches the server without the periodic timer', () async {
+      final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+      final outbox = _MemoryOutbox();
+      final state = AppState(
+        repository: SupabaseAppRepository.withGateway(gateway, outbox: outbox),
+      );
+      try {
+        await state.initialize();
+        expect(gateway.rows, isEmpty);
+
+        state.markSwipeLearned();
+        // 로컬 디바운스 250ms + 서버 싱크 디바운스 1s를 지나면 5분 주기
+        // 타이머 없이도 아웃박스가 서버로 올라가 있어야 한다.
+        await Future<void>.delayed(const Duration(seconds: 2));
+
+        expect(gateway.rows, contains('account-a'));
+        expect(state.hasPendingPersistenceSync, isFalse);
+      } finally {
+        state.dispose();
+      }
+    });
+
     test(
       'direct auth switch stages A only under A and never writes it to B',
       () async {

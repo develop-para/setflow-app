@@ -106,6 +106,7 @@ class AppState extends ChangeNotifier {
   /// 혼자서는 성립하지 않는 기능이라 로컬 대체본을 두지 않는다.
   final TogetherRepository? togetherRepository;
   Timer? _persistTimer;
+  Timer? _serverSyncTimer;
   bool _initialized = false;
   bool _disposed = false;
   int _accountEpoch = 0;
@@ -864,6 +865,7 @@ class AppState extends ChangeNotifier {
       }
       if (_isCurrentAccount(accountEpoch)) {
         _persistTimer?.cancel();
+        _serverSyncTimer?.cancel();
         _queuedSnapshot = null;
         _resetForSignedOutUser();
         notifyListeners();
@@ -977,6 +979,7 @@ class AppState extends ChangeNotifier {
   Future<void> _syncAfterAuthenticationOnce() async {
     final profileDraft = _stagedMemberProfileDraft;
     _persistTimer?.cancel();
+    _serverSyncTimer?.cancel();
     final pendingSignOut = _signOutInFlight;
     if (pendingSignOut != null) {
       try {
@@ -1006,6 +1009,7 @@ class AppState extends ChangeNotifier {
       }
     }
     _persistTimer?.cancel();
+    _serverSyncTimer?.cancel();
     _queuedSnapshot = null;
     final accountEpoch = ++_accountEpoch;
     _businessRequestSequence++;
@@ -2816,7 +2820,7 @@ class AppState extends ChangeNotifier {
         facts.addAll({
           'displayName': trainer.displayName,
           'revenue': '${_formatInteger(metrics.pendingSettlement)}원',
-          'revenueChange': 'Supabase 정산 데이터 기준',
+          'revenueChange': '서버 정산 데이터 기준',
           'members': '${metrics.activeMembers}',
           'memberCapacity': '명',
           'feedbackPending': '${metrics.overdueFeedbacks}',
@@ -5944,6 +5948,8 @@ class AppState extends ChangeNotifier {
   Future<void> clearPersistedData() async {
     _persistTimer?.cancel();
     _persistTimer = null;
+    _serverSyncTimer?.cancel();
+    _serverSyncTimer = null;
     _queuedSnapshot = null;
     final inFlight = _persistInFlight;
     if (inFlight != null) {
@@ -6040,7 +6046,25 @@ class AppState extends ChangeNotifier {
   void _schedulePersistTimer() {
     _persistTimer?.cancel();
     _persistTimer = Timer(const Duration(milliseconds: 250), () {
-      unawaited(flushPersistence().catchError((_) {}));
+      unawaited(
+        flushPersistence()
+            .then((_) => _scheduleServerSync())
+            .catchError((_) {}),
+      );
+    });
+  }
+
+  /// 로컬 저장이 끝나는 즉시 서버 업로드를 예약한다. 예전엔 5분 주기 타이머와
+  /// 앱 백그라운드 전환만 업로드를 트리거해서, 방금 기록한 세트가 최대 5분간
+  /// "서버 동기화 대기 중"으로 남았다 — 사용자에겐 서버가 죽은 것으로 보인다.
+  /// 1초 디바운스는 세트 연속 기록을 업로드 한 번으로 접는다. 실패해도 여기서
+  /// 재시도하지 않는다: 아웃박스는 이미 내구적이고, 다음 기록·5분 주기·
+  /// 라이프사이클 경로가 재시도를 맡는다.
+  void _scheduleServerSync() {
+    if (!hasPendingPersistenceSync) return;
+    _serverSyncTimer?.cancel();
+    _serverSyncTimer = Timer(const Duration(seconds: 1), () {
+      unawaited(syncPersistenceToServer().catchError((_) {}));
     });
   }
 
@@ -6772,6 +6796,7 @@ class AppState extends ChangeNotifier {
     _scheduleRequestSequence++;
     _businessMutations.clear();
     _restTimer?.cancel();
+    _serverSyncTimer?.cancel();
     super.dispose();
   }
 }
