@@ -2532,67 +2532,83 @@ class _SwipeableSetState extends State<_SwipeableSet>
         ? (widget.set.completed ? SetflowIcons.undo : SetflowIcons.setComplete)
         : Icons.delete_outline_rounded;
 
-    // 전체를 채우는 워시가 아니라 **드러난 만큼만 자라는 둥근 패널**이다.
-    // 워시는 행과 만나는 안쪽 경계가 직각으로 잘려서, 행의 둥근 모서리 옆에
-    // 각진 색 조각이 그대로 노출됐다(실기기 캡처로 확인). 패널 폭을
-    // progress에 묶으면 네 모서리가 전부 둥근 채로 행을 따라 자란다.
-    return FractionallySizedBox(
-      alignment: logging ? Alignment.centerLeft : Alignment.centerRight,
-      widthFactor: progress.clamp(0.0, 1.0),
-      heightFactor: 1,
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: fill.withValues(alpha: .10 + .40 * strength),
-          borderRadius: BorderRadius.circular(SetflowRadii.md),
-        ),
-        child: Align(
+    // 트랙은 **행 밑으로 모서리 반경만큼 파고드는 둥근 패널**이다.
+    // 전체를 채우는 워시는 행의 둥근 모서리 옆에 각진 색 조각을 남기고,
+    // 드러난 폭과 정확히 같은 패널은 행의 곡선과 패널의 곡선 사이에 흰
+    // 허리가 생겨 "행 뒤의 배경"이 아니라 따로 노는 조각으로 읽혔다
+    // (둘 다 실기기 보고). 반경만큼 겹치면 패널의 안쪽 둥근 모서리가 행의
+    // 곡선 뒤에 숨어, 완료 쪽 힌트처럼 행 뒤에 깔린 면으로 보인다.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final revealed = constraints.maxWidth * progress.clamp(0.0, 1.0);
+        // 겹침은 반경의 절반: 반경 전체를 겹치면 안쪽 곡선이 행 밑에 다
+        // 숨어 전면 워시와 같아지고(각진 조각), 겹침이 없으면 행과 패널의
+        // 곡선 사이에 흰 허리가 생긴다. 절반이면 곡선의 바깥 절반이 이음새
+        // 위로 드러나 둥글게 마감되면서 흰 틈도 남지 않는다.
+        final width = revealed <= 0
+            ? 0.0
+            : (revealed + SetflowRadii.md / 2).clamp(0.0, constraints.maxWidth);
+        return Align(
           alignment: logging ? Alignment.centerLeft : Alignment.centerRight,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            // 패널이 칩보다 좁은 초기 프레임에서 칩은 줄어들지 않고 패널의
-            // 둥근 클립 밖으로 잘려 나간다 — fit.none이 오버플로 에러 없이
-            // 자연 크기를 유지하게 한다.
-            child: FittedBox(
-              fit: BoxFit.none,
-              child: AnimatedScale(
-                // A small kick at the threshold: the row has to say "let go now"
-                // without the thumb leaving the glass to look for a label.
-                scale: passed ? 1.08 : 1,
-                duration: SetflowMotion.micro,
-                child: Opacity(
-                  opacity: (.45 + .55 * strength).clamp(0.0, 1.0),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: fill,
-                      borderRadius: BorderRadius.circular(SetflowRadii.full),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(icon, size: 17, color: accent),
-                        const SizedBox(width: SetflowSpacing.xs2),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: SetflowFontSize.caption,
-                            fontWeight: SetflowWeight.medium,
-                            color: accent,
+          child: Container(
+            width: width,
+            height: double.infinity,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: fill.withValues(alpha: .10 + .40 * strength),
+              borderRadius: BorderRadius.circular(SetflowRadii.md),
+            ),
+            child: Align(
+              alignment: logging ? Alignment.centerLeft : Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                // 패널이 칩보다 좁은 초기 프레임에서 칩은 줄어들지 않고 패널의
+                // 둥근 클립 밖으로 잘려 나간다 — fit.none이 오버플로 에러 없이
+                // 자연 크기를 유지하게 한다.
+                child: FittedBox(
+                  fit: BoxFit.none,
+                  child: AnimatedScale(
+                    // A small kick at the threshold: the row has to say "let go now"
+                    // without the thumb leaving the glass to look for a label.
+                    scale: passed ? 1.08 : 1,
+                    duration: SetflowMotion.micro,
+                    child: Opacity(
+                      opacity: (.45 + .55 * strength).clamp(0.0, 1.0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: fill,
+                          borderRadius: BorderRadius.circular(
+                            SetflowRadii.full,
                           ),
                         ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(icon, size: 17, color: accent),
+                            const SizedBox(width: SetflowSpacing.xs2),
+                            Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: SetflowFontSize.caption,
+                                fontWeight: SetflowWeight.medium,
+                                color: accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
