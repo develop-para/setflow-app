@@ -157,9 +157,7 @@ class SupabaseAuthService implements AuthService {
         SocialLoginProvider.naver => '네이버',
         SocialLoginProvider.apple => 'Apple',
       };
-      throw SupabaseAuthUiException(
-        '$label 로그인은 Supabase OAuth 등록 후 활성화할 수 있어요.',
-      );
+      throw SupabaseAuthUiException('$label 로그인은 아직 준비 중이에요. 이메일로 로그인해 주세요.');
     }
     final oauthProvider = switch (provider) {
       SocialLoginProvider.google => OAuthProvider.google,
