@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../theme.dart';
+import '../theme/muscle_illustrations.dart';
 import '../widgets/common.dart';
+import '../widgets/routine_icon_picker.dart';
 
 class RoutineEditorScreen extends StatefulWidget {
   const RoutineEditorScreen({required this.routine, super.key});
@@ -20,6 +22,11 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
   late List<ExerciseTemplate> _exercises;
   bool _saving = false;
 
+  /// 조약돌·타일의 얼굴이 될 대표 부위. null이면 구성 종목의 지배 부위로
+  /// 자동 판정된다. 선택은 부위 면 색을 루틴 color로 저장하는 방식이라
+  /// 서버 스키마 없이 기기 간에 보존된다.
+  String? _iconMuscle;
+
   @override
   void initState() {
     super.initState();
@@ -28,6 +35,9 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
       text: widget.routine.description,
     );
     _exercises = List.of(widget.routine.exercises);
+    _iconMuscle = SetflowMuscleIllustrations.muscleForFill(
+      widget.routine.color,
+    );
   }
 
   @override
@@ -71,6 +81,20 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
                   if (text.length > 120) return '설명은 120자 이하로 입력해주세요.';
                   return null;
                 },
+              ),
+              const SizedBox(height: SetflowSpacing.xxl),
+              Text('대표 아이콘', style: theme.textTheme.titleMedium),
+              const SizedBox(height: SetflowSpacing.xs),
+              Text(
+                '홈과 내 루틴에서 이 루틴의 얼굴이 돼요. 고르지 않으면 구성 종목의 부위로 정해져요.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              RoutineIconPicker(
+                selected: _iconMuscle,
+                onChanged: (muscle) => setState(() => _iconMuscle = muscle),
               ),
               const SizedBox(height: SetflowSpacing.xxl),
               Row(
@@ -197,6 +221,17 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
     if (selected != null && mounted) setState(() => _exercises = selected);
   }
 
+  /// 자동으로 되돌릴 때는 부위 색이 아닌 기본 색을 저장한다 — 역매핑이
+  /// 실패해야 화면이 자동 판정으로 돌아간다. 원래 색이 부위 색이 아니었다면
+  /// (전문가 루틴 등) 그 색을 그대로 둔다.
+  Color? get _colorOverride {
+    final chosen = _iconMuscle;
+    if (chosen != null) return SetflowMuscleIllustrations.fillForMuscle(chosen);
+    final wasMuscleColor =
+        SetflowMuscleIllustrations.muscleForFill(widget.routine.color) != null;
+    return wasMuscleColor ? RoutineData.defaultColor : null;
+  }
+
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_exercises.isEmpty) {
@@ -211,6 +246,7 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
         name: _nameController.text,
         description: _descriptionController.text,
         exercises: _exercises,
+        color: _colorOverride,
       );
     } catch (_) {
       if (!mounted) return;

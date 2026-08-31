@@ -728,6 +728,10 @@ class RoutineData {
     this.authorType = RoutineAuthorType.system,
   });
 
+  /// 대표 아이콘을 고르지 않은 루틴의 색. 부위 면 색(SetflowMuscleFill)과
+  /// 겹치지 않아야 한다 — 역매핑이 실패해야 화면이 부위 자동 판정으로 간다.
+  static const defaultColor = Color(0xFF3B82F6);
+
   final String id;
   final String name;
   final String description;

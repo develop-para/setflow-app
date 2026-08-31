@@ -2511,8 +2511,12 @@ class _RoutinePebble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dominant =
-        _dominantMuscle([for (final e in routine.exercises) e.muscle]) ?? '';
+    // 편집기에서 고른 대표 부위(color로 저장)가 우선, 없으면 구성 종목의
+    // 지배 부위로 자동 판정한다.
+    final muscle =
+        SetflowMuscleIllustrations.muscleForFill(routine.color) ??
+        _dominantMuscle([for (final e in routine.exercises) e.muscle]) ??
+        '';
     final radius = BorderRadius.circular(SetflowRadii.xl);
     return Semantics(
       hint: semanticsHint,
@@ -2528,7 +2532,7 @@ class _RoutinePebble extends StatelessWidget {
               // 안되겠다") — 마스코트가 이미 부위 색을 입고 있어서, 판은
               // 달력 칸처럼 옅은 틴트로 물러나고 캐릭터가 주인공이 된다.
               decoration: BoxDecoration(
-                color: _muscleFill(dominant).withValues(alpha: .16),
+                color: _muscleFill(muscle).withValues(alpha: .16),
                 borderRadius: radius,
               ),
               child: Padding(
@@ -2541,7 +2545,7 @@ class _RoutinePebble extends StatelessWidget {
                 child: Column(
                   children: [
                     Image.asset(
-                      SetflowMuscleIllustrations.forMuscle(dominant),
+                      SetflowMuscleIllustrations.forMuscle(muscle),
                       height: 52,
                       fit: BoxFit.contain,
                       // 원본이 큰 PNG라 디코드 크기를 묶는다 — 조약돌 하나에
@@ -2600,7 +2604,8 @@ class _RoutineTileGrid extends StatelessWidget {
 }
 
 /// 루틴 타일 — 달력 칸과 같은 얼굴. 부위 색 잔디 채움 위에 종목 수(큰 숫자), 이름,
-/// 부위·난이도. 글자는 잉크(채움 색이 밝다). 오른쪽 위에 메뉴가 들어갈 자리.
+/// 부위·난이도. 판은 옅은 부위 틴트, 얼굴은 부위 마스코트 — 홈 조약돌과 같은
+/// 언어다. 오른쪽 위에 메뉴가 들어갈 자리.
 class _RoutineTile extends StatelessWidget {
   const _RoutineTile({
     required this.routine,
@@ -2620,13 +2625,14 @@ class _RoutineTile extends StatelessWidget {
       for (final exercise in routine.exercises) exercise.muscle,
     }.toList();
     final dominant =
-        _dominantMuscle([for (final e in routine.exercises) e.muscle]) ?? '';
-    final fills = _muscleShade(_muscleFill(dominant), completion: 1);
+        SetflowMuscleIllustrations.muscleForFill(routine.color) ??
+        _dominantMuscle([for (final e in routine.exercises) e.muscle]) ??
+        '';
     final others = [
       for (final m in muscles)
         if (m != dominant) m,
     ];
-    const ink = SetflowColors.ink;
+    final ink = theme.colorScheme.onSurface;
     final radius = BorderRadius.circular(SetflowRadii.md);
     return Material(
       color: Colors.transparent,
@@ -2635,11 +2641,7 @@ class _RoutineTile extends StatelessWidget {
         borderRadius: radius,
         child: Ink(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: fills,
-            ),
+            color: _muscleFill(dominant).withValues(alpha: .16),
             borderRadius: radius,
           ),
           child: Padding(
@@ -2697,7 +2699,17 @@ class _RoutineTile extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: SetflowSpacing.md),
+                const SizedBox(height: SetflowSpacing.xs),
+                Center(
+                  child: Image.asset(
+                    SetflowMuscleIllustrations.forMuscle(dominant),
+                    height: 48,
+                    fit: BoxFit.contain,
+                    cacheHeight: 192,
+                    filterQuality: FilterQuality.medium,
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.xs),
                 Text(
                   routine.name,
                   maxLines: 2,
@@ -3157,6 +3169,9 @@ class RoutinesScreen extends StatelessWidget {
       created = await state.createPersonalRoutine(
         draft.name,
         draft.description,
+        color: draft.iconMuscle == null
+            ? null
+            : SetflowMuscleIllustrations.fillForMuscle(draft.iconMuscle!),
       );
     } catch (_) {
       if (context.mounted) {

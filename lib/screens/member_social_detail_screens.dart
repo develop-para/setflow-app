@@ -13,9 +13,10 @@ import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
 import '../widgets/recommendation_profile_summary.dart';
+import '../widgets/routine_icon_picker.dart';
 import 'recommendation_profile_screen.dart';
 
-typedef RoutineDraft = ({String name, String description});
+typedef RoutineDraft = ({String name, String description, String? iconMuscle});
 
 class RoutineCreateSheet extends StatefulWidget {
   const RoutineCreateSheet({super.key});
@@ -29,6 +30,9 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
   final nameController = TextEditingController();
   final descriptionController = TextEditingController();
 
+  /// 대표 아이콘(부위 마스코트). null = 자동(구성 종목의 부위로 판정).
+  String? iconMuscle;
+
   @override
   void dispose() {
     nameController.dispose();
@@ -41,6 +45,7 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
     Navigator.pop<RoutineDraft>(context, (
       name: nameController.text.trim(),
       description: descriptionController.text.trim(),
+      iconMuscle: iconMuscle,
     ));
   }
 
@@ -87,6 +92,20 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
                 return null;
               },
               onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            Text('대표 아이콘', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(
+              '홈과 내 루틴에서 이 루틴의 얼굴이 돼요.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+            RoutineIconPicker(
+              selected: iconMuscle,
+              onChanged: (muscle) => setState(() => iconMuscle = muscle),
             ),
             const SizedBox(height: SetflowSpacing.xl),
             AppButton(label: '저장', onPressed: _submit),

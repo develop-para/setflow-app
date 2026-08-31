@@ -3215,14 +3215,14 @@ class AppState extends ChangeNotifier {
     return RoutineImportResult.imported;
   }
 
-  bool createRoutine(String name, String description) {
+  bool createRoutine(String name, String description, {Color? color}) {
     if (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4) return false;
     routines.add(
       RoutineData(
         id: 'routine_${DateTime.now().microsecondsSinceEpoch}',
         name: name,
         description: description,
-        color: const Color(0xFF3B82F6),
+        color: color ?? const Color(0xFF3B82F6),
         exercises: [exercises[0], exercises[2], exercises[4]],
       ),
     );
@@ -3233,7 +3233,11 @@ class AppState extends ChangeNotifier {
 
   /// Creates a member-owned routine through the normalized Supabase tables.
   /// Demo/Memory repositories keep the original synchronous local path.
-  Future<bool> createPersonalRoutine(String name, String description) async {
+  Future<bool> createPersonalRoutine(
+    String name,
+    String description, {
+    Color? color,
+  }) async {
     final normalizedName = name.trim();
     final normalizedDescription = description.trim();
     if (normalizedName.isEmpty ||
@@ -3242,7 +3246,7 @@ class AppState extends ChangeNotifier {
     }
     final repository = businessRepository;
     if (repository == null) {
-      return createRoutine(normalizedName, normalizedDescription);
+      return createRoutine(normalizedName, normalizedDescription, color: color);
     }
 
     final payloadKey = _businessRpcRequestKey('create_personal_routine', {
@@ -3258,7 +3262,8 @@ class AppState extends ChangeNotifier {
       id: routineId,
       name: normalizedName,
       description: normalizedDescription,
-      color: const Color(0xFF3B82F6),
+      // 대표 아이콘 선택이 부위 색으로 들어온다(routine_icon_picker 참고).
+      color: color ?? const Color(0xFF3B82F6),
       exercises: selectedExercises,
       setPlans: {
         for (final exercise in selectedExercises)
@@ -3295,6 +3300,7 @@ class AppState extends ChangeNotifier {
     required String name,
     required String description,
     required List<ExerciseTemplate> exercises,
+    Color? color,
   }) async {
     final index = routines.indexWhere((item) => item.id == routine.id);
     final normalizedName = name.trim();
@@ -3303,7 +3309,9 @@ class AppState extends ChangeNotifier {
       id: routine.id,
       name: normalizedName,
       description: description.trim(),
-      color: routine.color,
+      // 편집기의 대표 아이콘 선택이 부위 색으로 들어온다 — 개인 루틴 서버
+      // 레코드의 color로 왕복하므로 기기 간에 보존된다.
+      color: color ?? routine.color,
       exercises: List.of(exercises),
       author: routine.author,
       level: routine.level,
