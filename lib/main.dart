@@ -11,11 +11,13 @@ import 'data/business_repository.dart';
 import 'data/hive_app_repository.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
+import 'data/exercise_catalog_repository.dart';
 import 'data/routine_catalog_repository.dart';
 import 'data/together_repository.dart';
 import 'data/supabase_app_repository.dart';
 import 'data/supabase_business_repository.dart';
 import 'data/supabase_community_repository.dart';
+import 'data/supabase_exercise_catalog_repository.dart';
 import 'data/supabase_routine_catalog_repository.dart';
 import 'data/supabase_together_repository.dart';
 import 'screens/business_screens.dart';
@@ -78,6 +80,10 @@ Future<void> main() async {
         Supabase.instance.client,
         cache: backendCache,
       ),
+      exerciseCatalogRepository: SupabaseExerciseCatalogRepository(
+        Supabase.instance.client,
+        cache: backendCache,
+      ),
       togetherRepository: SupabaseTogetherRepository(
         Supabase.instance.client,
         exerciseCatalog: exerciseCatalog,
@@ -92,6 +98,7 @@ class SetflowApp extends StatefulWidget {
     this.businessRepository,
     this.routineCatalogRepository,
     this.communityRepository,
+    this.exerciseCatalogRepository,
     this.togetherRepository,
     super.key,
   });
@@ -100,6 +107,7 @@ class SetflowApp extends StatefulWidget {
   final BusinessRepository? businessRepository;
   final RoutineCatalogRepository? routineCatalogRepository;
   final CommunityRepository? communityRepository;
+  final ExerciseCatalogRepository? exerciseCatalogRepository;
   final TogetherRepository? togetherRepository;
 
   @override
@@ -136,6 +144,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       businessRepository: widget.businessRepository,
       routineCatalogRepository: widget.routineCatalogRepository,
       communityRepository: widget.communityRepository,
+      exerciseCatalogRepository: widget.exerciseCatalogRepository,
       togetherRepository: widget.togetherRepository,
     );
     _persistenceSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {

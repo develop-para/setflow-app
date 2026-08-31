@@ -391,6 +391,15 @@ class ExerciseTemplate {
     required this.muscle,
     required this.icon,
     this.measurement = ExerciseMeasurement.weightReps,
+    this.nameEnglish,
+    this.equipmentKey,
+    this.equipmentName,
+    this.aliases = const [],
+    this.difficulty,
+    this.category,
+    this.sourceName,
+    this.sourceId,
+    this.databaseId,
   });
 
   final String id;
@@ -398,6 +407,29 @@ class ExerciseTemplate {
   final String muscle;
   final IconData icon;
   final ExerciseMeasurement measurement;
+  final String? nameEnglish;
+  final String? equipmentKey;
+  final String? equipmentName;
+  final List<String> aliases;
+  final String? difficulty;
+  final String? category;
+  final String? sourceName;
+  final String? sourceId;
+
+  /// UUID used by normalized backend routine tables. [id] stays the stable
+  /// app/domain ID when a database row maps to an original bundled exercise.
+  final String? databaseId;
+
+  static final RegExp _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-'
+    r'[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  );
+
+  String? get databaseReferenceId {
+    final explicit = databaseId?.trim();
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+    return _uuidPattern.hasMatch(id) ? id : null;
+  }
 
   bool get isCardio => muscle == '유산소';
 
@@ -407,6 +439,101 @@ class ExerciseTemplate {
 
   bool get isRepsOnly => measurement == ExerciseMeasurement.repsOnly;
   bool get isDurationHold => measurement == ExerciseMeasurement.duration;
+
+  bool referencesId(String? value) =>
+      value != null && (id == value || databaseId == value);
+
+  /// Stable equipment facet used by the catalog picker.
+  ///
+  /// The 80 built-in fallback rows predate the database metadata, so their
+  /// facet is inferred conservatively from the visible name. Database rows
+  /// always carry [equipmentKey] and do not use this fallback.
+  String get resolvedEquipmentKey {
+    final explicit = equipmentKey?.trim();
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+    final value = name.toLowerCase();
+    if (value.contains('덤벨')) return 'dumbbell';
+    if (value.contains('바벨')) return 'barbell';
+    if (value.contains('이지바') || value.contains('ez')) {
+      return 'ez_curl_bar';
+    }
+    if (value.contains('케이블')) return 'cable';
+    if (value.contains('케틀벨')) return 'kettlebell';
+    if (value.contains('밴드')) return 'bands';
+    if (value.contains('로잉 머신')) return 'rowing_machine';
+    if (value.contains('머신') || value.contains('레그 프레스')) {
+      return 'machine';
+    }
+    if (value.contains('트레드밀')) return 'treadmill';
+    if (value.contains('자전거')) return 'stationary_bike';
+    if (value.contains('스텝밀')) return 'stair_climber';
+    if (value.contains('일립티컬')) return 'elliptical';
+    if (value.contains('줄넘기')) return 'jump_rope';
+    if (value.contains('풀업') || value.contains('친업')) return 'pullup_bar';
+    if (value.contains('딥스')) return 'dip_bars';
+    if (value.contains('ab 롤') || value.contains('휠')) return 'ab_wheel';
+    if (value.contains('맨몸') || measurement != ExerciseMeasurement.weightReps) {
+      return 'body_only';
+    }
+    return 'unspecified';
+  }
+
+  String get resolvedEquipmentName {
+    final explicit = equipmentName?.trim();
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+    return switch (resolvedEquipmentKey) {
+      'body_only' => '맨몸',
+      'bands' => '밴드',
+      'barbell' => '바벨',
+      'bench' => '벤치',
+      'cable' => '케이블',
+      'dumbbell' => '덤벨',
+      'ez_curl_bar' => '이지바',
+      'exercise_ball' => '짐볼',
+      'foam_roll' => '폼롤러',
+      'kettlebell' => '케틀벨',
+      'machine' => '머신',
+      'medicine_ball' => '메디신볼',
+      'squat_rack' => '스쿼트 랙',
+      'pullup_bar' => '풀업 바',
+      'dip_bars' => '딥스 바',
+      'ab_wheel' => 'AB 휠',
+      'jump_rope' => '줄넘기',
+      'treadmill' => '트레드밀',
+      'stationary_bike' => '실내 자전거',
+      'stair_climber' => '스텝밀',
+      'rowing_machine' => '로잉 머신',
+      'elliptical' => '일립티컬',
+      'other' => '기타 기구',
+      _ => '기구 미지정',
+    };
+  }
+
+  String get searchableText => [
+    name,
+    ?nameEnglish,
+    muscle,
+    resolvedEquipmentName,
+    resolvedEquipmentKey,
+    ...aliases,
+  ].join(' ').toLowerCase();
+
+  /// Each word may match a different facet, so `가슴 덤벨` finds every
+  /// dumbbell chest movement even when those words are not adjacent.
+  bool matchesCatalogQuery(String rawQuery) {
+    final terms = rawQuery
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty);
+    final haystack = searchableText;
+    final compactHaystack = haystack.replaceAll(RegExp(r'[\s\-_/().]+'), '');
+    return terms.every((term) {
+      if (haystack.contains(term)) return true;
+      final compactTerm = term.replaceAll(RegExp(r'[\s\-_/().]+'), '');
+      return compactTerm.isNotEmpty && compactHaystack.contains(compactTerm);
+    });
+  }
 }
 
 IconData exerciseIconForMuscle(String muscle) => switch (muscle) {

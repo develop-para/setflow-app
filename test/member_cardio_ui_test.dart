@@ -53,7 +53,7 @@ void main() {
     state.toggleSet(historicalSet, startRest: false);
 
     await pumpScreen(tester, state, DailyWorkoutScreen(date: today));
-    await tester.tap(find.text('운동 추가'));
+    await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
 
     final recommendationCard = find.byType(SetflowCard).last;

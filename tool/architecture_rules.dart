@@ -48,6 +48,7 @@ final architectureRules = <ArchitectureRule>[
       'lib/data/supabase_app_repository.dart',
       'lib/data/supabase_business_repository.dart',
       'lib/data/supabase_community_repository.dart',
+      'lib/data/supabase_exercise_catalog_repository.dart',
       'lib/data/supabase_routine_catalog_repository.dart',
       'lib/data/supabase_together_repository.dart',
       'lib/services/supabase_auth_service.dart',

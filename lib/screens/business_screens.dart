@@ -3039,7 +3039,7 @@ RoutineData _routineDataFromOwned(AppState state, OwnedCoachingRoutine record) {
         state.exercises
             .where(
               (template) =>
-                  template.id == item.baseExerciseId ||
+                  template.referencesId(item.baseExerciseId) ||
                   template.name == item.name,
             )
             .firstOrNull ??
@@ -4078,25 +4078,10 @@ Future<void> _showRoutineCreate(BuildContext context, UserRole role) async {
                     const SizedBox(height: SetflowSpacing.xl),
                     const SectionTitle('운동 선택'),
                     const SizedBox(height: SetflowSpacing.sm),
-                    Wrap(
-                      spacing: SetflowSpacing.sm,
-                      runSpacing: SetflowSpacing.sm,
-                      children: [
-                        for (final exercise in state.exercises)
-                          FilterChip(
-                            label: Text(exercise.name),
-                            selected: selectedExerciseIds.contains(exercise.id),
-                            onSelected: saving
-                                ? null
-                                : (selected) => setSheetState(() {
-                                    if (selected) {
-                                      selectedExerciseIds.add(exercise.id);
-                                    } else {
-                                      selectedExerciseIds.remove(exercise.id);
-                                    }
-                                  }),
-                          ),
-                      ],
+                    _BusinessExerciseMultiPicker(
+                      catalog: state.exercises,
+                      selectedIds: selectedExerciseIds,
+                      enabled: !saving,
                     ),
                     const SizedBox(height: SetflowSpacing.lg),
                     Row(
@@ -4215,6 +4200,104 @@ Future<void> _showRoutineCreate(BuildContext context, UserRole role) async {
   descriptionController.dispose();
   setCountController.dispose();
   repsController.dispose();
+}
+
+/// A large shared catalog must stay lazy. Rendering every exercise as a chip
+/// made the live routine sheet build nearly a thousand widgets before it could
+/// accept input.
+class _BusinessExerciseMultiPicker extends StatefulWidget {
+  const _BusinessExerciseMultiPicker({
+    required this.catalog,
+    required this.selectedIds,
+    required this.enabled,
+  });
+
+  final List<ExerciseTemplate> catalog;
+  final Set<String> selectedIds;
+  final bool enabled;
+
+  @override
+  State<_BusinessExerciseMultiPicker> createState() =>
+      _BusinessExerciseMultiPickerState();
+}
+
+class _BusinessExerciseMultiPickerState
+    extends State<_BusinessExerciseMultiPicker> {
+  final _searchController = TextEditingController();
+  String _search = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.catalog
+        .where((exercise) => exercise.matchesCatalogQuery(_search))
+        .toList(growable: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('선택 ${widget.selectedIds.length}개'),
+            const Spacer(),
+            Text(
+              '전체 ${widget.catalog.length}개',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.sm),
+        AppTextField(
+          key: const Key('business-routine-exercise-search'),
+          controller: _searchController,
+          prefixIcon: const Icon(Icons.search_rounded),
+          hint: '운동명 · 부위 · 기구 검색 (한국어/영문)',
+          onChanged: (value) => setState(() => _search = value),
+        ),
+        const SizedBox(height: SetflowSpacing.sm),
+        SizedBox(
+          height: 360,
+          child: filtered.isEmpty
+              ? const Center(child: Text('검색 결과가 없어요.'))
+              : ListView.builder(
+                  key: const Key('business-routine-exercise-results'),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final exercise = filtered[index];
+                    final selected = widget.selectedIds.contains(exercise.id);
+                    return CheckboxListTile(
+                      value: selected,
+                      enabled: widget.enabled,
+                      controlAffinity: ListTileControlAffinity.trailing,
+                      secondary: Icon(exercise.icon),
+                      title: Text(exercise.name),
+                      subtitle: Text(
+                        '${exercise.muscle} · ${exercise.resolvedEquipmentName}',
+                      ),
+                      onChanged: widget.enabled
+                          ? (checked) => setState(() {
+                              if (checked ?? false) {
+                                widget.selectedIds.add(exercise.id);
+                              } else {
+                                widget.selectedIds.remove(exercise.id);
+                              }
+                            })
+                          : null,
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
 }
 
 class ConsultationQueuePage extends StatefulWidget {

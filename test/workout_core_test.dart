@@ -33,6 +33,21 @@ void main() {
       ExerciseLibraryScreen(date: DateTime(2026, 7, 23)),
     );
 
+    // Regression: muscle is null on first entry. The old predicate compared
+    // every row's muscle to null, so even an exact whole-catalog search showed
+    // zero results until a body-part card had been opened once.
+    await tester.enterText(find.byType(TextFormField), '바벨 벤치 프레스');
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, '바벨 벤치 프레스'), findsOneWidget);
+
+    await tester.tap(find.text('부위 선택'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('exercise-muscle-grid')), findsOneWidget);
+    expect(
+      tester.widget<TextFormField>(find.byType(TextFormField)).controller?.text,
+      isEmpty,
+    );
+
     await tester.enterText(find.byType(TextFormField), '존재하지않는운동');
     await tester.pumpAndSettle();
     expect(find.text('검색 결과가 없어요'), findsOneWidget);
@@ -186,23 +201,22 @@ void main() {
     ) async {
       await pumpDayWith(tester, 0);
 
-      expect(find.text('운동 추가'), findsOneWidget);
+      expect(find.text('운동 선택'), findsOneWidget);
       expect(find.text('루틴 불러오기'), findsOneWidget);
     });
 
-    testWidgets('the first exercise hands both actions to the header', (
+    testWidgets('the first exercise keeps exercise selection visible', (
       tester,
     ) async {
       await pumpDayWith(tester, 1);
 
-      // The full-width pair is gone once there is something to look at.
-      expect(find.text('운동 추가'), findsNothing);
+      expect(find.text('운동 선택'), findsOneWidget);
       expect(find.text('루틴 불러오기'), findsNothing);
       expect(find.byKey(const Key('daily-add-exercise')), findsOneWidget);
       expect(find.byKey(const Key('daily-load-routine')), findsOneWidget);
     });
 
-    testWidgets('the header add icon opens the exercise library', (
+    testWidgets('the visible exercise action opens the exercise library', (
       tester,
     ) async {
       await pumpDayWith(tester, 1);
@@ -840,7 +854,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('운동 추가'));
+      await tester.tap(find.text('운동 선택'));
       await tester.pumpAndSettle();
       expect(find.text('추천을 더 정확하게'), findsOneWidget);
       expect(state.precisionRecommendationPrompted, isFalse);
@@ -876,7 +890,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('운동 추가'));
+    await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('precision-survey-start')));
     await tester.pumpAndSettle();
@@ -933,7 +947,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('NEXT SESSION'), findsNothing);
-    await tester.tap(find.text('운동 추가'));
+    await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
 
     expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
@@ -977,7 +991,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('운동 추가'));
+    await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
 
     expect(find.text(first.template.name), findsOneWidget);
@@ -1018,7 +1032,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('운동 추가'));
+    await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
     expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
     expect(find.text('직접 선택'), findsOneWidget);
@@ -1030,7 +1044,7 @@ void main() {
 
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('운동 추가'));
+    await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
     expect(find.text('오늘의 첫 운동 추천'), findsNothing);
     expect(find.byType(ExerciseLibraryScreen), findsOneWidget);
@@ -1057,7 +1071,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('운동 추가'));
+    await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
 
     expect(find.text('오늘의 첫 운동 추천'), findsNothing);
@@ -1127,8 +1141,14 @@ void main() {
     await tester.tap(find.byKey(const Key('calendar-fold-handle')));
     await tester.pumpAndSettle();
 
-    final sourceFinder = find.text('7');
-    final targetFinder = find.text('22');
+    // Adjacent-month cells can repeat the same day number. Target the dated
+    // calendar cell itself so this remains deterministic at month boundaries.
+    final sourceFinder = find.byKey(
+      ValueKey('calendar-tint-${source.year}${source.month}${source.day}'),
+    );
+    final targetFinder = find.byKey(
+      ValueKey('calendar-tint-${target.year}${target.month}${target.day}'),
+    );
     final gesture = await tester.startGesture(tester.getCenter(sourceFinder));
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
     await gesture.moveTo(tester.getCenter(targetFinder));
@@ -1214,7 +1234,7 @@ void main() {
     state.sessionFor(date);
     await tester.pump();
 
-    expect(find.text('운동 추가'), findsOneWidget);
+    expect(find.text('운동 선택'), findsOneWidget);
     expect(find.text('루틴 불러오기'), findsOneWidget);
     await tester.tap(find.text('루틴 불러오기'));
     await tester.pumpAndSettle();

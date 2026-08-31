@@ -110,16 +110,9 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
         title: Text(
           '${date.month}월 ${date.day}일 (${['월', '화', '수', '목', '금', '토', '일'][date.weekday - 1]})',
         ),
-        // Adding an exercise and loading a routine live here and nowhere else.
-        // They used to be two full-width buttons pinned above the list, which
-        // cost a third of the screen on every day that already had exercises.
+        // Routine loading stays in the header. Exercise selection is the
+        // primary action, so a non-empty day exposes it as a labelled FAB.
         actions: [
-          IconButton(
-            key: const Key('daily-add-exercise'),
-            tooltip: '운동 추가',
-            onPressed: _openExerciseFlow,
-            icon: const Icon(SetflowIcons.addExercise),
-          ),
           IconButton(
             key: const Key('daily-load-routine'),
             tooltip: '루틴 불러오기',
@@ -168,6 +161,15 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
           ),
         ],
       ),
+      floatingActionButton: session.exercises.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              key: const Key('daily-add-exercise'),
+              tooltip: '운동 선택',
+              onPressed: _openExerciseFlow,
+              icon: const Icon(SetflowIcons.addExercise),
+              label: const Text('운동 선택'),
+            ),
       body: session.exercises.isEmpty
           ? Column(
               children: [
@@ -182,8 +184,8 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                   child: Column(
                     children: [
                       AppButton(
-                        label: '운동 추가',
-                        icon: Icons.add_rounded,
+                        label: '운동 선택',
+                        icon: SetflowIcons.addExercise,
                         onPressed: _openExerciseFlow,
                       ),
                       const SizedBox(height: SetflowSpacing.sm),
@@ -2810,6 +2812,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   final searchController = TextEditingController();
   String search = '';
   String? muscle;
+  String? equipment;
   final selected = <String>{};
 
   @override
@@ -2821,18 +2824,29 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final query = search.trim();
     final filtered = state.exercises.where((item) {
-      final matchesSearch =
-          item.name.toLowerCase().contains(search.toLowerCase()) ||
-          item.muscle.contains(search);
-      final matchesMuscle = muscle == '전체' || item.muscle == muscle;
-      return matchesSearch && matchesMuscle;
+      final matchesSearch = item.matchesCatalogQuery(query);
+      // The field promises a whole-catalog search. Typing from inside a body
+      // part must therefore not leave the previous part as a hidden filter.
+      final matchesMuscle =
+          query.isNotEmpty ||
+          muscle == null ||
+          muscle == '전체' ||
+          item.muscle == muscle;
+      final matchesEquipment =
+          equipment == null || item.resolvedEquipmentKey == equipment;
+      return matchesSearch && matchesMuscle && matchesEquipment;
     }).toList();
-    final showCategories = search.trim().isEmpty && muscle == null;
+    final equipmentFacets = <String, String>{
+      for (final item in state.exercises)
+        item.resolvedEquipmentKey: item.resolvedEquipmentName,
+    }.entries.toList()..sort((a, b) => a.value.compareTo(b.value));
+    final showCategories = query.isEmpty && muscle == null && equipment == null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(muscle == null ? '운동 선택' : '$muscle 운동'),
+        title: const Text('운동 선택'),
         actions: [
           IconButton(
             tooltip: '새 운동 만들기',
@@ -2853,10 +2867,58 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
             child: AppTextField(
               controller: searchController,
               onChanged: (value) => setState(() => search = value),
-              prefixIcon: const Icon(Icons.search),
-              hint: '전체 운동 검색 (한국어/영문)',
+              prefixIcon: const Icon(SetflowIcons.exerciseSearch),
+              hint: '운동명 · 부위 · 기구 검색 (한국어/영문)',
             ),
           ),
+          SizedBox(
+            height: 42,
+            child: ListView.separated(
+              key: const Key('exercise-equipment-filter'),
+              padding: const EdgeInsets.symmetric(
+                horizontal: SetflowSpacing.gutter,
+              ),
+              scrollDirection: Axis.horizontal,
+              itemCount: equipmentFacets.length + 1,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(width: SetflowSpacing.xs),
+              itemBuilder: (context, index) {
+                final facet = index == 0 ? null : equipmentFacets[index - 1];
+                return ChoiceChip(
+                  label: Text(facet?.value ?? '전체 기구'),
+                  selected: equipment == facet?.key,
+                  onSelected: (_) => setState(() => equipment = facet?.key),
+                );
+              },
+            ),
+          ),
+          if (state.exerciseCatalogLoading)
+            const LinearProgressIndicator(
+              key: Key('exercise-catalog-loading'),
+              minHeight: SetflowSpacing.xs,
+            )
+          else if (state.exerciseCatalogError != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: SetflowSpacing.gutter,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'DB 운동을 불러오지 못해 저장된 목록을 보여드려요.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: state.refreshExerciseCatalog,
+                    child: const Text('다시 불러오기'),
+                  ),
+                ],
+              ),
+            )
+          else
+            const SizedBox(height: SetflowSpacing.xs),
           Expanded(
             child: showCategories
                 ? GridView.builder(
@@ -2891,12 +2953,13 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                 ? EmptyState(
                     icon: Icons.search_off_rounded,
                     title: '검색 결과가 없어요',
-                    message: '검색어를 바꾸거나 전체 부위에서 다시 찾아보세요.',
+                    message: '검색어 또는 부위·기구 필터를 바꿔보세요.',
                     actionLabel: '검색 초기화',
                     onAction: () => setState(() {
                       searchController.clear();
                       search = '';
                       muscle = null;
+                      equipment = null;
                     }),
                   )
                 : Column(
@@ -2906,7 +2969,14 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                         child: Row(
                           children: [
                             TextButton.icon(
-                              onPressed: () => setState(() => muscle = null),
+                              onPressed: () {
+                                searchController.clear();
+                                setState(() {
+                                  search = '';
+                                  muscle = null;
+                                  equipment = null;
+                                });
+                              },
                               icon: const Icon(
                                 Icons.grid_view_rounded,
                                 size: 17,
@@ -2915,7 +2985,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                             ),
                             const Spacer(),
                             Text(
-                              '${filtered.length}개 운동',
+                              '${filtered.length}개 운동 · 전체 ${state.exercises.length}개',
                               style: TextStyle(
                                 fontSize: SetflowFontSize.small,
                                 color: Theme.of(
@@ -2984,7 +3054,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                             final subtitleParts = <String>[
                               exercise.id.startsWith('custom_')
                                   ? '${exercise.muscle} · 내가 만든 운동'
-                                  : exercise.muscle,
+                                  : '${exercise.muscle} · ${exercise.resolvedEquipmentName}',
                               if (existingCount > 0) '오늘 $existingCount회 추가됨',
                               if (suggestedWeight != null &&
                                   suggestedWeight > 0 &&
@@ -3069,6 +3139,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
     setState(() {
       selected.add(created.id);
       muscle = created.muscle;
+      equipment = null;
       searchController.clear();
       search = '';
     });

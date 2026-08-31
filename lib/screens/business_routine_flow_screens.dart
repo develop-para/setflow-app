@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import '../widgets/common.dart';
 
 class BusinessRoutineEditorScreen extends StatefulWidget {
@@ -266,61 +267,22 @@ class _BusinessRoutineEditorScreenState
 
   Future<void> _showExercisePicker() async {
     final state = AppScope.of(context);
-    final selectedNames = _exercises.map((item) => item.name).toSet();
+    final selectedIds = _exercises
+        .map((item) => item.baseExerciseId)
+        .whereType<String>()
+        .toSet();
+    final legacySelectedNames = _exercises
+        .where((item) => item.baseExerciseId == null)
+        .map((item) => item.name)
+        .toSet();
     final selected = await showSetflowSheet<ExerciseTemplate>(
       context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(sheetContext).height * .72,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: SetflowSpacing.lg,
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      '운동 선택',
-                      style: Theme.of(sheetContext).textTheme.headlineSmall,
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${state.exercises.length}개',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: SetflowSpacing.sm),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: state.exercises.length,
-                  itemBuilder: (context, index) {
-                    final exercise = state.exercises[index];
-                    final alreadyAdded = selectedNames.contains(exercise.name);
-                    return ListTile(
-                      enabled: !alreadyAdded,
-                      leading: Icon(exercise.icon, size: 20),
-                      title: Text(exercise.name),
-                      subtitle: Text(exercise.muscle),
-                      trailing: alreadyAdded
-                          ? const Icon(Icons.check_rounded)
-                          : const Icon(Icons.add_rounded),
-                      onTap: alreadyAdded
-                          ? null
-                          : () => Navigator.pop(sheetContext, exercise),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+      builder: (_) => _BusinessExercisePickerSheet(
+        catalog: state.exercises,
+        selectedIds: selectedIds,
+        legacySelectedNames: legacySelectedNames,
       ),
     );
     if (selected == null || !mounted) return;
@@ -769,6 +731,128 @@ class _NumberField extends StatelessWidget {
   }
 }
 
+class _BusinessExercisePickerSheet extends StatefulWidget {
+  const _BusinessExercisePickerSheet({
+    required this.catalog,
+    required this.selectedIds,
+    required this.legacySelectedNames,
+  });
+
+  final List<ExerciseTemplate> catalog;
+  final Set<String> selectedIds;
+  final Set<String> legacySelectedNames;
+
+  @override
+  State<_BusinessExercisePickerSheet> createState() =>
+      _BusinessExercisePickerSheetState();
+}
+
+class _BusinessExercisePickerSheetState
+    extends State<_BusinessExercisePickerSheet> {
+  final _searchController = TextEditingController();
+  String _search = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.catalog
+        .where((exercise) => exercise.matchesCatalogQuery(_search))
+        .toList(growable: false);
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * .78,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SetflowSpacing.gutter,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          '운동 선택',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${filtered.length} / ${widget.catalog.length}개',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: SetflowSpacing.md),
+                    AppTextField(
+                      key: const Key('business-exercise-search'),
+                      controller: _searchController,
+                      prefixIcon: const Icon(SetflowIcons.exerciseSearch),
+                      hint: '운동명 · 부위 · 기구 검색 (한국어/영문)',
+                      onChanged: (value) => setState(() => _search = value),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              Expanded(
+                child: filtered.isEmpty
+                    ? const Center(child: Text('검색 결과가 없어요.'))
+                    : ListView.builder(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: SetflowSpacing.sm,
+                        ),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final exercise = filtered[index];
+                          final alreadyAdded =
+                              widget.selectedIds.contains(exercise.id) ||
+                              widget.selectedIds.contains(
+                                exercise.databaseId,
+                              ) ||
+                              widget.legacySelectedNames.contains(
+                                exercise.name,
+                              );
+                          return ListTile(
+                            enabled: !alreadyAdded,
+                            leading: Icon(exercise.icon),
+                            title: Text(exercise.name),
+                            subtitle: Text(
+                              '${exercise.muscle} · ${exercise.resolvedEquipmentName}',
+                            ),
+                            trailing: Icon(
+                              alreadyAdded
+                                  ? SetflowIcons.setComplete
+                                  : SetflowIcons.addExercise,
+                            ),
+                            onTap: alreadyAdded
+                                ? null
+                                : () => Navigator.pop(context, exercise),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RoutineExerciseDraft {
   _RoutineExerciseDraft({
     required this.keyId,
@@ -781,7 +865,7 @@ class _RoutineExerciseDraft {
   factory _RoutineExerciseDraft.fromTemplate(ExerciseTemplate template) =>
       _RoutineExerciseDraft(
         keyId: '${template.id}-${DateTime.now().microsecondsSinceEpoch}',
-        baseExerciseId: template.id,
+        baseExerciseId: template.databaseReferenceId,
         name: template.name,
         targetMuscle: template.muscle,
         sets: List.generate(

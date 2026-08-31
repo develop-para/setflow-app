@@ -10,6 +10,7 @@ import 'data/business_repository.dart';
 import 'data/backend_cache.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
+import 'data/exercise_catalog_repository.dart';
 import 'data/routine_catalog_repository.dart';
 import 'data/together_repository.dart';
 import 'domain/cardio.dart';
@@ -74,6 +75,7 @@ class AppState extends ChangeNotifier {
     Future<void> Function()? authSignOut,
     this.routineCatalogRepository,
     this.communityRepository,
+    this.exerciseCatalogRepository,
     this.togetherRepository,
   }) : _repository = repository ?? MemoryAppRepository(),
        _authSignOut = authSignOut ?? Auth.instance.signOut {
@@ -98,6 +100,7 @@ class AppState extends ChangeNotifier {
   final bool loadBusinessWithoutAuth;
   final RoutineCatalogRepository? routineCatalogRepository;
   final CommunityRepository? communityRepository;
+  final ExerciseCatalogRepository? exerciseCatalogRepository;
 
   /// 함께 운동(파트너 방). Null이면 화면이 "지금은 쓸 수 없어요"로 내려간다 —
   /// 혼자서는 성립하지 않는 기능이라 로컬 대체본을 두지 않는다.
@@ -229,7 +232,10 @@ class AppState extends ChangeNotifier {
   DateTime? _restTimerEndsAt;
 
   final List<ExerciseTemplate> exercises = List.of(exerciseCatalog);
+  final List<ExerciseTemplate> _sharedCatalogExercises = [];
   final List<ExerciseTemplate> customExercises = [];
+  bool exerciseCatalogLoading = false;
+  Object? exerciseCatalogError;
 
   final Map<DateTime, WorkoutSession> sessions = {};
   final List<RoutineData> routines = [];
@@ -452,9 +458,162 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _loadCachedExerciseCatalog() async {
+    final repository = exerciseCatalogRepository;
+    if (repository == null) return;
+    try {
+      final cached = await repository.loadCached();
+      if (_disposed || cached.isEmpty) return;
+      _replaceSharedExerciseCatalog(cached);
+    } catch (_) {
+      // The built-in 80-row catalog is always available as an offline floor.
+    }
+  }
+
+  void _replaceSharedExerciseCatalog(List<ExerciseTemplate> catalog) {
+    final byId = <String, ExerciseTemplate>{};
+    for (final exercise in catalog) {
+      if (exercise.id.trim().isEmpty || exercise.name.trim().isEmpty) continue;
+      byId[exercise.id] = exercise;
+    }
+    _sharedCatalogExercises
+      ..clear()
+      ..addAll(byId.values);
+    _rebuildSelectableExercises();
+    _rebindStoredExerciseTemplates();
+  }
+
+  void _rebuildSelectableExercises() {
+    final byId = <String, ExerciseTemplate>{
+      for (final exercise in exerciseCatalog) exercise.id: exercise,
+      for (final exercise in _sharedCatalogExercises) exercise.id: exercise,
+      for (final exercise in customExercises) exercise.id: exercise,
+    };
+    exercises
+      ..clear()
+      ..addAll(byId.values);
+  }
+
+  List<ExerciseTemplate> get _curatedRecommendationCatalog {
+    final selectableById = {
+      for (final exercise in exercises) exercise.id: exercise,
+    };
+    return [
+      for (final fallback in exerciseCatalog)
+        selectableById[fallback.id] ?? fallback,
+    ];
+  }
+
+  void _rebindStoredExerciseTemplates() {
+    final lookup = <String, ExerciseTemplate>{};
+    for (final exercise in exercises) {
+      lookup[exercise.id] = exercise;
+      final databaseId = exercise.databaseId;
+      if (databaseId != null) lookup[databaseId] = exercise;
+    }
+
+    ExerciseTemplate resolved(ExerciseTemplate current) =>
+        lookup[current.id] ?? lookup[current.databaseId] ?? current;
+
+    for (final session in sessions.values) {
+      for (var index = 0; index < session.exercises.length; index++) {
+        final current = session.exercises[index];
+        final template = resolved(current.template);
+        if (identical(template, current.template)) continue;
+        session.exercises[index] = WorkoutExercise(
+          id: current.id,
+          template: template,
+          sets: current.sets,
+        );
+      }
+    }
+
+    for (var routineIndex = 0; routineIndex < routines.length; routineIndex++) {
+      final routine = routines[routineIndex];
+      var changed = false;
+      final reboundExercises = <ExerciseTemplate>[];
+      final reboundPlans = Map<String, List<RoutineSetPlan>>.from(
+        routine.setPlans,
+      );
+      final storedBaseIds = _personalRoutineBaseExerciseIds[routine.id];
+      final reboundBaseIds = storedBaseIds == null
+          ? null
+          : Map<String, String?>.from(storedBaseIds);
+      for (final current in routine.exercises) {
+        final template = resolved(current);
+        reboundExercises.add(template);
+        if (identical(template, current)) continue;
+        changed = true;
+        if (template.id != current.id) {
+          final plans = reboundPlans.remove(current.id);
+          if (plans != null) reboundPlans.putIfAbsent(template.id, () => plans);
+          if (reboundBaseIds != null &&
+              reboundBaseIds.containsKey(current.id)) {
+            final baseId = reboundBaseIds.remove(current.id);
+            reboundBaseIds.putIfAbsent(
+              template.id,
+              () => baseId ?? template.databaseReferenceId,
+            );
+          }
+        }
+      }
+      if (!changed) continue;
+      routines[routineIndex] = RoutineData(
+        id: routine.id,
+        name: routine.name,
+        description: routine.description,
+        color: routine.color,
+        exercises: reboundExercises,
+        author: routine.author,
+        level: routine.level,
+        accessTier: routine.accessTier,
+        setPlans: reboundPlans,
+        sourceMarketRoutineId: routine.sourceMarketRoutineId,
+        sourceCoachingRoutineId: routine.sourceCoachingRoutineId,
+        authorTrainerId: routine.authorTrainerId,
+        authorGymId: routine.authorGymId,
+        authorType: routine.authorType,
+      );
+      if (reboundBaseIds != null) {
+        _personalRoutineBaseExerciseIds[routine.id] = Map.unmodifiable(
+          reboundBaseIds,
+        );
+      }
+    }
+  }
+
+  Future<void> refreshExerciseCatalog() async {
+    final repository = exerciseCatalogRepository;
+    if (_disposed || repository == null || exerciseCatalogLoading) return;
+    exerciseCatalogLoading = true;
+    exerciseCatalogError = null;
+    notifyListeners();
+    try {
+      final catalog = await repository.refreshCatalog();
+      if (_disposed) return;
+      _replaceSharedExerciseCatalog(catalog);
+      exerciseCatalogError = _cachedReadError(repository);
+    } catch (error) {
+      if (_disposed) return;
+      exerciseCatalogError = error;
+    } finally {
+      if (!_disposed) {
+        exerciseCatalogLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> initialize() async {
     final accountEpoch = _accountEpoch;
     try {
+      await _loadCachedExerciseCatalog();
+      if (exerciseCatalogRepository != null) {
+        // Catalog refresh owns no account data, so begin it before the account
+        // snapshot/network path. Snapshot retries must not delay exercise
+        // availability on a fresh install.
+        unawaited(refreshExerciseCatalog());
+      }
       final localFirstRepository = _repository is LocalFirstAppRepository
           ? _repository as LocalFirstAppRepository
           : null;
@@ -1271,7 +1430,10 @@ class AppState extends ChangeNotifier {
       }
       if (lastCompleted != null && goals.isNotEmpty) {
         final next = ExerciseRecommendationEngine.recommendNext(
-          catalog: exercises,
+          // Only the curated fallback rows have reviewed recommendation
+          // safety traits. Database rows are selectable, but are not silently
+          // promoted into automatic coaching until those traits are present.
+          catalog: _curatedRecommendationCatalog,
           session: session,
           completedExercise: lastCompleted,
           goals: goals,
@@ -1308,7 +1470,7 @@ class AppState extends ChangeNotifier {
         .where((item) => !item.date.isAfter(day))
         .toList(growable: false);
     return ExerciseRecommendationEngine.recommendFirst(
-      catalog: exercises,
+      catalog: _curatedRecommendationCatalog,
       session: session,
       goals: goals,
       weeklyHistory: eligibleHistory,
@@ -2806,7 +2968,7 @@ class AppState extends ChangeNotifier {
           exercises
               .where(
                 (exercise) =>
-                    exercise.id == catalogExercise.baseExerciseId ||
+                    exercise.referencesId(catalogExercise.baseExerciseId) ||
                     exercise.name == catalogExercise.name,
               )
               .firstOrNull ??
@@ -2865,7 +3027,7 @@ class AppState extends ChangeNotifier {
           exercises
               .where(
                 (exercise) =>
-                    exercise.id == item.baseExerciseId ||
+                    exercise.referencesId(item.baseExerciseId) ||
                     exercise.name == item.name,
               )
               .firstOrNull ??
@@ -3270,9 +3432,7 @@ class AppState extends ChangeNotifier {
       exercises: routine.exercises
           .map((exercise) {
             final baseExerciseId =
-                storedBaseIds?.containsKey(exercise.id) == true
-                ? storedBaseIds![exercise.id]
-                : null;
+                storedBaseIds?[exercise.id] ?? exercise.databaseReferenceId;
             final plans = [...routine.setsFor(exercise)]
               ..sort((left, right) => left.number.compareTo(right.number));
             return CreateOwnedRoutineExerciseInput(
@@ -3317,7 +3477,7 @@ class AppState extends ChangeNotifier {
         ..add(exercise.id)
         ..add(exercise.name)
         ..add(exercise.muscle)
-        ..add(storedBaseIds?[exercise.id]);
+        ..add(storedBaseIds?[exercise.id] ?? exercise.databaseReferenceId);
       for (final set in routine.setsFor(exercise)) {
         parts
           ..add(set.number)
@@ -5279,6 +5439,7 @@ class AppState extends ChangeNotifier {
     final exerciseInputs = routineExercises
         .map(
           (exercise) => CreateOwnedRoutineExerciseInput(
+            baseExerciseId: exercise.databaseReferenceId,
             name: exercise.name,
             targetMuscle: exercise.muscle,
             sets: List.generate(
@@ -6092,10 +6253,7 @@ class AppState extends ChangeNotifier {
     customExercises
       ..clear()
       ..addAll(snapshot.customExercises);
-    exercises
-      ..clear()
-      ..addAll(exerciseCatalog)
-      ..addAll(customExercises);
+    _rebuildSelectableExercises();
     sessions.clear();
     for (final entry in snapshot.sessions.entries) {
       final userExercises = entry.value.exercises
@@ -6162,9 +6320,7 @@ class AppState extends ChangeNotifier {
     hasSeenTogetherGuide = false;
     recommendationProfile = null;
     customExercises.clear();
-    exercises
-      ..clear()
-      ..addAll(exerciseCatalog);
+    _rebuildSelectableExercises();
     sessions.clear();
     routines.clear();
     communityPosts.clear();

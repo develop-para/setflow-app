@@ -137,7 +137,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('운동 추가'));
+    await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
 
     expect(find.byType(ExerciseLibraryScreen), findsOneWidget);

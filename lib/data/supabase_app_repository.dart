@@ -718,7 +718,7 @@ class SupabaseAppRepository
                 .map(
                   (entry) => <String, Object?>{
                     'client_id': entry.$2.id,
-                    'base_exercise_id': entry.$2.template.id,
+                    'base_exercise_id': entry.$2.template.databaseReferenceId,
                     'name': entry.$2.template.name,
                     'target_muscle': entry.$2.template.muscle,
                     'order_index': entry.$1,

@@ -22,9 +22,7 @@ abstract final class AppSnapshotCodec {
   static RoutineData? routineFromJson(
     Map<String, dynamic> json,
     List<ExerciseTemplate> exerciseCatalog,
-  ) => _routineFromJson(json, {
-    for (final template in exerciseCatalog) template.id: template,
-  });
+  ) => _routineFromJson(json, _templateLookup(exerciseCatalog));
 
   static Map<String, dynamic> toJson(AppSnapshot snapshot) {
     return {
@@ -137,10 +135,10 @@ abstract final class AppSnapshotCodec {
           ),
         );
       }
-      final templates = {
-        for (final exercise in exerciseCatalog) exercise.id: exercise,
-        for (final exercise in customExercises) exercise.id: exercise,
-      };
+      final templates = _templateLookup([
+        ...exerciseCatalog,
+        ...customExercises,
+      ]);
       final sessions = <DateTime, WorkoutSession>{};
       for (final raw in root['sessions'] as List<dynamic>? ?? const []) {
         final session = _sessionFromJson(
@@ -290,6 +288,14 @@ abstract final class AppSnapshotCodec {
     return {
       'id': exercise.id,
       'templateId': exercise.template.id,
+      // A database exercise may not be in the built-in catalog on a cold,
+      // offline restart. Keep a small inline fallback so an unknown ID never
+      // makes a user's recorded exercise disappear during decode.
+      if (exercise.template.sourceName != null || _isUuid(exercise.template.id))
+        'template': _exerciseTemplateToJson(
+          exercise.template,
+          includeSearchMetadata: false,
+        ),
       'sets': exercise.sets
           .map(
             (set) => {
@@ -315,7 +321,12 @@ abstract final class AppSnapshotCodec {
     Map<String, dynamic> json,
     Map<String, ExerciseTemplate> templates,
   ) {
-    final template = templates[json['templateId'] as String?];
+    final templateId = json['templateId'] as String?;
+    final template = _resolveInlineTemplate(
+      templateId,
+      json['template'],
+      templates,
+    );
     if (template == null) return null;
     final sets = <WorkoutSetEntry>[];
     for (final raw in json['sets'] as List<dynamic>? ?? const []) {
@@ -344,6 +355,113 @@ abstract final class AppSnapshotCodec {
     );
   }
 
+  static Map<String, dynamic> _exerciseTemplateToJson(
+    ExerciseTemplate exercise, {
+    bool includeSearchMetadata = true,
+  }) => {
+    'id': exercise.id,
+    'name': exercise.name,
+    'muscle': exercise.muscle,
+    'measurement': exercise.measurement.name,
+    'nameEnglish': ?exercise.nameEnglish,
+    'equipmentKey': ?exercise.equipmentKey,
+    'equipmentName': ?exercise.equipmentName,
+    if (includeSearchMetadata && exercise.aliases.isNotEmpty)
+      'aliases': exercise.aliases,
+    if (includeSearchMetadata) 'difficulty': ?exercise.difficulty,
+    if (includeSearchMetadata) 'category': ?exercise.category,
+    'sourceName': ?exercise.sourceName,
+    'sourceId': ?exercise.sourceId,
+    'databaseId': ?exercise.databaseId,
+  };
+
+  static ExerciseTemplate? _exerciseTemplateFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final id = json['id']?.toString().trim() ?? '';
+    final name = json['name']?.toString().trim() ?? '';
+    final muscle = json['muscle']?.toString().trim() ?? '';
+    if (id.isEmpty || name.isEmpty || muscle.isEmpty) return null;
+    final measurement = ExerciseMeasurement.values.firstWhere(
+      (candidate) => candidate.name == json['measurement'],
+      orElse: () => ExerciseMeasurement.weightReps,
+    );
+    final aliases = json['aliases'] is List
+        ? (json['aliases'] as List)
+              .map((value) => value.toString().trim())
+              .where((value) => value.isNotEmpty)
+              .take(40)
+              .toList(growable: false)
+        : const <String>[];
+    String? optionalString(String key) {
+      final value = json[key]?.toString().trim() ?? '';
+      return value.isEmpty ? null : value;
+    }
+
+    return ExerciseTemplate(
+      id: id,
+      name: name,
+      muscle: muscle,
+      icon: exerciseIconForMuscle(muscle),
+      measurement: measurement,
+      nameEnglish: optionalString('nameEnglish'),
+      equipmentKey: optionalString('equipmentKey'),
+      equipmentName: optionalString('equipmentName'),
+      aliases: aliases,
+      difficulty: optionalString('difficulty'),
+      category: optionalString('category'),
+      sourceName: optionalString('sourceName'),
+      sourceId: optionalString('sourceId'),
+      databaseId: optionalString('databaseId'),
+    );
+  }
+
+  static Map<String, ExerciseTemplate> _templateLookup(
+    Iterable<ExerciseTemplate> catalog,
+  ) {
+    final lookup = <String, ExerciseTemplate>{};
+    for (final exercise in catalog) {
+      lookup[exercise.id] = exercise;
+      final databaseId = exercise.databaseId;
+      if (databaseId != null && databaseId.isNotEmpty) {
+        lookup[databaseId] = exercise;
+      }
+    }
+    return lookup;
+  }
+
+  static bool _isUuid(String value) => RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-'
+    r'[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  ).hasMatch(value);
+
+  static ExerciseTemplate? _resolveInlineTemplate(
+    String? templateId,
+    Object? rawInline,
+    Map<String, ExerciseTemplate> templates,
+  ) {
+    final existing = templates[templateId];
+    final inline = rawInline is Map
+        ? _exerciseTemplateFromJson(Map<String, dynamic>.from(rawInline))
+        : null;
+    final inlineMatches =
+        inline != null &&
+        (templateId == null || inline.referencesId(templateId));
+    final template =
+        inlineMatches &&
+            (existing == null ||
+                (existing.databaseReferenceId == null &&
+                    inline.databaseReferenceId != null))
+        ? inline
+        : existing;
+    if (template != null) {
+      templates[template.id] = template;
+      final databaseId = template.databaseReferenceId;
+      if (databaseId != null) templates[databaseId] = template;
+    }
+    return template;
+  }
+
   static Map<String, dynamic> _routineToJson(RoutineData routine) {
     return {
       'id': routine.id,
@@ -354,9 +472,7 @@ abstract final class AppSnapshotCodec {
       'exercises': routine.exercises
           .map(
             (exercise) => {
-              'id': exercise.id,
-              'name': exercise.name,
-              'muscle': exercise.muscle,
+              ..._exerciseTemplateToJson(exercise),
               'sets': routine
                   .setsFor(exercise)
                   .map(
@@ -403,7 +519,7 @@ abstract final class AppSnapshotCodec {
         final exerciseId = exerciseJson['id'] as String?;
         if (exerciseId == null || exerciseId.isEmpty) continue;
         final exercise =
-            templates[exerciseId] ??
+            _resolveInlineTemplate(exerciseId, exerciseJson, templates) ??
             ExerciseTemplate(
               id: exerciseId,
               name: exerciseJson['name'] as String? ?? '운동',

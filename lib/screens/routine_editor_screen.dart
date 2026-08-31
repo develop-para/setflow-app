@@ -262,10 +262,7 @@ class _RoutineExercisePickerSheetState
   @override
   Widget build(BuildContext context) {
     final filtered = widget.catalog.where((exercise) {
-      final query = _search.trim().toLowerCase();
-      return query.isEmpty ||
-          exercise.name.toLowerCase().contains(query) ||
-          exercise.muscle.toLowerCase().contains(query);
+      return exercise.matchesCatalogQuery(_search);
     }).toList();
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     return AnimatedPadding(
@@ -342,6 +339,7 @@ class _RoutineExercisePickerSheetState
             controller: _searchController,
             focusNode: _searchFocusNode,
             label: '운동 검색',
+            hint: '운동명 · 부위 · 기구 (한국어/영문)',
             prefixIcon: const Icon(Icons.search_rounded),
             onChanged: (value) => setState(() => _search = value),
           ),
@@ -361,7 +359,7 @@ class _RoutineExercisePickerSheetState
       ),
       secondary: Icon(exercise.icon),
       title: Text(exercise.name),
-      subtitle: Text(exercise.muscle),
+      subtitle: Text('${exercise.muscle} · ${exercise.resolvedEquipmentName}'),
       controlAffinity: ListTileControlAffinity.trailing,
     );
   }
