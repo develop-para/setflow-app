@@ -61,6 +61,10 @@ class _TogetherScreenState extends State<TogetherScreen> {
   /// 로비의 "근처 공개방" 구역이 지금 보여줄 것.
   _NearbyStatus _nearby = const _NearbyIdle();
 
+  /// 로비가 보이는 동안 살아 있는 근처 목록 구독. 다른 사람이 공개방을 열면
+  /// 새로 고침 없이 목록에 뜬다("공개방 리스트가 실시간으로 안 뜬다" 보고).
+  StreamSubscription<List<NearbyParty>>? _nearbySubscription;
+
   /// 근처 공개방을 불러온다. [request]가 false면 이미 허용된 사람만 — 탭을
   /// 열 때마다 권한 창이 뜨면 그게 곧 귀찮음이다. 버튼을 누른 사람에게만 묻는다.
   Future<void> _loadNearby({bool request = false}) async {
@@ -79,14 +83,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
     if (!mounted) return;
     switch (result) {
       case LocationFix(:final point):
-        try {
-          final rooms = await repository.listNearbyParties(point);
-          if (mounted) setState(() => _nearby = _NearbyRooms(rooms));
-        } catch (error) {
-          if (mounted) {
-            setState(() => _nearby = _NearbyFailed(_messageFor(error)));
-          }
-        }
+        _watchNearby(point);
       case LocationDenied(:final permanently):
         setState(
           () => _nearby = _NearbyNeedsLocation(permanently: permanently),
@@ -94,6 +91,26 @@ class _TogetherScreenState extends State<TogetherScreen> {
       case LocationUnavailable():
         setState(() => _nearby = const _NearbyNeedsLocation(servicesOff: true));
     }
+  }
+
+  /// 위치를 한 번 잡았으면 목록은 조회가 아니라 **구독**이다. 갱신이 폴링이냐
+  /// 브로드캐스트냐는 어댑터의 일이고(AGENTS.md 2절), 화면은 스트림만 안다.
+  void _watchNearby(GeoPoint point) {
+    unawaited(_nearbySubscription?.cancel());
+    _nearbySubscription = _repository
+        ?.watchNearbyParties(point)
+        .listen(
+          (rooms) {
+            if (mounted) setState(() => _nearby = _NearbyRooms(rooms));
+          },
+          // 한 번의 실패는 안내로 보여주되 구독은 그대로 둔다 — 다음 갱신이
+          // 스스로 회복하고, 사람은 새로 고침을 당길 수도 있다.
+          onError: (Object error) {
+            if (mounted) {
+              setState(() => _nearby = _NearbyFailed(_messageFor(error)));
+            }
+          },
+        );
   }
 
   /// 공개방을 열거나 공개로 바꿀 때 필요한 좌표. 못 읽으면 null — 호출자가
@@ -193,11 +210,16 @@ class _TogetherScreenState extends State<TogetherScreen> {
   void dispose() {
     _tick?.cancel();
     unawaited(_subscription?.cancel());
+    unawaited(_nearbySubscription?.cancel());
     super.dispose();
   }
 
   void _watch(TrainingParty party) {
     unawaited(_subscription?.cancel());
+    // 방 안에서는 로비가 없다 — 근처 목록 구독(과 어댑터의 폴링)도 같이 쉰다.
+    // 로비로 접거나 방이 닫히면 _loadNearby가 다시 구독한다.
+    unawaited(_nearbySubscription?.cancel());
+    _nearbySubscription = null;
     setState(() {
       _party = party;
       _minimized = false;
@@ -221,6 +243,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
             });
             _tick?.cancel();
             _tick = null;
+            // 로비로 돌아왔다 — 근처 목록도 다시 살아난다.
+            unawaited(_loadNearby());
           },
         );
     _syncTicker(party);

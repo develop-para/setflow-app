@@ -319,6 +319,12 @@ abstract interface class TogetherRepository {
   /// 근처에서 열린 공개방. 가까운 순, 좌표 없이 거리만.
   Future<List<NearbyParty>> listNearbyParties(GeoPoint at);
 
+  /// 근처 공개방 목록이 변하는 대로. listen 즉시 현재 목록을 한 번 내보내고,
+  /// 그 뒤로 방이 열리고 차고 닫힐 때마다 갱신본이 온다 — 로비를 열어 둔
+  /// 사람이 새로 고침을 누르지 않아도 새 방이 뜬다. 갱신이 폴링이냐
+  /// 브로드캐스트냐는 [watchParty]처럼 어댑터의 일이다.
+  Stream<List<NearbyParty>> watchNearbyParties(GeoPoint at);
+
   /// 코드 없이 공개방에 들어간다. 비밀방이면 "그런 방이 없어요".
   Future<TrainingParty> joinPublicParty(String partyId);
 
@@ -382,7 +388,16 @@ class MemoryTogetherBackend {
   final Random _random;
   final _parties = <String, TrainingParty>{};
   final _controllers = <String, StreamController<TrainingParty>>{};
+
+  /// "방 목록이 바뀌었다"는 신호 하나. 근처 공개방 스트림이 이걸 받을 때마다
+  /// 목록을 다시 계산한다 — 방마다 채널을 두는 [watch]와 달리 목록은
+  /// 어느 방이 바뀌었는지가 아니라 지금 전부가 궁금한 것이라서다.
+  final _directory = StreamController<void>.broadcast();
   var _sequence = 0;
+
+  void _touchDirectory() {
+    if (!_directory.isClosed) _directory.add(null);
+  }
 
   TrainingParty? partyById(String id) => _parties[id];
 
@@ -432,6 +447,7 @@ class MemoryTogetherBackend {
       ],
     );
     _parties[party.id] = party;
+    _touchDirectory();
     return party;
   }
 
@@ -464,6 +480,18 @@ class MemoryTogetherBackend {
     }
     rows.sort((a, b) => a.$1.compareTo(b.$1));
     return [for (final row in rows.take(20)) row.$2];
+  }
+
+  /// [nearby]의 살아 있는 판 — listen 즉시 현재 목록, 그 뒤로 어떤 방이든
+  /// 생기고 바뀌고 닫힐 때마다 다시 계산해 내보낸다.
+  Stream<List<NearbyParty>> watchNearby({
+    required GeoPoint at,
+    required String userId,
+  }) async* {
+    yield nearby(at: at, userId: userId);
+    await for (final _ in _directory.stream) {
+      yield nearby(at: at, userId: userId);
+    }
   }
 
   TrainingParty joinPublic({
@@ -744,6 +772,7 @@ class MemoryTogetherBackend {
       _parties[party.id] = party;
     }
     _controllers[party.id]?.add(party);
+    _touchDirectory();
     return party;
   }
 
@@ -752,6 +781,7 @@ class MemoryTogetherBackend {
       controller.close();
     }
     _controllers.clear();
+    _directory.close();
   }
 }
 
@@ -801,6 +831,11 @@ class MemoryTogetherRepository implements TogetherRepository {
   @override
   Future<List<NearbyParty>> listNearbyParties(GeoPoint at) async =>
       backend.nearby(at: at, userId: _requireUser);
+
+  @override
+  Stream<List<NearbyParty>> watchNearbyParties(GeoPoint at) async* {
+    yield* backend.watchNearby(at: at, userId: _requireUser);
+  }
 
   @override
   Future<TrainingParty> joinPublicParty(String partyId) async =>

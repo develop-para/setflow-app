@@ -325,11 +325,14 @@ class _MemberShellState extends State<MemberShell> {
                 // 한 번에 계산한다. `removePadding`과 `removeViewInsets`를 겹치면
                 // 둘 다 같은 바깥 context의 MediaQuery를 읽어서 안쪽 것이 바깥 것을
                 // 되돌린다 — 그래서 하단 인셋 제거가 먹지 않았다.
+                // 상단도 헤더가 있을 때만 걷어낸다: 방 안에서는 헤더가 통째로
+                // 빠지므로 인셋을 남겨야 방의 앱바가 상태바 밑으로 안 들어간다
+                // (실기기에서 상태바가 "헬스 · 2명" 제목을 덮었다).
                 Expanded(
                   child: MediaQuery(
                     data: MediaQuery.of(context)
                         .removePadding(
-                          removeTop: true,
+                          removeTop: !_inTogetherSession,
                           removeBottom: !_inTogetherSession,
                         )
                         .removeViewInsets(removeBottom: true),

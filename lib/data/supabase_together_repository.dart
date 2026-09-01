@@ -34,12 +34,18 @@ class SupabaseTogetherRepository implements TogetherRepository {
     this._client, {
     required this.exerciseCatalog,
     this.pollInterval = const Duration(seconds: 10),
+    this.nearbyPollInterval = const Duration(seconds: 15),
   });
 
   final SupabaseClient _client;
 
   /// Keepalive cadence, not the update path — broadcasts carry the updates.
   final Duration pollInterval;
+
+  /// 근처 목록 스트림의 폴 주기. 방과 달리 "근처"는 서버가 좌표로 계산하는
+  /// 조회라 방마다 있는 브로드캐스트 채널이 없다 — 그래서 이 스트림은 순수
+  /// 폴링이고, 로비가 화면에 있는 동안만 구독되므로 방 안에서는 돌지 않는다.
+  final Duration nearbyPollInterval;
 
   /// Needed to turn an offered routine back into templates this device knows.
   final List<ExerciseTemplate> exerciseCatalog;
@@ -109,6 +115,38 @@ class SupabaseTogetherRepository implements TogetherRepository {
     } on PostgrestException catch (error) {
       throw TogetherFailure(_messageFor(error));
     }
+  }
+
+  @override
+  Stream<List<NearbyParty>> watchNearbyParties(GeoPoint at) {
+    final controller = StreamController<List<NearbyParty>>();
+    Timer? poll;
+    var fetching = false;
+
+    Future<void> fetch() async {
+      if (fetching || controller.isClosed) return;
+      fetching = true;
+      try {
+        final rooms = await listNearbyParties(at);
+        if (!controller.isClosed) controller.add(rooms);
+      } catch (error, stackTrace) {
+        // 한 번의 실패로 스트림을 닫지 않는다 — 다음 폴이 스스로 회복한다.
+        if (!controller.isClosed) controller.addError(error, stackTrace);
+      } finally {
+        fetching = false;
+      }
+    }
+
+    controller.onListen = () {
+      // The port promises the current list immediately on listen.
+      unawaited(fetch());
+      poll = Timer.periodic(nearbyPollInterval, (_) => fetch());
+    };
+    controller.onCancel = () {
+      poll?.cancel();
+      unawaited(controller.close());
+    };
+    return controller.stream;
   }
 
   @override

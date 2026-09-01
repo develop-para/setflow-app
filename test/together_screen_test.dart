@@ -177,6 +177,52 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
     });
 
+    testWidgets('방 안에서도 앱바는 상태바 아래에 있다', (tester) async {
+      // 셸은 페이지가 상단 인셋을 두 번 먹지 않도록 걷어내는데, 그건 셸 헤더가
+      // 그 인셋을 먹고 있는 동안만 맞는 얘기다. 방 안에서는 헤더가 통째로
+      // 빠지므로 인셋을 남겨야 한다 — 실기기에서 상태바가 방 제목("헬스 ·
+      // 2명")과 뒤로가기를 덮었다.
+      const statusBar = 48.0;
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(432, 900);
+      tester.view.viewPadding = const FakeViewPadding(top: statusBar);
+      tester.view.padding = const FakeViewPadding(top: statusBar);
+      addTearDown(tester.view.reset);
+
+      final state = AppState(togetherRepository: client('u-me', '나'));
+      await state.initialize();
+      addTearDown(state.dispose);
+      state.markTogetherGuideSeen();
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: const MemberShell(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('함께').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
+
+      final back = tester.getRect(
+        find.byKey(const ValueKey('together-minimize')),
+      );
+      expect(
+        back.top,
+        greaterThanOrEqualTo(statusBar),
+        reason: '방의 뒤로가기가 상태바에 가린다',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
     testWidgets('the stats screen still exists, it is only unlisted', (
       tester,
     ) async {
@@ -895,6 +941,32 @@ void main() {
       expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
       expect(find.text('공개 · 헬스 · 2명'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('a room opened after the lobby appears without a refresh', (
+      tester,
+    ) async {
+      // 로비를 열어 둔 채 옆 사람이 공개방을 만든다 — 목록은 조회가 아니라
+      // 구독이라, 새로 고침을 당기지 않아도 그 방이 떠야 한다. 방이 닫히면
+      // 같은 길로 사라진다("공개방 리스트가 실시간으로 안 뜬다" 실기기 보고).
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      expect(
+        find.byKey(const ValueKey('together-nearby-empty')),
+        findsOneWidget,
+      );
+
+      final host = client('u-host', '지훈');
+      final room = await host.createParty(
+        mode: PartyMode.free,
+        visibility: PartyVisibility.public,
+        location: const GeoPoint(37.5667, 126.9782),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('지훈님의 방'), findsOneWidget);
+
+      await host.leaveParty(room.id);
+      await tester.pumpAndSettle();
+      expect(find.text('지훈님의 방'), findsNothing);
     });
 
     testWidgets(
