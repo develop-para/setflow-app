@@ -5,7 +5,6 @@ import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
-import '../widgets/common.dart';
 import '../widgets/portal.dart';
 import '../widgets/pro_access_gate.dart';
 import 'detail_screens.dart';
@@ -70,7 +69,7 @@ class MemberMenuScreen extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: SetflowSpacing.xl),
+          const SizedBox(height: SetflowSpacing.section),
           _MenuSection(
             title: '운동',
             items: [
@@ -94,7 +93,7 @@ class MemberMenuScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: SetflowSpacing.md),
+          const SizedBox(height: SetflowSpacing.lg),
           _MenuSection(
             title: '데이터',
             items: [
@@ -112,7 +111,7 @@ class MemberMenuScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: SetflowSpacing.md),
+          const SizedBox(height: SetflowSpacing.lg),
           _MenuSection(
             title: '코칭·센터',
             items: [
@@ -131,7 +130,7 @@ class MemberMenuScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: SetflowSpacing.md),
+          const SizedBox(height: SetflowSpacing.lg),
           _MenuSection(
             title: '계정',
             items: [
@@ -189,6 +188,11 @@ class _MenuItem {
 }
 
 /// OKX 서랍의 섹션 — 컨테이너 안에 제목과 아이콘 그리드(아이콘 위, 라벨 아래).
+///
+/// 판은 **테두리·그림자 없는 옅은 톤 하나**다(OKX처럼 면의 밝기 차이로만
+/// 층을 낸다). SetflowCard(테두리+그림자)로 쌓았더니 흰 바탕 위에서 설정
+/// 카드처럼 무거웠다 — 회색은 램프에서 골라 겹으로 쓴다: 판 n50, 보조 글자
+/// muted, 제목·아이콘은 잉크.
 class _MenuSection extends StatelessWidget {
   const _MenuSection({required this.title, required this.items});
 
@@ -198,12 +202,17 @@ class _MenuSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SetflowCard(
+    return Container(
+      padding: const EdgeInsets.all(SetflowSpacing.xl),
+      decoration: BoxDecoration(
+        color: context.setflowColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(SetflowRadii.xl),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: theme.textTheme.titleMedium),
-          const SizedBox(height: SetflowSpacing.lg),
+          const SizedBox(height: SetflowSpacing.xl),
           // 폭만 4열로 고정하고 높이는 내용이 정한다 — 고정 높이 그리드는
           // 시스템 글자 배율에서 어김없이 모자란다(AGENTS.md 8절).
           LayoutBuilder(
@@ -212,7 +221,7 @@ class _MenuSection extends StatelessWidget {
                   (constraints.maxWidth - SetflowSpacing.sm * 3) / 4;
               return Wrap(
                 spacing: SetflowSpacing.sm,
-                runSpacing: SetflowSpacing.lg,
+                runSpacing: SetflowSpacing.xl,
                 children: [
                   for (final item in items)
                     SizedBox(
