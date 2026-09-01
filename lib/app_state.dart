@@ -1894,10 +1894,17 @@ class AppState extends ChangeNotifier {
     if (set.completed) {
       // 세트는 자기가 속한 세션을 모른다 — 도장을 찍으려면 찾아야 한다.
       for (final session in sessions.values) {
-        if (session.exercises.any((e) => e.sets.contains(set))) {
+        final exercise = session.exercises
+            .where((e) => e.sets.contains(set))
+            .firstOrNull;
+        if (exercise != null) {
           final now = DateTime.now();
           session.startedAt ??= now;
           session.endedAt = now;
+          // 세트 완료가 곧 방 보고다 — 기록 탭 스와이프든 방의 버튼이든,
+          // 어디서 완료해도 전광판이 같은 숫자를 본다("기록에서 완료하면
+          // 함께에서는 반영이 안 되더라", 실기기 보고).
+          _reportSetToParty(session, exercise, set);
           break;
         }
       }
@@ -1911,6 +1918,37 @@ class AppState extends ChangeNotifier {
     _schedulePersist();
     notifyListeners();
     await flushPersistence();
+  }
+
+  /// 완료된 세트를 진행 중인 함께 방에 알린다. 오늘 세션만 — 전광판은 오늘의
+  /// 판이다. 실패는 조용히 버린다: 다음 보고가 누적 볼륨을 다시 실어 나르고,
+  /// 세트 사이의 사람에게 보고 실패 팝업은 기록보다 비싸다. 완료 취소는
+  /// 서버 카운트를 되돌리지 않는다(알고 가는 한계, docs/plan/09).
+  void _reportSetToParty(
+    WorkoutSession session,
+    WorkoutExercise exercise,
+    WorkoutSetEntry set,
+  ) {
+    final partyId = activeTrainingPartyId;
+    final repository = togetherRepository;
+    if (partyId == null || repository == null) return;
+    if (dateOnly(session.date) != dateOnly(DateTime.now())) return;
+    final rest = set.restSeconds > 0 ? set.restSeconds : restDefaultSeconds;
+    unawaited(() async {
+      try {
+        await repository.reportSetDone(
+          partyId: partyId,
+          restSeconds: rest,
+          exerciseName: exercise.template.name,
+          setNumber: set.number,
+          setTotal: exercise.sets.length,
+          // 전광판 볼륨은 완료 반영 후의 오늘 합계다.
+          totalVolume: session.volume,
+        );
+      } catch (_) {
+        // 방이 이미 닫혔거나 잠깐 끊겼다 — 전광판은 다음 보고로 따라잡는다.
+      }
+    }());
   }
 
   /// What a set held before [adoptActualIntoPendingSets] rewrote it.

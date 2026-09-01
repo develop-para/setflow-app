@@ -92,6 +92,7 @@ class NearbyParty {
     required this.memberCount,
     required this.distanceMeters,
     required this.createdAt,
+    this.title,
   });
 
   final String id;
@@ -100,6 +101,9 @@ class NearbyParty {
   final int memberCount;
   final int distanceMeters;
   final DateTime createdAt;
+
+  /// 방제. 없으면 화면이 "지훈님의 방"으로 부른다.
+  final String? title;
 }
 
 enum PartyMemberState {
@@ -207,12 +211,17 @@ class TrainingParty {
     required this.hostUserId,
     required this.mode,
     required this.members,
+    this.title,
     this.visibility = PartyVisibility.private,
     this.location,
     this.startsAt,
     this.currentTurnUserId,
     this.routines = const [],
   });
+
+  /// 방제 — 방을 만들 때 붙이는 이름(선택, 24자). 없으면 화면이 종목·인원으로
+  /// 부른다.
+  final String? title;
 
   final String id;
 
@@ -258,6 +267,7 @@ class TrainingParty {
     PartyMode? mode,
     List<PartyMember>? members,
     PartyVisibility? visibility,
+    String? hostUserId,
     Object? location = _unset,
     Object? startsAt = _unset,
     Object? currentTurnUserId = _unset,
@@ -265,8 +275,9 @@ class TrainingParty {
   }) => TrainingParty(
     id: id,
     code: code,
-    hostUserId: hostUserId,
+    hostUserId: hostUserId ?? this.hostUserId,
     mode: mode ?? this.mode,
+    title: title,
     members: members ?? this.members,
     visibility: visibility ?? this.visibility,
     location: location == _unset ? this.location : location as GeoPoint?,
@@ -303,11 +314,20 @@ abstract interface class TogetherRepository {
   String? get currentUserId;
 
   /// 공개방은 [location]이 있어야 목록에 뜬다. 없으면 어댑터가 비밀방으로
-  /// 연다 — 화면이 그렇게 안내한 뒤다.
+  /// 연다 — 화면이 그렇게 안내한 뒤다. [title]은 방제(선택, 서버가 24자로
+  /// 자른다).
   Future<TrainingParty> createParty({
     required PartyMode mode,
     PartyVisibility visibility = PartyVisibility.private,
     GeoPoint? location,
+    String? title,
+  });
+
+  /// 방장이 멤버를 내보낸다. 방장만 부를 수 있고 자신은 못 내보낸다 —
+  /// 쫓겨난 쪽 화면 처리(로비로, 안내 한 줄)는 방 스트림이 맡는다.
+  Future<TrainingParty> kickMember({
+    required String partyId,
+    required String memberUserId,
   });
 
   Future<TrainingParty> joinParty(String code);
@@ -430,16 +450,22 @@ class MemoryTogetherBackend {
     required PartyMode mode,
     PartyVisibility visibility = PartyVisibility.private,
     GeoPoint? location,
+    String? title,
   }) {
     // 서버와 같은 규칙: 좌표 없는 공개방은 비밀방이다.
     final effective = visibility == PartyVisibility.public && location == null
         ? PartyVisibility.private
         : visibility;
+    // 서버와 같은 규칙: 방제는 다듬어서 24자까지.
+    final trimmed = title?.trim() ?? '';
     final party = TrainingParty(
       id: _nextId('party'),
       code: _newCode(),
       hostUserId: userId,
       mode: mode,
+      title: trimmed.isEmpty
+          ? null
+          : trimmed.substring(0, trimmed.length > 24 ? 24 : trimmed.length),
       visibility: effective,
       location: effective == PartyVisibility.public ? location : null,
       members: [
@@ -562,13 +588,41 @@ class MemoryTogetherBackend {
     final turn = party.currentTurnUserId == userId
         ? (members.isEmpty ? null : members.first.userId)
         : party.currentTurnUserId;
-    final updated = party.copyWith(members: members, currentTurnUserId: turn);
+    // 방장이 나가면 남은 사람 중 turn_order가 가장 빠른 사람이 잇는다 —
+    // 방장 없는 방에서는 강퇴·공개 전환이 전부 죽는다.
+    final host = party.hostUserId == userId && members.isNotEmpty
+        ? (members.toList()..sort((a, b) => a.turnOrder.compareTo(b.turnOrder)))
+              .first
+              .userId
+        : party.hostUserId;
+    final updated = party.copyWith(
+      members: members,
+      currentTurnUserId: turn,
+      hostUserId: host,
+    );
     if (members.isEmpty) {
       _parties.remove(partyId);
       _publish(updated);
       return updated;
     }
     return _publish(updated);
+  }
+
+  /// 강퇴 — 방장만, 자신은 제외. 서버 RPC와 같은 규칙이고, 나간 사람 처리
+  /// (차례 승계)는 [leave]와 같다.
+  TrainingParty kick({
+    required String partyId,
+    required String byUserId,
+    required String targetUserId,
+  }) {
+    final party = _require(partyId);
+    if (!party.isHost(byUserId)) {
+      throw const TogetherFailure('방장만 할 수 있어요.');
+    }
+    if (byUserId == targetUserId) {
+      throw const TogetherFailure('자신은 내보낼 수 없어요.');
+    }
+    return leave(partyId: partyId, userId: targetUserId);
   }
 
   TrainingParty setMode({required String partyId, required PartyMode mode}) {
@@ -813,12 +867,24 @@ class MemoryTogetherRepository implements TogetherRepository {
     required PartyMode mode,
     PartyVisibility visibility = PartyVisibility.private,
     GeoPoint? location,
+    String? title,
   }) async => backend.create(
     userId: _requireUser,
     displayName: displayName,
     mode: mode,
     visibility: visibility,
     location: location,
+    title: title,
+  );
+
+  @override
+  Future<TrainingParty> kickMember({
+    required String partyId,
+    required String memberUserId,
+  }) async => backend.kick(
+    partyId: partyId,
+    byUserId: _requireUser,
+    targetUserId: memberUserId,
   );
 
   @override

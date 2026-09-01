@@ -401,6 +401,88 @@ void main() {
   });
 
   group('the lobby is a list of rooms', () {
+    testWidgets('a title named in the sheet becomes the room name', (
+      tester,
+    ) async {
+      // 게임방의 상식: 방에는 방제가 있다(docs/plan/09). 시트에서 적고,
+      // 앱바가 그 이름으로 방을 부른다.
+      await pumpTogether(tester, repository: client('u-me', '나'));
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('create-title')),
+        '아침 어깨팟',
+      );
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('아침 어깨팟'), findsOneWidget, reason: '앱바 제목이 방제다');
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('the host kicks with a long-press, the kicked land in the '
+        'lobby', (tester) async {
+      // 방장(나)이 친구 줄을 길게 눌러 내보낸다 — 확인 한 번, 그리고 명단에서
+      // 사라진다. 쫓겨난 쪽 처리는 _handleIncoming이 맡는다(아래 테스트).
+      final host = client('u-me', '나');
+      await pumpTogether(tester, repository: host);
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
+      final code = tester
+          .widget<Text>(find.byKey(const ValueKey('together-code')))
+          .data!;
+      await client('u-friend', '지훈').joinParty(code);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('scoreboard-host-badge')),
+        findsOneWidget,
+      );
+
+      await tester.longPress(find.byKey(const ValueKey('scoreboard-u-friend')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-kick-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(
+        backend.partyByCode(code)!.memberOf('u-friend'),
+        isNull,
+        reason: '강퇴가 서버 규칙(멤버 제거)까지 닿아야 한다',
+      );
+      expect(find.byKey(const ValueKey('scoreboard-u-friend')), findsNothing);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('being kicked folds the room into the lobby with a notice', (
+      tester,
+    ) async {
+      // 쫓겨난 기기: 명단에 내가 없는 방이 스트림으로 오면 방을 접고 로비로.
+      final friend = client('u-friend', '지훈');
+      final hostRepo = client('u-host', '방장');
+      final party = await hostRepo.createParty(mode: PartyMode.free);
+      await friend.joinParty(party.code);
+      await pumpTogether(tester, repository: friend);
+      // 기억한 방 복원으로 방에 서 있다.
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('together-join')));
+      await tester.pumpAndSettle();
+      // 여섯 자를 다 적으면 스스로 참여한다.
+      await tester.enterText(
+        find.byKey(const ValueKey('together-code-input')),
+        party.code,
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
+
+      await hostRepo.kickMember(partyId: party.id, memberUserId: 'u-friend');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsNothing);
+      expect(find.text('방에서 내보내졌어요.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+    });
+
     testWidgets('the mode is chosen in the create sheet, not the lobby', (
       tester,
     ) async {

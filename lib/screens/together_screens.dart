@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -390,7 +391,22 @@ class _TogetherScreenState extends State<TogetherScreen> {
     _syncTicker(next);
 
     final me = _userId == null ? null : next.memberOf(_userId!);
-    if (me == null) return;
+    if (me == null) {
+      // 명단에 내가 없다 = 내보내졌다(자발적 나가기는 이 스트림을 타기 전에
+      // 구독을 정리한다). 방을 접고 로비로, 이유는 한 줄로.
+      AppScope.of(context).setActiveTrainingParty(null);
+      unawaited(_subscription?.cancel());
+      _subscription = null;
+      _tick?.cancel();
+      _tick = null;
+      setState(() {
+        _party = null;
+        _minimized = false;
+      });
+      AppSnackbar.info(context, '방에서 내보내졌어요.');
+      unawaited(_loadNearby());
+      return;
+    }
     final wasResting = previous?.memberOf(me.userId)?.restEndsAt;
     if (me.state == PartyMemberState.resting &&
         me.restEndsAt != null &&
@@ -483,13 +499,15 @@ class _TogetherScreenState extends State<TogetherScreen> {
                 )
               : null,
           // "함께 운동 중"과 전광판의 LIVE가 같은 말을 두 번 했다. 제목은 방이
-          // 무엇인지 — 방식과 인원 — 만 말한다.
+          // 무엇인지만 말한다 — 방제가 있으면 방제가 곧 정체성이다.
           title: Text(switch ((
             inRoom,
             party?.isPublic ?? false,
             party?.members.length ?? 0,
           )) {
             (false, _, _) => '함께',
+            (true, _, final n) when party?.title != null =>
+              n == 1 ? party!.title! : '${party!.title} · $n명',
             (true, true, 1) => '공개방 · 대기 중',
             (true, false, 1) => '함께',
             (true, final public, final n) =>
@@ -586,6 +604,9 @@ class _TogetherScreenState extends State<TogetherScreen> {
                   onStart: () =>
                       _run(() => _repository!.startTogether(_party!.id)),
                   onSetDone: _reportSetDone,
+                  onKickMember: _userId != null && party.isHost(_userId!)
+                      ? _confirmKick
+                      : null,
                 ),
         ),
       ),
@@ -779,11 +800,11 @@ class _TogetherScreenState extends State<TogetherScreen> {
   int _todaySets(AppState state) =>
       state.sessions[state.dateOnly(DateTime.now())]?.totalSets ?? 0;
 
-  /// 종목·공개 여부는 전부 시트에서 고른다 — 로비는 참여의 화면이다.
+  /// 방제·종목·공개 여부는 전부 시트에서 고른다 — 로비는 참여의 화면이다.
   Future<void> _create() async {
     if (!await requireSignIn(context, reason: AuthReason.together)) return;
     if (!mounted) return;
-    final choice = await showSetflowSheet<(PartyVisibility, PartyMode)>(
+    final choice = await showSetflowSheet<(String, PartyVisibility, PartyMode)>(
       context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -791,7 +812,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
           _CreateSheet(locationAvailable: Location.instance.isAvailable),
     );
     if (choice == null || !mounted) return;
-    var (visibility, mode) = choice;
+    var (title, visibility, mode) = choice;
     GeoPoint? location;
     if (visibility == PartyVisibility.public) {
       location = await _fixForPublic();
@@ -809,6 +830,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
         mode: mode,
         visibility: visibility,
         location: location,
+        title: title.trim().isEmpty ? null : title.trim(),
       ),
     );
   }
@@ -868,39 +890,19 @@ class _TogetherScreenState extends State<TogetherScreen> {
     return null;
   }
 
-  /// "세트 끝냈어요"는 신호가 아니라 기록이다. 방에만 알리고 장부에 안 남으면
-  /// 같은 세트를 기록 탭에서 한 번 더 밀어야 한다 — 같은 행위가 두 번이 된다.
+  /// "세트 끝냈어요"는 신호가 아니라 기록이다. 완료는 [AppState.toggleSet]이
+  /// 곧 방 보고까지 맡는다(기록 탭 스와이프와 같은 경로) — 여기서 또 보고하면
+  /// 전광판 세트 수가 두 배가 된다.
   Future<void> _reportSetDone() async {
     final state = AppScope.of(context);
     final live = _liveSetOfToday(state);
-    var rest = state.restDefaultSeconds;
-    String? exerciseName;
-    int? setNumber;
-    int? setTotal;
-    if (live != null) {
-      final (exercise, set) = live;
-      rest = set.restSeconds > 0 ? set.restSeconds : rest;
-      exerciseName = exercise.template.name;
-      setNumber = set.number;
-      setTotal = exercise.sets.length;
-      // 휴식은 방이 정한 공유 시각으로 시작해야 한다 — 여기서 로컬 타이머를
-      // 켜면 서버 echo와 두 개가 돈다.
-      await state.toggleSet(set, startRest: false);
-      state.adoptActualIntoPendingSets(exercise, set);
-      if (!mounted) return;
-    }
-    // 전광판 볼륨은 완료 반영 후의 오늘 합계다.
-    final volume = state.sessions[state.dateOnly(DateTime.now())]?.volume ?? 0;
-    await _run(
-      () => _repository!.reportSetDone(
-        partyId: _party!.id,
-        restSeconds: rest,
-        exerciseName: exerciseName,
-        setNumber: setNumber,
-        setTotal: setTotal,
-        totalVolume: volume,
-      ),
-    );
+    if (live == null) return;
+    final (exercise, set) = live;
+    // 휴식은 방이 정한 공유 시각으로 시작해야 한다 — 여기서 로컬 타이머를
+    // 켜면 서버 echo와 두 개가 돈다.
+    await state.toggleSet(set, startRest: false);
+    if (!mounted) return;
+    state.adoptActualIntoPendingSets(exercise, set);
   }
 
   Future<void> _offerRoutine() async {
@@ -955,6 +957,36 @@ class _TogetherScreenState extends State<TogetherScreen> {
       ),
     );
     if (leave == true && mounted) await _leave();
+  }
+
+  /// 방장의 강퇴 — 세트 수가 걸린 방이라 확인 한 번은 묻는다. 쫓겨난 쪽
+  /// 처리(로비로, 안내)는 브로드캐스트를 받은 그 기기의 [_handleIncoming] 몫.
+  Future<void> _confirmKick(PartyMember member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${member.displayName}님을 내보낼까요?'),
+        content: const Text('내보낸 사람은 코드나 공개방으로 다시 들어올 수 있어요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            key: const ValueKey('together-kick-confirm'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('내보내기'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _party == null) return;
+    await _run(
+      () => _repository!.kickMember(
+        partyId: _party!.id,
+        memberUserId: member.userId,
+      ),
+    );
   }
 
   Future<void> _leave() async {
@@ -1741,7 +1773,7 @@ class _NearbyRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${room.hostName}님의 방',
+                  room.title ?? '${room.hostName}님의 방',
                   style: theme.textTheme.titleMedium,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1786,7 +1818,17 @@ class _CreateSheetState extends State<_CreateSheet> {
   PartyVisibility _visibility = PartyVisibility.private;
   PartyMode _mode = PartyMode.defaultMode;
 
+  /// 방제 — 시트가 컨트롤러를 소유한다(닫히는 애니메이션 동안에도 리빌드되므로
+  /// whenComplete-dispose는 이미 죽은 컨트롤러를 만진다).
+  final _title = TextEditingController();
+
   static IconData _iconFor(PartyMode mode) => _iconForMode(mode);
+
+  @override
+  void dispose() {
+    _title.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1803,6 +1845,13 @@ class _CreateSheetState extends State<_CreateSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('방 만들기', style: theme.textTheme.titleLarge),
+          const SizedBox(height: SetflowSpacing.lg),
+          AppTextField(
+            key: const ValueKey('create-title'),
+            controller: _title,
+            hint: '방제 (선택) — 예: 아침 어깨팟',
+            inputFormatters: [LengthLimitingTextInputFormatter(24)],
+          ),
           const SizedBox(height: SetflowSpacing.lg),
           Text('누가 들어올 수 있나요', style: theme.textTheme.titleMedium),
           const SizedBox(height: SetflowSpacing.sm),
@@ -1887,7 +1936,8 @@ class _CreateSheetState extends State<_CreateSheet> {
             key: const ValueKey('together-create-confirm'),
             label: _visibility == PartyVisibility.public ? '공개방 열기' : '비밀방 열기',
             icon: SetflowIcons.partyCreate,
-            onPressed: () => Navigator.of(context).pop((_visibility, _mode)),
+            onPressed: () =>
+                Navigator.of(context).pop((_title.text, _visibility, _mode)),
           ),
         ],
       ),
@@ -2005,7 +2055,11 @@ class _PartyRoom extends StatelessWidget {
     required this.onSetEdited,
     required this.onStart,
     required this.onSetDone,
+    this.onKickMember,
   });
+
+  /// 방장이 멤버 줄을 길게 눌러 내보낸다. 방장이 아니면 null.
+  final ValueChanged<PartyMember>? onKickMember;
 
   final TrainingParty party;
   final String? userId;
@@ -2058,7 +2112,12 @@ class _PartyRoom extends StatelessWidget {
             key: boardKey,
             // 혼자여도 전광판이다 — "전광판이 게임판인데". 내 줄이 먼저 켜지고,
             // 초대 코드는 판 아래 줄에 얹힌다.
-            child: _Scoreboard(party: party, userId: userId, codeKey: codeKey),
+            child: _Scoreboard(
+              party: party,
+              userId: userId,
+              codeKey: codeKey,
+              onKickMember: onKickMember,
+            ),
           ),
         ),
         if (party.routines.isNotEmpty)
@@ -2793,6 +2852,7 @@ class _Scoreboard extends StatelessWidget {
     required this.party,
     required this.userId,
     required this.codeKey,
+    this.onKickMember,
   });
 
   final TrainingParty party;
@@ -2800,6 +2860,9 @@ class _Scoreboard extends StatelessWidget {
 
   /// 화면 안내가 초대 코드를 비출 자리.
   final GlobalKey codeKey;
+
+  /// 방장의 강퇴 — 멤버 줄 롱프레스. 방장이 아니면 null.
+  final ValueChanged<PartyMember>? onKickMember;
 
   /// 한 줄이 차지하는 칸 수. 위 1칸, 이름 줄 3칸, 숫자 11칸, 아래 여유 3칸.
   static const _rowCells = 18;
@@ -2907,6 +2970,12 @@ class _Scoreboard extends StatelessWidget {
                               child: _ScoreboardRow(
                                 member: member,
                                 isMe: member.userId == userId,
+                                isHost: party.isHost(member.userId),
+                                onKick:
+                                    onKickMember == null ||
+                                        member.userId == userId
+                                    ? null
+                                    : () => onKickMember!(member),
                                 hasTurn:
                                     party.mode == PartyMode.alternating &&
                                     party.currentTurnUserId == member.userId,
@@ -3043,11 +3112,19 @@ class _ScoreboardRow extends StatelessWidget {
     required this.leading,
     required this.sharedRest,
     required this.pitch,
+    this.isHost = false,
+    this.onKick,
   });
 
   final PartyMember member;
   final bool isMe;
   final bool hasTurn;
+
+  /// 이 줄의 사람이 방장인가 — 이름 옆에 표기한다.
+  final bool isHost;
+
+  /// 방장이 이 줄을 길게 눌러 내보낸다(자기 줄과 비방장에게는 null).
+  final VoidCallback? onKick;
 
   /// 경쟁이 시작된 뒤(2명 이상, 1세트 이상)에만 순위가 있다.
   final int? rank;
@@ -3079,123 +3156,150 @@ class _ScoreboardRow extends StatelessWidget {
 
     return Semantics(
       key: ValueKey('scoreboard-${member.userId}'),
-      label: '${member.displayName} ${member.completedSets}세트',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: 3 * pitch,
-            child: Row(
-              children: [
-                if (leading) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: SetflowSpacing.sm,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: LedPalette.lit,
-                      borderRadius: BorderRadius.circular(SetflowRadii.xs),
-                    ),
-                    child: const Text(
-                      '1위',
-                      style: TextStyle(
-                        color: LedPalette.litInk,
-                        fontSize: SetflowFontSize.small,
-                        fontWeight: SetflowWeight.display,
+      label:
+          '${member.displayName}${isHost ? ' 방장' : ''} '
+          '${member.completedSets}세트',
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: '내보내기'): ?onKick,
+      },
+      child: GestureDetector(
+        // 롱프레스 = 방장의 내보내기. 짧은 탭은 아무 일도 하지 않아 세트
+        // 사이의 실수 탭이 방을 흔들지 않는다.
+        behavior: onKick == null
+            ? HitTestBehavior.deferToChild
+            : HitTestBehavior.opaque,
+        onLongPress: onKick,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 3 * pitch,
+              child: Row(
+                children: [
+                  if (leading) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: SetflowSpacing.sm,
+                        vertical: 2,
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: SetflowSpacing.sm),
-                ] else if (rank != null) ...[
-                  Text(
-                    '$rank위',
-                    style: const TextStyle(
-                      color: LedPalette.dimText,
-                      fontSize: SetflowFontSize.caption,
-                      fontWeight: SetflowWeight.strong,
-                    ),
-                  ),
-                  const SizedBox(width: SetflowSpacing.sm),
-                ],
-                Expanded(
-                  child: Text(
-                    isMe && member.displayName != '나'
-                        ? '${member.displayName} (나)'
-                        : member.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: LedPalette.text,
-                      fontWeight: SetflowWeight.strong,
-                      fontSize: SetflowFontSize.label,
-                    ),
-                  ),
-                ),
-                if (_statusLabel case final status?)
-                  Text(
-                    status,
-                    style: TextStyle(
-                      color: lifting ? LedPalette.lit : LedPalette.muted,
-                      fontSize: SetflowFontSize.caption,
-                      fontWeight: SetflowWeight.strong,
-                      letterSpacing: .5,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // 숫자(격자가 켠다)의 높이만큼 비워 두고, 그 오른쪽 아래에 글자.
-          SizedBox(
-            height: (ledGlyphRows + 1) * pitch,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                SizedBox(width: digitsWidth + pitch),
-                const Text(
-                  '세트',
-                  style: TextStyle(
-                    color: LedPalette.muted,
-                    fontSize: SetflowFontSize.caption,
-                    fontWeight: SetflowWeight.strong,
-                  ),
-                ),
-                const SizedBox(width: SetflowSpacing.md),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        doing == null
-                            ? '아직 세트 전이에요'
-                            : '$doing · ${member.currentSetNumber ?? '-'}'
-                                  '/${member.currentSetTotal ?? '-'}세트',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
-                        style: const TextStyle(
-                          color: LedPalette.muted,
-                          fontSize: SetflowFontSize.caption,
+                      decoration: BoxDecoration(
+                        color: LedPalette.lit,
+                        borderRadius: BorderRadius.circular(SetflowRadii.xs),
+                      ),
+                      child: const Text(
+                        '1위',
+                        style: TextStyle(
+                          color: LedPalette.litInk,
+                          fontSize: SetflowFontSize.small,
+                          fontWeight: SetflowWeight.display,
                         ),
                       ),
-                      if (member.totalVolume > 0)
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                  ] else if (rank != null) ...[
+                    Text(
+                      '$rank위',
+                      style: const TextStyle(
+                        color: LedPalette.dimText,
+                        fontSize: SetflowFontSize.caption,
+                        fontWeight: SetflowWeight.strong,
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                  ],
+                  Flexible(
+                    child: Text(
+                      isMe && member.displayName != '나'
+                          ? '${member.displayName} (나)'
+                          : member.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: LedPalette.text,
+                        fontWeight: SetflowWeight.strong,
+                        fontSize: SetflowFontSize.label,
+                      ),
+                    ),
+                  ),
+                  if (isHost) ...[
+                    const SizedBox(width: SetflowSpacing.sm),
+                    const Text(
+                      '방장',
+                      key: ValueKey('scoreboard-host-badge'),
+                      style: TextStyle(
+                        color: LedPalette.dimText,
+                        fontSize: SetflowFontSize.caption,
+                        fontWeight: SetflowWeight.strong,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (_statusLabel case final status?)
+                    Text(
+                      status,
+                      style: TextStyle(
+                        color: lifting ? LedPalette.lit : LedPalette.muted,
+                        fontSize: SetflowFontSize.caption,
+                        fontWeight: SetflowWeight.strong,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // 숫자(격자가 켠다)의 높이만큼 비워 두고, 그 오른쪽 아래에 글자.
+            SizedBox(
+              height: (ledGlyphRows + 1) * pitch,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SizedBox(width: digitsWidth + pitch),
+                  const Text(
+                    '세트',
+                    style: TextStyle(
+                      color: LedPalette.muted,
+                      fontSize: SetflowFontSize.caption,
+                      fontWeight: SetflowWeight.strong,
+                    ),
+                  ),
+                  const SizedBox(width: SetflowSpacing.md),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
                         Text(
-                          volume,
+                          doing == null
+                              ? '아직 세트 전이에요'
+                              : '$doing · ${member.currentSetNumber ?? '-'}'
+                                    '/${member.currentSetTotal ?? '-'}세트',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
                           style: const TextStyle(
-                            color: LedPalette.text,
-                            fontSize: SetflowFontSize.label,
-                            fontWeight: SetflowWeight.strong,
-                            fontFeatures: [FontFeature.tabularFigures()],
+                            color: LedPalette.muted,
+                            fontSize: SetflowFontSize.caption,
                           ),
                         ),
-                    ],
+                        if (member.totalVolume > 0)
+                          Text(
+                            volume,
+                            style: const TextStyle(
+                              color: LedPalette.text,
+                              fontSize: SetflowFontSize.label,
+                              fontWeight: SetflowWeight.strong,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

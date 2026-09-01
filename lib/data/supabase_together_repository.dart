@@ -82,7 +82,8 @@ class SupabaseTogetherRepository implements TogetherRepository {
       return '방이 가득 찼어요. 한 방에는 최대 6명까지예요.';
     }
     if (message.contains('not a member')) return '이 방에서 나간 상태예요.';
-    if (message.contains('not the host')) return '공개 여부는 방을 만든 사람이 정해요.';
+    if (message.contains('cannot kick self')) return '자신은 내보낼 수 없어요.';
+    if (message.contains('not the host')) return '방장만 할 수 있어요.';
     if (message.contains('location required')) return '공개방으로 바꾸려면 위치가 필요해요.';
     if (message.contains('auth required')) return '함께 운동하려면 로그인이 필요해요.';
     return '지금은 연결이 어려워요. 잠시 후 다시 시도해주세요.';
@@ -93,12 +94,23 @@ class SupabaseTogetherRepository implements TogetherRepository {
     required PartyMode mode,
     PartyVisibility visibility = PartyVisibility.private,
     GeoPoint? location,
+    String? title,
   }) => _rpc('create_training_party', {
     'p_mode': mode.name,
     'p_display_name': _displayName,
     'p_visibility': visibility.name,
     'p_lat': location?.lat,
     'p_lng': location?.lng,
+    'p_title': title,
+  });
+
+  @override
+  Future<TrainingParty> kickMember({
+    required String partyId,
+    required String memberUserId,
+  }) => _rpc('kick_training_party_member', {
+    'p_party_id': partyId,
+    'p_member': memberUserId,
   });
 
   @override
@@ -172,6 +184,9 @@ class SupabaseTogetherRepository implements TogetherRepository {
     if (id == null) return null;
     return NearbyParty(
       id: id,
+      title: (json['title'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : (json['title'] as String).trim(),
       hostName: json['host_name'] as String? ?? '회원',
       mode: PartyMode.values.firstWhere(
         (value) => value.name == json['mode'],
@@ -355,6 +370,9 @@ class SupabaseTogetherRepository implements TogetherRepository {
         (value) => value.name == json['mode'],
         orElse: () => PartyMode.together,
       ),
+      title: (json['title'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : (json['title'] as String).trim(),
       visibility: json['visibility'] == 'public'
           ? PartyVisibility.public
           : PartyVisibility.private,

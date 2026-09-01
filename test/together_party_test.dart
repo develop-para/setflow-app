@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:setflow/app_state.dart';
 import 'package:setflow/data/together_repository.dart';
-import 'package:setflow/models.dart';
 
 /// Two phones, one room. Every test below drives both sides through the same
 /// backend, because the failures worth catching are the ones where the two
@@ -33,6 +33,76 @@ void main() {
     await friend.joinParty(party.code);
     return backend.partyById(party.id)!;
   }
+
+  group('game-room basics', () {
+    test('a title is trimmed to 24 chars, and blank means none', () async {
+      final titled = await me.createParty(
+        mode: PartyMode.free,
+        title: '  아침 어깨팟 1234567890123456789012345  ',
+      );
+      expect(titled.title, isNotNull);
+      expect(titled.title!.length, lessThanOrEqualTo(24));
+      final blank = await me.createParty(mode: PartyMode.free, title: '   ');
+      expect(blank.title, isNull);
+    });
+
+    test('only the host can kick, never themselves', () async {
+      final party = await roomOfTwo();
+      expect(
+        () => friend.kickMember(partyId: party.id, memberUserId: 'u-me'),
+        throwsA(isA<TogetherFailure>()),
+        reason: '방장이 아니면 강퇴할 수 없다',
+      );
+      expect(
+        () => me.kickMember(partyId: party.id, memberUserId: 'u-me'),
+        throwsA(isA<TogetherFailure>()),
+        reason: '자신은 내보낼 수 없다',
+      );
+      await me.kickMember(partyId: party.id, memberUserId: 'u-friend');
+      expect(backend.partyById(party.id)!.memberOf('u-friend'), isNull);
+    });
+
+    test('the host role passes on when the host leaves', () async {
+      final party = await roomOfTwo();
+      await me.leaveParty(party.id);
+      expect(backend.partyById(party.id)!.hostUserId, 'u-friend');
+    });
+  });
+
+  test('completing a set anywhere reports to the party scoreboard', () async {
+    // "기록에서 완료하면 함께에서는 반영이 안 되더라" — 보고는 방의 버튼이
+    // 아니라 세트 완료 자체(AppState.toggleSet)에 붙는다. 기록 탭 스와이프든
+    // 방 버튼이든 전광판이 같은 숫자를 본다.
+    final state = AppState(togetherRepository: me);
+    await state.initialize();
+    addTearDown(state.dispose);
+    final party = await me.createParty(mode: PartyMode.free);
+    state.setActiveTrainingParty(party.id);
+
+    final today = state.dateOnly(DateTime.now());
+    state.addExercise(today, state.exercises.firstWhere((e) => !e.isCardio));
+    final set = state.sessions[today]!.exercises.single.sets.first;
+    state.updateSet(set, weight: 60, reps: 8);
+    await state.toggleSet(set, startRest: false);
+    // 보고는 fire-and-forget — 마이크로태스크가 돌 틈을 준다.
+    await Future<void>.delayed(Duration.zero);
+
+    final member = backend.partyById(party.id)!.memberOf('u-me')!;
+    expect(member.completedSets, 1, reason: '기록 경로의 완료가 전광판에 닿아야 한다');
+    expect(member.currentExercise, isNotNull);
+    expect(member.totalVolume, greaterThan(0));
+
+    // 어제 세트는 오늘의 판이 아니다 — 보고하지 않는다.
+    final yesterday = today.subtract(const Duration(days: 1));
+    state.addExercise(
+      yesterday,
+      state.exercises.firstWhere((e) => !e.isCardio),
+    );
+    final oldSet = state.sessions[yesterday]!.exercises.single.sets.first;
+    await state.toggleSet(oldSet, startRest: false);
+    await Future<void>.delayed(Duration.zero);
+    expect(backend.partyById(party.id)!.memberOf('u-me')!.completedSets, 1);
+  });
 
   group('public rooms', () {
     const gym = GeoPoint(37.5665, 126.9780);
