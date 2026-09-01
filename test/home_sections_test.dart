@@ -5,14 +5,15 @@ import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/theme/icons.dart';
 
-/// 달력 아래는 내 데이터다 — 오늘, 이번 주, 최근 기록, 최근 운동.
+/// 홈은 내 데이터에서 시작한다 — 오늘, 이번 주, 최근 기록, 최근 운동.
 ///
-/// 전에는 전문가 루틴 미리보기와 함께 운동 광고 카드였다. 여기 있는 것은 전부
-/// 기기의 기록에서 계산한 값이고, 값이 없으면 섹션째 사라진다.
+/// 캘린더가 기록 탭으로 옮겨 가면서(2026-09-01) 홈은 소식의 자리가 됐다.
+/// 기록에서 계산한 값은 값이 없으면 섹션째 사라지고, 커뮤니티·추천 루틴은
+/// 헤어라인 줄로 선다. 달력 칸 테스트는 CalendarScreen을 직접 띄운다.
 void main() {
-  Future<AppState> pumpHome(
-    WidgetTester tester, {
-    VoidCallback? onOpenRecord,
+  Future<AppState> pumpScreen(
+    WidgetTester tester,
+    Widget Function(AppState state) child, {
     void Function(AppState state)? seed,
   }) async {
     await tester.binding.setSurfaceSize(const Size(393, 1400));
@@ -27,7 +28,7 @@ void main() {
         notifier: state,
         child: MaterialApp(
           theme: SetflowTheme.light,
-          home: Scaffold(body: CalendarScreen(onOpenRecord: onOpenRecord)),
+          home: Scaffold(body: child(state)),
         ),
       ),
     );
@@ -35,6 +36,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     return state;
   }
+
+  Future<AppState> pumpHome(
+    WidgetTester tester, {
+    VoidCallback? onOpenRecord,
+    void Function(AppState state)? seed,
+  }) => pumpScreen(
+    tester,
+    (_) =>
+        HomeScreen(onOpenRecord: onOpenRecord ?? () {}, onOpenCommunity: () {}),
+    seed: seed,
+  );
 
   DateTime today() {
     final now = DateTime.now();
@@ -62,9 +74,22 @@ void main() {
     // 값이 없는 섹션은 빈 카드로 자리를 차지하지 않는다.
     expect(find.text('최근 기록'), findsNothing);
     expect(find.text('최근 운동'), findsNothing);
-    // 지난 광고 카드들은 없다.
-    expect(find.text('전문가 루틴'), findsNothing);
-    expect(find.text('함께 운동'), findsNothing);
+  });
+
+  testWidgets('the home tail is news: community and market as hairline rows', (
+    tester,
+  ) async {
+    // "홈에는 광고랑 다른 정보를" — 커뮤니티 새 글과 추천 루틴이 소식이다.
+    // 8/30에 뺐던 것은 회색 광고 카드였고, 이번엔 카드가 아니라 줄이다.
+    await pumpHome(tester);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('home-market')),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.byKey(const ValueKey('home-community')), findsOneWidget);
+    expect(find.text('추천 루틴'), findsOneWidget);
   });
 
   testWidgets('today card follows the record and opens the record tab', (
@@ -114,7 +139,14 @@ void main() {
     expect(workouts.text.toPlainText(), startsWith('1회'));
     // 이번 주 1회, 지난주 2회(오늘-7·오늘-8이 같은 주에 있을 수도, 아닐 수도
     // 있다 — 일요일이면 -7은 지난주 마지막 날이 아니라 이번 주 첫날이다).
-    expect(find.textContaining('지난주'), findsOneWidget);
+    // 커뮤니티 데모 글에도 "지난주"가 나올 수 있으니 주간 섹션 안에서만 찾는다.
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('home-week')),
+        matching: find.textContaining('지난주'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('this week checks a day only after every set is complete', (
@@ -179,9 +211,11 @@ void main() {
   ) async {
     // "종목보다 부위를 표기하는 게 나은 것 같아 … 2개 이상이면 그 색상을
     // 그라데이션으로 섞으면 좋겠어." 칸 글자는 "가슴 · 등", 막대는 두 색.
+    // 달력은 이제 기록 탭의 것이라 CalendarScreen을 직접 띄운다.
     final now = today();
-    await pumpHome(
+    await pumpScreen(
       tester,
+      (_) => const CalendarScreen(),
       seed: (state) {
         state.addExercise(
           now,

@@ -1355,13 +1355,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1900));
     await tester.pumpAndSettle();
 
-    final calendarContext = tester.element(find.byType(CalendarScreen));
-    final state = AppScope.of(calendarContext);
+    // 셸의 첫 페이지는 이제 캘린더가 아니라 홈이다 — 컨텍스트만 필요하다.
+    final homeContext = tester.element(find.byType(HomeScreen));
+    final state = AppScope.of(homeContext);
     state.startRestTimer(90);
     await tester.pump();
     expect(find.text('휴식 중'), findsOneWidget);
 
-    Navigator.of(calendarContext).push(
+    Navigator.of(homeContext).push(
       MaterialPageRoute(
         builder: (_) => DailyWorkoutScreen(date: DateTime(2026, 7, 23)),
       ),

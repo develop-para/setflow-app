@@ -7,6 +7,7 @@ import '../app_state.dart';
 import '../services/push_service.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import '../widgets/common.dart';
 import '../widgets/portal.dart';
 import '../widgets/recommendation_profile_summary.dart';
@@ -27,6 +28,25 @@ class BusinessShell extends StatefulWidget {
 
   @override
   State<BusinessShell> createState() => _BusinessShellState();
+}
+
+/// pro 셸 헤더의 "회원 화면" — 회원 셸로 돌아가는 유일한 문.
+///
+/// 돌아가는 방향은 게이트가 없다: 회원 쪽은 게스트도 쓰는 표면이고, access가
+/// 아직 로드 중인 데모 빌드에서도 이 문이 있어야 pro 셸에 갇히지 않는다.
+class _ClientPortalReturnButton extends StatelessWidget {
+  const _ClientPortalReturnButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    return TextButton.icon(
+      key: const ValueKey('portal-return-client'),
+      onPressed: () => state.switchPortal(AppPortal.client),
+      icon: const Icon(SetflowIcons.my, size: 18),
+      label: const Text('회원 화면'),
+    );
+  }
 }
 
 /// 탭한 푸시가 여는 업무 셸의 페이지. 트레이너는 상담 큐가 넷째 탭, 센터는
@@ -91,7 +111,10 @@ class _BusinessShellState extends State<BusinessShell> {
     return Scaffold(
       body: Column(
         children: [
-          const PortalHeaderBar(),
+          // 헤더 세그먼트는 걷어냈지만(전환은 회원 쪽 전체 메뉴의 한 줄),
+          // pro 셸에 서 있는 사람의 **돌아가는 문**은 사라지면 안 된다 —
+          // 트레이너도 자기 운동은 회원 화면에서 기록한다. 이 방향은 게이트가 없다.
+          const PortalHeaderBar(trailing: _ClientPortalReturnButton()),
           // The header already ate the status-bar inset, so the per-page
           // SafeArea below must not add it a second time.
           Expanded(
@@ -226,9 +249,9 @@ class _BusinessHeader extends StatelessWidget {
     final state = AppScope.of(context);
     final unreadCount = state.unreadBusinessNotifications(state.role);
     final theme = Theme.of(context);
-    final eyebrowColor = theme.brightness == Brightness.dark
-        ? accent
-        : Color.lerp(accent, SetflowColors.ink, .35)!;
+    // 역할색 eyebrow는 장식이었다 — 색은 의미에만 쓰고, 라벨은 회색이면 된다
+    // (회원 쪽과 같은 문법). accent는 알림 시트의 강조에만 남는다.
+    final eyebrowColor = theme.colorScheme.onSurfaceVariant;
     return Padding(
       // 좌측은 페이지 여백(18). 우측 6은 아이콘 버튼의 내부 패딩(12)을 빼서
       // 아이콘 글리프가 카드 오른끝(18)과 같은 선에 앉게 하는 값이다 —
@@ -1002,54 +1025,51 @@ class TrainerHome extends StatelessWidget {
         const SizedBox(height: SetflowSpacing.xxl),
         SectionTitle(state.usesLiveBusinessData ? '운영 데이터' : '루틴 성과'),
         const SizedBox(height: SetflowSpacing.md),
+        // 카드가 아니라 헤어라인 목록 — 회원 홈과 같은 문법.
         if (state.usesLiveBusinessData)
-          SetflowCard(
-            child: Column(
-              children: [
-                _StatusRow(
-                  label: '등록 루틴',
-                  status: '${state.ownedBusinessRoutines.length}개',
-                  color: context.setflowColors.blue,
-                ),
-                const Divider(height: 26),
-                _StatusRow(
-                  label: '전체 상담',
-                  status: '${state.businessConsultations.length}건',
-                  color: context.setflowColors.orange,
-                ),
-                const Divider(height: 26),
-                _StatusRow(
-                  label: '답변 완료',
-                  status:
-                      '${state.businessConsultations.where(_hasBusinessReply).length}건',
-                  color: context.setflowColors.success,
-                ),
-              ],
-            ),
+          Column(
+            children: [
+              _StatusRow(
+                label: '등록 루틴',
+                status: '${state.ownedBusinessRoutines.length}개',
+                color: context.setflowColors.blue,
+              ),
+              const Divider(height: 26),
+              _StatusRow(
+                label: '전체 상담',
+                status: '${state.businessConsultations.length}건',
+                color: context.setflowColors.orange,
+              ),
+              const Divider(height: 26),
+              _StatusRow(
+                label: '답변 완료',
+                status:
+                    '${state.businessConsultations.where(_hasBusinessReply).length}건',
+                color: context.setflowColors.success,
+              ),
+            ],
           )
         else
-          SetflowCard(
-            child: Column(
-              children: [
-                _PerformanceRow(
-                  label: '루틴 조회수',
-                  value: facts['routineViews'] ?? '0',
-                  change: facts['routineViewsChange'] ?? '-',
-                ),
-                const Divider(height: 26),
-                _PerformanceRow(
-                  label: '상담 전환',
-                  value: facts['consultationConversion'] ?? '0%',
-                  change: facts['consultationConversionChange'] ?? '-',
-                ),
-                const Divider(height: 26),
-                _PerformanceRow(
-                  label: '가져가기',
-                  value: facts['routineImports'] ?? '0회',
-                  change: facts['routineImportsChange'] ?? '-',
-                ),
-              ],
-            ),
+          Column(
+            children: [
+              _PerformanceRow(
+                label: '루틴 조회수',
+                value: facts['routineViews'] ?? '0',
+                change: facts['routineViewsChange'] ?? '-',
+              ),
+              const Divider(height: 26),
+              _PerformanceRow(
+                label: '상담 전환',
+                value: facts['consultationConversion'] ?? '0%',
+                change: facts['consultationConversionChange'] ?? '-',
+              ),
+              const Divider(height: 26),
+              _PerformanceRow(
+                label: '가져가기',
+                value: facts['routineImports'] ?? '0회',
+                change: facts['routineImportsChange'] ?? '-',
+              ),
+            ],
           ),
       ],
     );
@@ -1220,7 +1240,8 @@ class GymHome extends StatelessWidget {
             message: '트레이너가 센터에 합류하면 운영 현황이 여기에 표시됩니다.',
           )
         else
-          SetflowCard(
+          // 카드가 아니라 헤어라인 목록 — 탭하면 트레이너 관리로.
+          InkWell(
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const TrainerManagementPage(),
@@ -1229,14 +1250,15 @@ class GymHome extends StatelessWidget {
             child: Column(
               children: [
                 for (var index = 0; index < trainerRows.length; index++) ...[
-                  _PersonRow(
-                    name: trainerRows[index].$1,
-                    detail: trainerRows[index].$2,
-                    color: [
-                      context.setflowColors.blue,
-                      context.setflowColors.teal,
-                      context.setflowColors.orange,
-                    ][index],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: SetflowSpacing.xs,
+                    ),
+                    child: _PersonRow(
+                      name: trainerRows[index].$1,
+                      detail: trainerRows[index].$2,
+                      color: context.setflowColors.blue,
+                    ),
                   ),
                   if (index < trainerRows.length - 1) const Divider(height: 22),
                 ],
@@ -1317,7 +1339,6 @@ class GymOperationsPage extends StatelessWidget {
           ),
           const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('업무'),
-          const SizedBox(height: SetflowSpacing.md),
           _OperationShortcut(
             icon: Icons.chat_bubble_outline_rounded,
             color: context.setflowColors.orange,
@@ -1327,7 +1348,6 @@ class GymOperationsPage extends StatelessWidget {
             onTap: () =>
                 _open(context, const ConsultationQueuePage(role: UserRole.gym)),
           ),
-          const SizedBox(height: SetflowSpacing.md),
           _OperationShortcut(
             icon: Icons.badge_outlined,
             color: context.setflowColors.purple,
@@ -1338,7 +1358,6 @@ class GymOperationsPage extends StatelessWidget {
                 : '${facts['trainers'] ?? '0'}명',
             onTap: () => _open(context, const TrainerManagementPage()),
           ),
-          const SizedBox(height: SetflowSpacing.md),
           _OperationShortcut(
             icon: Icons.fitness_center_outlined,
             color: context.setflowColors.teal,
@@ -1375,35 +1394,56 @@ class _OperationShortcut extends StatelessWidget {
   final String value;
   final VoidCallback onTap;
 
+  // 카드 스택이 아니라 헤어라인 줄. 아이콘은 개념 표시라 색 없이 그대로 둔다
+  // — 색은 의미(상태)에만 쓴다는 규칙(AGENTS.md 6절).
   @override
   Widget build(BuildContext context) {
-    return SetflowCard(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(width: SetflowSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.lg),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: theme.colorScheme.outlineVariant),
           ),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(width: SetflowSpacing.xs),
-          const Icon(Icons.chevron_right_rounded),
-        ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: SetflowSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: theme.textTheme.titleMedium),
+                  const SizedBox(height: SetflowSpacing.xxs),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              value,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(width: SetflowSpacing.xs),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1542,75 +1582,63 @@ class AdminHome extends StatelessWidget {
         const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('SLA 처리 현황'),
         const SizedBox(height: SetflowSpacing.md),
-        SetflowCard(
-          child: Column(
-            children: [
-              _ProgressRow(
-                label: 'Red 신고 · 1시간',
-                value: _percentageFact(facts, 'redSla'),
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(height: SetflowSpacing.xl),
-              _ProgressRow(
-                label: 'Orange 신고 · 24시간',
-                value: _percentageFact(facts, 'orangeSla'),
-                color: context.setflowColors.orange,
-              ),
-              const SizedBox(height: SetflowSpacing.xl),
-              _ProgressRow(
-                label: '인증 심사 · 3영업일',
-                value: _percentageFact(facts, 'reviewSla'),
-                color: context.setflowColors.success,
-              ),
-            ],
-          ),
+        Column(
+          children: [
+            _ProgressRow(
+              label: 'Red 신고 · 1시간',
+              value: _percentageFact(facts, 'redSla'),
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            _ProgressRow(
+              label: 'Orange 신고 · 24시간',
+              value: _percentageFact(facts, 'orangeSla'),
+              color: context.setflowColors.orange,
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
+            _ProgressRow(
+              label: '인증 심사 · 3영업일',
+              value: _percentageFact(facts, 'reviewSla'),
+              color: context.setflowColors.success,
+            ),
+          ],
         ),
         const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('시스템 상태'),
         const SizedBox(height: SetflowSpacing.md),
-        SetflowCard(
-          child: Column(
-            children: [
-              _StatusRow(
-                label: 'API',
-                status: facts['apiStatus'] ?? '확인 필요',
-                color: context.setflowColors.success,
-              ),
-              const Divider(height: 24),
-              _StatusRow(
-                label: 'OCR 서비스',
-                status: facts['ocrStatus'] ?? '확인 필요',
-                color: context.setflowColors.success,
-              ),
-              const Divider(height: 24),
-              _StatusRow(
-                label: '정산 배치',
-                status: facts['settlementStatus'] ?? '확인 필요',
-                color: context.setflowColors.orange,
-              ),
-            ],
-          ),
+        Column(
+          children: [
+            _StatusRow(
+              label: 'API',
+              status: facts['apiStatus'] ?? '확인 필요',
+              color: context.setflowColors.success,
+            ),
+            const Divider(height: 24),
+            _StatusRow(
+              label: 'OCR 서비스',
+              status: facts['ocrStatus'] ?? '확인 필요',
+              color: context.setflowColors.success,
+            ),
+            const Divider(height: 24),
+            _StatusRow(
+              label: '정산 배치',
+              status: facts['settlementStatus'] ?? '확인 필요',
+              color: context.setflowColors.orange,
+            ),
+          ],
         ),
         const SizedBox(height: SetflowSpacing.xxl),
         const SectionTitle('시스템 관리'),
         const SizedBox(height: SetflowSpacing.md),
-        SetflowCard(
+        _OperationShortcut(
+          icon: Icons.tune_outlined,
+          color: context.setflowColors.blue,
+          title: '시스템 관리',
+          subtitle: '랭킹 · OCR · 요금제 · 금칙어 · 로그',
+          value: '',
           onTap: () => Navigator.of(
             context,
           ).push(MaterialPageRoute(builder: (_) => AdminSystemScreen())),
-          child: const Row(
-            children: [
-              Icon(Icons.tune_outlined, color: SetflowColors.primary),
-              SizedBox(width: SetflowSpacing.md),
-              Expanded(
-                child: Text(
-                  '랭킹 · OCR · 요금제 · 금칙어 · 로그 관리',
-                  style: TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              Icon(Icons.chevron_right, color: SetflowColors.disabled),
-            ],
-          ),
         ),
       ],
     );
@@ -1908,24 +1936,35 @@ class _PeoplePageState extends State<PeoplePage> {
                                     .dashboardFor(UserRole.gym)
                                     .facts['memberAssignment.${person.$1}'] ??
                                 '미배정';
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SetflowCard(
-                          onTap: () => _showMember(context, person),
+                      // 사람 목록은 읽고 들어가는 목록이다 — 회색 카드 스택이
+                      // 아니라 헤어라인 줄(회원 쪽과 같은 언어). 인덱스 순환
+                      // 아바타색은 의미가 없어 중립으로, 색은 완료율 숫자
+                      // (신호등)에만 남는다.
+                      return InkWell(
+                        onTap: () => _showMember(context, person),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: SetflowSpacing.md,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
+                              ),
+                            ),
+                          ),
                           child: Row(
                             children: [
                               CircleAvatar(
-                                radius: 24,
-                                backgroundColor: [
-                                  SetflowColors.primary,
-                                  context.setflowColors.teal,
-                                  context.setflowColors.purple,
-                                  context.setflowColors.blue,
-                                ][index % 4].withValues(alpha: .2),
+                                radius: 20,
+                                backgroundColor:
+                                    context.setflowColors.surfaceContainer,
                                 child: Text(
                                   person.$1.characters.first,
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
                               ),
@@ -1936,10 +1975,9 @@ class _PeoplePageState extends State<PeoplePage> {
                                   children: [
                                     Text(
                                       person.$1,
-                                      style: const TextStyle(
-                                        fontSize: SetflowFontSize.title,
-                                        fontWeight: FontWeight.w900,
-                                      ),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
                                     ),
                                     const SizedBox(height: SetflowSpacing.xs),
                                     Text(
@@ -2013,8 +2051,7 @@ class _PeoplePageState extends State<PeoplePage> {
               heroTag: 'gym-member-invite',
               tooltip: '회원 초대',
               onPressed: () => _showInviteSheet(context),
-              backgroundColor: context.setflowColors.purple,
-              foregroundColor: Colors.white,
+              // 보라 FAB는 역할색 장식이었다 — 채움은 테마(라임 + 잉크)가 정한다.
               icon: const Icon(Icons.person_add_alt_1),
               label: const Text('초대'),
             )
@@ -4449,21 +4486,33 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                       final index = visible[visibleIndex].$1;
                       final item = visible[visibleIndex].$2;
                       final done = answered.contains(index);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SetflowCard(
-                          onTap: () => _answer(context, index, item),
+                      // 수신함은 읽는 목록이다 — 카드가 아니라 헤어라인 줄.
+                      // 색은 "아직 안 읽음"(빨간 점)에만 남는다.
+                      return InkWell(
+                        onTap: () => _answer(context, index, item),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: SetflowSpacing.md,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
+                              ),
+                            ),
+                          ),
                           child: Row(
                             children: [
                               Icon(
                                 done
                                     ? Icons.mark_email_read_outlined
                                     : Icons.mark_email_unread_outlined,
-                                color: done
-                                    ? Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant
-                                    : context.setflowColors.orange,
+                                size: 20,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: SetflowSpacing.md),
                               Expanded(
@@ -4474,9 +4523,9 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                       children: [
                                         Text(
                                           item.$1,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w900,
-                                          ),
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
                                         ),
                                         const SizedBox(
                                           width: SetflowSpacing.sm,
@@ -4677,23 +4726,34 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                       itemBuilder: (context, index) {
                         final item = visible[index];
                         final done = _hasBusinessReply(item);
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: SetflowCard(
-                            onTap: _openConsultationIds.contains(item.id)
-                                ? null
-                                : () => _answerLive(context, item),
+                        // 수신함은 읽는 목록 — 데모 목록과 같은 헤어라인 줄.
+                        return InkWell(
+                          onTap: _openConsultationIds.contains(item.id)
+                              ? null
+                              : () => _answerLive(context, item),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: SetflowSpacing.md,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.outlineVariant,
+                                ),
+                              ),
+                            ),
                             child: Row(
                               children: [
                                 Icon(
                                   done
                                       ? Icons.mark_email_read_outlined
                                       : Icons.mark_email_unread_outlined,
-                                  color: done
-                                      ? Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant
-                                      : context.setflowColors.orange,
+                                  size: 20,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                                 const SizedBox(width: SetflowSpacing.md),
                                 Expanded(
@@ -4701,11 +4761,29 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        item.memberName ?? '회원',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                        ),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            item.memberName ?? '회원',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium,
+                                          ),
+                                          const SizedBox(
+                                            width: SetflowSpacing.sm,
+                                          ),
+                                          if (!done)
+                                            Container(
+                                              width: 7,
+                                              height: 7,
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.error,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                       const SizedBox(height: SetflowSpacing.xs),
                                       Text(
@@ -6575,8 +6653,17 @@ class _SettlementPageState extends State<SettlementPage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: admin ? SetflowColors.ink : SetflowNeutral.n700,
-              borderRadius: BorderRadius.circular(SetflowRadii.xl),
+              // 돈이 걸린 히어로는 어디서나 같은 잉크 블록이다 — 트레이너
+              // 수익 카드와 같은 판(회색 슬랩은 혼자 다른 재질로 보였다).
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  SetflowColors.inkBlockTop,
+                  SetflowColors.inkBlockBottom,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(SetflowRadii.lg),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6610,20 +6697,15 @@ class _SettlementPageState extends State<SettlementPage> {
             ),
           ),
           if (!admin) ...[
-            const SizedBox(height: SetflowSpacing.md),
-            const SetflowCard(
-              padding: EdgeInsets.symmetric(
-                horizontal: SetflowSpacing.lg,
-                vertical: SetflowSpacing.md,
-              ),
-              child: Row(
-                children: [
-                  Expanded(child: _SettlementFigure('매출', '18.4M')),
-                  Expanded(child: _SettlementFigure('코치', '3.8M')),
-                  Expanded(child: _SettlementFigure('보류', '0.32M')),
-                  Expanded(child: _SettlementFigure('입금', '14.28M')),
-                ],
-              ),
+            const SizedBox(height: SetflowSpacing.xl),
+            // 요약 숫자는 상자 없이 — 회원 홈의 월 요약과 같은 문법.
+            const Row(
+              children: [
+                Expanded(child: _SettlementFigure('매출', '18.4M')),
+                Expanded(child: _SettlementFigure('코치', '3.8M')),
+                Expanded(child: _SettlementFigure('보류', '0.32M')),
+                Expanded(child: _SettlementFigure('입금', '14.28M')),
+              ],
             ),
           ],
           const SizedBox(height: SetflowSpacing.xxl),
@@ -6674,20 +6756,31 @@ class _SettlementPageState extends State<SettlementPage> {
               },
             )
           else
+            // 내역은 읽는 목록 — 헤어라인 줄. 색은 상태(보류=경고)에만.
             for (final item in settlements)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: SetflowCard(
-                  onTap: () => _showSettlementDetail(context, item),
+              InkWell(
+                onTap: () => _showSettlementDetail(context, item),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: SetflowSpacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       Icon(
                         item.$1 == '환불 보류'
                             ? Icons.pause_circle_outline
                             : Icons.payments_outlined,
+                        size: 20,
                         color: item.$1 == '환불 보류'
                             ? context.setflowColors.error
-                            : context.setflowColors.success,
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: SetflowSpacing.md),
                       Expanded(
@@ -6696,18 +6789,17 @@ class _SettlementPageState extends State<SettlementPage> {
                           children: [
                             Text(
                               item.$1,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
+                            const SizedBox(height: SetflowSpacing.xxs),
                             Text(
                               item.$2,
-                              style: TextStyle(
-                                fontSize: SetflowFontSize.small,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                           ],
                         ),
@@ -6717,16 +6809,21 @@ class _SettlementPageState extends State<SettlementPage> {
                         children: [
                           Text(
                             item.$3,
-                            style: const TextStyle(fontWeight: FontWeight.w900),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
                           ),
                           Text(
                             item.$4,
-                            style: TextStyle(
-                              fontSize: SetflowFontSize.tiny,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
                           ),
                         ],
                       ),
@@ -6736,154 +6833,55 @@ class _SettlementPageState extends State<SettlementPage> {
               ),
           const SizedBox(height: SetflowSpacing.xxl),
           const SectionTitle('상세'),
-          const SizedBox(height: SetflowSpacing.sm2),
-          SetflowCard(
+          // 상세로 가는 문들은 내비게이션 목록 — 마이·전체 메뉴와 같은 줄이다.
+          _OperationShortcut(
+            icon: Icons.receipt_long_outlined,
+            color: context.setflowColors.error,
+            title: '환불',
+            subtitle: '환불 요청 및 처리 이력 확인',
+            value: '',
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => SettlementRefundsPage(role: role),
               ),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.receipt_long_outlined,
-                  color: context.setflowColors.error,
-                ),
-                const SizedBox(width: SetflowSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('환불', style: TextStyle(fontWeight: FontWeight.w900)),
-                      Text(
-                        '환불 요청 및 처리 이력 확인',
-                        style: TextStyle(
-                          fontSize: SetflowFontSize.small,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right, size: 18),
-              ],
-            ),
           ),
-          if (role != UserRole.trainer) ...[
-            const SizedBox(height: SetflowSpacing.sm2),
-            SetflowCard(
+          if (role != UserRole.trainer)
+            _OperationShortcut(
+              icon: Icons.groups_outlined,
+              color: context.setflowColors.blue,
+              title: '코치별',
+              subtitle: '소속 코치 매출·분배 내역',
+              value: '',
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => TrainerSettlementBreakdownPage(role: role),
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.groups_outlined,
-                    color: context.setflowColors.blue,
-                  ),
-                  const SizedBox(width: SetflowSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '코치별',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        Text(
-                          '소속 코치 매출·분배 내역',
-                          style: TextStyle(
-                            fontSize: SetflowFontSize.small,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, size: 18),
-                ],
-              ),
             ),
-          ],
           if (admin) ...[
-            const SizedBox(height: SetflowSpacing.sm2),
-            SetflowCard(
+            _OperationShortcut(
+              icon: Icons.percent_outlined,
+              color: context.setflowColors.purple,
+              title: '수수료 정산',
+              subtitle: '사업자·트레이너별 수수료 산정 내역',
+              value: '',
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => SettlementCommissionPage(role: role),
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.percent_outlined,
-                    color: context.setflowColors.purple,
-                  ),
-                  const SizedBox(width: SetflowSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '수수료 정산',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        Text(
-                          '사업자·트레이너별 수수료 산정 내역',
-                          style: TextStyle(
-                            fontSize: SetflowFontSize.small,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, size: 18),
-                ],
-              ),
             ),
-            const SizedBox(height: SetflowSpacing.sm2),
-            SetflowCard(
+            _OperationShortcut(
+              icon: Icons.task_alt_outlined,
+              color: context.setflowColors.success,
+              title: '최종 정산 확정',
+              subtitle: '지급 대상 확정 및 처리 상태 관리',
+              value: '',
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => SettlementFinalConfirmPage(role: role),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.task_alt_outlined,
-                    color: context.setflowColors.success,
-                  ),
-                  const SizedBox(width: SetflowSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '최종 정산 확정',
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        Text(
-                          '지급 대상 확정 및 처리 상태 관리',
-                          style: TextStyle(
-                            fontSize: SetflowFontSize.small,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, size: 18),
-                ],
               ),
             ),
           ],
@@ -7122,36 +7120,50 @@ class _ActionTile extends StatelessWidget {
   final String subtitle;
   final String action;
   final VoidCallback onTap;
+
+  // 오늘 할 일은 읽는 줄이 아니라 **집어 들 행동**이다 — 지표(큰 숫자)와
+  // 목록(헤어라인) 사이에서 이것만 면 위로 들어 올린다(SetflowCard의 자리,
+  // "들어 올릴 내용"). 전부 헤어라인으로 접었더니 "다 구분선 처리"로 읽혔다 —
+  // 조화는 한 패턴의 반복이 아니라 역할별 형태다(2026-09-01 피드백).
   @override
-  Widget build(BuildContext context) => SetflowCard(
-    onTap: onTap,
-    child: Row(
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(width: SetflowSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: SetflowFontSize.small,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SetflowCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: SetflowSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleMedium),
+                const SizedBox(height: SetflowSpacing.xxs),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        Text(
-          action,
-          style: TextStyle(fontWeight: FontWeight.w900, color: color),
-        ),
-        const Icon(Icons.chevron_right, size: 18),
-      ],
-    ),
-  );
+          const SizedBox(width: SetflowSpacing.sm),
+          Text(
+            action,
+            style: theme.textTheme.labelMedium?.copyWith(color: color),
+          ),
+          const SizedBox(width: SetflowSpacing.xs),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PerformanceRow extends StatelessWidget {
@@ -7203,12 +7215,15 @@ class _PersonRow extends StatelessWidget {
   });
   final String name;
   final String detail;
+
+  /// 옛 카드 시절의 지정색 — 인덱스 순환 색은 의미가 없어서 더는 칠하지
+  /// 않는다(이니셜 아바타 자체는 정상 패턴이라 유지).
   final Color color;
   @override
   Widget build(BuildContext context) => Row(
     children: [
       CircleAvatar(
-        backgroundColor: color.withValues(alpha: .15),
+        backgroundColor: context.setflowColors.surfaceContainer,
         child: Text(
           name.characters.first,
           style: const TextStyle(fontWeight: FontWeight.w900),

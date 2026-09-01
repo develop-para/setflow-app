@@ -165,6 +165,9 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
           ? null
           : FloatingActionButton.extended(
               key: const Key('daily-add-exercise'),
+              // 기록 탭으로 호스팅되면 커뮤니티 FAB와 같은 트리에 산다 —
+              // 기본 히어로 태그가 겹치면 라우트 전환 때마다 터진다.
+              heroTag: 'daily-add-exercise-fab',
               tooltip: '운동 선택',
               onPressed: _openExerciseFlow,
               icon: const Icon(SetflowIcons.addExercise),

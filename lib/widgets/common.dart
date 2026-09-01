@@ -363,6 +363,12 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
+/// 숫자 지표 한 자리 — 상자·틴트 아이콘이 아니라 **상자 없는 큰 숫자**다.
+///
+/// 회원 홈의 월 요약·마이의 숫자 셋과 같은 문법(2026-09-01, "전문가쪽도 같은
+/// 디자인을 공유해야지"). 회색 카드에 컬러 아이콘을 얹던 옛 모양은 포탈을
+/// 회원 쪽과 다른 앱처럼 보이게 했다. [icon]과 [tint]는 그 시절의 서명 흔적
+/// — 더는 그리지 않지만 호출부 44곳을 한 번에 옮기려고 남겨 뒀다.
 class MetricCard extends StatelessWidget {
   const MetricCard({
     required this.label,
@@ -384,40 +390,52 @@ class MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
     return Expanded(
-      child: SetflowCard(
-        onTap: onTap,
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: tint, size: 20),
-            const SizedBox(height: SetflowSpacing.md),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: SetflowSpacing.xs),
-            RichText(
-              text: TextSpan(
-                style: TextStyle(color: theme.colorScheme.onSurface),
-                children: [
-                  TextSpan(text: value, style: theme.textTheme.headlineLarge),
-                  if (suffix != null)
-                    TextSpan(
-                      text: ' $suffix',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(SetflowRadii.sm),
+          onTap: onTap == null
+              ? null
+              : () {
+                  HapticFeedback.selectionClick();
+                  onTap?.call();
+                },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.xs),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RichText(
+                  maxLines: 1,
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: value,
+                        style: theme.textTheme.headlineLarge?.copyWith(
+                          color: theme.colorScheme.onSurface,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                      if (suffix != null)
+                        TextSpan(
+                          text: ' $suffix',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.xxs),
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(color: muted),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

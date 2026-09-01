@@ -123,6 +123,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // 캘린더는 이제 기록 탭의 첫 화면이다(오늘 기록이 비어 있을 때).
+    await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
+    await tester.pumpAndSettle();
+
     expect(
       find.byKey(
         ValueKey(

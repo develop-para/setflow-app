@@ -23,8 +23,18 @@ void main() {
     await tester.pumpAndSettle();
 
     // The core act is the whole point of the app; it must never hit a wall.
+    // 기록의 첫 화면은 캘린더고, 오늘 칸을 누르면 그날 기록이 열린다 — 둘 다
+    // 게스트에게 잠기지 않는다.
+    expect(find.byKey(const ValueKey('auth-gate-sign-in')), findsNothing);
+    final now = DateTime.now();
+    await tester.tap(
+      find.byKey(ValueKey('calendar-tint-${now.year}${now.month}${now.day}')),
+    );
+    await tester.pumpAndSettle();
     expect(find.byType(DailyWorkoutScreen), findsOneWidget);
     expect(find.byKey(const ValueKey('auth-gate-sign-in')), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
     await tester.pumpAndSettle();
@@ -38,7 +48,8 @@ void main() {
   ) async {
     await launch(tester);
 
-    await tester.tap(find.text('커뮤니티'));
+    // 홈의 커뮤니티 섹션 제목과 겹치므로 바텀바 라벨은 마지막 것이다.
+    await tester.tap(find.text('커뮤니티').last);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('community-compose')));
     await tester.pumpAndSettle();
@@ -57,7 +68,7 @@ void main() {
   testWidgets('the gate leads into the email screen', (tester) async {
     await launch(tester);
 
-    await tester.tap(find.text('커뮤니티'));
+    await tester.tap(find.text('커뮤니티').last);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('community-compose')));
     await tester.pumpAndSettle();

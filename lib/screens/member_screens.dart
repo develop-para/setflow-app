@@ -18,6 +18,7 @@ import '../widgets/bottom_bar.dart';
 import '../widgets/portal.dart';
 import 'detail_screens.dart';
 import 'evidence_library_screen.dart';
+import 'member_menu_screen.dart';
 import 'member_mypage_screen.dart';
 import 'member_membership_screen.dart';
 import 'member_social_detail_screens.dart';
@@ -185,6 +186,49 @@ int? memberPageForPush(PushOpen open) {
   };
 }
 
+/// 홈 헤더 왼쪽 위의 전체 메뉴 버튼 — OKX의 그리드 서랍과 같은 자리.
+/// 바텀바는 다섯 자리뿐이라, 자리를 잃은 화면들(통계·체성분·코칭·설정)이
+/// 전부 이 한 버튼 뒤의 [MemberMenuScreen]에서 열린다.
+class _AppMenuHeaderButton extends StatelessWidget {
+  const _AppMenuHeaderButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const ValueKey('home-app-menu'),
+      tooltip: '전체 메뉴',
+      visualDensity: VisualDensity.compact,
+      icon: const Icon(SetflowIcons.appMenu, size: 22),
+      onPressed: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const MemberMenuScreen())),
+    );
+  }
+}
+
+/// 기록 탭의 첫 화면을 정하는 갈림길.
+///
+/// 오늘 기록이 진행 중이면 — 운동 중인 사람이 가장 자주 오는 길이므로 —
+/// 캘린더를 거치지 않고 바로 오늘 세트 화면이다(AGENTS.md 5절: 다음 탭까지의
+/// 탭 수를 줄인다). 오늘이 비어 있으면 캘린더에서 날짜를 골라 들어간다
+/// (기록 → 캘린더 → 날짜 → 운동 기록). [showToday]가 정해져 있으면 그쪽이
+/// 이긴다: 홈·함께의 "오늘" 의도는 true, 액션 시트의 "지난 날짜 기록"은 false.
+class RecordScreen extends StatelessWidget {
+  const RecordScreen({this.showToday, super.key});
+
+  final bool? showToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final today = state.dateOnly(DateTime.now());
+    final inProgress = state.sessions[today]?.exercises.isNotEmpty ?? false;
+    return (showToday ?? inProgress)
+        ? DailyWorkoutScreen(date: today)
+        : const CalendarScreen();
+  }
+}
+
 class _MemberShellState extends State<MemberShell> {
   /// Index into the page list, where 2 is the center destination.
   int index = 0;
@@ -198,7 +242,23 @@ class _MemberShellState extends State<MemberShell> {
   /// 그대로 두고 바를 되돌려야 한다 — 안 그러면 나갈 길이 사라진다.
   bool get _inTogetherSession => _togetherSession && index == 1;
 
-  void _show(int page) => setState(() => index = page);
+  /// 기록 탭이 다음에 보여줄 것. null이면 [RecordScreen]이 스스로 정한다
+  /// (오늘 진행 중 → 오늘, 아니면 캘린더). "오늘 운동 시작"·함께의 "오늘 운동
+  /// 추가하기"는 true(바로 오늘), 액션 시트의 "지난 날짜 기록"은 false(캘린더).
+  /// 기록 탭을 떠나면 지운다 — 한 번의 의도가 다음 방문까지 남으면 안 된다.
+  bool? _recordShowToday;
+
+  void _show(int page) => setState(() {
+    if (page != _recordPage) _recordShowToday = null;
+    index = page;
+  });
+
+  /// "오늘 기록으로" — 어느 탭에서 왔든 캘린더를 거치지 않고 오늘 세트 화면에
+  /// 내린다. 운동 중인 사람의 경로라 탭 하나도 아깝다(AGENTS.md 5절).
+  void _showRecordToday() => setState(() {
+    _recordShowToday = true;
+    index = _recordPage;
+  });
 
   String? _handledRoutineShareToken;
   int _handledPushSerial = 0;
@@ -280,13 +340,18 @@ class _MemberShellState extends State<MemberShell> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final pages = [
-      // 홈의 "오늘" 카드가 기록 탭으로 보낸다. 기록은 셸의 탭이라 push하면
-      // 바텀바 없는 사본이 열린다.
-      CalendarScreen(onOpenRecord: () => _show(_recordPage)),
+      // 홈은 이제 캘린더가 아니라 소식이다 — 캘린더·나의 루틴은 기록 탭으로
+      // 옮겼다(기록 버튼 → 캘린더 → 날짜 → 운동 기록). "오늘" 카드의 버튼은
+      // 캘린더를 거치지 않고 바로 오늘 기록에 내린다.
+      HomeScreen(
+        onOpenRecord: _showRecordToday,
+        onOpenCommunity: () => _show(3),
+      ),
       // 통계(DashboardScreen)가 있던 자리. 화면은 지우지 않고 메뉴에서만 내렸다 —
-      // 지표는 나중에 다시 올릴 것이고, 그때 되살릴 코드가 남아 있어야 한다.
+      // 전체 메뉴(홈 왼쪽 위)가 다시 연다.
       TogetherScreen(
-        onOpenRecord: () => _show(_recordPage),
+        // 방의 "오늘 운동 추가하기" — 운동 중이므로 캘린더를 건너뛴다.
+        onOpenRecord: _showRecordToday,
         // 방 안에서는 셸의 헤더와 바텀바가 사라진다. 운동 중 전용 화면이라
         // 전광판과 하단 액션이 화면을 다 쓰고, 방을 나가면 되돌아온다.
         onSessionChanged: (active) {
@@ -294,7 +359,7 @@ class _MemberShellState extends State<MemberShell> {
           setState(() => _togetherSession = active);
         },
       ),
-      DailyWorkoutScreen(date: today),
+      RecordScreen(showToday: _recordShowToday),
       const CommunityScreen(),
       const MyPageScreen(),
     ];
@@ -312,9 +377,18 @@ class _MemberShellState extends State<MemberShell> {
               children: [
                 if (!_inTogetherSession)
                   PortalHeaderBar(
-                    switcher: index == _homePage,
+                    // 왼쪽 위 그리드가 전체 메뉴다(OKX의 서랍 버튼) — 바텀바에
+                    // 자리가 없는 화면들(통계·체성분·코칭·설정)의 입구.
+                    // 트레이너 전환 세그먼트는 여기 없다: 두 역할을 오가는
+                    // 사람은 극소수라, 그 문은 전체 메뉴의 한 줄이다.
                     leading: index == _homePage
-                        ? const _WorkoutLocationHeaderButton()
+                        ? const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _AppMenuHeaderButton(),
+                              _WorkoutLocationHeaderButton(),
+                            ],
+                          )
                         : null,
                   ),
                 // The header already ate the status-bar inset, so the per-page
@@ -420,7 +494,8 @@ class _MemberShellState extends State<MemberShell> {
           MaterialPageRoute(builder: (_) => ExerciseLibraryScreen(date: today)),
         );
       case _RecordAction.pastDays:
-        _show(_homePage);
+        // 캘린더는 이제 기록 탭 안에 있다 — 오늘 화면이 떠 있어도 캘린더로.
+        setState(() => _recordShowToday = false);
     }
   }
 }
@@ -549,12 +624,13 @@ class _RecordActionTile extends StatelessWidget {
   }
 }
 
+/// 기록 탭의 캘린더 — 날짜를 골라 그날의 기록으로 들어가는 판.
+///
+/// 홈이었다가 기록 탭으로 옮겨 왔다(2026-09-01): 캘린더는 본질적으로 기록을
+/// 보는 창이고, 홈은 소식·발견의 자리가 됐다([HomeScreen]). 나의 루틴이 바로
+/// 아래 있는 이유도 그대로다 — 놓을 곳(날짜) 옆에 놓을 것(루틴)이 있어야 한다.
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({this.onOpenRecord, super.key});
-
-  /// 홈의 "오늘" 카드가 기록 탭으로 가는 통로. 기록은 셸의 탭이라 push하면
-  /// 바텀바 없는 사본이 열린다 — 셸이 이 콜백으로 탭 전환을 넘겨준다.
-  final VoidCallback? onOpenRecord;
+  const CalendarScreen({super.key});
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -828,27 +904,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 }
                               },
                             ),
-                            const SizedBox(height: SetflowSpacing.xl),
-                            _TodaySection(onOpenRecord: widget.onOpenRecord),
-                            const SizedBox(height: SetflowSpacing.xl),
-                            const _WeekSection(),
-                            const SizedBox(height: SetflowSpacing.xl),
-                            _MemberCoachingScheduleSection(
-                              schedules: state.coachingSchedules,
-                              memberUserId: state.businessAccess?.userId,
-                              loading: state.coachingSchedulesLoading,
-                              error: state.coachingSchedulesError,
-                              onRetry: () async {
-                                try {
-                                  await state.refreshCoachingSchedules();
-                                } catch (_) {
-                                  // The compact section keeps the retry state visible.
-                                }
-                              },
-                            ),
-                            const SizedBox(height: SetflowSpacing.xl),
-                            const _RecentBestsSection(),
-                            const _RecentSessionsSection(),
+                            // 오늘·이번 주·코칭·최근 기록은 홈([HomeScreen])으로
+                            // 갔다 — 여기는 날짜를 골라 기록으로 들어가는 판이다.
                             if (dragSource != null || draggedRoutine != null)
                               Container(
                                 margin: const EdgeInsets.only(top: 10),
@@ -1885,6 +1942,192 @@ class _HairlineRow extends StatelessWidget {
 /// 밝은 달력 밑에 검은 면이 예고 없이 떨어지면 붙여넣은 카드처럼 보였다("검은색이
 /// 바로 나오니까 어색"). 무게는 면이 아니라 **숫자**가 낸다 — 흰 바탕 위 가장 큰
 /// 숫자(끝낸 세트)와 라임 진행바. 검은 면은 함께 탭의 전광판 언어로 남긴다.
+/// 홈 — 오늘부터 시작하는 내 소식.
+///
+/// 캘린더·나의 루틴이 기록 탭으로 옮겨 가면서(2026-09-01) 홈은 "무엇을
+/// 볼까"의 자리가 됐다: 오늘 진행률(잉크 훅), 이번 주 리듬, 코칭 일정, 최근
+/// 기록, 그리고 커뮤니티·추천 루틴 소식. 값이 없는 섹션은 자리를 차지하지
+/// 않는다. 광고 자리는 실물 광고가 생기면 넣는다 — 자리만 그려 두는 것은
+/// 있는 척하는 UI다(AGENTS.md 8절).
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({
+    required this.onOpenRecord,
+    required this.onOpenCommunity,
+    super.key,
+  });
+
+  /// "이어서 기록"·"오늘 운동 시작" — 캘린더를 거치지 않고 바로 오늘 기록으로.
+  final VoidCallback onOpenRecord;
+
+  /// 커뮤니티 미리보기의 "더 보기" — 탭 전환은 셸의 일이다.
+  final VoidCallback onOpenCommunity;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          SetflowSpacing.gutter,
+          SetflowSpacing.sm,
+          SetflowSpacing.gutter,
+          28,
+        ),
+        children: [
+          _TodaySection(onOpenRecord: onOpenRecord),
+          const SizedBox(height: SetflowSpacing.xl),
+          const _WeekSection(),
+          const SizedBox(height: SetflowSpacing.xl),
+          _MemberCoachingScheduleSection(
+            schedules: state.coachingSchedules,
+            memberUserId: state.businessAccess?.userId,
+            loading: state.coachingSchedulesLoading,
+            error: state.coachingSchedulesError,
+            onRetry: () async {
+              try {
+                await state.refreshCoachingSchedules();
+              } catch (_) {
+                // The compact section keeps the retry state visible.
+              }
+            },
+          ),
+          const SizedBox(height: SetflowSpacing.xl),
+          const _RecentBestsSection(),
+          const _RecentSessionsSection(),
+          const SizedBox(height: SetflowSpacing.xl),
+          _CommunityPreviewSection(onOpenCommunity: onOpenCommunity),
+          const _MarketPreviewSection(),
+        ],
+      ),
+    );
+  }
+}
+
+/// 커뮤니티 새 글 — 홈에서 읽을 남의 소식. 헤어라인 줄 셋, 탭하면 글로.
+class _CommunityPreviewSection extends StatelessWidget {
+  const _CommunityPreviewSection({required this.onOpenCommunity});
+
+  final VoidCallback onOpenCommunity;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = AppScope.of(context);
+    final posts = state.communityPosts.take(3).toList(growable: false);
+    if (posts.isEmpty) return const SizedBox.shrink();
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Column(
+      key: const ValueKey('home-community'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionTitle('커뮤니티')),
+            TextButton(
+              key: const ValueKey('home-community-more'),
+              onPressed: onOpenCommunity,
+              child: const Text('더 보기'),
+            ),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.xs),
+        for (final post in posts)
+          _HairlineRow(
+            key: ValueKey('home-community-${post.id}'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CommunityPostDetailScreen(post: post),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.content,
+                        style: theme.textTheme.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: SetflowSpacing.xxs),
+                      Text(
+                        '${post.author} · 좋아요 ${post.likes}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: SetflowSpacing.sm),
+                Icon(SetflowIcons.forward, size: 18, color: muted),
+              ],
+            ),
+          ),
+        const SizedBox(height: SetflowSpacing.xl),
+      ],
+    );
+  }
+}
+
+/// 추천 루틴 — 전문가 루틴을 조약돌로. 루틴은 이 앱에서 "집어서 옮기는 것"이라
+/// 형태가 타일이다(기록 탭의 나의 루틴과 같은 언어). 커뮤니티(줄) 다음에
+/// 타일이 서서 홈 꼬리가 줄의 연속으로 읽히지 않는다 — 조화는 한 패턴의
+/// 반복이 아니라 역할별 형태다(2026-09-01 피드백).
+class _MarketPreviewSection extends StatelessWidget {
+  const _MarketPreviewSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final routines = state.marketRoutines.take(4).toList(growable: false);
+    if (routines.isEmpty) return const SizedBox.shrink();
+    return Column(
+      key: const ValueKey('home-market'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: SectionTitle('추천 루틴')),
+            TextButton(
+              key: const ValueKey('home-market-more'),
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const MarketScreen())),
+              child: const Text('더 보기'),
+            ),
+          ],
+        ),
+        const SizedBox(height: SetflowSpacing.xs),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (index, routine) in routines.indexed) ...[
+                if (index > 0) const SizedBox(width: SetflowSpacing.sm),
+                _RoutinePebble(
+                  key: ValueKey('home-market-${routine.name}'),
+                  routine: routine,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ExpertRoutineDetailScreen(routine: routine),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TodaySection extends StatelessWidget {
   const _TodaySection({required this.onOpenRecord});
 
@@ -4087,6 +4330,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         key: const ValueKey('community-compose'),
+        // 셸의 IndexedStack에는 오늘 기록의 FAB도 같이 살아 있다 — 기본
+        // 히어로 태그가 겹치면 라우트 전환 때마다 터진다.
+        heroTag: 'community-compose-fab',
         onPressed: _compose,
         // 라임은 바텀바 가운데 원 하나가 갖는다. 그 옆에 라임 원을 하나 더
         // 놓으면 어느 쪽이 이 화면의 동작인지 알 수 없다. 그래서 여기는
@@ -4263,17 +4509,27 @@ class CoachingScreen extends StatelessWidget {
               message: '운동 목표와 고민을 전문가에게 질문해보세요.',
             )
           else
+            // 진행 중 상담은 읽고 들어가는 목록 — 카드가 아니라 헤어라인 줄.
             for (final entry in activeConsultations)
-              Padding(
+              InkWell(
                 key: ValueKey(
                   'coaching-active-consultation-${entry.consultation.id}',
                 ),
-                padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
-                child: SetflowCard(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ConsultationDetailScreen(
-                        consultation: entry.consultation,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ConsultationDetailScreen(
+                      consultation: entry.consultation,
+                    ),
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: SetflowSpacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
                       ),
                     ),
                   ),
@@ -4282,29 +4538,25 @@ class CoachingScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(
-                            Icons.person_rounded,
-                            color: context.setflowColors.blue,
-                          ),
-                          const SizedBox(width: SetflowSpacing.md),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   entry.consultation.trainerName,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
+                                const SizedBox(height: SetflowSpacing.xxs),
                                 Text(
                                   entry.consultation.specialty,
-                                  style: TextStyle(
-                                    fontSize: SetflowFontSize.caption,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
                                 ),
                               ],
                             ),
@@ -4312,7 +4564,7 @@ class CoachingScreen extends StatelessWidget {
                           _MemberConsultationBadge(entry: entry),
                         ],
                       ),
-                      const Divider(height: 28),
+                      const SizedBox(height: SetflowSpacing.sm),
                       Text(
                         entry.consultation.question,
                         maxLines: 2,
@@ -4405,26 +4657,26 @@ class CoachingScreen extends StatelessWidget {
           const SizedBox(height: SetflowSpacing.xxl2),
           const SectionTitle('코칭 보호 정책'),
           const SizedBox(height: SetflowSpacing.sm),
-          SetflowCard(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.shield_outlined,
-                  color: context.setflowColors.success,
-                ),
-                SizedBox(width: SetflowSpacing.md),
-                Expanded(
-                  child: Text(
-                    '운동 일지 작성 후 72시간 안에 피드백을 받지 못하면 중도 해지 요청이 활성화됩니다.',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.5,
-                    ),
+          // 안내문은 카드가 아니라 조용한 본문이다.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.shield_outlined,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: SetflowSpacing.md),
+              Expanded(
+                child: Text(
+                  '운동 일지 작성 후 72시간 안에 피드백을 받지 못하면 중도 해지 요청이 활성화됩니다.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.5,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -4581,89 +4833,96 @@ class _ConsultationHistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final consultation = entry.consultation;
     final answer = consultation.response?.trim();
-    return SetflowCard(
+    // 이력은 읽는 목록 — 카드가 아니라 헤어라인 줄. 답변 미리보기 상자
+    // (surfaceContainer)는 인용 블록이라 남는다.
+    return InkWell(
       key: ValueKey('consultation-history-item-${consultation.id}'),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ConsultationDetailScreen(consultation: consultation),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.support_agent_rounded,
-                color: context.setflowColors.success,
-              ),
-              const SizedBox(width: SetflowSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      consultation.trainerName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: SetflowSpacing.xxs),
-                    Text(
-                      DateFormat(
-                        'yyyy.MM.dd HH:mm',
-                      ).format(consultation.createdAt.toLocal()),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _MemberConsultationBadge(entry: entry),
-            ],
-          ),
-          const Divider(height: SetflowSpacing.xl),
-          Text(
-            consultation.question.trim().isEmpty
-                ? '질문 내용이 저장되지 않았어요.'
-                : consultation.question,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w800, height: 1.45),
-          ),
-          const SizedBox(height: SetflowSpacing.md),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(SetflowSpacing.md),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(SetflowRadii.md),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.lg),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
             ),
-            child: Column(
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '전문가 답변',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(),
-                ),
-                const SizedBox(height: SetflowSpacing.xs),
-                Text(
-                  answer == null || answer.isEmpty
-                      ? '답변 내용을 상세 화면에서 확인해주세요.'
-                      : answer,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    height: 1.45,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        consultation.trainerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: SetflowSpacing.xxs),
+                      Text(
+                        DateFormat(
+                          'yyyy.MM.dd HH:mm',
+                        ).format(consultation.createdAt.toLocal()),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                _MemberConsultationBadge(entry: entry),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: SetflowSpacing.md),
+            Text(
+              consultation.question.trim().isEmpty
+                  ? '질문 내용이 저장되지 않았어요.'
+                  : consultation.question,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800, height: 1.45),
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(SetflowSpacing.md),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(SetflowRadii.md),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '전문가 답변',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(),
+                  ),
+                  const SizedBox(height: SetflowSpacing.xs),
+                  Text(
+                    answer == null || answer.isEmpty
+                        ? '답변 내용을 상세 화면에서 확인해주세요.'
+                        : answer,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -4895,26 +5154,35 @@ class DashboardScreen extends StatelessWidget {
           ),
           if (chartShowsResistance && totalCardioMinutes > 0) ...[
             const SizedBox(height: SetflowSpacing.md),
-            SetflowCard(
+            // 부가 정보 한 줄은 카드가 아니라 줄이다.
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.md),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+              ),
               child: Row(
                 children: [
                   Icon(
                     Icons.directions_run_rounded,
-                    color: context.setflowColors.teal,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: SetflowSpacing.md),
                   Expanded(
                     child: Text(
                       '이번 주 유산소 '
                       '${_formatMinuteValue(totalCardioMinutes)}분',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
                   Text(
                     '시간·거리·RPE 기록',
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: SetflowFontSize.small,
                     ),
                   ),
                 ],
@@ -4946,123 +5214,120 @@ class DashboardScreen extends StatelessWidget {
           const SizedBox(height: SetflowSpacing.xxl2),
           SectionTitle(chartShowsResistance ? '주간 근력 볼륨' : '주간 유산소 시간'),
           const SizedBox(height: SetflowSpacing.sm2),
-          SetflowCard(
-            child: SizedBox(
-              height: 170,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (var i = 0; i < 7; i++)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.bottomCenter,
-                                child: FractionallySizedBox(
-                                  heightFactor: maxChartValue == 0
-                                      ? .04
-                                      : (chartValues[i] / maxChartValue).clamp(
-                                          .04,
-                                          1.0,
-                                        ),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: i == today.weekday - 1
-                                          ? SetflowColors.primary
-                                          : context.setflowColors.teal
-                                                .withValues(alpha: .7),
-                                      borderRadius: BorderRadius.circular(
-                                        SetflowRadii.xs,
+          // 차트는 판이 필요 없다 — 막대 자체가 시각물이다. 라임은 오늘의
+          // 데이터 잉크, 나머지 날은 중립(홈 주간 점과 같은 언어).
+          SizedBox(
+            height: 170,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < 7; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: FractionallySizedBox(
+                                heightFactor: maxChartValue == 0
+                                    ? .04
+                                    : (chartValues[i] / maxChartValue).clamp(
+                                        .04,
+                                        1.0,
                                       ),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: i == today.weekday - 1
+                                        ? SetflowColors.primary
+                                        : context
+                                              .setflowColors
+                                              .surfaceContainer,
+                                    borderRadius: BorderRadius.circular(
+                                      SetflowRadii.xs,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: SetflowSpacing.xs2),
-                            Text(
-                              ['월', '화', '수', '목', '금', '토', '일'][i],
-                              style: TextStyle(
-                                fontSize: SetflowFontSize.tiny,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
+                          ),
+                          const SizedBox(height: SetflowSpacing.xs2),
+                          Text(
+                            ['월', '화', '수', '목', '금', '토', '일'][i],
+                            style: TextStyle(
+                              fontSize: SetflowFontSize.tiny,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: SetflowSpacing.xxl),
-          const SectionTitle('MY PERFORMANCE'),
+          // 영어 헤더는 이 화면에만 남아 있던 옛 톤이다.
+          const SectionTitle('수행 기록'),
           const SizedBox(height: SetflowSpacing.sm2),
           if (summary == null)
-            SetflowCard(
-              child: Text(
-                '완료한 근력 운동 세트가 쌓이면 e1RM과 PR 변화가 표시됩니다.',
-                style: TextStyle(
-                  height: 1.5,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
+            Text(
+              '완료한 근력 운동 세트가 쌓이면 e1RM과 PR 변화가 표시됩니다.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                height: 1.5,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             )
           else ...[
-            SetflowCard(
-              child: Column(
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.trending_up,
-                      color: context.setflowColors.orange,
-                    ),
-                    title: Text(
-                      summary.template.name,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    subtitle: Text(
-                      summary.changeFromPrevious == null
-                          ? '${summary.sessionCount}회 기록 · 추정 품질 ${summary.quality.label}'
-                          : '직전 대비 '
-                                '${summary.changeFromPrevious! >= 0 ? '+' : ''}'
-                                '${summary.changeFromPrevious!.toStringAsFixed(1)}${state.weightUnit}',
-                    ),
-                    trailing: Text(
-                      '${summary.currentE1rm.toStringAsFixed(1)}${state.weightUnit}',
-                      style: const TextStyle(
-                        fontSize: SetflowFontSize.titleLarge,
-                        fontWeight: FontWeight.w900,
-                      ),
+            Column(
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.trending_up,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  title: Text(
+                    summary.template.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  subtitle: Text(
+                    summary.changeFromPrevious == null
+                        ? '${summary.sessionCount}회 기록 · 추정 품질 ${summary.quality.label}'
+                        : '직전 대비 '
+                              '${summary.changeFromPrevious! >= 0 ? '+' : ''}'
+                              '${summary.changeFromPrevious!.toStringAsFixed(1)}${state.weightUnit}',
+                  ),
+                  trailing: Text(
+                    '${summary.currentE1rm.toStringAsFixed(1)}${state.weightUnit}',
+                    style: const TextStyle(
+                      fontSize: SetflowFontSize.titleLarge,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const Divider(),
-                  _PerformancePrRow(
-                    label: '중량 PR',
-                    value:
-                        '${PerformanceEngine.formatWeight(summary.weightPr.set.weight)}${state.weightUnit}',
-                  ),
-                  _PerformancePrRow(
-                    label: '반복 PR',
-                    value:
-                        '${PerformanceEngine.formatWeight(summary.repPr.set.weight)}${state.weightUnit} × '
-                        '${summary.repPr.set.reps}회',
-                  ),
-                  _PerformancePrRow(
-                    label: 'e1RM PR',
-                    value:
-                        '${summary.e1rmPr.estimate.value.toStringAsFixed(1)}${state.weightUnit}',
-                  ),
-                ],
-              ),
+                ),
+                const Divider(),
+                _PerformancePrRow(
+                  label: '중량 PR',
+                  value:
+                      '${PerformanceEngine.formatWeight(summary.weightPr.set.weight)}${state.weightUnit}',
+                ),
+                _PerformancePrRow(
+                  label: '반복 PR',
+                  value:
+                      '${PerformanceEngine.formatWeight(summary.repPr.set.weight)}${state.weightUnit} × '
+                      '${summary.repPr.set.reps}회',
+                ),
+                _PerformancePrRow(
+                  label: 'e1RM PR',
+                  value:
+                      '${summary.e1rmPr.estimate.value.toStringAsFixed(1)}${state.weightUnit}',
+                ),
+              ],
             ),
           ],
         ],

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/business_repository.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/screens/member_menu_screen.dart';
 import 'package:setflow/screens/member_mypage_screen.dart';
 import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/screens/workout_screens.dart';
@@ -61,12 +62,15 @@ void main() {
     tester,
   ) async {
     await launch(tester);
-    expect(find.byType(DailyWorkoutScreen), findsNothing);
+    expect(find.byType(RecordScreen), findsNothing);
 
     await tester.tap(disc);
     await tester.pumpAndSettle();
 
-    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+    // 오늘 기록이 비어 있으면 기록의 첫 화면은 캘린더다 — 날짜를 골라 들어간다.
+    expect(find.byType(RecordScreen), findsOneWidget);
+    expect(find.byType(CalendarScreen), findsOneWidget);
+    expect(find.byType(DailyWorkoutScreen), findsNothing);
     expect(find.text('무엇으로 기록할까요?'), findsNothing);
     var bar = tester.widget<SetflowActionNavBar>(
       find.byType(SetflowActionNavBar),
@@ -127,6 +131,51 @@ void main() {
     expect(find.byType(RoutinesScreen), findsOneWidget);
   });
 
+  testWidgets('기록 is today while a workout is in progress, calendar after', (
+    tester,
+  ) async {
+    // 운동 중인 사람은 세트 사이에 폰을 30초만 본다 — 오늘 기록에 운동이
+    // 있으면 캘린더를 거치지 않고 바로 오늘 세트 화면이어야 한다.
+    await launch(tester);
+    final state = AppScope.of(tester.element(find.byType(MemberShell)));
+    state.addExercise(state.dateOnly(DateTime.now()), state.exercises.first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(disc);
+    await tester.pumpAndSettle();
+    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+    expect(find.byType(CalendarScreen), findsNothing);
+
+    // 지난 날짜가 필요하면 액션 시트의 "지난 날짜 기록"이 캘린더를 연다.
+    await tester.tap(disc);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('record-action-past')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarScreen), findsOneWidget);
+
+    // 탭을 떠났다 돌아오면 한 번의 의도는 지워지고 다시 오늘이다.
+    await tester.tap(find.text('홈'));
+    await tester.pumpAndSettle();
+    await tester.tap(disc);
+    await tester.pumpAndSettle();
+    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+  });
+
+  testWidgets('the top-left grid opens the full menu, and stats live there', (
+    tester,
+  ) async {
+    // OKX의 왼쪽 상단 서랍 — 바텀바에 자리가 없는 화면들의 입구다. 숨겨 둔
+    // 통계 대시보드가 여기서 다시 열린다.
+    await launch(tester);
+    await tester.tap(find.byKey(const ValueKey('home-app-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byType(MemberMenuScreen), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('menu-stats')));
+    await tester.pumpAndSettle();
+    expect(find.byType(DashboardScreen), findsOneWidget);
+  });
+
   testWidgets('마이 hub keeps coaching and routines reachable', (tester) async {
     await launch(tester);
 
@@ -145,9 +194,11 @@ void main() {
     expect(find.byType(RoutinesScreen), findsOneWidget);
   });
 
-  testWidgets('the portal switch belongs to 홈 and follows nobody to 기록', (
+  testWidgets('the trainer door lives in the full menu, not the header', (
     tester,
   ) async {
+    // 헤더 세그먼트는 승인된 프로만 두 개를 보고 회원은 빈 채로 남는
+    // 비대칭이었다 — 전환은 전체 메뉴의 한 줄이 됐고, 헤더는 모두에게 같다.
     await launch(tester);
 
     // Only an approved account has a second portal to switch to at all.
@@ -161,24 +212,16 @@ void main() {
     );
     state.notifyListeners();
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('portal-segment-trainer')),
-      findsOneWidget,
-    );
-
-    // 기록 needs its whole height, and a 일반인/트레이너 toggle floating over the
-    // set you are logging is noise rather than navigation.
-    await tester.tap(disc);
-    await tester.pumpAndSettle();
-    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
     expect(find.byKey(const ValueKey('portal-segment-trainer')), findsNothing);
 
-    await tester.tap(find.text('홈'));
+    await tester.tap(find.byKey(const ValueKey('home-app-menu')));
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('portal-segment-trainer')),
-      findsOneWidget,
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('menu-portal-trainer')),
+      200,
+      scrollable: find.byType(Scrollable).first,
     );
+    expect(find.byKey(const ValueKey('menu-portal-trainer')), findsOneWidget);
   });
 
   testWidgets('bar fits a small phone without overflow', (tester) async {

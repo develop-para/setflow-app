@@ -32,9 +32,7 @@ void main() {
         _keyboardInset,
       );
       expect(
-        MediaQuery.viewInsetsOf(
-          tester.element(find.byType(CalendarScreen)),
-        ).bottom,
+        MediaQuery.viewInsetsOf(tester.element(find.byType(HomeScreen))).bottom,
         0,
       );
       expect(tester.takeException(), isNull);

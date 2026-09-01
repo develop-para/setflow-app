@@ -248,7 +248,10 @@ void main() {
           notifier: state,
           child: MaterialApp(
             theme: SetflowTheme.light,
-            home: const Scaffold(body: CalendarScreen()),
+            // 코칭 일정 섹션은 캘린더와 함께 살다가 홈으로 옮겨 갔다.
+            home: Scaffold(
+              body: HomeScreen(onOpenRecord: () {}, onOpenCommunity: () {}),
+            ),
           ),
         ),
       );

@@ -461,10 +461,10 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
                     left: SetflowSpacing.lg,
                     right: SetflowSpacing.lg,
                     // Under the header, not above the bottom bar: down there it
-                    // covered the set rows the timer is counting for. The 52 is
+                    // covered the set rows the timer is counting for. 48 is
                     // the header's own height, added only when the header has
                     // something in it (a pushed route has none).
-                    top: portalSwitcherVisible(state) ? 48 : 0,
+                    top: proPortalAvailable(state) ? 48 : 0,
                     child: SafeArea(
                       bottom: false,
                       child: GlobalRestTimerOverlay(

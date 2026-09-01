@@ -124,6 +124,13 @@ void main() {
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/home.png');
 
+    // 홈 왼쪽 위 그리드가 여는 전체 메뉴 — OKX 서랍 자리.
+    await tester.tap(find.byKey(const ValueKey('home-app-menu')));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/app_menu.png');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/record.png');
@@ -200,9 +207,9 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    // 이용권은 게스트에게 화면이 아니라 로그인 게이트를 연다 — 그 시트도
-    // 사용자가 실제로 보는 화면이니 찍고, 시트의 닫기로 나온다.
-    await tester.tap(find.text('이용권').first);
+    // 운동 장소·센터는 게스트에게 화면이 아니라 로그인 게이트를 연다 — 그
+    // 시트도 사용자가 실제로 보는 화면이니 찍고, 시트의 닫기로 나온다.
+    await tester.tap(find.text('운동 장소 및 센터').first);
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/auth_gate.png');
     await tester.tap(find.byKey(const ValueKey('auth-gate-dismiss')));
@@ -278,7 +285,7 @@ void main() {
     await _shot(tester, 'build/shots/mypage_signed_in.png');
 
     // 로그인 상태에서만 열리는 화면.
-    await tester.tap(find.text('이용권').first);
+    await tester.tap(find.text('운동 장소 및 센터').first);
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/my_membership.png');
     await tester.pageBack();
@@ -305,6 +312,13 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/fold_record.png');
+
+    // 기록의 첫 화면은 캘린더다 — 오늘 칸을 눌러 그날 기록으로 들어간다.
+    final now = DateTime.now();
+    await tester.tap(
+      find.byKey(ValueKey('calendar-tint-${now.year}${now.month}${now.day}')),
+    );
+    await tester.pumpAndSettle();
 
     // 모달 바텀시트도 섬이 아니라 풀폭인지 — M3 기본은 640 가운데다.
     await tester.tap(find.byKey(const Key('daily-load-routine')));

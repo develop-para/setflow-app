@@ -15,9 +15,18 @@ import 'package:flutter/material.dart';
 /// "important".
 abstract final class SetflowIcons {
   // --- primary navigation ---------------------------------------------------
-  /// 홈 — the training calendar, so a calendar, not a house.
-  static const home = Icons.calendar_month_outlined;
-  static const homeActive = Icons.calendar_month_rounded;
+  /// 홈 — 오늘 요약과 소식이 모이는 곳. 캘린더가 기록 탭으로 옮겨 가면서
+  /// "홈 = 훈련 캘린더" 등식이 깨졌으므로 글리프도 집으로 돌아왔다.
+  static const home = Icons.home_outlined;
+  static const homeActive = Icons.home_rounded;
+
+  /// 홈 왼쪽 위의 전체 메뉴 — 모든 기능으로 가는 바로가기 서랍(OKX의 그리드
+  /// 버튼과 같은 자리). 바텀바에 자리가 없는 화면들이 여기서 열린다.
+  static const appMenu = Icons.apps_rounded;
+
+  /// 캘린더 — 날짜를 골라 기록으로 들어가는 판. 기록 탭의 첫 화면이다.
+  static const calendar = Icons.calendar_month_outlined;
+  static const calendarActive = Icons.calendar_month_rounded;
 
   /// 통계 — volume trend over time.
   static const stats = Icons.show_chart_rounded;
