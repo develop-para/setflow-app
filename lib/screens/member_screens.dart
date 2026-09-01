@@ -365,6 +365,8 @@ class _MemberShellState extends State<MemberShell> {
       TogetherScreen(
         // 방의 "오늘 운동 추가하기" — 운동 중이므로 캘린더를 건너뛴다.
         onOpenRecord: _showRecordToday,
+        // 탭에 다시 들어오면 접어 둔 방을 펼치기 위한 신호.
+        isActive: index == _togetherPage,
         // 방 안에서는 셸의 헤더와 바텀바가 사라진다. 운동 중 전용 화면이라
         // 전광판과 하단 액션이 화면을 다 쓰고, 방을 나가면 되돌아온다.
         onSessionChanged: (active) {

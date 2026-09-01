@@ -27,7 +27,12 @@ import 'workout_screens.dart';
 /// 게임판 느낌보다 더 튀었다. 로비·시트·다이얼로그는 다른 탭과 같은 면 위에 있고,
 /// 판이 그 위에 검게 놓인다.
 class TogetherScreen extends StatefulWidget {
-  const TogetherScreen({this.onOpenRecord, this.onSessionChanged, super.key});
+  const TogetherScreen({
+    this.onOpenRecord,
+    this.onSessionChanged,
+    this.isActive = true,
+    super.key,
+  });
 
   /// 방의 "지금 세트" 카드가 오늘 기록이 비었을 때 기록 탭으로 보내는 통로.
   /// 기록은 셸의 탭이라 push하면 바텀바 없는 사본이 열린다.
@@ -36,6 +41,13 @@ class TogetherScreen extends StatefulWidget {
   /// 방에 들어가고 나옴을 셸에 알린다. 방은 운동 중 전용 화면이라 셸이
   /// 헤더와 바텀바를 접는다 — 전광판과 하단 액션이 화면을 다 써야 한다.
   final ValueChanged<bool>? onSessionChanged;
+
+  /// 셸에서 지금 이 탭이 보이는가. IndexedStack이라 화면은 늘 살아 있으므로,
+  /// 탭에 **다시 들어온 순간**을 이 값의 변화로 안다 — 접어 둔 방이 있으면
+  /// 그때 펼친다. "목록 보기"(←)는 탭 안에서의 한 번의 의도이지, 기록에
+  /// 갔다 온 사람이 로비에 떨어질 이유가 아니다(실기기 보고: "함께 가면
+  /// 방이 아니라 리스트").
+  final bool isActive;
 
   @override
   State<TogetherScreen> createState() => _TogetherScreenState();
@@ -285,6 +297,19 @@ class _TogetherScreenState extends State<TogetherScreen> {
       // 탭이 곧 근처 방 목록이다. 거절한 사람에게는 안내와 버튼이 남는다.
       unawaited(_loadNearby(request: true));
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant TogetherScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 함께 탭에 다시 들어왔다 — 접어 둔 방이 있으면 펼친다. 방에 들어 있는
+    // 사람에게 이 탭의 기본은 방이지 목록이 아니다.
+    if (widget.isActive &&
+        !oldWidget.isActive &&
+        _party != null &&
+        _minimized) {
+      setState(() => _minimized = false);
+    }
   }
 
   @override

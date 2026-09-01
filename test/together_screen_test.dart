@@ -177,6 +177,50 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
     });
 
+    testWidgets('접어 둔 방은 함께 탭에 다시 들어오면 펼쳐진다', (tester) async {
+      // 방에서 ←로 접고 기록에 다녀온 사람이 함께를 누르면 방이어야 한다 —
+      // "목록 보기"는 탭 안에서의 한 번의 의도이지, 탭을 떠났다 와도 남는
+      // 상태가 아니다(실기기: "함께 가면 방이 아니라 리스트").
+      await tester.binding.setSurfaceSize(const Size(432, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final state = AppState(togetherRepository: client('u-me', '나'));
+      await state.initialize();
+      addTearDown(state.dispose);
+      state.markTogetherGuideSeen();
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: const MemberShell(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('함께').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
+
+      // ←로 접으면 이 탭 안에서는 로비다.
+      await tester.tap(find.byKey(const ValueKey('together-minimize')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('together-resume')), findsOneWidget);
+
+      // 기록에 다녀와서 함께를 누르면 — 방이 펼쳐져 있어야 한다.
+      await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('함께').last);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
+      expect(find.byKey(const ValueKey('together-resume')), findsNothing);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
     testWidgets('방 안에서도 앱바는 상태바 아래에 있다', (tester) async {
       // 셸은 페이지가 상단 인셋을 두 번 먹지 않도록 걷어내는데, 그건 셸 헤더가
       // 그 인셋을 먹고 있는 동안만 맞는 얘기다. 방 안에서는 헤더가 통째로
