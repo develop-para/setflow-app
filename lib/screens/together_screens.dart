@@ -1541,7 +1541,9 @@ class _LedFigure extends StatelessWidget {
   }
 }
 
-/// 초대 코드 — 여섯 칸이 비어 있는 한 줄. 탭하면 코드 입력이 열린다.
+/// 코드로 참여 — 내비게이션 한 줄. 빈 여섯 칸 대시를 그렸더니 "내 코드
+/// 표시"처럼 읽혔다(실기기 보고: "참여인데 내 코드를 보여주는 것도 아니고").
+/// 입력 칸은 탭하면 열리는 시트의 것이지 이 줄의 것이 아니다.
 class _CodeLine extends StatelessWidget {
   const _CodeLine({required this.onTap});
 
@@ -1563,17 +1565,21 @@ class _CodeLine extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Text('코드로 참여', style: theme.textTheme.titleMedium),
-            const Spacer(),
-            for (var i = 0; i < 6; i++) ...[
-              Container(
-                width: 14,
-                height: SetflowSpacing.xxs,
-                color: theme.colorScheme.onSurfaceVariant,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('코드로 참여', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: SetflowSpacing.xxs),
+                  Text(
+                    '친구가 알려준 여섯 자리 코드로 들어가요',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-              if (i < 5) const SizedBox(width: SetflowSpacing.xs2),
-            ],
-            const SizedBox(width: SetflowSpacing.md),
+            ),
             Icon(
               SetflowIcons.forward,
               color: theme.colorScheme.onSurfaceVariant,
