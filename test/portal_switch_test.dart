@@ -80,7 +80,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.byKey(_menuDoor), findsOneWidget);
-    expect(find.text('트레이너 화면으로 전환'), findsOneWidget);
+    expect(find.text('트레이너 화면'), findsOneWidget);
   });
 
   testWidgets('the menu door swaps the shell behind the brand hold', (
