@@ -214,9 +214,22 @@ class _AppMenuHeaderButton extends StatelessWidget {
 /// (기록 → 캘린더 → 날짜 → 운동 기록). [showToday]가 정해져 있으면 그쪽이
 /// 이긴다: 홈·함께의 "오늘" 의도는 true, 액션 시트의 "지난 날짜 기록"은 false.
 class RecordScreen extends StatelessWidget {
-  const RecordScreen({this.showToday, super.key});
+  const RecordScreen({
+    this.showToday,
+    this.onShowToday,
+    this.onShowCalendar,
+    super.key,
+  });
 
   final bool? showToday;
+
+  /// 캘린더에서 오늘 칸을 눌렀을 때 — push된 사본 대신 탭 안에서 오늘 화면으로
+  /// 전환한다. 사본을 push하면 첫 운동을 넣는 순간 탭 루트도 같은 화면이 되어,
+  /// 뒤로가기가 "아무 일도 안 한 것"처럼 보인다(실기기 보고).
+  final VoidCallback? onShowToday;
+
+  /// 오늘 화면의 앱바 캘린더 버튼 — 탭 안에서 캘린더로 되돌아간다.
+  final VoidCallback? onShowCalendar;
 
   @override
   Widget build(BuildContext context) {
@@ -224,8 +237,8 @@ class RecordScreen extends StatelessWidget {
     final today = state.dateOnly(DateTime.now());
     final inProgress = state.sessions[today]?.exercises.isNotEmpty ?? false;
     return (showToday ?? inProgress)
-        ? DailyWorkoutScreen(date: today)
-        : const CalendarScreen();
+        ? DailyWorkoutScreen(date: today, onOpenCalendar: onShowCalendar)
+        : CalendarScreen(onOpenToday: onShowToday);
   }
 }
 
@@ -359,7 +372,11 @@ class _MemberShellState extends State<MemberShell> {
           setState(() => _togetherSession = active);
         },
       ),
-      RecordScreen(showToday: _recordShowToday),
+      RecordScreen(
+        showToday: _recordShowToday,
+        onShowToday: () => setState(() => _recordShowToday = true),
+        onShowCalendar: () => setState(() => _recordShowToday = false),
+      ),
       const CommunityScreen(),
       const MyPageScreen(),
     ];
@@ -630,7 +647,11 @@ class _RecordActionTile extends StatelessWidget {
 /// 보는 창이고, 홈은 소식·발견의 자리가 됐다([HomeScreen]). 나의 루틴이 바로
 /// 아래 있는 이유도 그대로다 — 놓을 곳(날짜) 옆에 놓을 것(루틴)이 있어야 한다.
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key});
+  const CalendarScreen({this.onOpenToday, super.key});
+
+  /// 오늘 칸을 눌렀을 때 push 대신 탭 안에서 오늘 화면으로 전환하는 길.
+  /// null이면(단독 pump되는 테스트 등) 다른 날짜처럼 push한다.
+  final VoidCallback? onOpenToday;
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -959,6 +980,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   void _handleDayTap(BuildContext context, DateTime day) {
+    // 오늘은 탭 안에서 전환한다 — 사본을 push하면 첫 운동을 넣는 순간 탭
+    // 루트도 오늘 화면이 되어, 뒤로가기가 같은 화면 위에 떨어진다.
+    if (widget.onOpenToday != null &&
+        DateUtils.isSameDay(day, DateTime.now())) {
+      widget.onOpenToday!();
+      return;
+    }
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => DailyWorkoutScreen(date: day)));

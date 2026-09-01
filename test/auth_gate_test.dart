@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/screens/member_social_detail_screens.dart';
 import 'package:setflow/screens/workout_screens.dart';
 import 'package:setflow/widgets/bottom_bar.dart';
@@ -23,8 +24,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // The core act is the whole point of the app; it must never hit a wall.
-    // 기록의 첫 화면은 캘린더고, 오늘 칸을 누르면 그날 기록이 열린다 — 둘 다
-    // 게스트에게 잠기지 않는다.
+    // 기록의 첫 화면은 캘린더고, 오늘 칸을 누르면 탭 안에서 오늘 기록으로
+    // 전환된다 — 둘 다 게스트에게 잠기지 않는다.
     expect(find.byKey(const ValueKey('auth-gate-sign-in')), findsNothing);
     final now = DateTime.now();
     await tester.tap(
@@ -33,8 +34,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(DailyWorkoutScreen), findsOneWidget);
     expect(find.byKey(const ValueKey('auth-gate-sign-in')), findsNothing);
-    await tester.pageBack();
+    // 오늘 화면의 앱바 캘린더 버튼이 되돌아가는 길이다(push가 아니므로
+    // 뒤로가기가 없다).
+    await tester.tap(find.byKey(const ValueKey('record-open-calendar')));
     await tester.pumpAndSettle();
+    expect(find.byType(CalendarScreen), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('bottom-bar-center-action')));
     await tester.pumpAndSettle();

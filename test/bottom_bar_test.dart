@@ -159,6 +159,23 @@ void main() {
     await tester.tap(disc);
     await tester.pumpAndSettle();
     expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+
+    // 오늘 화면의 앱바 캘린더 버튼 ↔ 캘린더의 오늘 칸 — 둘 다 push 없이 탭
+    // 안에서 오간다("캘린더로 갈 수 있는 버튼은 있어야지", 실기기 보고).
+    await tester.tap(find.byKey(const ValueKey('record-open-calendar')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarScreen), findsOneWidget);
+    final now = DateTime.now();
+    await tester.tap(
+      find.byKey(ValueKey('calendar-tint-${now.year}${now.month}${now.day}')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+    expect(
+      find.byType(SetflowActionNavBar),
+      findsOneWidget,
+      reason: '탭 전환이지 push가 아니다',
+    );
   });
 
   testWidgets('the top-left grid opens the full menu, and stats live there', (

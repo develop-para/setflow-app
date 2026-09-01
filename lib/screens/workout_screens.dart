@@ -16,8 +16,18 @@ import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
 
 class DailyWorkoutScreen extends StatefulWidget {
-  const DailyWorkoutScreen({required this.date, super.key});
+  const DailyWorkoutScreen({
+    required this.date,
+    this.onOpenCalendar,
+    super.key,
+  });
   final DateTime date;
+
+  /// 기록 탭의 루트로 호스팅될 때 캘린더로 나가는 길. 오늘 기록이 진행 중이면
+  /// 탭 첫 화면이 캘린더 대신 이 화면이라, 이 버튼이 없으면 캘린더가 액션
+  /// 시트 속에만 숨는다("캘린더로 갈 수 있는 버튼은 있어야지"). push된
+  /// 사본(지난 날짜)은 뒤로가기가 그 역할이라 null이다.
+  final VoidCallback? onOpenCalendar;
 
   @override
   State<DailyWorkoutScreen> createState() => _DailyWorkoutScreenState();
@@ -102,6 +112,16 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
     ];
     return Scaffold(
       appBar: AppBar(
+        // 탭 루트일 때만 캘린더 버튼이 선다 — push된 사본은 자동 뒤로가기가
+        // 이 자리를 쓴다.
+        leading: widget.onOpenCalendar == null
+            ? null
+            : IconButton(
+                key: const ValueKey('record-open-calendar'),
+                tooltip: '캘린더',
+                onPressed: widget.onOpenCalendar,
+                icon: const Icon(SetflowIcons.calendar),
+              ),
         // The date is this screen's name, so it sits where a name sits: at the
         // start, on the same 18px line as the cards under it. It used to be
         // pushed inward by two icons parked in `leading`, a slot meant for one
