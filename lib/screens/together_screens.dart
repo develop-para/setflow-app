@@ -180,9 +180,6 @@ class _TogetherScreenState extends State<TogetherScreen> {
   /// 좀 이상해"). 로비 맨 위의 배너가 방으로 되돌아가는 길이다.
   bool _minimized = false;
 
-  /// 로비에서 고른 종목. 하단의 하나뿐인 행동("헬스 방 만들기")이 이걸 따른다.
-  PartyMode _lobbyMode = PartyMode.defaultMode;
-
   /// 초대 링크의 코드로 참여하는 중 — 기억해 둔 방 복원이 이 위에 덮어쓰지
   /// 않게 막는다(둘 다 첫 프레임 뒤에 시작해서 순서가 없다).
   bool _joiningFromLink = false;
@@ -502,11 +499,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
         // 로비의 두 행동은 엄지 자리에 고정한다 — 목록이 길어져도 "방 만들기"가
         // 스크롤 밑으로 사라지지 않는다. 셸 바텀바가 그 아래 있으니 인셋은 셸이 진다.
         bottomNavigationBar: showLobby
-            ? _LobbyActions(
-                mode: _lobbyMode,
-                busy: _busy,
-                onCreate: () => unawaited(_create(initialMode: _lobbyMode)),
-              )
+            ? _LobbyActions(busy: _busy, onCreate: () => unawaited(_create()))
             : null,
         body: SafeArea(
           top: false,
@@ -525,8 +518,6 @@ class _TogetherScreenState extends State<TogetherScreen> {
                   onResume: () => setState(() => _minimized = false),
                   nearby: _nearby,
                   locationAvailable: Location.instance.isAvailable,
-                  selectedMode: _lobbyMode,
-                  onSelectMode: (mode) => setState(() => _lobbyMode = mode),
                   todaySets: _todaySets(AppScope.of(context)),
                   onJoin: _join,
                   onJoinNearby: _joinNearby,
@@ -763,18 +754,16 @@ class _TogetherScreenState extends State<TogetherScreen> {
   int _todaySets(AppState state) =>
       state.sessions[state.dateOnly(DateTime.now())]?.totalSets ?? 0;
 
-  /// [initialMode]가 있으면 로비의 종목 카드에서 왔다 — 시트가 그 종목으로 열린다.
-  Future<void> _create({PartyMode? initialMode}) async {
+  /// 종목·공개 여부는 전부 시트에서 고른다 — 로비는 참여의 화면이다.
+  Future<void> _create() async {
     if (!await requireSignIn(context, reason: AuthReason.together)) return;
     if (!mounted) return;
     final choice = await showSetflowSheet<(PartyVisibility, PartyMode)>(
       context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _CreateSheet(
-        locationAvailable: Location.instance.isAvailable,
-        initialMode: initialMode,
-      ),
+      builder: (_) =>
+          _CreateSheet(locationAvailable: Location.instance.isAvailable),
     );
     if (choice == null || !mounted) return;
     var (visibility, mode) = choice;
@@ -1263,8 +1252,6 @@ class _Lobby extends StatelessWidget {
     required this.onResume,
     required this.nearby,
     required this.locationAvailable,
-    required this.selectedMode,
-    required this.onSelectMode,
     required this.todaySets,
     required this.onJoin,
     required this.onJoinNearby,
@@ -1282,8 +1269,6 @@ class _Lobby extends StatelessWidget {
   final VoidCallback onResume;
   final _NearbyStatus nearby;
   final bool locationAvailable;
-  final PartyMode selectedMode;
-  final ValueChanged<PartyMode> onSelectMode;
   final int todaySets;
   final VoidCallback onJoin;
   final ValueChanged<NearbyParty> onJoinNearby;
@@ -1292,10 +1277,10 @@ class _Lobby extends StatelessWidget {
   final Future<void> Function() onOpenLocationSettings;
   final VoidCallback onSignIn;
 
-  /// 로비는 경기장 입구다 — 회색 상자를 쌓는 문법("카드 아니면 로우 아니면 버튼")을
-  /// 버린다. 전광판의 언어를 얇게 빌린 **LED 티커** 한 줄, 종목은 상자가 아니라
-  /// **큰 글자 셋**(고른 것만 잉크, 라임 밑줄), 근처 방은 **선으로 나눈 목록**,
-  /// 코드는 여섯 칸 한 줄. 행동은 하나 — 하단의 "<종목> 방 만들기".
+  /// 로비는 **참여의 화면**이다 — LED 티커 한 줄, 코드 여섯 칸, 근처 방
+  /// 선 목록. 생성은 하단 "방 만들기" 버튼 하나로 접히고, 종목·공개 여부는
+  /// 그 시트에서 고른다. 종목 목차를 로비에 두었더니 시트의 종목 카드와
+  /// 같은 걸 두 번 묻고 방 목록처럼 읽혔다("리스트랑 생성이 너무 공존").
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1325,17 +1310,8 @@ class _Lobby extends StatelessWidget {
             const SizedBox(height: SetflowSpacing.md),
             _Notice(message: error!),
           ],
-          const SizedBox(height: SetflowSpacing.section),
-          // 종목 — 목차처럼. 번호는 순서가 아니라 리듬이다.
-          for (final (index, mode) in PartyMode.values.indexed)
-            _ModeLine(
-              key: ValueKey('lobby-mode-${mode.name}'),
-              index: index + 1,
-              mode: mode,
-              selected: mode == selectedMode,
-              enabled: !busy,
-              onTap: () => onSelectMode(mode),
-            ),
+          // 종목 목차는 로비에 없다 — 만들기 시트가 고르는 자리다. 로비는
+          // 참여(근처 방·코드)의 화면이고, 생성은 하단 버튼 하나로 접는다.
           const SizedBox(height: SetflowSpacing.section),
           _CodeLine(onTap: busy ? null : onJoin),
           if (locationAvailable) ...[
@@ -1565,119 +1541,6 @@ class _LedFigure extends StatelessWidget {
   }
 }
 
-/// 종목 한 줄 — 상자가 아니라 글자다. 고른 줄만 잉크색에 라임 밑줄이 붙고
-/// 설명이 펼쳐진다. 나머지는 회색 글자로 물러난다.
-class _ModeLine extends StatelessWidget {
-  const _ModeLine({
-    required this.index,
-    required this.mode,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-    super.key,
-  });
-
-  final int index;
-  final PartyMode mode;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final ink = theme.colorScheme.onSurface;
-    final faded = context.setflowColors.disabled;
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      child: AnimatedContainer(
-        duration: SetflowMotion.standard,
-        curve: SetflowMotion.standardCurve,
-        padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.md),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 32,
-              child: Padding(
-                padding: const EdgeInsets.only(top: SetflowSpacing.sm),
-                child: Text(
-                  index.toString().padLeft(2, '0'),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: selected ? ink : faded,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        mode.label,
-                        style: theme.textTheme.headlineLarge?.copyWith(
-                          color: selected ? ink : faded,
-                        ),
-                      ),
-                      const Spacer(),
-                      Icon(_iconForMode(mode), color: selected ? ink : faded),
-                    ],
-                  ),
-                  // 라임은 채우는 색이다 — 밑줄 막대로 "고름"을 말한다.
-                  AnimatedContainer(
-                    duration: SetflowMotion.standard,
-                    curve: SetflowMotion.standardCurve,
-                    margin: const EdgeInsets.only(top: SetflowSpacing.xs),
-                    height: SetflowSpacing.xs,
-                    width: selected ? 40 : 0,
-                    color: theme.colorScheme.primary,
-                  ),
-                  AnimatedSize(
-                    duration: SetflowMotion.standard,
-                    curve: SetflowMotion.standardCurve,
-                    alignment: Alignment.topLeft,
-                    child: selected
-                        ? Padding(
-                            padding: const EdgeInsets.only(
-                              top: SetflowSpacing.sm,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  mode.detail,
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                                const SizedBox(height: SetflowSpacing.xxs),
-                                Text(
-                                  mode.when,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const SizedBox(width: double.infinity),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 초대 코드 — 여섯 칸이 비어 있는 한 줄. 탭하면 코드 입력이 열린다.
 class _CodeLine extends StatelessWidget {
   const _CodeLine({required this.onTap});
@@ -1725,16 +1588,13 @@ class _CodeLine extends StatelessWidget {
 /// 로비 하단 고정 — 행동은 하나다. 라벨이 고른 종목을 따른다.
 /// 스크롤 밖에 있으니 세이프에리어 안에 둔다(`test/safe_area_sweep_test.dart`).
 class _LobbyActions extends StatelessWidget {
-  const _LobbyActions({
-    required this.mode,
-    required this.busy,
-    required this.onCreate,
-  });
+  const _LobbyActions({required this.busy, required this.onCreate});
 
-  final PartyMode mode;
   final bool busy;
   final VoidCallback onCreate;
 
+  // 종목은 여기 적지 않는다 — 만들기 시트가 고르는 자리다(로비의 종목 목차가
+  // 시트의 종목 카드와 같은 걸 두 번 물어서 "리스트랑 생성이 너무 공존"했다).
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -1748,7 +1608,7 @@ class _LobbyActions extends StatelessWidget {
         ),
         child: AppButton(
           key: const ValueKey('together-create'),
-          label: '${mode.label} 방 만들기',
+          label: '방 만들기',
           icon: SetflowIcons.partyCreate,
           isLoading: busy,
           onPressed: busy ? null : onCreate,
@@ -1882,13 +1742,10 @@ class _NearbyRow extends StatelessWidget {
 /// 방을 여는 것은 빈 시간이라 여기서 한 번 묻는 것이 세트 사이에 묻는 것보다 낫다.
 /// 라디오 목록이 아니라 카드다 — 게임의 방 설정 화면처럼 한눈에 고른다.
 class _CreateSheet extends StatefulWidget {
-  const _CreateSheet({required this.locationAvailable, this.initialMode});
+  const _CreateSheet({required this.locationAvailable});
 
   /// 위치를 못 읽는 기기에서는 공개 카드를 잠그고 이유를 적는다.
   final bool locationAvailable;
-
-  /// 로비의 종목 카드에서 왔으면 그 종목이 골라진 채로 연다.
-  final PartyMode? initialMode;
 
   @override
   State<_CreateSheet> createState() => _CreateSheetState();
@@ -1896,7 +1753,7 @@ class _CreateSheet extends StatefulWidget {
 
 class _CreateSheetState extends State<_CreateSheet> {
   PartyVisibility _visibility = PartyVisibility.private;
-  late PartyMode _mode = widget.initialMode ?? PartyMode.defaultMode;
+  PartyMode _mode = PartyMode.defaultMode;
 
   static IconData _iconFor(PartyMode mode) => _iconForMode(mode);
 

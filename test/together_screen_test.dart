@@ -357,19 +357,18 @@ void main() {
   });
 
   group('the lobby is a list of rooms', () {
-    testWidgets('an activity card opens create with that activity chosen', (
+    testWidgets('the mode is chosen in the create sheet, not the lobby', (
       tester,
     ) async {
-      // 히어로(설명 카드)는 없다 — 종목은 큰 글자 셋이고, 고른 종목을 하단의
-      // 하나뿐인 행동이 따른다: "크로스핏 방 만들기". 시트도 그 종목으로 열린다.
+      // 로비는 참여의 화면이다 — 종목 목차가 로비에 있으면 시트의 종목 카드와
+      // 같은 걸 두 번 묻고 방 목록처럼 읽힌다("리스트랑 생성이 너무 공존").
       await pumpTogether(tester, repository: client('u-me', '나'));
-      expect(find.text('떨어져 있어도'), findsNothing);
-      expect(find.text('헬스 방 만들기'), findsOneWidget, reason: '기본은 헬스');
+      expect(find.byKey(const ValueKey('lobby-mode-together')), findsNothing);
+      expect(find.text('방 만들기'), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('lobby-mode-together')));
-      await tester.pumpAndSettle();
-      expect(find.text('크로스핏 방 만들기'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('create-mode-together')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
       await tester.pumpAndSettle();
@@ -381,7 +380,7 @@ void main() {
       expect(
         backend.partyByCode(code)!.mode,
         PartyMode.together,
-        reason: '카드의 종목이 방의 종목이다',
+        reason: '시트에서 고른 종목이 방의 종목이다',
       );
       await tester.pump(const Duration(milliseconds: 400));
     });
