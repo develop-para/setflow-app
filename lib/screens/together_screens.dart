@@ -542,7 +542,11 @@ class _TogetherScreenState extends State<TogetherScreen> {
         // 로비의 두 행동은 엄지 자리에 고정한다 — 목록이 길어져도 "방 만들기"가
         // 스크롤 밑으로 사라지지 않는다. 셸 바텀바가 그 아래 있으니 인셋은 셸이 진다.
         bottomNavigationBar: showLobby
-            ? _LobbyActions(busy: _busy, onCreate: () => unawaited(_create()))
+            ? _LobbyActions(
+                busy: _busy,
+                onJoin: _join,
+                onCreate: () => unawaited(_create()),
+              )
             : null,
         body: SafeArea(
           top: false,
@@ -562,7 +566,6 @@ class _TogetherScreenState extends State<TogetherScreen> {
                   nearby: _nearby,
                   locationAvailable: Location.instance.isAvailable,
                   todaySets: _todaySets(AppScope.of(context)),
-                  onJoin: _join,
                   onJoinNearby: _joinNearby,
                   onLoadNearby: () => _loadNearby(request: true),
                   onRefreshNearby: _loadNearby,
@@ -1310,7 +1313,6 @@ class _Lobby extends StatelessWidget {
     required this.nearby,
     required this.locationAvailable,
     required this.todaySets,
-    required this.onJoin,
     required this.onJoinNearby,
     required this.onLoadNearby,
     required this.onRefreshNearby,
@@ -1327,17 +1329,17 @@ class _Lobby extends StatelessWidget {
   final _NearbyStatus nearby;
   final bool locationAvailable;
   final int todaySets;
-  final VoidCallback onJoin;
   final ValueChanged<NearbyParty> onJoinNearby;
   final VoidCallback onLoadNearby;
   final Future<void> Function() onRefreshNearby;
   final Future<void> Function() onOpenLocationSettings;
   final VoidCallback onSignIn;
 
-  /// 로비는 **참여의 화면**이다 — LED 티커 한 줄, 코드 여섯 칸, 근처 방
-  /// 선 목록. 생성은 하단 "방 만들기" 버튼 하나로 접히고, 종목·공개 여부는
-  /// 그 시트에서 고른다. 종목 목차를 로비에 두었더니 시트의 종목 카드와
-  /// 같은 걸 두 번 묻고 방 목록처럼 읽혔다("리스트랑 생성이 너무 공존").
+  /// 로비는 **목록의 화면**이다 — LED 티커 한 줄, 근처 방 선 목록.
+  /// 행동(코드로 참여·방 만들기)은 전부 하단 버튼 둘로 접힌다 — 코드 참여를
+  /// 본문 한가운데 내비 줄로 두었더니 목록과 행동이 한 스크롤에 섞여 리스트
+  /// 페이지로 안 읽혔다. 종목·공개 여부는 만들기 시트에서 고른다(종목 목차를
+  /// 로비에 두면 시트와 같은 걸 두 번 묻는다 — "리스트랑 생성이 너무 공존").
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1367,10 +1369,6 @@ class _Lobby extends StatelessWidget {
             const SizedBox(height: SetflowSpacing.md),
             _Notice(message: error!),
           ],
-          // 종목 목차는 로비에 없다 — 만들기 시트가 고르는 자리다. 로비는
-          // 참여(근처 방·코드)의 화면이고, 생성은 하단 버튼 하나로 접는다.
-          const SizedBox(height: SetflowSpacing.section),
-          _CodeLine(onTap: busy ? null : onJoin),
           if (locationAvailable) ...[
             const SizedBox(height: SetflowSpacing.section),
             Row(
@@ -1598,66 +1596,24 @@ class _LedFigure extends StatelessWidget {
   }
 }
 
-/// 코드로 참여 — 내비게이션 한 줄. 빈 여섯 칸 대시를 그렸더니 "내 코드
-/// 표시"처럼 읽혔다(실기기 보고: "참여인데 내 코드를 보여주는 것도 아니고").
-/// 입력 칸은 탭하면 열리는 시트의 것이지 이 줄의 것이 아니다.
-class _CodeLine extends StatelessWidget {
-  const _CodeLine({required this.onTap});
-
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      key: const ValueKey('together-join'),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: SetflowSpacing.md),
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: theme.colorScheme.outlineVariant),
-            bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('코드로 참여', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: SetflowSpacing.xxs),
-                  Text(
-                    '친구가 알려준 여섯 자리 코드로 들어가요',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              SetflowIcons.forward,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 로비 하단 고정 — 행동은 하나다. 라벨이 고른 종목을 따른다.
+/// 로비 하단 고정 — 두 행동이 나란히 선다: 코드로 참여(보조) · 방 만들기(주).
+/// 본문은 근처 방 목록에게 통째로 내준다. 코드 입력 칸은 탭하면 열리는
+/// 시트의 것이다 — 빈 여섯 칸 대시를 로비에 그렸더니 "내 코드 표시"처럼
+/// 읽혔다(실기기 보고: "참여인데 내 코드를 보여주는 것도 아니고").
+/// 종목은 여기 적지 않는다 — 만들기 시트가 고르는 자리다(로비의 종목 목차가
+/// 시트의 종목 카드와 같은 걸 두 번 물어서 "리스트랑 생성이 너무 공존"했다).
 /// 스크롤 밖에 있으니 세이프에리어 안에 둔다(`test/safe_area_sweep_test.dart`).
 class _LobbyActions extends StatelessWidget {
-  const _LobbyActions({required this.busy, required this.onCreate});
+  const _LobbyActions({
+    required this.busy,
+    required this.onJoin,
+    required this.onCreate,
+  });
 
   final bool busy;
+  final VoidCallback onJoin;
   final VoidCallback onCreate;
 
-  // 종목은 여기 적지 않는다 — 만들기 시트가 고르는 자리다(로비의 종목 목차가
-  // 시트의 종목 카드와 같은 걸 두 번 물어서 "리스트랑 생성이 너무 공존"했다).
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -1669,12 +1625,27 @@ class _LobbyActions extends StatelessWidget {
           SetflowSpacing.gutter,
           SetflowSpacing.sm,
         ),
-        child: AppButton(
-          key: const ValueKey('together-create'),
-          label: '방 만들기',
-          icon: SetflowIcons.partyCreate,
-          isLoading: busy,
-          onPressed: busy ? null : onCreate,
+        child: Row(
+          children: [
+            Expanded(
+              child: AppButton(
+                key: const ValueKey('together-join'),
+                label: '코드로 참여',
+                variant: AppButtonVariant.outlined,
+                onPressed: busy ? null : onJoin,
+              ),
+            ),
+            const SizedBox(width: SetflowSpacing.sm),
+            Expanded(
+              child: AppButton(
+                key: const ValueKey('together-create'),
+                label: '방 만들기',
+                icon: SetflowIcons.partyCreate,
+                isLoading: busy,
+                onPressed: busy ? null : onCreate,
+              ),
+            ),
+          ],
         ),
       ),
     );
