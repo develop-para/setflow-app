@@ -7,6 +7,7 @@ import 'package:setflow/data/business_repository.dart';
 import 'package:setflow/screens/member_detail_screens.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/widgets/common.dart';
+import 'package:setflow/widgets/exercise_muscle_map.dart';
 
 const _memberId = '44444444-4444-4444-8444-444444444444';
 const _memberUserId = '11111111-1111-4111-8111-111111111111';
@@ -50,6 +51,42 @@ void main() {
       expect(find.textContaining('82.5'), findsNothing);
     },
   );
+
+  testWidgets('local member library survives a narrow screen at 2x text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+    addTearDown(state.dispose);
+
+    Widget app(double scale) => AppScope(
+      notifier: state,
+      child: MaterialApp(
+        theme: SetflowTheme.light,
+        builder: (context, child) => MediaQuery.withClampedTextScaling(
+          minScaleFactor: scale,
+          maxScaleFactor: scale,
+          child: child!,
+        ),
+        home: MemberDetailScreen(member: _member(), role: UserRole.trainer),
+      ),
+    );
+
+    await tester.pumpWidget(app(1));
+    await tester.pumpAndSettle();
+    final tabBarContext = tester.element(find.byType(TabBar));
+    DefaultTabController.of(tabBarContext).animateTo(3);
+    await tester.pumpAndSettle();
+    expect(find.byType(ExerciseMuscleMap), findsWidgets);
+
+    await tester.pumpWidget(app(2));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ExerciseMuscleMap), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('consented live detail renders nested exercises and sets', (
     tester,

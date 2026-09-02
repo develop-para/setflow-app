@@ -12,6 +12,7 @@ import '../theme.dart';
 import '../theme/icons.dart';
 import '../theme/muscle_illustrations.dart';
 import '../widgets/common.dart';
+import '../widgets/exercise_muscle_map.dart';
 import 'evidence_library_screen.dart';
 import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
@@ -867,7 +868,7 @@ class _RoutinePickerSheet extends StatelessWidget {
   }
 }
 
-/// 루틴의 지금 옷 — 옅은 부위 틴트 판 + 부위 마스코트. 내 루틴 타일·홈
+/// 루틴의 지금 옷 — 옅은 부위 틴트 판 + 부위 근육 지도. 내 루틴 타일·홈
 /// 조약돌과 같은 언어의 가로 줄 버전이다. 옛 회색 카드+4px 색 막대는 내 루틴이
 /// 카드였던 시절의 문법이라, 같은 루틴이 화면마다 다른 옷을 입고 있었다.
 class _RoutinePickRow extends StatelessWidget {
@@ -907,13 +908,10 @@ class _RoutinePickRow extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Image.asset(
-                  SetflowMuscleIllustrations.forMuscle(muscle),
-                  height: 40,
-                  fit: BoxFit.contain,
-                  // 원본이 큰 PNG라 디코드 크기를 묶는다(조약돌과 같은 이유).
-                  cacheHeight: 160,
-                  filterQuality: FilterQuality.medium,
+                ExerciseMuscleMap.forCategory(
+                  category: muscle,
+                  size: 40,
+                  decorative: true,
                 ),
                 const SizedBox(width: SetflowSpacing.md),
                 Expanded(
@@ -995,10 +993,10 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                       // 이 화면에서 가장 먼저 눈에 들어오는 요소였는데, 정작
                       // 아무 의미도 없는 장식이었다 — 봐야 할 것은 종목 이름과
                       // 세트다.
-                      Icon(
-                        exercise.template.icon,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        size: 24,
+                      ExerciseMuscleMap.forExercise(
+                        exercise: exercise.template,
+                        size: 40,
+                        decorative: true,
                       ),
                       const SizedBox(width: SetflowSpacing.md),
                       Expanded(
@@ -1017,9 +1015,9 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                       exercise.sets.every(
                                         (set) => set.completed,
                                       )
-                                  ? '${exercise.template.muscle} · 완료 ${exercise.sets.length}/${exercise.sets.length}'
-                                  : '${exercise.template.muscle} · 상단을 길게 눌러 순서 이동',
-                              maxLines: 1,
+                                  ? '${exerciseMuscleSummaryKo(exercise.template)} · 완료 ${exercise.sets.length}/${exercise.sets.length}'
+                                  : '${exerciseMuscleSummaryKo(exercise.template)} · 상단을 길게 눌러 순서 이동',
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: SetflowFontSize.tiny,
@@ -1436,6 +1434,8 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
   bool get supportsDistance =>
       definition?.metrics.contains(CardioMetric.distance) == true;
 
+  bool get canEdit => !widget.set.completed || reopened;
+
   @override
   void initState() {
     super.initState();
@@ -1730,7 +1730,7 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
       label: label,
       suffix: suffix,
       controller: controller,
-      enabled: !widget.set.completed,
+      enabled: canEdit,
       onDial: onDial,
     );
   }
@@ -1976,6 +1976,8 @@ class _InlineSetRowState extends State<_InlineSetRow> {
   bool get _showsRir =>
       widget.showRir && widget.measurement != ExerciseMeasurement.duration;
 
+  bool get canEdit => !widget.set.completed || reopened;
+
   /// 95초보다 "1분 35초"가 읽힌다.
   static String _holdText(int seconds) {
     if (seconds < 60) return '$seconds초';
@@ -2204,7 +2206,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
               _RirPicker(
                 setNumber: widget.set.number,
                 value: widget.set.rir,
-                enabled: !widget.set.completed,
+                enabled: canEdit,
                 onChanged: widget.onRirChanged,
               ),
             ],
@@ -2286,7 +2288,7 @@ class _InlineSetRowState extends State<_InlineSetRow> {
       label: label,
       suffix: suffix,
       controller: controller,
-      enabled: !widget.set.completed,
+      enabled: canEdit,
       onDial: onDial,
     );
   }
@@ -3015,31 +3017,56 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
             const SizedBox(height: SetflowSpacing.xs),
           Expanded(
             child: showCategories
-                ? GridView.builder(
-                    key: const Key('exercise-muscle-grid'),
-                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 110),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 1.18,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
-                    itemCount: _muscleCategories(context).length,
-                    itemBuilder: (_, index) {
-                      final category = _muscleCategories(context)[index];
-                      final count = category.name == '전체'
-                          ? state.exercises.length
-                          : state.exercises
-                                .where(
-                                  (exercise) =>
-                                      exercise.muscle == category.name,
-                                )
-                                .length;
-                      return _MuscleCategoryCard(
-                        category: category,
-                        exerciseCount: count,
-                        onTap: () => setState(() => muscle = category.name),
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      const compactWidth = 360.0;
+                      const largeTextScale = 1.3;
+                      final categories = _muscleCategories(context);
+                      final useList =
+                          constraints.maxWidth < compactWidth ||
+                          MediaQuery.textScalerOf(context).scale(1) >
+                              largeTextScale;
+
+                      Widget categoryCard(BuildContext _, int index) {
+                        final category = categories[index];
+                        final count = category.name == '전체'
+                            ? state.exercises.length
+                            : state.exercises
+                                  .where(
+                                    (exercise) =>
+                                        exercise.muscle == category.name,
+                                  )
+                                  .length;
+                        return _MuscleCategoryCard(
+                          category: category,
+                          exerciseCount: count,
+                          horizontal: useList,
+                          onTap: () => setState(() => muscle = category.name),
+                        );
+                      }
+
+                      if (useList) {
+                        return ListView.separated(
+                          key: const Key('exercise-muscle-grid'),
+                          padding: const EdgeInsets.fromLTRB(18, 4, 18, 110),
+                          itemCount: categories.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: SetflowSpacing.md),
+                          itemBuilder: categoryCard,
+                        );
+                      }
+                      return GridView.builder(
+                        key: const Key('exercise-muscle-grid'),
+                        padding: const EdgeInsets.fromLTRB(18, 4, 18, 110),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 1.18,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                        itemCount: categories.length,
+                        itemBuilder: categoryCard,
                       );
                     },
                   )
@@ -3149,6 +3176,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                               exercise.id.startsWith('custom_')
                                   ? '${exercise.muscle} · 내가 만든 운동'
                                   : '${exercise.muscle} · ${exercise.resolvedEquipmentName}',
+                              exerciseMuscleSummaryKo(exercise),
                               if (existingCount > 0) '오늘 $existingCount회 추가됨',
                               if (suggestedWeight != null &&
                                   suggestedWeight > 0 &&
@@ -3160,11 +3188,10 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                                 horizontal: 8,
                                 vertical: 4,
                               ),
-                              leading: Icon(
-                                exercise.icon,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                              leading: ExerciseMuscleMap.forExercise(
+                                exercise: exercise,
+                                size: 48,
+                                decorative: true,
                               ),
                               title: Text(
                                 exercise.name,
@@ -3172,7 +3199,11 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              subtitle: Text(subtitleParts.join(' · ')),
+                              subtitle: Text(
+                                subtitleParts.join(' · '),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                               trailing: IconButton(
                                 tooltip: isSelected ? '선택 해제' : '선택',
                                 onPressed: () => setState(
@@ -3253,48 +3284,24 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
 }
 
 class _MuscleCategory {
-  _MuscleCategory(this.name, this.icon, this.color);
+  _MuscleCategory(this.name, this.color);
 
   final String name;
-  final IconData icon;
   final Color color;
 }
 
 /// 부위별 색은 테마를 따라야 해서 const 리스트에서 함수가 됐다.
 List<_MuscleCategory> _muscleCategories(BuildContext context) => [
-  _MuscleCategory('전체', Icons.apps_rounded, context.setflowColors.orange),
-  _MuscleCategory(
-    '가슴',
-    Icons.fitness_center_rounded,
-    context.setflowColors.error,
-  ),
-  _MuscleCategory('등', Icons.rowing_rounded, context.setflowColors.blue),
-  _MuscleCategory(
-    '어깨',
-    Icons.accessibility_new_rounded,
-    context.setflowColors.teal,
-  ),
-  _MuscleCategory(
-    '하체',
-    Icons.directions_walk_rounded,
-    context.setflowColors.success,
-  ),
-  _MuscleCategory(
-    '팔',
-    Icons.sports_gymnastics_rounded,
-    context.setflowColors.orange,
-  ),
+  _MuscleCategory('전체', context.setflowColors.orange),
+  _MuscleCategory('가슴', context.setflowColors.error),
+  _MuscleCategory('등', context.setflowColors.blue),
+  _MuscleCategory('어깨', context.setflowColors.teal),
+  _MuscleCategory('하체', context.setflowColors.success),
+  _MuscleCategory('팔', context.setflowColors.orange),
   // 복근·유산소도 색을 갖는다 — 달력 막대가 부위 색이라 회색이면 "한 것"이 안 보인다.
-  _MuscleCategory(
-    '복근',
-    Icons.self_improvement_rounded,
-    context.setflowColors.purple,
-  ),
-  _MuscleCategory(
-    '유산소',
-    Icons.directions_run_rounded,
-    context.setflowColors.info,
-  ),
+  _MuscleCategory('복근', context.setflowColors.purple),
+  _MuscleCategory('유산소', context.setflowColors.info),
+  _MuscleCategory('기타', Theme.of(context).colorScheme.onSurfaceVariant),
 ];
 
 class _MuscleCategoryCard extends StatelessWidget {
@@ -3302,14 +3309,42 @@ class _MuscleCategoryCard extends StatelessWidget {
     required this.category,
     required this.exerciseCount,
     required this.onTap,
+    this.horizontal = false,
   });
 
   final _MuscleCategory category;
   final int exerciseCount;
   final VoidCallback onTap;
+  final bool horizontal;
 
   @override
   Widget build(BuildContext context) {
+    final labels = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          category.name,
+          style: const TextStyle(
+            fontSize: SetflowFontSize.titleLarge,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        Text(
+          '$exerciseCount개 운동 보기',
+          style: TextStyle(
+            fontSize: SetflowFontSize.tiny,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+    final atlas = ExerciseMuscleMap.forCategory(
+      category: category.name,
+      size: horizontal ? 72 : 88,
+      decorative: true,
+    );
     return Semantics(
       button: true,
       label: '${category.name}, 운동 $exerciseCount개',
@@ -3319,43 +3354,28 @@ class _MuscleCategoryCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Stack(
-            children: [
-              Positioned(
-                right: -8,
-                bottom: -12,
-                child: Icon(
-                  category.icon,
-                  size: 92,
-                  color: category.color.withValues(alpha: .2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(category.icon, color: category.color),
-                    const Spacer(),
-                    Text(
-                      category.name,
-                      style: const TextStyle(
-                        fontSize: SetflowFontSize.titleLarge,
-                        fontWeight: FontWeight.w900,
+          child: Padding(
+            padding: const EdgeInsets.all(SetflowSpacing.lg),
+            child: horizontal
+                ? Row(
+                    children: [
+                      atlas,
+                      const SizedBox(width: SetflowSpacing.lg),
+                      Expanded(child: labels),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: atlas,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '$exerciseCount개 운동 보기',
-                      style: TextStyle(
-                        fontSize: SetflowFontSize.tiny,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                      labels,
+                    ],
+                  ),
           ),
         ),
       ),
@@ -4537,7 +4557,13 @@ void _showExerciseGuide(BuildContext context, ExerciseTemplate template) {
 
 /// 숫자를 고치는 유일한 길(AGENTS.md 5). 기록 화면과 함께 방이 같은 시트를
 /// 쓴다 — 방이 자체 편집기를 갖는 순간 "적용이 유일한 저장 지점"이 둘이 된다.
-Future<double?> showNumberDial(
+class OptionalNumberDialResult {
+  const OptionalNumberDialResult(this.value);
+
+  final double? value;
+}
+
+Future<OptionalNumberDialResult?> _showNumberDial(
   BuildContext context, {
   required String title,
   required String suffix,
@@ -4545,8 +4571,10 @@ Future<double?> showNumberDial(
   required double min,
   required double max,
   required double step,
+  bool allowUnset = false,
+  bool initiallyUnset = false,
 }) {
-  return showSetflowSheet<double>(
+  return showSetflowSheet<OptionalNumberDialResult>(
     context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -4557,7 +4585,52 @@ Future<double?> showNumberDial(
       min: min,
       max: max,
       step: step,
+      allowUnset: allowUnset,
+      initiallyUnset: initiallyUnset,
     ),
+  );
+}
+
+Future<double?> showNumberDial(
+  BuildContext context, {
+  required String title,
+  required String suffix,
+  required double initialValue,
+  required double min,
+  required double max,
+  required double step,
+}) async {
+  final result = await _showNumberDial(
+    context,
+    title: title,
+    suffix: suffix,
+    initialValue: initialValue,
+    min: min,
+    max: max,
+    step: step,
+  );
+  return result?.value;
+}
+
+Future<OptionalNumberDialResult?> showOptionalNumberDial(
+  BuildContext context, {
+  required String title,
+  required String suffix,
+  required double? initialValue,
+  required double min,
+  required double max,
+  required double step,
+}) {
+  return _showNumberDial(
+    context,
+    title: title,
+    suffix: suffix,
+    initialValue: initialValue ?? min,
+    min: min,
+    max: max,
+    step: step,
+    allowUnset: true,
+    initiallyUnset: initialValue == null,
   );
 }
 
@@ -4569,6 +4642,8 @@ class _NumberDialSheet extends StatefulWidget {
     required this.min,
     required this.max,
     required this.step,
+    required this.allowUnset,
+    required this.initiallyUnset,
   });
 
   final String title;
@@ -4577,6 +4652,8 @@ class _NumberDialSheet extends StatefulWidget {
   final double min;
   final double max;
   final double step;
+  final bool allowUnset;
+  final bool initiallyUnset;
 
   @override
   State<_NumberDialSheet> createState() => _NumberDialSheetState();
@@ -4601,7 +4678,11 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
     super.initState();
     final initialIndex = _indexFor(widget.initialValue);
     selectedValue = _valueFor(initialIndex);
-    inputController = TextEditingController(text: _decimalText(selectedValue));
+    inputController = TextEditingController(
+      text: widget.allowUnset && widget.initiallyUnset
+          ? ''
+          : _decimalText(selectedValue),
+    );
     dialController = FixedExtentScrollController(initialItem: initialIndex);
   }
 
@@ -4624,8 +4705,25 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
     );
   }
 
+  void _selectWholeInput() {
+    inputController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: inputController.text.length,
+    );
+  }
+
+  void _finishDirectInput() {
+    _syncInputToDial();
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   void _save() {
-    final typed = double.tryParse(inputController.text.trim());
+    final input = inputController.text.trim();
+    if (widget.allowUnset && input.isEmpty) {
+      Navigator.pop(context, const OptionalNumberDialResult(null));
+      return;
+    }
+    final typed = double.tryParse(input);
     if (typed == null || typed < widget.min || typed > widget.max) {
       AppSnackbar.error(
         context,
@@ -4633,7 +4731,7 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
       );
       return;
     }
-    Navigator.pop(context, typed);
+    Navigator.pop(context, OptionalNumberDialResult(typed));
   }
 
   @override
@@ -4654,7 +4752,7 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
           ),
           const SizedBox(height: SetflowSpacing.xs),
           Text(
-            '다이얼을 돌리거나 아래에 숫자를 직접 입력하세요.',
+            '다이얼을 드래그하거나 입력 칸을 눌러 기존 숫자를 바로 바꾸세요.',
             style: TextStyle(
               fontSize: SetflowFontSize.small,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -4688,6 +4786,12 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
           TextField(
             key: const Key('number-dial-direct-input'),
             controller: inputController,
+            // The current value is the thing being replaced, not a prefix the
+            // lifter has to erase. A first tap selects it all, so the next
+            // digit overwrites the number while the picker remains the only
+            // commit path through 적용.
+            selectAllOnFocus: true,
+            onTap: _selectWholeInput,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
@@ -4697,9 +4801,19 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
               suffixText: widget.suffix,
               prefixIcon: const Icon(Icons.keyboard_rounded),
             ),
-            onEditingComplete: _syncInputToDial,
-            onSubmitted: (_) => _save(),
+            onEditingComplete: _finishDirectInput,
+            onSubmitted: (_) => _finishDirectInput(),
           ),
+          if (widget.allowUnset)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                // This only clears the sheet draft. 적용 remains the sole
+                // point that commits the unset value to the workout draft.
+                onPressed: inputController.clear,
+                child: const Text('값 지우기'),
+              ),
+            ),
           const SizedBox(height: SetflowSpacing.md2),
           Row(
             children: [

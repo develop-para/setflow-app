@@ -397,6 +397,8 @@ class ExerciseTemplate {
     this.aliases = const [],
     this.difficulty,
     this.category,
+    this.primaryMuscles = const [],
+    this.secondaryMuscles = const [],
     this.sourceName,
     this.sourceId,
     this.databaseId,
@@ -413,6 +415,12 @@ class ExerciseTemplate {
   final List<String> aliases;
   final String? difficulty;
   final String? category;
+
+  /// Stable source muscle keys (for example `chest`, `triceps`). The UI maps
+  /// these domain values to Korean labels and to the licensed body atlas; no
+  /// package-specific anatomy type leaves the presentation adapter.
+  final List<String> primaryMuscles;
+  final List<String> secondaryMuscles;
   final String? sourceName;
   final String? sourceId;
 

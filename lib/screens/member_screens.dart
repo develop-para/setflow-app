@@ -12,7 +12,9 @@ import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../theme/muscle_illustrations.dart';
+import '../third_party_licenses.dart';
 import '../widgets/common.dart';
+import '../widgets/exercise_muscle_map.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
 import '../widgets/portal.dart';
@@ -2757,7 +2759,7 @@ class _MyRoutineHomeCard extends StatelessWidget {
 }
 
 /// 조약돌 — 홈의 루틴은 화면을 덮는 슬래브가 아니라 손에 쥐는 크기다.
-/// 부위 색 잔디 채움 위에 부위 마스코트가 서고, 이름과 종목 수가 아래 줄.
+/// 부위 색 잔디 채움 위에 부위 근육 지도가 서고, 이름과 종목 수가 아래 줄.
 /// 길게 눌러 달력에 놓기와 탭-편집은 큰 타일 시절과 같다. 전부 펼친 격자와
 /// 관리는 내 루틴 화면(_RoutineTile) 몫이다.
 class _RoutinePebble extends StatelessWidget {
@@ -2794,9 +2796,8 @@ class _RoutinePebble extends StatelessWidget {
             onTap: onTap,
             borderRadius: radius,
             child: Ink(
-              // 원색 채움은 마스코트와 부딪힌다("배경색을 저걸로 하면
-              // 안되겠다") — 마스코트가 이미 부위 색을 입고 있어서, 판은
-              // 달력 칸처럼 옅은 틴트로 물러나고 캐릭터가 주인공이 된다.
+              // 원색 채움은 근육 지도와 부딪힌다 — 지도에서 이미 부위 색을
+              // 쓰므로 판은 달력 칸처럼 옅은 틴트로 물러난다.
               decoration: BoxDecoration(
                 color: _muscleFill(muscle).withValues(alpha: .16),
                 borderRadius: radius,
@@ -2810,15 +2811,7 @@ class _RoutinePebble extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    Image.asset(
-                      SetflowMuscleIllustrations.forMuscle(muscle),
-                      height: 52,
-                      fit: BoxFit.contain,
-                      // 원본이 큰 PNG라 디코드 크기를 묶는다 — 조약돌 하나에
-                      // 원본 픽셀을 다 올릴 이유가 없다.
-                      cacheHeight: 208,
-                      filterQuality: FilterQuality.medium,
-                    ),
+                    ExerciseMuscleMap.forCategory(category: muscle, size: 52),
                     const SizedBox(height: SetflowSpacing.sm),
                     Text(
                       routine.name,
@@ -2870,7 +2863,7 @@ class _RoutineTileGrid extends StatelessWidget {
 }
 
 /// 루틴 타일 — 달력 칸과 같은 얼굴. 부위 색 잔디 채움 위에 종목 수(큰 숫자), 이름,
-/// 부위·난이도. 판은 옅은 부위 틴트, 얼굴은 부위 마스코트 — 홈 조약돌과 같은
+/// 부위·난이도. 판은 옅은 부위 틴트, 얼굴은 부위 근육 지도 — 홈 조약돌과 같은
 /// 언어다. 오른쪽 위에 메뉴가 들어갈 자리.
 class _RoutineTile extends StatelessWidget {
   const _RoutineTile({
@@ -2967,12 +2960,9 @@ class _RoutineTile extends StatelessWidget {
                 ),
                 const SizedBox(height: SetflowSpacing.xs),
                 Center(
-                  child: Image.asset(
-                    SetflowMuscleIllustrations.forMuscle(dominant),
-                    height: 48,
-                    fit: BoxFit.contain,
-                    cacheHeight: 192,
-                    filterQuality: FilterQuality.medium,
+                  child: ExerciseMuscleMap.forCategory(
+                    category: dominant,
+                    size: 48,
                   ),
                 ),
                 const SizedBox(height: SetflowSpacing.xs),
@@ -5586,6 +5576,9 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const EvidenceLibraryScreen()),
             ),
+          ),
+          const OpenSourceLicensesTile(
+            tileKey: ValueKey('settings-open-source-licenses'),
           ),
           const Divider(height: 30),
           // Sign-in is only offered to a session that has nothing to sign out

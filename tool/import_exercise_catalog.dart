@@ -10,6 +10,11 @@ const _expectedCount = 876;
 const _sourceUrl =
     'https://raw.githubusercontent.com/yuhonas/free-exercise-db/'
     '$_revision/dist/exercises.json';
+const _koreanNameFiles = [
+  'data/free_exercise_db_names_ko_part_a.json',
+  'data/free_exercise_db_names_ko_part_b.json',
+  'data/free_exercise_db_names_ko_part_c.json',
+];
 
 Future<void> main(List<String> args) async {
   if (args.any((argument) => argument != '--verify-only')) {
@@ -48,10 +53,12 @@ Future<void> main(List<String> args) async {
         '${decoded.length} rows / ${ids.length} IDs.',
       );
     }
+    final koreanNames = await _loadKoreanNames(ids);
 
     if (verifyOnly) {
       stdout.writeln(
-        'Source verified: $_expectedCount unique exercises; no DB changes.',
+        'Source and Korean names verified: $_expectedCount unique exercises; '
+        'no DB changes.',
       );
       return;
     }
@@ -76,13 +83,17 @@ Future<void> main(List<String> args) async {
     stdout.writeln('Source verified. Importing $_expectedCount exercises...');
     final result = await _postJson(
       client,
-      Uri.parse('$supabaseUrl/rest/v1/rpc/import_free_exercise_db_catalog'),
+      Uri.parse(
+        '$supabaseUrl/rest/v1/rpc/'
+        'import_localized_free_exercise_db_catalog',
+      ),
       secret,
       bearerToken,
       {
         'p_payload': decoded,
         'p_revision': _revision,
         'p_payload_sha256': actualHash,
+        'p_korean_names': koreanNames,
       },
     );
     if (result.toString().trim() != '$_expectedCount') {
@@ -93,7 +104,8 @@ Future<void> main(List<String> args) async {
       client,
       Uri.parse(
         '$supabaseUrl/rest/v1/master_exercises'
-        '?select=source_id,aliases'
+        '?select=source_id,name,name_en,name_ko,aliases,primary_muscles,'
+        'secondary_muscles'
         '&source_name=eq.free-exercise-db'
         '&is_active=eq.true'
         '&limit=1000',
@@ -108,21 +120,80 @@ Future<void> main(List<String> args) async {
       final aliases = row['aliases'];
       return aliases is! List || aliases.length < 2;
     }).length;
+    final invalidKoreanNames = rows.where((row) {
+      final name = row['name']?.toString().trim() ?? '';
+      final nameKorean = row['name_ko']?.toString().trim() ?? '';
+      final nameEnglish = row['name_en']?.toString().trim() ?? '';
+      return name.isEmpty ||
+          name != nameKorean ||
+          nameEnglish.isEmpty ||
+          RegExp(r'[A-Za-z]').hasMatch(nameKorean);
+    }).length;
+    final invalidMuscles = rows.where((row) {
+      final primary = row['primary_muscles'];
+      final secondary = row['secondary_muscles'];
+      return primary is! List ||
+          primary.isEmpty ||
+          secondary is! List;
+    }).length;
     if (rows.length != _expectedCount ||
         importedIds.length != _expectedCount ||
         importedIds.contains('') ||
-        invalidAliases > 0) {
+        invalidAliases > 0 ||
+        invalidKoreanNames > 0 ||
+        invalidMuscles > 0) {
       throw StateError(
         'Post-import validation failed: ${rows.length} rows, '
-        '${importedIds.length} IDs, $invalidAliases invalid alias arrays.',
+        '${importedIds.length} IDs, $invalidAliases invalid alias arrays, '
+        '$invalidKoreanNames invalid Korean names, '
+        '$invalidMuscles invalid muscle arrays.',
       );
     }
     stdout.writeln(
-      'Import complete: $_expectedCount unique exercises; aliases verified.',
+      'Import complete: $_expectedCount Korean exercises; aliases and muscle '
+      'metadata verified.',
     );
   } finally {
     client.close(force: true);
   }
+}
+
+Future<Map<String, String>> _loadKoreanNames(Set<String> sourceIds) async {
+  final names = <String, String>{};
+  for (final relativePath in _koreanNameFiles) {
+    final file = File.fromUri(Platform.script.resolve(relativePath));
+    final decoded = jsonDecode(await file.readAsString());
+    if (decoded is! Map) {
+      throw FormatException('${file.path} is not a JSON object.');
+    }
+    for (final entry in decoded.entries) {
+      final id = entry.key.toString().trim();
+      final name = entry.value.toString().trim();
+      if (id.isEmpty ||
+          name.isEmpty ||
+          name.length > 160 ||
+          RegExp(r'[A-Za-z]').hasMatch(name)) {
+        throw FormatException('Invalid Korean exercise name for "$id": $name');
+      }
+      if (names.containsKey(id)) {
+        throw FormatException('Duplicate Korean exercise ID: $id');
+      }
+      names[id] = name;
+    }
+  }
+  final missing = sourceIds.difference(names.keys.toSet());
+  final extra = names.keys.toSet().difference(sourceIds);
+  if (names.length != _expectedCount || missing.isNotEmpty || extra.isNotEmpty) {
+    throw StateError(
+      'Expected $_expectedCount Korean names; got ${names.length}. '
+      'Missing: ${missing.take(5).join(', ')}; '
+      'extra: ${extra.take(5).join(', ')}.',
+    );
+  }
+  if (names.values.toSet().length != _expectedCount) {
+    throw StateError('Korean exercise names must be unique.');
+  }
+  return names;
 }
 
 String _requiredEnvironment(String name) {

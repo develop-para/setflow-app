@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../theme.dart';
 import '../theme/muscle_illustrations.dart';
 import '../widgets/common.dart';
+import '../widgets/exercise_muscle_map.dart';
 import '../widgets/routine_icon_picker.dart';
 
 class RoutineEditorScreen extends StatefulWidget {
@@ -143,17 +144,18 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
                         color: context.setflowColors.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(SetflowRadii.md),
                         child: ListTile(
-                          leading: Icon(
-                            exercise.icon,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                          leading: ExerciseMuscleMap.forExercise(
+                            exercise: exercise,
+                            size: 44,
+                            decorative: true,
                           ),
                           title: Text(
                             exercise.name,
                             style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
-                          subtitle: Text(exercise.muscle),
+                          subtitle: Text(
+                            '${exercise.muscle} · ${exerciseMuscleSummaryKo(exercise)}',
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -393,9 +395,16 @@ class _RoutineExercisePickerSheetState
             ? _selectedIds.remove(exercise.id)
             : _selectedIds.add(exercise.id),
       ),
-      secondary: Icon(exercise.icon),
+      secondary: ExerciseMuscleMap.forExercise(
+        exercise: exercise,
+        size: 44,
+        decorative: true,
+      ),
       title: Text(exercise.name),
-      subtitle: Text('${exercise.muscle} · ${exercise.resolvedEquipmentName}'),
+      subtitle: Text(
+        '${exercise.muscle} · ${exercise.resolvedEquipmentName}\n'
+        '${exerciseMuscleSummaryKo(exercise)}',
+      ),
       controlAffinity: ListTileControlAffinity.trailing,
     );
   }

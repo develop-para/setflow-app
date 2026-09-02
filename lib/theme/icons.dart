@@ -80,6 +80,9 @@ abstract final class SetflowIcons {
   static const activityCrossfit = Icons.bolt_rounded;
   static const activityAlternate = Icons.swap_horiz_rounded;
 
+  /// 유산소 운동 — 특정 근육을 강조하지 않는 심폐 활동 표식.
+  static const cardio = Icons.directions_run_rounded;
+
   /// 초대 코드를 복사한다.
   static const copyCode = Icons.copy_rounded;
 
@@ -98,6 +101,9 @@ abstract final class SetflowIcons {
   static const exerciseSearch = Icons.search_rounded;
   static const pastDays = Icons.history_rounded;
   static const addExercise = Icons.add_rounded;
+
+  /// Third-party software and artwork attribution.
+  static const openSource = Icons.info_outline_rounded;
 
   // --- account hub ----------------------------------------------------------
   static const coaching = Icons.forum_outlined;

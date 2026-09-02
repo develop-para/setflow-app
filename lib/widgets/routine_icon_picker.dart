@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 import '../theme/muscle_illustrations.dart';
+import 'exercise_muscle_map.dart';
 
-/// 루틴의 대표 아이콘(부위 마스코트) 선택 줄 — 생성 시트와 편집기가 같이 쓴다.
+/// 루틴의 대표 아이콘(부위 근육 지도) 선택 줄 — 생성 시트와 편집기가 같이 쓴다.
 /// null은 "자동": 구성 종목의 지배 부위로 화면이 정한다. 선택은 부위 면 색을
 /// 루틴 color로 저장하는 방식이라 서버 스키마 변경 없이 기기 간에 보존된다.
 class RoutineIconPicker extends StatelessWidget {
@@ -42,13 +43,10 @@ class RoutineIconPicker extends StatelessWidget {
             label: muscle,
             fill: SetflowMuscleIllustrations.fillForMuscle(muscle),
             onTap: () => onChanged(muscle),
-            child: Image.asset(
-              SetflowMuscleIllustrations.forMuscle(muscle),
-              height: 36,
-              fit: BoxFit.contain,
-              // 원본이 큰 PNG라 디코드 크기를 묶는다.
-              cacheHeight: 144,
-              filterQuality: FilterQuality.medium,
+            child: ExerciseMuscleMap.forCategory(
+              category: muscle,
+              size: 40,
+              decorative: true,
             ),
           ),
       ],

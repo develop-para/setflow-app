@@ -14,6 +14,7 @@ import '../widgets/auth_gate.dart';
 import '../widgets/coach_marks.dart';
 import '../widgets/common.dart';
 import '../widgets/dot_matrix.dart';
+import '../widgets/exercise_muscle_map.dart';
 import 'workout_screens.dart';
 
 /// 함께 — training with someone who is not in the room with you.
@@ -2543,9 +2544,9 @@ class _LiveSetCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                exercise.template.icon,
-                color: theme.colorScheme.onSurfaceVariant,
+              ExerciseMuscleMap.forExercise(
+                exercise: exercise.template,
+                size: 40,
               ),
               const SizedBox(width: SetflowSpacing.md),
               Expanded(

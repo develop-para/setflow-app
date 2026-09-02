@@ -8,6 +8,7 @@ import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/screens/routine_editor_screen.dart';
 import 'package:setflow/screens/workout_screens.dart';
 import 'package:setflow/theme.dart';
+import 'package:setflow/widgets/exercise_muscle_map.dart';
 
 void main() {
   Future<AppState> pumpWorkoutScreen(WidgetTester tester, Widget screen) async {
@@ -39,10 +40,12 @@ void main() {
     await tester.enterText(find.byType(TextFormField), '바벨 벤치 프레스');
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, '바벨 벤치 프레스'), findsOneWidget);
+    expect(find.byType(ExerciseMuscleMap), findsWidgets);
 
     await tester.tap(find.text('부위 선택'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('exercise-muscle-grid')), findsOneWidget);
+    expect(find.text('기타'), findsOneWidget);
     expect(
       tester.widget<TextFormField>(find.byType(TextFormField)).controller?.text,
       isEmpty,
@@ -60,6 +63,42 @@ void main() {
     expect(find.text('바벨 벤치 프레스'), findsOneWidget);
 
     state.dispose();
+  });
+
+  testWidgets('exercise categories survive a narrow screen at 2x text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final state = AppState();
+    await state.initialize();
+    addTearDown(state.dispose);
+
+    await tester.pumpWidget(
+      AppScope(
+        notifier: state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          builder: (context, child) => MediaQuery.withClampedTextScaling(
+            minScaleFactor: 2,
+            maxScaleFactor: 2,
+            child: child!,
+          ),
+          home: ExerciseLibraryScreen(date: DateTime(2026, 7, 23)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('exercise-muscle-grid')), findsOneWidget);
+    await tester.fling(
+      find.byKey(const Key('exercise-muscle-grid')),
+      const Offset(0, -1200),
+      1600,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('기타'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -1203,12 +1242,24 @@ void main() {
     await tester.ensureVisible(find.text('운동 추가·삭제'));
     await tester.tap(find.text('운동 추가·삭제'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('스쿼트'));
     await tester.tap(find.text('스쿼트'));
     await tester.pump();
-    await tester.tap(find.textContaining('선택 완료'));
+    final finishLabel = find.text('선택 완료 (3)');
+    expect(finishLabel, findsOneWidget);
+    final finishButton = find.ancestor(
+      of: finishLabel,
+      matching: find.byType(FilledButton),
+    );
+    await tester.tap(finishButton);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('변경사항 저장'));
-    await tester.tap(find.text('변경사항 저장'));
+    final saveButton = find.text('변경사항 저장');
+    await tester.dragUntilVisible(
+      saveButton,
+      find.byType(ListView).first,
+      const Offset(0, -300),
+    );
+    await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
     final updated = state.routines.firstWhere((item) => item.id == routine.id);

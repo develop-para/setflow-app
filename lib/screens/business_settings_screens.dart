@@ -5,6 +5,7 @@ import '../data/business_repository.dart';
 import '../services/push_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
+import '../third_party_licenses.dart';
 import '../widgets/common.dart';
 import 'account_deletion_screen.dart';
 import 'evidence_library_screen.dart';
@@ -147,6 +148,9 @@ class BusinessSettingsListScreen extends StatelessWidget {
                   builder: (_) => const EvidenceLibraryScreen(),
                 ),
               ),
+            ),
+            const OpenSourceLicensesTile(
+              tileKey: ValueKey('business-settings-open-source-licenses'),
             ),
             const Divider(height: 30),
             ListTile(

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
@@ -94,6 +95,33 @@ void main() {
     expect(repsOf(state), 15);
   });
 
+  testWidgets('the dial drags and direct typing replaces the whole value', (
+    tester,
+  ) async {
+    final state = await pumpDay(tester);
+
+    await openDial(tester, 'inline-set-weight-1');
+    final input = dialInput();
+    await tester.tap(input);
+    await tester.pump();
+
+    final controller = tester.widget<TextField>(input).controller!;
+    expect(controller.text, '40');
+    expect(
+      controller.selection,
+      const TextSelection(baseOffset: 0, extentOffset: 2),
+      reason: '기존 숫자를 지우지 않아도 다음 입력이 통째로 교체해야 한다',
+    );
+
+    await tester.drag(find.byType(CupertinoPicker), const Offset(0, -84));
+    await tester.pumpAndSettle();
+    expect(controller.text, isNot('40'), reason: '다이얼 드래그가 선택 숫자를 바꿔야 한다');
+
+    await tester.tap(find.text('적용'));
+    await tester.pumpAndSettle();
+    expect(weightOf(state), isNot(40));
+  });
+
   testWidgets('a rejected value is refused instead of stored', (tester) async {
     final state = await pumpDay(tester);
 
@@ -126,7 +154,9 @@ void main() {
     );
   });
 
-  testWidgets('submitting from the dial input still commits', (tester) async {
+  testWidgets('keyboard done updates the dial but only 적용 commits', (
+    tester,
+  ) async {
     final state = await pumpDay(tester);
 
     await openDial(tester, 'inline-set-weight-1');
@@ -134,6 +164,11 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
+    expect(find.text('무게 선택'), findsOneWidget);
+    expect(weightOf(state), 40, reason: '키보드 완료는 적용 버튼을 대신해 저장하면 안 된다');
+
+    await tester.tap(find.text('적용'));
+    await tester.pumpAndSettle();
     expect(weightOf(state), 70);
   });
 

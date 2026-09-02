@@ -17,6 +17,7 @@ void main() {
       final exercise = exerciseTemplateFromCatalogRow({
         'id': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         'name': 'Incline Dumbbell Press',
+        'name_ko': '인클라인 덤벨 프레스',
         'name_en': 'Incline Dumbbell Press',
         'target_muscle': '가슴',
         'equipment': '덤벨',
@@ -25,9 +26,12 @@ void main() {
         'aliases': ['인클라인', '프레스', '흉근'],
         'difficulty': 'beginner',
         'category': 'strength',
+        'primary_muscles': ['chest'],
+        'secondary_muscles': ['triceps', 'shoulders'],
         'source_name': 'free-exercise-db',
       });
 
+      expect(exercise.name, '인클라인 덤벨 프레스');
       expect(exercise.resolvedEquipmentKey, 'dumbbell');
       expect(exercise.resolvedEquipmentName, '덤벨');
       expect(exercise.matchesCatalogQuery('가슴 덤벨'), isTrue);
@@ -35,6 +39,8 @@ void main() {
       expect(exercise.matchesCatalogQuery('흉근 프레스'), isTrue);
       expect(exercise.matchesCatalogQuery('인클라인프레스'), isTrue);
       expect(exercise.matchesCatalogQuery('케이블'), isFalse);
+      expect(exercise.primaryMuscles, ['chest']);
+      expect(exercise.secondaryMuscles, ['triceps', 'shoulders']);
     },
   );
 
@@ -132,6 +138,8 @@ void main() {
       equipmentKey: 'kettlebell',
       equipmentName: '케틀벨',
       aliases: ['터키시 겟업', '코어'],
+      primaryMuscles: ['abdominals'],
+      secondaryMuscles: ['glutes', 'shoulders'],
       sourceName: 'free-exercise-db',
     );
     final snapshot = AppSnapshot(
@@ -164,6 +172,8 @@ void main() {
     expect(restored.name, remote.name);
     expect(restored.resolvedEquipmentName, '케틀벨');
     expect(restored.sourceName, 'free-exercise-db');
+    expect(restored.primaryMuscles, ['abdominals']);
+    expect(restored.secondaryMuscles, ['glutes', 'shoulders']);
   });
 
   test('inline crosswalk metadata wins over a cold built-in template', () {

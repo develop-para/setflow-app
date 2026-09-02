@@ -29,6 +29,7 @@ import 'services/auth_service.dart';
 import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
+import 'third_party_licenses.dart';
 import 'services/firebase_push_service.dart';
 import 'services/geolocator_location_service.dart';
 import 'services/location_service.dart';
@@ -39,6 +40,7 @@ import 'widgets/portal.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerThirdPartyLicenses();
   await Supabase.initialize(
     url: SupabaseConfig.projectUrl,
     publishableKey: SupabaseConfig.publishableKey,

@@ -26,6 +26,30 @@
 가져오지 않았다. 텍스트 메타데이터(이름, 부위, 기구, 난이도, 수행 단계)만 DB에
 저장한다.
 
+원본 876개에는 원본 ID와 동작 설명을 대조해 정리한 한글 표시명을 모두 붙인다. 번역 원본은
+`tool/data/free_exercise_db_names_ko_part_*.json` 세 파일이며, DB의 `name`과
+`name_ko`에는 한글명, `name_en`에는 검색·대조용 원문을 보존한다. import 도구는
+원본 ID와 한글명 ID가 정확히 일치하고 한글명이 876개 모두 고유한지 확인한 뒤에만
+DB를 바꾼다.
+
+## 근육 그림 출처
+
+운동 사진·GIF는 출처 저장소의 메타데이터만으로 개별 저작권을 확정할 수 없어
+사용하지 않는다. 대신 `flutter_body_atlas` 0.2.1의 인체 앞·뒤 SVG에서 원본의
+`primaryMuscles`에 해당하는 주동근을 강조하고 보조근은 바로 옆 한글 문구로 알린다.
+목·능형근·척추기립근처럼 SVG에 정확한 경로가 없는 부위는 비슷한 근육을 임의로
+칠하지 않고 글자로만 알린다. 유산소도 원본에 근육 정보가 있으면 같은 원칙으로
+표시하고, 정보가 없는 번들 유산소만 일반 유산소 아이콘을 쓴다.
+
+- 패키지 코드: BSD-3-Clause, <https://github.com/kit-g/flutter-body-atlas>
+- 인체 SVG 원작: Ryan Graves, Human Anatomy Component System
+- 원작: <https://www.figma.com/community/file/1320468164820924031/human-anatomy-component-system>
+- SVG 라이선스: CC BY 4.0, <https://creativecommons.org/licenses/by/4.0/>
+- 패키지 변경 사항: SVG 구조·element ID를 근육 선택용으로 수정·최적화
+- Setflow 변경 사항: 원본 SVG 파일은 바꾸지 않고 주동근 경로의 색만 바꿈
+
+이 귀속 문구는 앱의 `설정 > 오픈소스 및 이미지 출처`에서도 확인할 수 있다.
+
 ## 검색과 분류
 
 - 원본의 13개 기구 값을 안정된 `equipment_key`로 정규화한다.
@@ -68,10 +92,12 @@ DB를 변경하지 않고 고정 원본의 hash와 행 수만 다시 확인하�
 
 1. 고정 revision의 `dist/exercises.json`을 다운로드한다.
 2. 위 SHA-256과 행 수를 로컬에서 확인한다.
-3. 검증한 JSON payload, revision, SHA-256을
-   `public.import_free_exercise_db_catalog(jsonb, text, text)`에 전달한다.
-4. 응답 뒤 `master_exercises`의 활성 876개 `source_id` 고유성과 alias 배열까지
-   다시 읽어 검증한다. DB provenance는 `exercise_catalog_imports`에 남는다.
+3. 검증한 JSON payload, revision, SHA-256과 버전 관리된 한글명 876개를
+   `public.import_localized_free_exercise_db_catalog(...)`에 전달한다. 원본 적재와
+   한글명 적용은 같은 트랜잭션이라 중간 영문 상태가 노출되지 않는다.
+4. 응답 뒤 `master_exercises`의 활성 876개 `source_id`, 한글 표시명, 영문 원문,
+   alias와 주동근·보조근 배열까지 다시 읽어 검증한다. DB provenance는
+   `exercise_catalog_imports`에 남는다.
 
 이 import 함수는 `service_role`에만 실행 권한이 있고, 앱의 anon/authenticated
 키는 공용 활성 행 조회만 가능하다.

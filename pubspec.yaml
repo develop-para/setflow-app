@@ -21,7 +21,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # by hand for real releases. The build number here is a placeholder for plain
 # `flutter run`; every distributed build overrides it with --build-number set
 # to the commit count. See docs/versioning.md.
-version: 1.14.15+1
+version: 1.15.0+1
 
 environment:
   sdk: ^3.12.2
@@ -52,6 +52,10 @@ dependencies:
   firebase_core: ^4.14.0
   firebase_messaging: ^16.6.0
   geolocator: ^14.0.2
+  # BSD-3-Clause widget code; anatomical SVG artwork is CC BY 4.0.
+  # See docs/exercise-catalog.md for the required Ryan Graves attribution.
+  flutter_body_atlas: 0.2.1
+  flutter_svg: 2.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -99,7 +103,6 @@ flutter:
 
   assets:
     - assets/branding/setflow_mark.png
-    - assets/icons/muscles/
 
   fonts:
     - family: Pretendard

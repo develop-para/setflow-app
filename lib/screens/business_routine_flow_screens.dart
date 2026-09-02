@@ -7,6 +7,8 @@ import '../data/business_repository.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/exercise_muscle_map.dart';
+import 'workout_screens.dart' show showNumberDial, showOptionalNumberDial;
 
 class BusinessRoutineEditorScreen extends StatefulWidget {
   const BusinessRoutineEditorScreen({
@@ -581,8 +583,12 @@ class _RoutineSetEditorRow extends StatelessWidget {
                       child: _NumberField(
                         controller: draft.durationController,
                         label: '시간',
+                        dialTitle: '운동 시간',
                         suffix: '분',
-                        decimal: true,
+                        fallbackValue: 30,
+                        min: 1,
+                        max: 1440,
+                        step: .5,
                         enabled: !readOnly,
                       ),
                     ),
@@ -592,8 +598,13 @@ class _RoutineSetEditorRow extends StatelessWidget {
                         child: _NumberField(
                           controller: draft.distanceController,
                           label: '거리',
+                          dialTitle: '운동 거리',
                           suffix: 'km',
-                          decimal: true,
+                          fallbackValue: 0,
+                          min: 0,
+                          max: 999.99,
+                          step: .1,
+                          allowUnset: true,
                           enabled: !readOnly,
                         ),
                       ),
@@ -603,8 +614,12 @@ class _RoutineSetEditorRow extends StatelessWidget {
                       child: _NumberField(
                         controller: draft.rpeController,
                         label: '강도',
+                        dialTitle: '운동 강도',
                         suffix: 'RPE',
-                        decimal: true,
+                        fallbackValue: 3,
+                        min: 1,
+                        max: 10,
+                        step: .5,
                         enabled: !readOnly,
                       ),
                     ),
@@ -659,8 +674,13 @@ class _RoutineSetEditorRow extends StatelessWidget {
                       child: _NumberField(
                         controller: draft.weightController,
                         label: '중량',
+                        dialTitle: '목표 중량',
                         suffix: 'kg',
-                        decimal: true,
+                        fallbackValue: 0,
+                        min: 0,
+                        max: 5000,
+                        step: .5,
+                        allowUnset: true,
                         enabled: !readOnly,
                       ),
                     ),
@@ -669,7 +689,12 @@ class _RoutineSetEditorRow extends StatelessWidget {
                       child: _NumberField(
                         controller: draft.repsController,
                         label: '횟수',
+                        dialTitle: '목표 횟수',
                         suffix: '회',
+                        fallbackValue: 10,
+                        min: 1,
+                        max: 1000,
+                        step: 1,
                         enabled: !readOnly,
                       ),
                     ),
@@ -678,7 +703,12 @@ class _RoutineSetEditorRow extends StatelessWidget {
                       child: _NumberField(
                         controller: draft.restController,
                         label: '휴식',
+                        dialTitle: '휴식 시간',
                         suffix: '초',
+                        fallbackValue: 90,
+                        min: 0,
+                        max: 3600,
+                        step: 5,
                         enabled: !readOnly,
                       ),
                     ),
@@ -696,37 +726,93 @@ class _NumberField extends StatelessWidget {
   const _NumberField({
     required this.controller,
     required this.label,
+    required this.dialTitle,
     required this.suffix,
     required this.enabled,
-    this.decimal = false,
+    required this.fallbackValue,
+    required this.min,
+    required this.max,
+    required this.step,
+    this.allowUnset = false,
   });
 
   final TextEditingController controller;
   final String label;
+  final String dialTitle;
   final String suffix;
   final bool enabled;
-  final bool decimal;
+  final double fallbackValue;
+  final double min;
+  final double max;
+  final double step;
+  final bool allowUnset;
+
+  Future<void> _openDial(BuildContext context) async {
+    final parsed = double.tryParse(controller.text.trim());
+    if (allowUnset) {
+      final result = await showOptionalNumberDial(
+        context,
+        title: dialTitle,
+        suffix: suffix,
+        initialValue: parsed,
+        min: min,
+        max: max,
+        step: step,
+      );
+      if (result == null || !context.mounted) return;
+      controller.text = result.value == null ? '' : _numberText(result.value!);
+      return;
+    }
+    final current = parsed ?? fallbackValue;
+    final result = await showNumberDial(
+      context,
+      title: dialTitle,
+      suffix: suffix,
+      initialValue: current,
+      min: min,
+      max: max,
+      step: step,
+    );
+    if (result == null || !context.mounted) return;
+    // 다이얼 안에서 고른 값은 '적용'으로 닫혔을 때만 draft에
+    // 반영한다. 취소하거나 시트를 내리면 기존 숫자가 그대로 남는다.
+    controller.text = _numberText(result);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      enabled: enabled,
-      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(
-          decimal ? RegExp(r'[0-9.]') : RegExp(r'[0-9]'),
-        ),
-      ],
-      decoration: InputDecoration(
-        labelText: label,
-        suffixText: suffix,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 12,
-        ),
-      ),
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final number = value.text.trim();
+        return Semantics(
+          button: enabled,
+          label: '$label ${number.isEmpty ? '미설정' : number}$suffix',
+          excludeSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: enabled ? () => _openDial(context) : null,
+            child: IgnorePointer(
+              child: TextField(
+                controller: controller,
+                enabled: enabled,
+                readOnly: true,
+                canRequestFocus: false,
+                mouseCursor: SystemMouseCursors.click,
+                decoration: InputDecoration(
+                  labelText: label,
+                  suffixText: suffix,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -828,10 +914,15 @@ class _BusinessExercisePickerSheetState
                               );
                           return ListTile(
                             enabled: !alreadyAdded,
-                            leading: Icon(exercise.icon),
+                            leading: ExerciseMuscleMap.forExercise(
+                              exercise: exercise,
+                              size: 44,
+                              decorative: true,
+                            ),
                             title: Text(exercise.name),
                             subtitle: Text(
-                              '${exercise.muscle} · ${exercise.resolvedEquipmentName}',
+                              '${exercise.muscle} · ${exercise.resolvedEquipmentName}\n'
+                              '${exerciseMuscleSummaryKo(exercise)}',
                             ),
                             trailing: Icon(
                               alreadyAdded

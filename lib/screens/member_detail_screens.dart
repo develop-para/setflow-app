@@ -5,6 +5,7 @@ import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/exercise_muscle_map.dart';
 
 const _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -1035,30 +1036,25 @@ class _MemberLibraryTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 2.4,
-      ),
+    return ListView.separated(
+      padding: SetflowInsets.pageListTight,
       itemCount: exercises.length,
+      separatorBuilder: (_, _) => const SizedBox(height: SetflowSpacing.sm),
       itemBuilder: (_, index) {
         final exercise = exercises[index];
         return SetflowCard(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(SetflowSpacing.md),
           child: Row(
             children: [
-              Icon(
-                exercise.icon,
-                color: Theme.of(context).colorScheme.secondary,
-                size: 20,
+              ExerciseMuscleMap.forExercise(
+                exercise: exercise,
+                size: 48,
+                decorative: true,
               ),
-              const SizedBox(width: SetflowSpacing.sm),
+              const SizedBox(width: SetflowSpacing.md),
               Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -1071,7 +1067,9 @@ class _MemberLibraryTab extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      exercise.muscle,
+                      exerciseMuscleSummaryKo(exercise),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: SetflowFontSize.tiny,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,

@@ -1327,7 +1327,7 @@ class AppState extends ChangeNotifier {
   }) {
     final normalizedName = name.trim();
     final normalizedMuscle = muscle.trim();
-    const muscles = {'가슴', '등', '어깨', '하체', '팔', '복근', '유산소'};
+    const muscles = {'가슴', '등', '어깨', '하체', '팔', '복근', '유산소', '기타'};
     if (normalizedName.isEmpty ||
         normalizedName.length > 50 ||
         !muscles.contains(normalizedMuscle)) {

@@ -90,6 +90,17 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('inline-set-done-1')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('inline-set-weight-1')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('inline-set-weight-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('무게 선택'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('number-dial-direct-input')),
+      '105',
+    );
+    await tester.tap(find.text('적용'));
+    await tester.pumpAndSettle();
+    expect(sets.first.weight, 105, reason: '완료한 세트를 다시 열었는데 숫자를 고칠 수 없다');
     await settle(tester, state);
   });
 

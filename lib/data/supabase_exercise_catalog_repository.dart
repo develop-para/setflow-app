@@ -10,7 +10,7 @@ class SupabaseExerciseCatalogRepository
     implements ExerciseCatalogRepository, CachedBackendReadStatus {
   SupabaseExerciseCatalogRepository(this._client, {this.cache});
 
-  static const _cacheKey = 'shared-exercise-catalog-v2';
+  static const _cacheKey = 'shared-exercise-catalog-v3';
   static const _pageSize = 500;
 
   final SupabaseClient _client;
@@ -140,6 +140,8 @@ ExerciseTemplate exerciseTemplateFromCatalogRow(Map<String, dynamic> row) {
     aliases: _stringList(row['aliases']),
     difficulty: _nullableString(row['difficulty']),
     category: _nullableString(row['category']),
+    primaryMuscles: _stringList(row['primary_muscles']),
+    secondaryMuscles: _stringList(row['secondary_muscles']),
     sourceName: _nullableString(row['source_name']),
     sourceId: sourceId,
     databaseId: databaseId,

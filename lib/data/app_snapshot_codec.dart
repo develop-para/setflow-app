@@ -106,7 +106,7 @@ abstract final class AppSnapshotCodec {
       final profile = root['profile'] as Map<String, dynamic>? ?? {};
       final customExercises = <ExerciseTemplate>[];
       final knownIds = exerciseCatalog.map((exercise) => exercise.id).toSet();
-      const supportedMuscles = {'가슴', '등', '어깨', '하체', '팔', '복근', '유산소'};
+      const supportedMuscles = {'가슴', '등', '어깨', '하체', '팔', '복근', '유산소', '기타'};
       for (final raw in root['customExercises'] as List<dynamic>? ?? const []) {
         if (raw is! Map) continue;
         final value = Map<String, dynamic>.from(raw);
@@ -370,6 +370,10 @@ abstract final class AppSnapshotCodec {
       'aliases': exercise.aliases,
     if (includeSearchMetadata) 'difficulty': ?exercise.difficulty,
     if (includeSearchMetadata) 'category': ?exercise.category,
+    if (exercise.primaryMuscles.isNotEmpty)
+      'primaryMuscles': exercise.primaryMuscles,
+    if (exercise.secondaryMuscles.isNotEmpty)
+      'secondaryMuscles': exercise.secondaryMuscles,
     'sourceName': ?exercise.sourceName,
     'sourceId': ?exercise.sourceId,
     'databaseId': ?exercise.databaseId,
@@ -393,6 +397,13 @@ abstract final class AppSnapshotCodec {
               .take(40)
               .toList(growable: false)
         : const <String>[];
+    List<String> muscleList(String key) => json[key] is List
+        ? (json[key] as List)
+              .map((value) => value.toString().trim())
+              .where((value) => value.isNotEmpty)
+              .take(20)
+              .toList(growable: false)
+        : const <String>[];
     String? optionalString(String key) {
       final value = json[key]?.toString().trim() ?? '';
       return value.isEmpty ? null : value;
@@ -410,6 +421,8 @@ abstract final class AppSnapshotCodec {
       aliases: aliases,
       difficulty: optionalString('difficulty'),
       category: optionalString('category'),
+      primaryMuscles: muscleList('primaryMuscles'),
+      secondaryMuscles: muscleList('secondaryMuscles'),
       sourceName: optionalString('sourceName'),
       sourceId: optionalString('sourceId'),
       databaseId: optionalString('databaseId'),

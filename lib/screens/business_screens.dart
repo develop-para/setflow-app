@@ -9,6 +9,7 @@ import '../data/business_repository.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/exercise_muscle_map.dart';
 import '../widgets/portal.dart';
 import '../widgets/recommendation_profile_summary.dart';
 import 'admin_content_screens.dart';
@@ -4322,10 +4323,15 @@ class _BusinessExerciseMultiPickerState
                       value: selected,
                       enabled: widget.enabled,
                       controlAffinity: ListTileControlAffinity.trailing,
-                      secondary: Icon(exercise.icon),
+                      secondary: ExerciseMuscleMap.forExercise(
+                        exercise: exercise,
+                        size: 44,
+                        decorative: true,
+                      ),
                       title: Text(exercise.name),
                       subtitle: Text(
-                        '${exercise.muscle} · ${exercise.resolvedEquipmentName}',
+                        '${exercise.muscle} · ${exercise.resolvedEquipmentName}\n'
+                        '${exerciseMuscleSummaryKo(exercise)}',
                       ),
                       onChanged: widget.enabled
                           ? (checked) => setState(() {
