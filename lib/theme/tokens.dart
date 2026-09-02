@@ -122,6 +122,8 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     required this.surfaceContainer,
     required this.surfaceContainerHigh,
     required this.disabled,
+    required this.brandDeep,
+    required this.brandSoft,
     required this.success,
     required this.error,
     required this.warning,
@@ -138,6 +140,11 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     surfaceContainer: Color(0xFFF1F1F1),
     surfaceContainerHigh: Color(0xFFE9E9E9),
     disabled: Color(0xFFA2A2A2),
+    // 브랜드를 "읽는" 쌍 — 라임은 채움 전용이라, 글자·활성 상태로 쓸 브랜드는
+    // 이 둘이다. 상수(SetflowColors.brandDeep/brandSoft)는 라이트 전용 값이고,
+    // 테마 따라 뒤집히는 면 위에서는 반드시 이 쌍을 쓴다.
+    brandDeep: SetflowColors.brandDeep,
+    brandSoft: SetflowColors.brandSoft,
     success: Color(0xFF0F773E),
     error: Color(0xFFC23020),
     warning: Color(0xFF905D06),
@@ -157,6 +164,11 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     surfaceContainer: Color(0xFF1D1D1D),
     surfaceContainerHigh: Color(0xFF272727),
     disabled: Color(0xFF5D5D5D),
+    // 다크의 "읽는 브랜드"는 들어올린 라임(scheme.secondary와 같은 값),
+    // 틴트는 깊은 올리브(scheme.primaryContainer와 같은 값) — 검은 면 위에서
+    // 라이트 값을 그대로 쓰면 글자는 안 읽히고 틴트는 형광판이 된다.
+    brandDeep: Color(0xFFBFD53A),
+    brandSoft: Color(0xFF232A05),
     // Lifted, not the light values: a hue dark enough to read on white is too
     // dark to read on near-black, and the other way round.
     // Same idea as light, one rung higher: all eight land near 6.8:1 on the
@@ -175,6 +187,8 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
   final Color surfaceContainer;
   final Color surfaceContainerHigh;
   final Color disabled;
+  final Color brandDeep;
+  final Color brandSoft;
   final Color success;
   final Color error;
   final Color warning;
@@ -190,6 +204,8 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
     Color? surfaceContainer,
     Color? surfaceContainerHigh,
     Color? disabled,
+    Color? brandDeep,
+    Color? brandSoft,
     Color? success,
     Color? error,
     Color? warning,
@@ -204,6 +220,8 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
       surfaceContainer: surfaceContainer ?? this.surfaceContainer,
       surfaceContainerHigh: surfaceContainerHigh ?? this.surfaceContainerHigh,
       disabled: disabled ?? this.disabled,
+      brandDeep: brandDeep ?? this.brandDeep,
+      brandSoft: brandSoft ?? this.brandSoft,
       success: success ?? this.success,
       error: error ?? this.error,
       warning: warning ?? this.warning,
@@ -235,6 +253,8 @@ class SetflowSemanticColors extends ThemeExtension<SetflowSemanticColors> {
         t,
       )!,
       disabled: Color.lerp(disabled, other.disabled, t)!,
+      brandDeep: Color.lerp(brandDeep, other.brandDeep, t)!,
+      brandSoft: Color.lerp(brandSoft, other.brandSoft, t)!,
       success: Color.lerp(success, other.success, t)!,
       error: Color.lerp(error, other.error, t)!,
       warning: Color.lerp(warning, other.warning, t)!,

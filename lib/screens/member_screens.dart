@@ -1712,7 +1712,9 @@ class _CalendarCell extends StatelessWidget {
                                         '${date.month}-${date.day}',
                                       ),
                                       size: 13,
-                                      color: theme.colorScheme.primary,
+                                      // 라임 글리프는 흰 달력 칸에서 사라진다
+                                      // — 읽는 브랜드(secondary)로.
+                                      color: theme.colorScheme.secondary,
                                     ),
                                   ),
                               ],
@@ -1835,22 +1837,10 @@ Color _muscleFill(String muscle) => switch (muscle) {
 /// 칸 채움 — 깃허브 잔디처럼. 색은 그날의 부위, **진하기는 완료율**이다: 계획만
 /// 있는 날은 연하게, 다 한 날은 원색. 두 부위면 그 색들이 그라데이션으로 이어진다.
 /// 하나면 같은 색 둘(그라데이션 API가 둘을 요구한다).
-/// 종목이 가장 많은 부위. 같으면 먼저 나온 쪽. 비어 있으면 null.
-String? _dominantMuscle(Iterable<String> muscles) {
-  final counts = <String, int>{};
-  for (final muscle in muscles) {
-    counts[muscle] = (counts[muscle] ?? 0) + 1;
-  }
-  String? best;
-  var bestCount = 0;
-  for (final entry in counts.entries) {
-    if (entry.value > bestCount) {
-      best = entry.key;
-      bestCount = entry.value;
-    }
-  }
-  return best;
-}
+/// 종목이 가장 많은 부위 — 판정은 [SetflowMuscleIllustrations.dominantMuscle]
+/// 한 곳이다(루틴 불러오기 시트도 같은 판정을 쓴다).
+String? _dominantMuscle(Iterable<String> muscles) =>
+    SetflowMuscleIllustrations.dominantMuscle(muscles);
 
 /// 한 면에는 한 색 — 깃허브 잔디처럼. [base]와 그것을 살짝 어둡게 한 톤 둘로
 /// 깊이만 주고, 진하기는 완료율이다(계획만 있는 날 45%, 다 한 날 100%).
@@ -3524,14 +3514,15 @@ class _IncomingRoutineSharesSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
+                      // 라임 틴트 카드 위 라임 글리프는 사라진다 — 읽는 브랜드.
                       Icon(
                         Icons.mark_email_unread_rounded,
-                        color: SetflowColors.primary,
+                        color: context.setflowColors.brandDeep,
                       ),
-                      SizedBox(width: SetflowSpacing.sm),
-                      Expanded(
+                      const SizedBox(width: SetflowSpacing.sm),
+                      const Expanded(
                         child: Text(
                           '공유받은 루틴이 있어요',
                           style: TextStyle(fontWeight: FontWeight.w900),
@@ -4157,6 +4148,18 @@ class _CommunityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
+    // 사진 없는 글의 오른쪽 타일은 글의 부위 색을 입는다 — 지표의 첫 낱말이
+    // 부위면 그 색(달력 잔디와 같은 문법), 아니면 우리 색(brandSoft/deep).
+    // 회색 아이콘 한 벌이면 피드가 전부 같은 글처럼 읽힌다.
+    final firstWord = post.metric.split(' · ').first;
+    final isMuscle = SetflowMuscleIllustrations.muscles.contains(firstWord);
+    final colors = context.setflowColors;
+    final tileFill = isMuscle
+        ? _muscleFill(firstWord).withValues(alpha: .16)
+        : colors.brandSoft;
+    final tileInk = isMuscle
+        ? muscleColorOf(context, firstWord)
+        : colors.brandDeep;
     return Semantics(
       button: true,
       label: '${post.author}의 게시물, ${post.content}',
@@ -4228,7 +4231,12 @@ class _CommunityRow extends StatelessWidget {
                   width: 56,
                   height: 56,
                   child: post.imageUrl == null
-                      ? Center(child: Icon(post.icon, size: 26, color: muted))
+                      ? ColoredBox(
+                          color: tileFill,
+                          child: Center(
+                            child: Icon(post.icon, size: 26, color: tileInk),
+                          ),
+                        )
                       : Image.network(
                           post.imageUrl!,
                           fit: BoxFit.cover,
@@ -5587,9 +5595,9 @@ class SettingsScreen extends StatelessWidget {
               state.role == UserRole.guest)
             ListTile(
               key: const ValueKey('settings-sign-in'),
-              leading: const Icon(
+              leading: Icon(
                 SetflowIcons.signIn,
-                color: SetflowColors.primary,
+                color: Theme.of(context).colorScheme.secondary,
               ),
               title: const Text('로그인 / 회원가입'),
               subtitle: const Text('기록을 클라우드에 백업하고 코칭을 사용하세요'),

@@ -352,10 +352,11 @@ class _AdminContentReportsScreenState extends State<AdminContentReportsScreen> {
 
   String? _expandedId;
 
+  // 신호등: 낮은 등급은 성공색이다 — 라임(primary)은 밝은 면에서 안 읽힌다.
   Color _gradeColor(BuildContext context, String grade) => switch (grade) {
     'Red' => Theme.of(context).colorScheme.error,
     'Orange' => context.setflowColors.orange,
-    _ => Theme.of(context).colorScheme.primary,
+    _ => context.setflowColors.success,
   };
 
   @override
@@ -1115,7 +1116,7 @@ class _AdminContentMinorAlertsScreenState
       switch (severity) {
         'High' => Theme.of(context).colorScheme.error,
         'Medium' => context.setflowColors.orange,
-        _ => Theme.of(context).colorScheme.primary,
+        _ => context.setflowColors.success,
       };
 
   @override

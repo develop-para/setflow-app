@@ -548,7 +548,7 @@ class _CoachingDetailScreenState extends State<CoachingDetailScreen> {
                   onPressed: () => setDialogState(() => rating = i),
                   icon: Icon(
                     i <= rating ? Icons.star : Icons.star_border,
-                    color: SetflowColors.primary,
+                    color: context.setflowColors.orange,
                   ),
                 ),
             ],

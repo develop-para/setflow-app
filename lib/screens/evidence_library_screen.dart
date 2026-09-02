@@ -297,7 +297,8 @@ class _EvidenceSubheading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        // 라임은 흰 배경에서 사라진다 — 아이콘·점 같은 전경은 읽는 브랜드.
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.secondary),
         const SizedBox(width: SetflowSpacing.sm),
         Text(
           title,
@@ -328,7 +329,7 @@ class _RuleBullet extends StatelessWidget {
               width: 5,
               height: 5,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
+                color: Theme.of(context).colorScheme.secondary,
                 shape: BoxShape.circle,
               ),
             ),

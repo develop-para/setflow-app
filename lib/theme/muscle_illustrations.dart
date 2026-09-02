@@ -47,4 +47,23 @@ abstract final class SetflowMuscleIllustrations {
     }
     return null;
   }
+
+  /// 종목이 가장 많은 부위. 같으면 먼저 나온 쪽, 비어 있으면 null.
+  /// 루틴의 "옷"(마스코트·틴트)을 고르는 판정이 화면마다 갈리면 같은
+  /// 루틴이 다른 부위로 보인다 — 그래서 판정도 한 곳이다.
+  static String? dominantMuscle(Iterable<String> muscles) {
+    final counts = <String, int>{};
+    for (final muscle in muscles) {
+      counts[muscle] = (counts[muscle] ?? 0) + 1;
+    }
+    String? best;
+    var bestCount = 0;
+    for (final entry in counts.entries) {
+      if (entry.value > bestCount) {
+        best = entry.key;
+        bestCount = entry.value;
+      }
+    }
+    return best;
+  }
 }

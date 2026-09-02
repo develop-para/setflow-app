@@ -144,7 +144,9 @@ abstract final class SetflowTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: radius16,
-          borderSide: BorderSide(color: scheme.primary, width: 2),
+          // 라임 테두리는 흰 바탕에서 1.18:1이라 "지금 여기 입력 중"이 안
+          // 보였다. 읽는 브랜드(secondary)가 포커스를 말한다.
+          borderSide: BorderSide(color: scheme.secondary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: radius16,
@@ -174,7 +176,10 @@ abstract final class SetflowTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: scheme.onSurface,
+          // 글자로 된 행동("전체 보기", 다이얼로그 버튼)은 읽는 브랜드다.
+          // 잉크로 두면 본문과 같은 소리라 행동이 안 보이고, 라임은 흰 배경에서
+          // 사라진다 — 그래서 secondary(brandDeep/들어올린 라임)가 이 자리다.
+          foregroundColor: scheme.secondary,
           minimumSize: const Size(48, 44),
           padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
           shape: RoundedRectangleBorder(borderRadius: radius16),
@@ -230,6 +235,10 @@ abstract final class SetflowTheme {
       listTileTheme: ListTileThemeData(
         minTileHeight: 56,
         iconColor: scheme.onSurfaceVariant,
+        // 고른 줄은 브랜드 틴트 위 읽는 브랜드 — 회색 배경으로는 "지금 이것"이
+        // 회색 hover와 구분되지 않는다.
+        selectedColor: scheme.secondary,
+        selectedTileColor: scheme.primaryContainer,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: SetflowSpacing.lg,
         ),
@@ -324,7 +333,9 @@ abstract final class SetflowTheme {
         contentTextStyle: textTheme.bodyMedium?.copyWith(
           color: isDark ? SetflowColors.ink : Colors.white,
         ),
-        actionTextColor: scheme.primary,
+        // 스낵바 판은 테마의 반전면이다: 라이트=잉크 판이라 라임이 읽히지만,
+        // 다크=밝은 판이라 라임은 사라진다 — 밝은 판 위에서는 brandDeep.
+        actionTextColor: isDark ? SetflowColors.brandDeep : scheme.primary,
         elevation: 8,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SetflowRadii.sm),
@@ -347,12 +358,14 @@ abstract final class SetflowTheme {
           borderRadius: BorderRadius.circular(SetflowRadii.xs),
         ),
         side: BorderSide(color: scheme.outline, width: 1.6),
+        // 체크는 브랜드의 채움이다 — teal은 옛 팔레트의 잔재라, 체크박스만
+        // 앱의 다른 선택 컨트롤(라디오·스위치·칩)과 다른 색을 말하고 있었다.
         fillColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? semantic.teal
+              ? scheme.primary
               : Colors.transparent,
         ),
-        checkColor: const WidgetStatePropertyAll(Colors.white),
+        checkColor: WidgetStatePropertyAll(scheme.onPrimary),
         splashRadius: 18,
       ),
       radioTheme: RadioThemeData(

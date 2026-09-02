@@ -10,6 +10,7 @@ import '../data/business_repository.dart';
 import '../data/exercise_guides.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
+import '../theme/muscle_illustrations.dart';
 import '../widgets/common.dart';
 import 'evidence_library_screen.dart';
 import 'member_goal_screen.dart';
@@ -214,7 +215,7 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                       const SizedBox(height: SetflowSpacing.sm),
                       AppButton(
                         label: '루틴 불러오기',
-                        icon: Icons.playlist_add_check_rounded,
+                        icon: SetflowIcons.routine,
                         variant: AppButtonVariant.outlined,
                         onPressed: () => _openRoutinePicker(context),
                       ),
@@ -664,15 +665,17 @@ class _CoachFeedbackCard extends StatelessWidget {
                         child: Text(
                           '코치 피드백',
                           style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
+                            fontWeight: SetflowWeight.strong,
                           ),
                         ),
                       ),
                       if (feedbacks.length > 1)
                         Text(
                           '${feedbacks.length}개',
+                          // 라임(primary)은 밝은 카드 위에서 1.2:1로
+                          // 사라진다 — 읽는 브랜드는 secondary다.
                           style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.primary,
+                            color: theme.colorScheme.secondary,
                           ),
                         ),
                     ],
@@ -803,6 +806,7 @@ class _RoutinePickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -813,22 +817,21 @@ class _RoutinePickerSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(18, 0, 18, 12),
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.gutter,
+                0,
+                SetflowSpacing.gutter,
+                SetflowSpacing.md,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '루틴 불러오기',
-                    style: TextStyle(
-                      fontSize: SetflowFontSize.headline,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  SizedBox(height: SetflowSpacing.xs),
+                  Text('루틴 불러오기', style: theme.textTheme.titleLarge),
+                  const SizedBox(height: SetflowSpacing.xs),
                   Text(
                     '선택한 루틴의 운동이 이 날짜에 바로 추가됩니다.',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -837,68 +840,106 @@ class _RoutinePickerSheet extends StatelessWidget {
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.gutter,
+                  0,
+                  SetflowSpacing.gutter,
+                  SetflowSpacing.lg,
+                ),
                 itemCount: routines.length,
                 separatorBuilder: (_, _) =>
-                    const SizedBox(height: SetflowSpacing.sm2),
+                    const SizedBox(height: SetflowSpacing.sm),
                 itemBuilder: (context, index) {
                   final routine = routines[index];
-                  return SetflowCard(
+                  return _RoutinePickRow(
+                    routine: routine,
                     onTap: routine.exercises.isEmpty
                         ? null
                         : () => Navigator.of(context).pop(routine),
-                    child: Row(
-                      children: [
-                        // 내 루틴 카드와 같은 문법: 식별색은 가는 선이다.
-                        // 여기만 10px 알약이면 같은 루틴이 화면마다 다른
-                        // 옷을 입는다.
-                        Container(
-                          width: 4,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: routine.color,
-                            borderRadius: BorderRadius.circular(
-                              SetflowRadii.full,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: SetflowSpacing.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                routine.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(height: SetflowSpacing.xs),
-                              Text(
-                                '${routine.exercises.length}개 운동 · ${routine.exercises.map((item) => item.muscle).toSet().join(', ')}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: SetflowFontSize.caption,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.add_circle_outline_rounded,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ],
-                    ),
                   );
                 },
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 루틴의 지금 옷 — 옅은 부위 틴트 판 + 부위 마스코트. 내 루틴 타일·홈
+/// 조약돌과 같은 언어의 가로 줄 버전이다. 옛 회색 카드+4px 색 막대는 내 루틴이
+/// 카드였던 시절의 문법이라, 같은 루틴이 화면마다 다른 옷을 입고 있었다.
+class _RoutinePickRow extends StatelessWidget {
+  const _RoutinePickRow({required this.routine, required this.onTap});
+
+  final RoutineData routine;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // 편집기에서 고른 대표 부위(color로 저장)가 우선, 없으면 구성 종목의
+    // 지배 부위 — 조약돌·타일과 같은 판정이다.
+    final muscle =
+        SetflowMuscleIllustrations.muscleForFill(routine.color) ??
+        SetflowMuscleIllustrations.dominantMuscle([
+          for (final e in routine.exercises) e.muscle,
+        ]) ??
+        '';
+    final radius = BorderRadius.circular(SetflowRadii.md);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: SetflowMuscleIllustrations.fillForMuscle(
+              muscle,
+            ).withValues(alpha: .16),
+            borderRadius: radius,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SetflowSpacing.md,
+              vertical: SetflowSpacing.sm2,
+            ),
+            child: Row(
+              children: [
+                Image.asset(
+                  SetflowMuscleIllustrations.forMuscle(muscle),
+                  height: 40,
+                  fit: BoxFit.contain,
+                  // 원본이 큰 PNG라 디코드 크기를 묶는다(조약돌과 같은 이유).
+                  cacheHeight: 160,
+                  filterQuality: FilterQuality.medium,
+                ),
+                const SizedBox(width: SetflowSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(routine.name, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: SetflowSpacing.xxs),
+                      Text(
+                        '${routine.exercises.length}개 운동 · ${routine.exercises.map((item) => item.muscle).toSet().join(', ')}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  SetflowIcons.addExercise,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

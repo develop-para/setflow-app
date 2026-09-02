@@ -10,6 +10,7 @@ import '../data/community_repository.dart';
 import '../services/post_media_picker.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
+import '../theme/muscle_illustrations.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
 import '../widgets/recommendation_profile_summary.dart';
@@ -933,20 +934,26 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                   child: SetflowCard(
                     child: Row(
                       children: [
+                        // 순번 사각형은 그 종목의 부위 색을 입는다 — 달력
+                        // 잔디·루틴 조약돌과 같은 문법. 회색 사각형 한 벌이면
+                        // 목록이 전부 같은 종목처럼 읽힌다.
                         Container(
                           width: 36,
                           height: 36,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: context.setflowColors.surfaceContainerHigh,
+                            color: SetflowMuscleIllustrations.fillForMuscle(
+                              exercise.muscle,
+                            ).withValues(alpha: .18),
                             borderRadius: BorderRadius.circular(
                               SetflowRadii.sm,
                             ),
                           ),
                           child: Text(
                             '${index + 1}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: SetflowWeight.strong,
+                              color: muscleColorOf(context, exercise.muscle),
                             ),
                           ),
                         ),
@@ -958,15 +965,16 @@ class ExpertRoutineDetailScreen extends StatelessWidget {
                               Text(
                                 exercise.name,
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: SetflowWeight.strong,
                                 ),
                               ),
                               Text(
                                 exercise.muscle,
                                 style: TextStyle(
-                                  color: Theme.of(
+                                  color: muscleColorOf(
                                     context,
-                                  ).colorScheme.onSurfaceVariant,
+                                    exercise.muscle,
+                                  ),
                                   fontSize: SetflowFontSize.small,
                                 ),
                               ),
@@ -1804,8 +1812,9 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
         if (selectedIsOutsideResults) ...[
           Text(
             '선택한 트레이너',
+            // 라임 글자는 흰 배경에서 사라진다 — 읽는 브랜드(secondary).
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.secondary,
             ),
           ),
           const SizedBox(height: SetflowSpacing.sm),
@@ -2242,7 +2251,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                       Icon(
                         Icons.verified_rounded,
                         size: 17,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: Theme.of(context).colorScheme.secondary,
                       ),
                     ],
                   ],
@@ -2262,7 +2271,7 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
                       'consultation-top-trainer-active-count-${profile.id}',
                     ),
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
+                      color: Theme.of(context).colorScheme.secondary,
                     ),
                   ),
                   Text(
@@ -2286,8 +2295,9 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
             isSelected
                 ? Icons.check_circle_rounded
                 : Icons.radio_button_unchecked_rounded,
+            // 라임 글리프는 밝은 면에서 사라진다 — 선택 표시는 읽는 브랜드.
             color: isSelected
-                ? Theme.of(context).colorScheme.primary
+                ? Theme.of(context).colorScheme.secondary
                 : Theme.of(context).colorScheme.outline,
           ),
         ],

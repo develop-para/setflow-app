@@ -837,8 +837,12 @@ class _MemberCalendarCell extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(SetflowRadii.sm),
+          // 라임 테두리는 흰 칸 위에서 사라진다 — 읽는 브랜드(secondary).
           border: isToday
-              ? Border.all(color: SetflowColors.primary, width: 1.4)
+              ? Border.all(
+                  color: Theme.of(context).colorScheme.secondary,
+                  width: 1.4,
+                )
               : null,
         ),
         alignment: Alignment.center,
@@ -1046,7 +1050,11 @@ class _MemberLibraryTab extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(exercise.icon, color: SetflowColors.primary, size: 20),
+              Icon(
+                exercise.icon,
+                color: Theme.of(context).colorScheme.secondary,
+                size: 20,
+              ),
               const SizedBox(width: SetflowSpacing.sm),
               Expanded(
                 child: Column(

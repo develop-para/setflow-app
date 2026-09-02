@@ -572,8 +572,10 @@ class _DarkStatBanner extends StatelessWidget {
                   child: Text(
                     value,
                     maxLines: 1,
+                    // 라임(primary)은 라이트의 밝은 회색 카드 위에서 1.1:1로
+                    // 사라진다 — 읽는 브랜드(secondary)가 양쪽 테마에서 산다.
                     style: theme.textTheme.displayMedium?.copyWith(
-                      color: theme.colorScheme.primary,
+                      color: theme.colorScheme.secondary,
                     ),
                   ),
                 ),
@@ -1013,13 +1015,10 @@ class _SettlementFinalConfirmPageState
             child: const Text('취소'),
           ),
           TextButton(
+            // 테마의 TextButton이 이미 읽는 브랜드다 — 라임 오버라이드는
+            // 밝은 다이얼로그 위에서 글자를 지웠다.
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(
-              '확정',
-              style: TextStyle(
-                color: Theme.of(dialogContext).colorScheme.primary,
-              ),
-            ),
+            child: const Text('확정'),
           ),
         ],
       ),

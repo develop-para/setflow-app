@@ -3540,9 +3540,10 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                 SetflowRadii.md,
                               ),
                             ),
-                            child: const Icon(
+                            // 라임 위 라임 틴트 — 글리프는 읽는 브랜드로.
+                            child: Icon(
                               Icons.workspace_premium_outlined,
-                              color: SetflowColors.primary,
+                              color: context.setflowColors.brandDeep,
                             ),
                           ),
                           const SizedBox(width: SetflowSpacing.md),
@@ -3832,7 +3833,12 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                           Icon(
                                             Icons.bar_chart_rounded,
                                             size: 16,
-                                            color: context.setflowColors.blue,
+                                            // 글자로 된 행동은 읽는 브랜드다
+                                            // — 파랑은 차트 시리즈의 색이라
+                                            // 여기 쓰면 링크가 데이터처럼
+                                            // 읽힌다.
+                                            color:
+                                                context.setflowColors.brandDeep,
                                           ),
                                           SizedBox(width: SetflowSpacing.xs2),
                                           Text(
@@ -3840,7 +3846,9 @@ class _RoutineManagerPageState extends State<RoutineManagerPage> {
                                             style: TextStyle(
                                               fontSize: SetflowFontSize.caption,
                                               fontWeight: SetflowWeight.medium,
-                                              color: context.setflowColors.blue,
+                                              color: context
+                                                  .setflowColors
+                                                  .brandDeep,
                                             ),
                                           ),
                                           Spacer(),
@@ -5440,9 +5448,11 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                               ),
                               Column(
                                 children: [
-                                  const Icon(
+                                  // 별점은 후기 별과 같은 오렌지 — 라임은
+                                  // 밝은 면 위에서 사라진다.
+                                  Icon(
                                     Icons.star_rounded,
-                                    color: SetflowColors.primary,
+                                    color: context.setflowColors.orange,
                                     size: 19,
                                   ),
                                   Text(
@@ -6192,7 +6202,8 @@ class _AdminReviewPageState extends State<AdminReviewPage> {
                     Icon(
                       Icons.history_rounded,
                       size: 18,
-                      color: Theme.of(context).colorScheme.primary,
+                      // 라임 아이콘은 밝은 카드 위에서 사라진다 — 읽는 브랜드.
+                      color: Theme.of(context).colorScheme.secondary,
                     ),
                     const SizedBox(width: SetflowSpacing.sm),
                     Expanded(

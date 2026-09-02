@@ -177,11 +177,13 @@ class MemberMembershipScreen extends StatelessWidget {
                               const SizedBox(height: SetflowSpacing.xs),
                               Text(
                                 '현재 운동 장소',
+                                // 라임 글자는 흰 배경에서 사라진다 — 읽는
+                                // 브랜드(secondary)로.
                                 style: Theme.of(context).textTheme.labelMedium
                                     ?.copyWith(
                                       color: Theme.of(
                                         context,
-                                      ).colorScheme.primary,
+                                      ).colorScheme.secondary,
                                     ),
                               ),
                             ],

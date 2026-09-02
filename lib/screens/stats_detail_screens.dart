@@ -221,9 +221,9 @@ class TrainerPerformancePage extends StatelessWidget {
                 ),
                 Column(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.star_rounded,
-                      color: SetflowColors.primary,
+                      color: context.setflowColors.orange,
                       size: 20,
                     ),
                     Text(

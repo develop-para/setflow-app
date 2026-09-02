@@ -96,9 +96,11 @@ class _AppButtonState extends State<AppButton> {
             height: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2.4,
+              // 라임 채움 위에는 잉크, 밝은 변형(아웃라인·토널) 위에는 읽는
+              // 브랜드 — 라임 스피너는 밝은 버튼 위에서 안 보였다.
               color: widget.variant == AppButtonVariant.primary
                   ? theme.colorScheme.onPrimary
-                  : theme.colorScheme.primary,
+                  : theme.colorScheme.secondary,
             ),
           )
         : Row(

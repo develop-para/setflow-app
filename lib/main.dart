@@ -520,9 +520,10 @@ class _BusinessInviteBannerState extends State<_BusinessInviteBanner> {
           children: [
             Row(
               children: [
-                const Icon(
+                // 라임은 흰 판 위에서 사라진다 — 읽는 브랜드(secondary).
+                Icon(
                   Icons.mark_email_unread_rounded,
-                  color: SetflowColors.primary,
+                  color: Theme.of(context).colorScheme.secondary,
                 ),
                 const SizedBox(width: SetflowSpacing.sm),
                 const Expanded(
@@ -620,9 +621,9 @@ class _CoachingInviteBannerState extends State<_CoachingInviteBanner> {
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.handshake_outlined,
-                  color: SetflowColors.primary,
+                  color: Theme.of(context).colorScheme.secondary,
                 ),
                 const SizedBox(width: SetflowSpacing.sm),
                 const Expanded(
