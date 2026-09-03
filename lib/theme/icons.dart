@@ -24,6 +24,11 @@ abstract final class SetflowIcons {
   /// 버튼과 같은 자리). 바텀바에 자리가 없는 화면들이 여기서 열린다.
   static const appMenu = Icons.apps_rounded;
 
+  /// 홈 오른쪽 위의 알림함 — 도착한 알림을 다시 보는 곳. 아웃라인=평소,
+  /// 채움=안 읽은 것이 있을 때(선택과 같은 문법).
+  static const notifications = Icons.notifications_none_rounded;
+  static const notificationsActive = Icons.notifications_rounded;
+
   /// 캘린더 — 날짜를 골라 기록으로 들어가는 판. 기록 탭의 첫 화면이다.
   static const calendar = Icons.calendar_month_outlined;
   static const calendarActive = Icons.calendar_month_rounded;

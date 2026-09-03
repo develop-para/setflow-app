@@ -13,12 +13,14 @@ import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
 import 'data/exercise_catalog_repository.dart';
 import 'data/routine_catalog_repository.dart';
+import 'data/notification_repository.dart';
 import 'data/together_repository.dart';
 import 'data/supabase_app_repository.dart';
 import 'data/supabase_business_repository.dart';
 import 'data/supabase_community_repository.dart';
 import 'data/supabase_exercise_catalog_repository.dart';
 import 'data/supabase_routine_catalog_repository.dart';
+import 'data/supabase_notification_repository.dart';
 import 'data/supabase_together_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/member_screens.dart';
@@ -90,6 +92,9 @@ Future<void> main() async {
         Supabase.instance.client,
         exerciseCatalog: exerciseCatalog,
       ),
+      notificationRepository: SupabaseNotificationRepository(
+        Supabase.instance.client,
+      ),
     ),
   );
 }
@@ -102,6 +107,7 @@ class SetflowApp extends StatefulWidget {
     this.communityRepository,
     this.exerciseCatalogRepository,
     this.togetherRepository,
+    this.notificationRepository,
     super.key,
   });
 
@@ -111,6 +117,7 @@ class SetflowApp extends StatefulWidget {
   final CommunityRepository? communityRepository;
   final ExerciseCatalogRepository? exerciseCatalogRepository;
   final TogetherRepository? togetherRepository;
+  final NotificationRepository? notificationRepository;
 
   @override
   State<SetflowApp> createState() => _SetflowAppState();
@@ -122,6 +129,10 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   StreamSubscription<Uri>? _appLinkSubscription;
   StreamSubscription<AuthChange>? _authSubscription;
   StreamSubscription<PushOpen>? _pushOpenSubscription;
+
+  /// 마지막으로 상세 화면을 연 알림의 일련번호. 상태는 여러 이유로 알림을
+  /// 보내므로, 이것이 없으면 같은 알림의 상세가 매 프레임 다시 열린다.
+  int _handledPushSerial = 0;
   Timer? _persistenceSyncTimer;
   String? _observedAuthUserId;
 
@@ -148,7 +159,11 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       communityRepository: widget.communityRepository,
       exerciseCatalogRepository: widget.exerciseCatalogRepository,
       togetherRepository: widget.togetherRepository,
+      notificationRepository: widget.notificationRepository,
     );
+    // 알림함에서 누른 것도 시스템 알림을 누른 것과 같은 길을 타야 한다. 두
+    // 통로가 각자 상세 화면을 열면 목적지 표가 두 벌이 된다.
+    state.addListener(_openPendingPushDetail);
     _persistenceSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       unawaited(state.syncPersistenceToServer().catchError((_) {}));
     });
@@ -179,8 +194,15 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
 
   /// 셸이 탭을 옮기고(`pendingPushOpen`), 상세 화면이 있는 알림은 그 위에
   /// push한다. 초기화 전에 도착하면 셸이 뜨고 나서 처리되도록 상태에만 남긴다.
-  void _handlePushOpen(PushOpen open) {
-    state.openPush(open);
+  void _handlePushOpen(PushOpen open) => state.openPush(open);
+
+  /// [AppState.pendingPushOpen]이 새것으로 바뀌면 상세 화면을 연다. 탭을 옮기는
+  /// 것은 셸이 같은 값을 보고 한다. 알림을 탭한 경로(푸시)와 알림함에서 누른
+  /// 경로가 여기서 하나로 합쳐진다.
+  void _openPendingPushDetail() {
+    final open = state.pendingPushOpen;
+    if (open == null || open.serial == _handledPushSerial) return;
+    _handledPushSerial = open.serial;
     WidgetsBinding.instance.addPostFrameCallback((_) => _openPushDetail(open));
   }
 
@@ -328,6 +350,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     if (lifecycleState == AppLifecycleState.resumed) {
       unawaited(state.syncRestTimerFromPlatform());
       unawaited(state.syncPersistenceToServer().catchError((_) {}));
+      // 자리를 비운 사이 알림이 왔을 수 있다. 헤더의 점이 그때 붙어야
+      // "배지는 있는데 앱은 모르는" 상태가 안 생긴다.
+      unawaited(state.refreshUnreadNotifications().catchError((_) {}));
     }
     if (lifecycleState != AppLifecycleState.resumed ||
         !state.isInitialized ||
@@ -378,6 +403,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    state.removeListener(_openPendingPushDetail);
     unawaited(_authSubscription?.cancel());
     unawaited(_appLinkSubscription?.cancel());
     unawaited(_pushOpenSubscription?.cancel());

@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/data/notification_repository.dart';
 import 'package:setflow/data/together_repository.dart';
 import 'package:setflow/screens/business_screens.dart';
 import 'package:setflow/screens/together_screens.dart';
@@ -93,6 +94,50 @@ Future<void> _loadFonts() async {
   }
 }
 
+/// 캡처용 알림함. 서버가 없으니 화면이 실제로 읽는 자리에 표본을 둔다.
+class _CaptureNotifications implements NotificationRepository {
+  const _CaptureNotifications();
+
+  @override
+  Future<List<AppNotification>> listNotifications({int limit = 100}) async => [
+    AppNotification(
+      id: '1',
+      kind: 'coaching_feedback',
+      title: '트레이너 답변이 도착했어요',
+      body: '이번 주 스쿼트 자세에 대한 피드백을 남겼어요.',
+      data: const {'event': 'consultation_reply'},
+      createdAt: DateTime.now().subtract(const Duration(minutes: 8)),
+    ),
+    AppNotification(
+      id: '2',
+      kind: 'together',
+      title: '함께 운동 방이 시작됐어요',
+      body: '김파트너님이 첫 세트를 올렸어요.',
+      data: const {'event': 'party_started'},
+      createdAt: DateTime.now().subtract(const Duration(hours: 5)),
+      readAt: DateTime.now().subtract(const Duration(hours: 4)),
+    ),
+    AppNotification(
+      id: '3',
+      kind: 'community_reaction',
+      title: '기록에 좋아요가 달렸어요',
+      body: '오늘의 가슴 운동 기록을 3명이 좋아합니다.',
+      data: const {'event': 'post_like'},
+      createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      readAt: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+  ];
+
+  @override
+  Future<int> unreadCount() async => 1;
+
+  @override
+  Future<void> markRead(String id) async {}
+
+  @override
+  Future<void> markAllRead() async {}
+}
+
 Future<void> _shot(WidgetTester tester, String out) async {
   // 루트 레이어에서 장면 전체를 찍는다. 첫 RepaintBoundary를 찍는 방식은
   // 푸시된 화면에서 흰 이미지를 냈다 — 불투명한 라우트가 위에 있으면 아래
@@ -119,7 +164,11 @@ void main() {
         );
     await tester.runAsync(_loadFonts);
     await tester.binding.setSurfaceSize(const Size(400, 860));
-    await tester.pumpWidget(const SetflowApp());
+    // 알림함은 화면을 열 때 저장소에서 다시 읽는다 — 상태에 직접 넣어 두면
+    // 그 새로고침이 비운다. 캡처도 실제 경로를 타야 한다.
+    await tester.pumpWidget(
+      const SetflowApp(notificationRepository: _CaptureNotifications()),
+    );
     await tester.pump(const Duration(milliseconds: 1900));
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/home.png');
@@ -299,6 +348,51 @@ void main() {
     await tester.tap(find.text('운동 장소 및 센터').first);
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/my_membership.png');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // 알림함 — 헤더 종이 여는 곳. 배지만 남고 앱엔 흔적이 없던 것을 메운
+    // 화면이라, 실제로 무엇이 보이는지 눈으로 확인해야 한다.
+    state.notifications = [
+      AppNotification(
+        id: '1',
+        kind: 'coaching_feedback',
+        title: '트레이너 답변이 도착했어요',
+        body: '이번 주 스쿼트 자세에 대한 피드백을 남겼어요.',
+        data: const {'event': 'consultation_reply'},
+        createdAt: DateTime.now().subtract(const Duration(minutes: 8)),
+      ),
+      AppNotification(
+        id: '2',
+        kind: 'together',
+        title: '함께 운동 방이 시작됐어요',
+        body: '김파트너님이 첫 세트를 올렸어요.',
+        data: const {'event': 'party_started'},
+        createdAt: DateTime.now().subtract(const Duration(hours: 5)),
+        readAt: DateTime.now().subtract(const Duration(hours: 4)),
+      ),
+      AppNotification(
+        id: '3',
+        kind: 'community_reaction',
+        title: '기록에 좋아요가 달렸어요',
+        body: '오늘의 가슴 운동 기록을 3명이 좋아합니다.',
+        data: const {'event': 'post_like'},
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+        readAt: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+    ];
+    state.unreadNotificationCount = 1;
+    state.notifyListeners();
+    await tester.pumpAndSettle();
+
+    // 홈으로 돌아가 헤더의 종을 실제로 누른다 — 배지 점이 붙은 헤더와 알림함을
+    // 둘 다 찍어야 "무엇이 보이는지"를 확인한 것이 된다.
+    await tester.tap(find.text('홈'));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/home_notification_dot.png');
+    await tester.tap(find.byKey(const ValueKey('home-notifications')));
+    await tester.pumpAndSettle();
+    await _shot(tester, 'build/shots/notifications.png');
     await tester.pageBack();
     await tester.pumpAndSettle();
 

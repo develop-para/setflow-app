@@ -46,6 +46,10 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "status" -> result.success(RestTimerService.status(this))
+                "clearCompletionNotification" -> {
+                    RestTimerService.clearCompletion(this)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

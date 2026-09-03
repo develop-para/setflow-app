@@ -22,6 +22,36 @@
 **탭하면 어디로 가는가.** `Push.instance.opens` / `initialOpen()` → `AppState.openPush()` →
 셸이 `memberPageForPush` / `businessPageForPush`로 탭을 옮기고, 상담 답변과 게시글은
 main.dart가 그 위에 상세 화면을 push한다. 표: `test/push_catalog_test.dart`.
+**알림함에서 누른 것도 같은 길을 탄다** — `AppNotification.toPushOpen()`이 같은
+`kind`/`data`를 내고 main.dart가 `pendingPushOpen`의 일련번호를 보고 한 번만 연다.
+목적지 표를 두 벌로 관리하면 반드시 어긋난다.
+
+## 알림함 — 앱 안에서 다시 보는 곳
+
+런처 아이콘의 배지는 **시스템 알림창에 남은 우리 알림 수**다. 앱이 세는 것이 아니라서,
+알림을 밀어 지우거나 놓치면 배지만 남고 앱에는 흔적이 없었다(실기기 보고: "알림 표기가
+있는 것 같은데 들어가면 무슨 알림인지 모르겠네"). `push_outbox`는 발신함이지 보관함이
+아니다 — 7일 뒤 지워지고 클라이언트가 읽을 수도 없다(service_role 전용).
+
+그래서 사용자가 읽는 표면을 따로 둔다: `public.user_notifications`.
+
+| 무엇 | 어디 |
+|---|---|
+| 보관함 | `public.user_notifications` (RLS: 내 것만 select, `read_at`만 update) |
+| 넣는 곳 | `private.enqueue_push` **한 곳** — 28개 호출부가 전부 지나는 관문이라 잊을 수 없다 |
+| 지우는 곳 | `private.prune_user_notifications` — 읽은 것 30일, **안 읽은 것 90일** |
+| 앱 포트 | `lib/data/notification_repository.dart` |
+| 앱 화면 | `lib/screens/notification_screen.dart` (헤더 종 버튼 = `NotificationHeaderButton`) |
+
+**설정을 끈 종류는 알림함에도 안 남는다.** "끈다"는 이 종류를 나에게 알리지 말라는
+뜻이지, 배지가 붙느냐 마느냐가 아니다. 대신 **기기가 없는 것은 배달 사정일 뿐이라
+알림함에는 남는다** — `enqueue_push`가 기기 유무를 보기 전에 보관함 줄을 넣는 이유다.
+순서를 뒤집으면 푸시를 못 받는 기기(권한 거절·iOS)에서 알림함이 늘 빈다.
+
+**휴식 끝 알림은 앱이 걷어낸다.** 기기 로컬 알림이라 알림함에 남지 않고,
+`setAutoCancel(true)`라 탭해야만 사라진다. 앱을 보며 쉰 사람은 탭할 일이 없어서 배지가
+계속 붙어 있었다 — 그래서 앱이 앞으로 나올 때(`syncRestTimerFromPlatform`)와 다음 휴식을
+시작할 때 `RestTimerService.clearCompletion`이 지운다.
 
 **없는 사건은 만들지 않았다.** `trainer_follows`·`routine_reviews`·`user_badges`는 앱이 쓰지
 않는 테이블이라(0행, 어댑터 참조 없음) 트리거가 없다. 정산·마케팅 스위치도 같은 이유로

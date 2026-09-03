@@ -21,6 +21,7 @@ import '../widgets/portal.dart';
 import 'detail_screens.dart';
 import 'evidence_library_screen.dart';
 import 'member_menu_screen.dart';
+import 'notification_screen.dart';
 import 'member_mypage_screen.dart';
 import 'member_membership_screen.dart';
 import 'member_social_detail_screens.dart';
@@ -410,6 +411,11 @@ class _MemberShellState extends State<MemberShell> {
                               _WorkoutLocationHeaderButton(),
                             ],
                           )
+                        : null,
+                    // 알림함은 홈에서만 연다 — 다른 탭에서도 띄우면 헤더가
+                    // 탭마다 다른 것을 들고 있게 된다.
+                    trailing: index == _homePage
+                        ? const NotificationHeaderButton()
                         : null,
                   ),
                 // The header already ate the status-bar inset, so the per-page

@@ -19,6 +19,7 @@ import 'business_routine_flow_screens.dart';
 import 'business_settings_screens.dart';
 import 'consultation_retarget_screen.dart';
 import 'member_detail_screens.dart';
+import 'notification_screen.dart';
 import 'settlement_detail_screens.dart';
 import 'stats_detail_screens.dart';
 import 'workspace_screen.dart';
@@ -115,7 +116,17 @@ class _BusinessShellState extends State<BusinessShell> {
           // 헤더 세그먼트는 걷어냈지만(전환은 회원 쪽 전체 메뉴의 한 줄),
           // pro 셸에 서 있는 사람의 **돌아가는 문**은 사라지면 안 된다 —
           // 트레이너도 자기 운동은 회원 화면에서 기록한다. 이 방향은 게이트가 없다.
-          const PortalHeaderBar(trailing: _ClientPortalReturnButton()),
+          // 트레이너에게도 알림이 온다(상담·배정·루틴 심사). 회원 셸과 같은
+          // 문이어야 "알림은 회원 화면에만 있다"가 되지 않는다.
+          const PortalHeaderBar(
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                NotificationHeaderButton(),
+                _ClientPortalReturnButton(),
+              ],
+            ),
+          ),
           // The header already ate the status-bar inset, so the per-page
           // SafeArea below must not add it a second time.
           Expanded(

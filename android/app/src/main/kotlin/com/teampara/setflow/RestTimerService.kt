@@ -343,6 +343,8 @@ class RestTimerService : Service() {
             countdownSeconds: Int = 30,
             detail: String? = null,
         ) {
+            // 새 휴식이 시작됐으면 지난 휴식의 "끝났어요"는 지나간 말이다.
+            clearCompletion(context)
             val intent = Intent(context, RestTimerService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_SECONDS, seconds.coerceIn(1, 3_600))
@@ -356,6 +358,18 @@ class RestTimerService : Service() {
             } else {
                 context.startService(intent)
             }
+        }
+
+        /// 휴식 끝 알림을 걷어낸다.
+        ///
+        /// 이 알림은 setAutoCancel(true)라 **탭해야만** 사라진다. 앱을 보면서
+        /// 쉰 사람은 탭할 일이 없어서, 알림창에 그것만 남고 런처 아이콘에는
+        /// 배지가 계속 붙어 있었다(실기기 보고: "알림 표기가 있는 것 같은데
+        /// 들어가면 무슨 알림인지 모르겠네"). 앱을 열었거나 다음 휴식을
+        /// 시작했다면 그 알림은 이미 할 일을 마친 것이다.
+        fun clearCompletion(context: Context) {
+            context.getSystemService(NotificationManager::class.java)
+                ?.cancel(COMPLETION_NOTIFICATION_ID)
         }
 
         fun cancel(context: Context) {

@@ -11,6 +11,7 @@ import 'data/backend_cache.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
 import 'data/exercise_catalog_repository.dart';
+import 'data/notification_repository.dart';
 import 'data/routine_catalog_repository.dart';
 import 'data/together_repository.dart';
 import 'domain/cardio.dart';
@@ -77,6 +78,7 @@ class AppState extends ChangeNotifier {
     this.communityRepository,
     this.exerciseCatalogRepository,
     this.togetherRepository,
+    this.notificationRepository,
   }) : _repository = repository ?? MemoryAppRepository(),
        _authSignOut = authSignOut ?? Auth.instance.signOut {
     if (routineCatalogRepository == null) {
@@ -105,6 +107,10 @@ class AppState extends ChangeNotifier {
   /// 함께 운동(파트너 방). Null이면 화면이 "지금은 쓸 수 없어요"로 내려간다 —
   /// 혼자서는 성립하지 않는 기능이라 로컬 대체본을 두지 않는다.
   final TogetherRepository? togetherRepository;
+
+  /// 알림함. Null이면 화면이 "알림은 로그인하면 볼 수 있어요"로 내려간다 —
+  /// 알림은 계정에 붙으므로 로컬 대체본이 없다.
+  final NotificationRepository? notificationRepository;
   Timer? _persistTimer;
   Timer? _serverSyncTimer;
   bool _initialized = false;
@@ -199,6 +205,17 @@ class AppState extends ChangeNotifier {
   /// 방금 탭한 푸시. 셸이 이걸 보고 탭을 옮기고, 상세 화면이 필요하면
   /// main.dart가 그 위에 push한다. [PushOpen.serial]로 "이미 처리한 것"을 가른다.
   PushOpen? pendingPushOpen;
+
+  /// 알림함의 내용. 목록 화면과 헤더의 점이 같은 값을 본다 — 두 곳에서 따로
+  /// 세면 "빨간 점은 있는데 목록은 비어 있다"가 된다.
+  List<AppNotification> notifications = const [];
+
+  /// 안 읽은 알림 수. 목록을 아직 안 받아왔어도 헤더의 점은 떠야 하므로
+  /// 목록과 따로 들고 있다.
+  int unreadNotificationCount = 0;
+
+  bool notificationsLoading = false;
+  Object? notificationsError;
   String get memberDisplayName {
     final nickname = memberNickname.trim();
     return nickname.isEmpty ? Auth.instance.currentDisplayName : nickname;
@@ -2350,7 +2367,115 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    // 알림은 계정 것이라 비공개 데이터 게이트 안이다. 목록 전체가 아니라 수만
+    // 받아 온다 — 헤더의 점에 필요한 건 그것뿐이고, 목록은 화면을 열 때 받는다.
+    //
+    // 실패는 여기서 삼킨다(rememberError가 아니다). 알림은 부수적인 표면이라,
+    // 못 세었다고 cloudSyncError가 서면 홈 전체가 동기화 오류로 덮인다 —
+    // 헤더에 점이 안 붙는 것으로 충분하고, 목록은 화면을 열 때 자기 오류를
+    // 자기 자리에서 말한다.
+    if (canLoadPrivateData && auth.hasAuthenticatedUser) {
+      try {
+        await _refreshUnreadNotificationCount(accountEpoch);
+      } catch (_) {
+        if (!_isCurrentAccount(accountEpoch)) return;
+      }
+    }
+
     if (firstError case final Object error) throw error;
+  }
+
+  Future<void> _refreshUnreadNotificationCount(int accountEpoch) async {
+    final repository = notificationRepository;
+    if (repository == null) return;
+    final count = await repository.unreadCount();
+    if (!_isCurrentAccount(accountEpoch)) return;
+    unreadNotificationCount = count;
+  }
+
+  /// 헤더의 점만 다시 센다. 앱이 다시 앞으로 나올 때 부른다 — 자리를 비운
+  /// 사이 알림이 왔을 수 있고, 그때 점이 안 붙으면 "배지는 있는데 앱은
+  /// 모르는" 상태가 그대로 남는다. 목록은 화면을 열 때 받는다.
+  Future<void> refreshUnreadNotifications() async {
+    if (!Auth.instance.hasAuthenticatedUser) return;
+    final accountEpoch = _accountEpoch;
+    final before = unreadNotificationCount;
+    await _refreshUnreadNotificationCount(accountEpoch);
+    if (_isCurrentAccount(accountEpoch) && unreadNotificationCount != before) {
+      notifyListeners();
+    }
+  }
+
+  /// 알림함을 연다. 실패해도 앱의 다른 부분은 건드리지 않는다 — 알림은
+  /// 부수적인 표면이라, 못 읽었다고 홈이 오류로 덮이면 안 된다.
+  Future<void> refreshNotifications() async {
+    final repository = notificationRepository;
+    final accountEpoch = _accountEpoch;
+    if (repository == null || !Auth.instance.hasAuthenticatedUser) {
+      notifications = const [];
+      unreadNotificationCount = 0;
+      notificationsLoading = false;
+      notificationsError = null;
+      notifyListeners();
+      return;
+    }
+    notificationsLoading = true;
+    notificationsError = null;
+    notifyListeners();
+    try {
+      final items = await repository.listNotifications();
+      if (!_isCurrentAccount(accountEpoch)) return;
+      notifications = items;
+      unreadNotificationCount = items.where((item) => item.isUnread).length;
+      notificationsError = null;
+    } catch (error) {
+      if (!_isCurrentAccount(accountEpoch)) return;
+      notificationsError = error;
+    } finally {
+      if (_isCurrentAccount(accountEpoch)) {
+        notificationsLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// 알림 하나를 읽음으로. 화면이 먼저 바뀌고 서버는 뒤따른다 — 목록을 누른
+  /// 순간 이동이 시작되므로 왕복을 기다릴 시간이 없다.
+  Future<void> markNotificationRead(String id) async {
+    final repository = notificationRepository;
+    if (repository == null) return;
+    final index = notifications.indexWhere((item) => item.id == id);
+    if (index < 0 || !notifications[index].isUnread) return;
+    final updated = [...notifications];
+    updated[index] = updated[index].copyWith(readAt: DateTime.now());
+    notifications = updated;
+    unreadNotificationCount = (unreadNotificationCount - 1).clamp(0, 99);
+    notifyListeners();
+    try {
+      await repository.markRead(id);
+    } catch (_) {
+      // 다음 새로고침이 서버의 진실을 다시 가져온다. 읽음 표시 하나 때문에
+      // 이동을 막거나 오류를 띄우지 않는다.
+    }
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    final repository = notificationRepository;
+    if (repository == null || notifications.every((item) => !item.isUnread)) {
+      return;
+    }
+    final now = DateTime.now();
+    notifications = [
+      for (final item in notifications)
+        item.isUnread ? item.copyWith(readAt: now) : item,
+    ];
+    unreadNotificationCount = 0;
+    notifyListeners();
+    try {
+      await repository.markAllRead();
+    } catch (_) {
+      // 위와 같다 — 다음 새로고침이 바로잡는다.
+    }
   }
 
   Future<void> refreshCloudData() async {
@@ -6266,6 +6391,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> syncRestTimerFromPlatform() async {
+    // 앱을 보고 있다면 "휴식이 끝났어요" 알림은 할 일을 마쳤다. 안 걷으면
+    // 탭할 때까지 알림창에 남아 런처 배지를 붙들고 있는다.
+    unawaited(RestTimerPlatform.clearCompletionNotification());
     final status = await RestTimerPlatform.status();
     if (_disposed || status == null) return;
     _restTimer?.cancel();
@@ -6407,6 +6535,10 @@ class AppState extends ChangeNotifier {
     communityPosts.clear();
     consultations.clear();
     businessDashboards.clear();
+    notifications = const [];
+    unreadNotificationCount = 0;
+    notificationsLoading = false;
+    notificationsError = null;
     _seedStarterRoutines();
     if (communityRepository == null) {
       _seedSocial();

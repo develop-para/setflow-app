@@ -55,6 +55,13 @@ final signedIn = Auth.instance.hasAuthenticatedUser;
   사용자 핵심 동작(로그인·기록 저장 등)의 경로에 두지 말 것. 과거에 회원가입을 엣지 펑션 뒤에
   뒀다가 통째로 막힌 적이 있다.
 
+**알림은 보내고 끝이 아니라 남는다.** 앱 아이콘의 배지는 시스템 알림창이 세는 것이라,
+알림을 밀어 지우면 배지만 남고 앱에는 흔적이 없다. 그래서 `private.enqueue_push`가
+발신함(`push_outbox`)과 **보관함(`user_notifications`)에 같이** 넣고, 앱은 알림함 화면
+(헤더 종 버튼)에서 그것을 다시 보여 준다. 새 알림을 만들 때 보관함을 따로 챙길 필요는
+없다 — 관문이 하나라서 자동이다. 알림함에서 누른 것은 `AppNotification.toPushOpen()`으로
+**푸시를 누른 것과 같은 길**을 타야 한다. 배경: `docs/push-notifications.md`
+
 **푸시는 트리거가 직접 보내지 않는다.** DB 트리거는 `push_outbox`에 줄만 넣고 끝나고, FCM 전송은
 크론이 깨우는 엣지 펑션이 한다 — 알림은 부수효과지 본 동작이 아니라서, 남의 서비스가 느릴 때
 댓글 쓰기가 같이 느려지면 안 된다. 앱에서 Firebase를 아는 파일은 `lib/services/firebase_push_service.dart`
