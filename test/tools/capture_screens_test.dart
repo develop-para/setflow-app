@@ -153,6 +153,17 @@ void main() {
     await tester.pumpAndSettle();
     await _shot(tester, 'build/shots/record_sets.png');
 
+    // 휴식 바 — 세트를 마친 직후 헤더 아래 뜨는 것. 덮는 판을 없앤 뒤로 이게
+    // 휴식의 유일한 얼굴이라, 세트 행 위에 어떻게 앉는지 봐야 한다.
+    seedState.startRestTimer(
+      90,
+      focus: const RestFocus(exerciseName: '벤치프레스', setsLeft: 2),
+    );
+    await tester.pump();
+    await _shot(tester, 'build/shots/record_rest.png');
+    seedState.cancelRestTimer();
+    await tester.pumpAndSettle();
+
     // 오늘 기록이 생긴 상태의 홈 — 달력 칸에 종목 이름이 들어간 모습.
     await tester.tap(find.text('홈'));
     await tester.pumpAndSettle();

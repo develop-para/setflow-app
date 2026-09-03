@@ -441,27 +441,15 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                // 휴식은 두 모습을 갖는다. 기본은 화면을 덮는 판 — 세트 사이에 폰을
-                // 들면 딴짓이 시작되고 휴식이 끝난 줄도 모른다. "화면 보기"로 접으면
-                // 타이머는 그대로 가면서 아래 슬림 바로 내려온다.
-                if (state.restRemaining > 0 && !state.restFocusCollapsed)
-                  Positioned.fill(
-                    child: RestFocusOverlay(
-                      seconds: state.restRemaining,
-                      totalSeconds: state.restDefaultSeconds,
-                      exerciseName: state.restFocus?.exerciseName,
-                      setsLeft: state.restFocus?.setsLeft ?? 0,
-                      nextExercise: state.restFocus?.nextExercise,
-                      onAddTime: () =>
-                          state.startRestTimer(state.restRemaining + 30),
-                      onFinish: state.cancelRestTimer,
-                      onCollapse: state.collapseRestFocus,
-                    ),
-                  ),
-                if (state.restRemaining > 0 && state.restFocusCollapsed)
+                // 휴식 바. 예전엔 화면을 덮는 판이 먼저 뜨고 "화면 보기"로 접어야
+                // 이 바가 됐다 — 테스터들이 그 판을 불편해했다. 쉬는 동안 기록을
+                // 보고 다음 세트를 미리 보는 건 딴짓이 아니다. 판이 답하던
+                // "어디쯤인지"는 바 안으로 들어왔다.
+                if (state.restRemaining > 0)
                   Positioned(
-                    left: SetflowSpacing.lg,
-                    right: SetflowSpacing.lg,
+                    // 화면 폭을 다 쓴다 — 여백을 두면 헤더 위에 뜬 토스트처럼 보인다.
+                    left: 0,
+                    right: 0,
                     // Under the header, not above the bottom bar: down there it
                     // covered the set rows the timer is counting for. 48 is
                     // the header's own height, added only when the header has
@@ -472,8 +460,10 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
                       child: GlobalRestTimerOverlay(
                         seconds: state.restRemaining,
                         totalSeconds: state.restDefaultSeconds,
-                        onAddTime: () =>
-                            state.startRestTimer(state.restRemaining + 30),
+                        exerciseName: state.restFocus?.exerciseName,
+                        setsLeft: state.restFocus?.setsLeft ?? 0,
+                        nextExercise: state.restFocus?.nextExercise,
+                        onAddTime: state.extendRestTimer,
                         onCancel: state.cancelRestTimer,
                       ),
                     ),

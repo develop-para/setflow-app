@@ -620,175 +620,33 @@ class ErrorState extends StatelessWidget {
   }
 }
 
-/// The rest countdown, as a slim bar that lives under the header.
+/// 휴식 띠. 헤더 자리에서 내려와 타이머·지금 어디쯤인지·+30초·끝내기를 한 줄에 둔다.
 ///
-/// It used to be a tall card floating above the bottom bar, which is exactly
-/// where the set rows are — so the thing telling you to wait covered the thing
-/// you were waiting to edit. Up top it is out of the thumb's way, out of the
-/// list's way, and still visible from every screen.
+/// 예전에는 세트를 마치면 잉크색 판이 화면을 덮었다("휴식 중엔 다른 걸 못 하게").
+/// 테스터들은 그것을 불편으로 느꼈다 — 방금 기록한 숫자를 확인하거나 다음 세트를
+/// 미리 보려는데 매번 "화면 보기"부터 눌러야 했다. 휴식 동안 폰을 보는 사람은
+/// 딴짓이 아니라 **기록을 보는 것**이고, 휴식이 끝난 줄 모르는 문제는 소리·진동·
+/// 알림이 이미 답한다. 그래서 덮는 판은 없애고, 그 판이 답하던 것(남은 세트,
+/// 다음 종목)과 거기 있던 버튼(+30초)을 이 띠에 항상 보이게 옮겼다.
 ///
-/// Collapsed it is 44px: how far along the rest is, the label, the clock, and
-/// the way out. Tapping opens the one action that is not urgent enough to sit
-/// there permanently (+30초).
-/// 휴식 중에 화면을 덮는 판. 타이머와 끝내기 버튼 말고는 아무것도 못 누른다.
+/// 모양은 "떠 있는 알림"이 아니라 **위에서 매달린 띠**다. 옛 바는 좌우 여백과 그림자를
+/// 단 검은 알약이 헤더 위에 둥둥 떠서 토스트처럼 보였다. 지금은 화면 폭을 다 쓰고
+/// 아래 모서리만 둥글다. 진행은 아래 가장자리를 따라 줄어드는 **라임 선**이다 —
+/// 잉크 위 라임은 이 앱에서 가장 잘 읽히는 조합이고(함께 탭의 전광판과 같은 언어),
+/// 옛 흰 워시는 캡처에서도 안 보였다.
 ///
-/// 세트 사이에 폰을 들면 딴짓이 시작되고, 그러다 휴식이 끝난 줄도 모른다. 쉬는 동안은
-/// 쉬는 것만 보이게 하고, 대신 **지금 어디쯤인지**(남은 세트, 다음 종목)를 같이 적어 둔다 —
-/// 화면을 막았으면 궁금해질 것을 미리 답해 줘야 한다.
-///
-/// 막되 가두지는 않는다. "화면 보기"로 접으면 타이머는 계속 가면서 슬림 바로 돌아간다.
-/// 방금 잘못 누른 숫자를 고치러 갈 길은 남아 있어야 한다.
-class RestFocusOverlay extends StatelessWidget {
-  const RestFocusOverlay({
-    required this.seconds,
-    required this.totalSeconds,
-    required this.exerciseName,
-    required this.setsLeft,
-    required this.nextExercise,
-    required this.onAddTime,
-    required this.onFinish,
-    required this.onCollapse,
-    super.key,
-  });
-
-  final int seconds;
-  final int totalSeconds;
-  final String? exerciseName;
-  final int setsLeft;
-  final String? nextExercise;
-  final VoidCallback onAddTime;
-  final VoidCallback onFinish;
-  final VoidCallback onCollapse;
-
-  String get _clock {
-    final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
-    final rest = (seconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$rest';
-  }
-
-  /// 지금 어디쯤인지. 세트가 남았으면 그 수를, 종목을 끝냈으면 다음 종목을 말한다.
-  String get _whereYouAre {
-    if (setsLeft > 0) {
-      final name = exerciseName;
-      return name == null ? '$setsLeft세트 남음' : '$name · $setsLeft세트 남음';
-    }
-    final next = nextExercise;
-    if (next != null) return '이 종목 끝 · 다음은 $next';
-    return '마지막 종목까지 끝냈어요';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = totalSeconds <= 0
-        ? 0.0
-        : (seconds / totalSeconds).clamp(0.0, 1.0);
-
-    return Semantics(
-      label: '휴식 중 $_clock 남음. $_whereYouAre',
-      liveRegion: true,
-      // Material이어야 한다: 이 오버레이는 내비게이터 위 Stack에 살아서
-      // Material 조상이 없고, 그러면 모든 Text에 노란 이중 밑줄이 붙는다
-      // (기기에서 실제로 그렇게 보였다).
-      child: Material(
-        // 아래를 완전히 덮는다 — 94% 투명도로는 뒤 화면의 라임 버튼이
-        // 비쳐 보였다. 반쯤 보이는 화면은 누르고 싶어질 뿐이다.
-        color: SetflowColors.ink,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(SetflowSpacing.section),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '휴식 중',
-                  style: TextStyle(
-                    fontSize: SetflowFontSize.caption,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 2,
-                    color: Colors.white.withValues(alpha: .55),
-                  ),
-                ),
-                const SizedBox(height: SetflowSpacing.md),
-                Text(
-                  _clock,
-                  style: const TextStyle(
-                    fontSize: SetflowFontSize.hero,
-                    height: 1,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
-                const SizedBox(height: SetflowSpacing.xxl),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 240),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(SetflowRadii.full),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 4,
-                      // 잉크 위에서 읽히는 건 흰색뿐이다.
-                      backgroundColor: Colors.white12,
-                      valueColor: const AlwaysStoppedAnimation(Colors.white),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: SetflowSpacing.xxl),
-                Text(
-                  _whereYouAre,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: SetflowFontSize.label,
-                    fontWeight: FontWeight.w700,
-                    height: 1.5,
-                    color: Colors.white.withValues(alpha: .72),
-                  ),
-                ),
-                const SizedBox(height: SetflowSpacing.section),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    OutlinedButton(
-                      key: const ValueKey('rest-focus-add'),
-                      onPressed: onAddTime,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white24),
-                      ),
-                      child: const Text('+30초'),
-                    ),
-                    const SizedBox(width: SetflowSpacing.md),
-                    FilledButton(
-                      key: const ValueKey('rest-focus-finish'),
-                      onPressed: onFinish,
-                      child: const Text('휴식 끝내기'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: SetflowSpacing.lg),
-                TextButton(
-                  key: const ValueKey('rest-focus-collapse'),
-                  onPressed: onCollapse,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white.withValues(alpha: .6),
-                  ),
-                  child: const Text('화면 보기'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class GlobalRestTimerOverlay extends StatefulWidget {
+/// 높이를 고정하지 않는다 — 글자 크기를 키운 사용자에게는 두 줄이 자란다. 폭은
+/// 한 줄이 정해져 있어서(시계·+30초·✕가 나란히) 배율만 1.3배에서 묶는다 — 달력 칸·전광판과
+/// 같은 이유다. 320px 폰에서 1.5배는 29px, 2배는 80px 오른쪽으로 넘쳤다.
+class GlobalRestTimerOverlay extends StatelessWidget {
   const GlobalRestTimerOverlay({
     required this.seconds,
     required this.totalSeconds,
     required this.onAddTime,
     required this.onCancel,
+    this.exerciseName,
+    this.setsLeft = 0,
+    this.nextExercise,
     super.key,
   });
 
@@ -797,123 +655,153 @@ class GlobalRestTimerOverlay extends StatefulWidget {
   final VoidCallback onAddTime;
   final VoidCallback onCancel;
 
-  @override
-  State<GlobalRestTimerOverlay> createState() => _GlobalRestTimerOverlayState();
-}
+  /// 방금 마친 세트의 종목. 세트 완료가 아니라 함께 방의 공유 휴식이면 null이다.
+  final String? exerciseName;
+  final int setsLeft;
+  final String? nextExercise;
 
-class _GlobalRestTimerOverlayState extends State<GlobalRestTimerOverlay> {
-  static const _barHeight = 44.0;
+  /// 아래 가장자리의 진행 선 두께.
+  static const _progressHeight = 3.0;
 
-  bool _expanded = false;
+  String get _clock {
+    final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
+    final rest = (seconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$rest';
+  }
+
+  /// 지금 어디쯤인지. 세트가 남았으면 그 수를, 종목을 끝냈으면 다음 종목을 말한다.
+  /// 무엇을 하다 쉬는지 모르면(공유 휴식) 아무 말도 하지 않는다.
+  String? get _whereYouAre {
+    final name = exerciseName;
+    if (name == null) return null;
+    if (setsLeft > 0) return '$name · $setsLeft세트 남음';
+    final next = nextExercise;
+    if (next != null) return '$name 끝 · 다음은 $next';
+    return '마지막 종목까지 끝냈어요';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final minutes = (widget.seconds ~/ 60).toString().padLeft(2, '0');
-    final remainder = (widget.seconds % 60).toString().padLeft(2, '0');
-    final progress = widget.totalSeconds <= 0
+    final progress = totalSeconds <= 0
         ? 0.0
-        : (widget.seconds / widget.totalSeconds).clamp(0.0, 1.0);
+        : (seconds / totalSeconds).clamp(0.0, 1.0);
+    final where = _whereYouAre;
 
     return Semantics(
-      label: '휴식 타이머 $minutes분 $remainder초 남음',
+      label: where == null ? '휴식 중 $_clock 남음' : '휴식 중 $_clock 남음. $where',
       liveRegion: true,
-      child: Material(
-        color: SetflowColors.ink,
-        elevation: 8,
-        borderRadius: BorderRadius.circular(SetflowRadii.lg),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: AnimatedSize(
-            duration: SetflowMotion.standard,
-            curve: SetflowMotion.standardCurve,
-            alignment: Alignment.topCenter,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  height: _barHeight,
-                  child: Stack(
-                    children: [
-                      // The bar drains as the rest runs out. On an ink bar the
-                      // only readable "colour" is light, so progress is a
-                      // lighter wash — never SetflowColors.primary, which is
-                      // black on black here.
-                      Positioned.fill(
-                        child: FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: progress,
-                          child: const ColoredBox(color: Colors.white12),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          SetflowSpacing.lg,
-                          0,
-                          4,
-                          0,
-                        ),
-                        child: Row(
-                          children: [
-                            const Text(
-                              '휴식 중',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                              ),
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        // Material이어야 한다: 이 띠는 내비게이터 위 Stack에 살아서 Material 조상이
+        // 없고, 그러면 모든 Text에 노란 이중 밑줄이 붙는다.
+        child: Material(
+          color: SetflowColors.ink,
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(SetflowRadii.lg),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.gutter,
+                  SetflowSpacing.sm,
+                  SetflowSpacing.xs2,
+                  SetflowSpacing.xs2,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '휴식 중',
+                            style: TextStyle(
+                              fontSize: SetflowFontSize.caption,
+                              fontWeight: SetflowWeight.strong,
+                              letterSpacing: 1,
+                              color: Colors.white.withValues(alpha: .6),
                             ),
-                            const Spacer(),
+                          ),
+                          if (where != null)
                             Text(
-                              '$minutes:$remainder',
+                              where,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
+                                fontSize: SetflowFontSize.label,
+                                fontWeight: SetflowWeight.strong,
+                                height: 1.3,
                                 color: Colors.white,
-                                fontSize: SetflowFontSize.titleLarge,
-                                fontWeight: FontWeight.w900,
-                                fontFeatures: [FontFeature.tabularFigures()],
                               ),
                             ),
-                            Semantics(
-                              button: true,
-                              label: '휴식 종료',
-                              child: IconButton(
-                                onPressed: widget.onCancel,
-                                visualDensity: VisualDensity.compact,
-                                icon: const Icon(
-                                  SetflowIcons.close,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    Text(
+                      _clock,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: SetflowFontSize.headlineLarge,
+                        // 이 면에서 가장 큰 숫자 — display 굵기는 여기뿐이다.
+                        fontWeight: SetflowWeight.display,
+                        height: 1,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(width: SetflowSpacing.xs),
+                    // 휴식 루프에서 가장 자주 누르는 버튼이라 탭 한 번에 닿아야 한다.
+                    // 예전엔 바를 탭해야 펼쳐졌다 — 두 번 눌러야 했다.
+                    TextButton(
+                      key: const ValueKey('rest-bar-add'),
+                      onPressed: onAddTime,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: SetflowSpacing.xs2,
                         ),
                       ),
-                    ],
+                      child: const Text('+30초'),
+                    ),
+                    Semantics(
+                      button: true,
+                      label: '휴식 끝내기',
+                      child: IconButton(
+                        key: const ValueKey('rest-bar-finish'),
+                        onPressed: onCancel,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(
+                          SetflowIcons.close,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 휴식이 줄어드는 만큼 선이 짧아진다. 잉크 위 라임 — 브랜드가 채우는
+              // 색으로 쓰이는 자리다. 글자를 얹지 않으니 대비 걱정이 없다.
+              SizedBox(
+                height: _progressHeight,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: progress,
+                    // Align이 주는 느슨한 제약에서 ColoredBox는 높이 0으로
+                    // 접힌다 — 캡처에서 선이 통째로 사라졌다.
+                    heightFactor: 1,
+                    child: const ColoredBox(color: SetflowColors.brand),
                   ),
                 ),
-                if (_expanded)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      SetflowSpacing.sm,
-                      0,
-                      SetflowSpacing.sm,
-                      SetflowSpacing.xs,
-                    ),
-                    child: Row(
-                      children: [
-                        TextButton(
-                          onPressed: widget.onAddTime,
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(48, 40),
-                          ),
-                          child: const Text('+30초'),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

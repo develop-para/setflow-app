@@ -1219,11 +1219,6 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     final unit = widget.exercise.template.isCardio ? '구간' : '세트';
     // What was actually lifted becomes the plan for the sets still ahead. The
     // snapshot is taken first so the toast can hand it straight back.
-    // 휴식 화면이 "무엇을 하다 쉬는지"를 말하려면 지금 찍어 둬야 한다.
-    if (set.completed) {
-      final session = state.sessions[state.dateOnly(widget.date)];
-      if (session != null) state.noteRestFocus(session, widget.exercise);
-    }
     final undo = AppState.snapshotPendingSets(widget.exercise, set);
     final adopted = state.adoptActualIntoPendingSets(widget.exercise, set);
     // The undo has to survive a PR: the first set of an exercise is very often

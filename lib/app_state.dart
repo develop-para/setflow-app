@@ -212,14 +212,12 @@ class AppState extends ChangeNotifier {
   String? gender;
   bool precisionRecommendationPrompted = false;
 
-  /// 지금 쉬는 이유. 휴식 화면이 "무엇을 하다 쉬는지"를 말할 수 있게 한다.
+  /// 지금 쉬는 이유. 휴식 바가 "무엇을 하다 쉬는지"를 말할 수 있게 한다.
   ///
   /// 타이머만 있으면 남은 시간밖에 못 보여준다. 몇 세트가 남았고 다음이 무엇인지는
-  /// 세트를 마친 그 순간에만 알 수 있어서, 그때 찍어 둔다.
+  /// 세트를 마친 그 순간에만 알 수 있어서, 그때 찍어 [startRestTimer]에 넘긴다.
+  /// 세트 완료가 아닌 휴식(함께 방의 공유 휴식)은 null — 지난 세트 얘기를 남기지 않는다.
   RestFocus? restFocus;
-
-  /// 휴식 화면을 접어 뒀는가. 접으면 헤더 아래 슬림 바로 돌아간다.
-  bool restFocusCollapsed = false;
 
   /// 세트를 밀어서 기록해 본 적이 있는가.
   ///
@@ -1106,8 +1104,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 방금 마친 세트를 기준으로 휴식 화면이 말할 내용을 채운다.
-  void noteRestFocus(WorkoutSession session, WorkoutExercise exercise) {
+  /// [exercise]의 지금 상태로 "어디쯤인지"를 계산한다. 마친 세트가 이미 완료로
+  /// 표시된 뒤에 불러야 남은 수가 맞는다.
+  static RestFocus restFocusFor(
+    WorkoutSession session,
+    WorkoutExercise exercise,
+  ) {
     final remaining = exercise.sets.where((item) => !item.completed).length;
     final index = session.exercises.indexOf(exercise);
     final next = remaining > 0
@@ -1116,19 +1118,11 @@ class AppState extends ChangeNotifier {
               .skip(index + 1)
               .where((item) => item.sets.any((set) => !set.completed))
               .firstOrNull;
-    restFocus = RestFocus(
+    return RestFocus(
       exerciseName: exercise.template.name,
       setsLeft: remaining,
       nextExercise: next?.template.name,
     );
-    restFocusCollapsed = false;
-  }
-
-  /// 휴식 화면을 접는다. 타이머는 계속 간다 — 잘못 누른 숫자를 고치러 갈 길은 있어야 한다.
-  void collapseRestFocus() {
-    if (restFocusCollapsed) return;
-    restFocusCollapsed = true;
-    notifyListeners();
   }
 
   /// 세트를 밀어서 기록했다. 힌트는 여기서 영구히 꺼진다.
@@ -1891,6 +1885,7 @@ class AppState extends ChangeNotifier {
   /// immediately afterwards.
   Future<void> toggleSet(WorkoutSetEntry set, {bool startRest = true}) async {
     set.completed = !set.completed;
+    RestFocus? focus;
     if (set.completed) {
       // 세트는 자기가 속한 세션을 모른다 — 도장을 찍으려면 찾아야 한다.
       for (final session in sessions.values) {
@@ -1905,6 +1900,9 @@ class AppState extends ChangeNotifier {
           // 어디서 완료해도 전광판이 같은 숫자를 본다("기록에서 완료하면
           // 함께에서는 반영이 안 되더라", 실기기 보고).
           _reportSetToParty(session, exercise, set);
+          // 타이머를 켜기 전에 계산한다 — 알림의 "다음: 스쿼트" 줄은 시작
+          // 인텐트에 실리므로, 뒤늦게 채우면 한 세트 전 얘기가 올라간다.
+          focus = restFocusFor(session, exercise);
           break;
         }
       }
@@ -1913,7 +1911,7 @@ class AppState extends ChangeNotifier {
         startRest &&
         autoStartRestTimer &&
         set.restSeconds > 0) {
-      startRestTimer(set.restSeconds);
+      startRestTimer(set.restSeconds, focus: focus);
     }
     _schedulePersist();
     notifyListeners();
@@ -6202,7 +6200,20 @@ class AppState extends ChangeNotifier {
     customExercises: List<ExerciseTemplate>.unmodifiable(customExercises),
   );
 
-  void startRestTimer(int seconds) {
+  /// 휴식을 새로 시작한다. [focus]는 "무엇을 하다 쉬는지" — 세트 완료가 아닌
+  /// 시작(함께 방의 공유 휴식)은 비워서 지난 세트 얘기가 바에 남지 않게 한다.
+  /// 이미 가는 휴식을 늘리는 건 [extendRestTimer]다.
+  void startRestTimer(int seconds, {RestFocus? focus}) {
+    restFocus = focus;
+    _runRestTimer(seconds);
+  }
+
+  /// 가던 휴식에 [seconds]초를 더한다. 어디쯤인지는 그대로다.
+  void extendRestTimer([int seconds = 30]) {
+    _runRestTimer(restRemaining + seconds);
+  }
+
+  void _runRestTimer(int seconds) {
     _restTimer?.cancel();
     final safeSeconds = seconds.clamp(1, 3600);
     _restTimerEndsAt = DateTime.now().add(Duration(seconds: safeSeconds));
@@ -6224,9 +6235,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 알림 창에 적을 "지금 어디쯤인지". 휴식 화면([RestFocusOverlay])이 답하는
-  /// 것과 같은 질문이다 — 막았으면 궁금해질 것을 답해야 한다는 규칙은 알림에도
-  /// 적용된다. 방금 마친 세트를 모르면 null이고 네이티브가 기본 문구를 쓴다.
+  /// 알림 창에 적을 "지금 어디쯤인지". 휴식 바([GlobalRestTimerOverlay])가
+  /// 답하는 것과 같은 질문이다. 방금 마친 세트를 모르면 null이고 네이티브가
+  /// 기본 문구를 쓴다.
   String? get restTimerDetail {
     final focus = restFocus;
     if (focus == null) return null;
