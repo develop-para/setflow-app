@@ -235,6 +235,7 @@ class AppState extends ChangeNotifier {
   /// 세트를 마친 그 순간에만 알 수 있어서, 그때 찍어 [startRestTimer]에 넘긴다.
   /// 세트 완료가 아닌 휴식(함께 방의 공유 휴식)은 null — 지난 세트 얘기를 남기지 않는다.
   RestFocus? restFocus;
+  int restSessionId = 0;
 
   /// 세트를 밀어서 기록해 본 적이 있는가.
   ///
@@ -4762,6 +4763,34 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  Future<CoachingWorkoutHistoryPage> loadCoachingWorkoutHistory(
+    String scheduleId, {
+    CoachingWorkoutCursor? before,
+  }) async {
+    final epoch = _accountEpoch;
+    final schedule = coachingSchedules
+        .where((item) => item.id == scheduleId)
+        .firstOrNull;
+    if (schedule == null || (schedule.isCompleted && role != UserRole.member)) {
+      throw StateError('수업이 종료되었거나 일정을 찾을 수 없습니다.');
+    }
+    final repository = businessRepository;
+    if (repository is! CoachingWorkoutHistoryRepository) {
+      throw StateError('과거 운동 기록 조회 기능이 연결되지 않았습니다.');
+    }
+    final page = await (repository as CoachingWorkoutHistoryRepository)
+        .listCoachingWorkoutHistory(scheduleId, before: before);
+    if (!_isCurrentAccount(epoch) ||
+        page.scheduleId != scheduleId ||
+        page.memberUserId != schedule.memberUserId ||
+        page.sessions.any(
+          (session) => session.userId != schedule.memberUserId,
+        )) {
+      throw StateError('회원 또는 계정이 변경되어 기록 조회를 취소했습니다.');
+    }
+    return page;
+  }
+
   Future<CoachingHealthOverview> loadCoachingHealthOverview(
     String scheduleId,
   ) async {
@@ -6330,6 +6359,7 @@ class AppState extends ChangeNotifier {
   /// 이미 가는 휴식을 늘리는 건 [extendRestTimer]다.
   void startRestTimer(int seconds, {RestFocus? focus}) {
     restFocus = focus;
+    restSessionId++;
     _runRestTimer(seconds);
   }
 

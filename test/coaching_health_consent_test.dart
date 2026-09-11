@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
+import 'package:setflow/theme.dart';
+import 'package:setflow/screens/coaching_workout_history_screen.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/business_repository.dart';
 
@@ -10,6 +13,68 @@ const _gymId = '33333333-3333-4333-8333-333333333333';
 const _scheduleId = '44444444-4444-4444-8444-444444444444';
 
 void main() {
+  testWidgets(
+    'class history opens sets, loads older pages and clears revoked data',
+    (tester) async {
+      final repository = _HealthConsentFake();
+      final state = AppState(
+        businessRepository: repository,
+        loadBusinessWithoutAuth: true,
+      );
+      await state.initialize();
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: CoachingWorkoutHistoryScreen(
+              schedule: _HealthConsentFake.schedule,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('2020.01.01'), findsOneWidget);
+      await tester.tap(find.text('2020.01.01'));
+      await tester.pumpAndSettle();
+      expect(find.text('스쿼트'), findsOneWidget);
+      expect(find.textContaining('100.0kg × 8회'), findsOneWidget);
+      expect(find.textContaining('자세 메모'), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('coaching-history-more')),
+      );
+      await tester.tap(find.byKey(const ValueKey('coaching-history-more')));
+      await tester.pumpAndSettle();
+      expect(repository.historyCursors.last?.sessionId, 'old-session');
+      expect(find.text('2018.01.01'), findsOneWidget);
+      expect(find.byKey(const ValueKey('coaching-history-more')), findsNothing);
+      repository.historyRevoked = true;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.text('2020.01.01'), findsNothing);
+      expect(find.text('2018.01.01'), findsNothing);
+      expect(find.textContaining('공유 동의와 수업 상태'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  test('history rejects a response belonging to another member', () async {
+    final repository = _HealthConsentFake()..wrongHistoryMember = true;
+    final state = AppState(
+      businessRepository: repository,
+      loadBusinessWithoutAuth: true,
+    );
+    addTearDown(state.dispose);
+    await state.initialize();
+    await expectLater(
+      state.loadCoachingWorkoutHistory(_scheduleId),
+      throwsStateError,
+    );
+  });
+
   test('health access is member-owned, class-scoped, and never snapshotted', () {
     final migrations = Directory('supabase/migrations')
         .listSync()
@@ -102,7 +167,10 @@ void main() {
 }
 
 class _HealthConsentFake
-    implements BusinessRepository, CoachingHealthConsentRepository {
+    implements
+        BusinessRepository,
+        CoachingHealthConsentRepository,
+        CoachingWorkoutHistoryRepository {
   static const access = BusinessAccess(
     userId: _memberUserId,
     accountRole: UserRole.member,
@@ -123,6 +191,56 @@ class _HealthConsentFake
     gymName: '동의 헬스장',
     createdAt: DateTime(2026, 8, 30),
   );
+
+  bool historyRevoked = false;
+  bool wrongHistoryMember = false;
+  final historyCursors = <CoachingWorkoutCursor?>[];
+
+  @override
+  Future<CoachingWorkoutHistoryPage> listCoachingWorkoutHistory(
+    String scheduleId, {
+    CoachingWorkoutCursor? before,
+  }) async {
+    historyCursors.add(before);
+    if (historyRevoked) throw StateError('동의 철회');
+    return CoachingWorkoutHistoryPage(
+      scheduleId: scheduleId,
+      memberUserId: wrongHistoryMember ? 'other-member' : _memberUserId,
+      nextCursor: before == null
+          ? CoachingWorkoutCursor(
+              date: DateTime(2020),
+              sessionId: 'old-session',
+            )
+          : null,
+      sessions: [
+        BusinessWorkoutSession(
+          id: before == null ? 'old-session' : 'older-session',
+          userId: _memberUserId,
+          date: DateTime(before == null ? 2020 : 2018),
+          feedbacks: const [],
+          exercises: const [
+            BusinessWorkoutExercise(
+              id: 'exercise',
+              name: '스쿼트',
+              orderIndex: 0,
+              sets: [
+                BusinessWorkoutSet(
+                  id: 'set',
+                  setNumber: 1,
+                  type: 'normal',
+                  weight: 100,
+                  reps: 8,
+                  completed: true,
+                  restSeconds: 90,
+                  memo: '자세 메모',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
   bool? lastShareWithTrainer;
   bool? lastShareWithGym;

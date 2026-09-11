@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme.dart';
-import '../theme/icons.dart';
 
 class SetflowCard extends StatelessWidget {
   const SetflowCard({
@@ -620,24 +619,111 @@ class ErrorState extends StatelessWidget {
   }
 }
 
-/// 휴식 띠. 헤더 자리에서 내려와 타이머·지금 어디쯤인지·+30초·끝내기를 한 줄에 둔다.
-///
-/// 예전에는 세트를 마치면 잉크색 판이 화면을 덮었다("휴식 중엔 다른 걸 못 하게").
-/// 테스터들은 그것을 불편으로 느꼈다 — 방금 기록한 숫자를 확인하거나 다음 세트를
-/// 미리 보려는데 매번 "화면 보기"부터 눌러야 했다. 휴식 동안 폰을 보는 사람은
-/// 딴짓이 아니라 **기록을 보는 것**이고, 휴식이 끝난 줄 모르는 문제는 소리·진동·
-/// 알림이 이미 답한다. 그래서 덮는 판은 없애고, 그 판이 답하던 것(남은 세트,
-/// 다음 종목)과 거기 있던 버튼(+30초)을 이 띠에 항상 보이게 옮겼다.
-///
-/// 모양은 "떠 있는 알림"이 아니라 **위에서 매달린 띠**다. 옛 바는 좌우 여백과 그림자를
-/// 단 검은 알약이 헤더 위에 둥둥 떠서 토스트처럼 보였다. 지금은 화면 폭을 다 쓰고
-/// 아래 모서리만 둥글다. 진행은 아래 가장자리를 따라 줄어드는 **라임 선**이다 —
-/// 잉크 위 라임은 이 앱에서 가장 잘 읽히는 조합이고(함께 탭의 전광판과 같은 언어),
-/// 옛 흰 워시는 캡처에서도 안 보였다.
-///
-/// 높이를 고정하지 않는다 — 글자 크기를 키운 사용자에게는 두 줄이 자란다. 폭은
-/// 한 줄이 정해져 있어서(시계·+30초·✕가 나란히) 배율만 1.3배에서 묶는다 — 달력 칸·전광판과
-/// 같은 이유다. 320px 폰에서 1.5배는 29px, 2배는 80px 오른쪽으로 넘쳤다.
+/// 이동 가능한 휴식창. 창을 접어도 타이머는 계속 실행한다.
+class FloatingRestTimer extends StatefulWidget {
+  const FloatingRestTimer({
+    required this.sessionId,
+    required this.seconds,
+    required this.totalSeconds,
+    required this.onAddTime,
+    required this.onCancel,
+    this.exerciseName,
+    this.setsLeft = 0,
+    this.nextExercise,
+    super.key,
+  });
+  final int sessionId;
+  final int seconds;
+  final int totalSeconds;
+  final VoidCallback onAddTime;
+  final VoidCallback onCancel;
+  final String? exerciseName;
+  final int setsLeft;
+  final String? nextExercise;
+  @override
+  State<FloatingRestTimer> createState() => _FloatingRestTimerState();
+}
+
+class _FloatingRestTimerState extends State<FloatingRestTimer> {
+  bool _expanded = true;
+  Alignment _alignment = const Alignment(1, -0.75);
+  final _panelKey = GlobalKey();
+  @override
+  void didUpdateWidget(FloatingRestTimer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sessionId != widget.sessionId) _expanded = true;
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Padding(
+      padding: const EdgeInsets.all(SetflowSpacing.sm),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Align(
+          alignment: _alignment,
+          child: TapRegion(
+            onTapOutside: (_) {
+              if (_expanded) setState(() => _expanded = false);
+            },
+            child: GestureDetector(
+              key: const ValueKey('rest-floating-drag'),
+              onPanUpdate: (details) {
+                final box =
+                    _panelKey.currentContext?.findRenderObject() as RenderBox?;
+                final size = box?.size ?? const Size(240, 180);
+                final dx = constraints.maxWidth - size.width;
+                final dy = constraints.maxHeight - size.height;
+                setState(() {
+                  _alignment = Alignment(
+                    dx <= 0
+                        ? 0
+                        : (_alignment.x + details.delta.dx * 2 / dx).clamp(
+                            -1.0,
+                            1.0,
+                          ),
+                    dy <= 0
+                        ? 0
+                        : (_alignment.y + details.delta.dy * 2 / dy).clamp(
+                            -1.0,
+                            1.0,
+                          ),
+                  );
+                });
+              },
+              child: SizedBox(
+                key: _panelKey,
+                width: _expanded ? 240 : 144,
+                child: SingleChildScrollView(
+                  physics: constraints.maxHeight < 180
+                      ? const ClampingScrollPhysics()
+                      : const NeverScrollableScrollPhysics(),
+                  child: _expanded
+                      ? GlobalRestTimerOverlay(
+                          seconds: widget.seconds,
+                          totalSeconds: widget.totalSeconds,
+                          onAddTime: widget.onAddTime,
+                          onCancel: widget.onCancel,
+                          exerciseName: widget.exerciseName,
+                          setsLeft: widget.setsLeft,
+                          nextExercise: widget.nextExercise,
+                        )
+                      : FilledButton(
+                          key: const ValueKey('rest-floating-reopen'),
+                          onPressed: () => setState(() => _expanded = true),
+                          child: Text(
+                            '휴식 ${widget.seconds ~/ 60}:${(widget.seconds % 60).toString().padLeft(2, '0')}',
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class GlobalRestTimerOverlay extends StatelessWidget {
   const GlobalRestTimerOverlay({
     required this.seconds,
@@ -696,9 +782,7 @@ class GlobalRestTimerOverlay extends StatelessWidget {
         // 없고, 그러면 모든 Text에 노란 이중 밑줄이 붙는다.
         child: Material(
           color: SetflowColors.ink,
-          borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(SetflowRadii.lg),
-          ),
+          borderRadius: BorderRadius.circular(SetflowRadii.lg),
           clipBehavior: Clip.antiAlias,
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -710,78 +794,58 @@ class GlobalRestTimerOverlay extends StatelessWidget {
                   SetflowSpacing.xs2,
                   SetflowSpacing.xs2,
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
                             '휴식 중',
-                            style: TextStyle(
-                              fontSize: SetflowFontSize.caption,
-                              fontWeight: SetflowWeight.strong,
-                              letterSpacing: 1,
-                              color: Colors.white.withValues(alpha: .6),
-                            ),
+                            style: TextStyle(color: Colors.white),
                           ),
-                          if (where != null)
-                            Text(
-                              where,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: SetflowFontSize.label,
-                                fontWeight: SetflowWeight.strong,
-                                height: 1.3,
-                                color: Colors.white,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: SetflowSpacing.sm),
-                    Text(
-                      _clock,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: SetflowFontSize.headlineLarge,
-                        // 이 면에서 가장 큰 숫자 — display 굵기는 여기뿐이다.
-                        fontWeight: SetflowWeight.display,
-                        height: 1,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    const SizedBox(width: SetflowSpacing.xs),
-                    // 휴식 루프에서 가장 자주 누르는 버튼이라 탭 한 번에 닿아야 한다.
-                    // 예전엔 바를 탭해야 펼쳐졌다 — 두 번 눌러야 했다.
-                    TextButton(
-                      key: const ValueKey('rest-bar-add'),
-                      onPressed: onAddTime,
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        visualDensity: VisualDensity.compact,
-                        minimumSize: const Size(0, 40),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: SetflowSpacing.xs2,
                         ),
-                      ),
-                      child: const Text('+30초'),
+                        Text(
+                          _clock,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: SetflowFontSize.headlineLarge,
+                            fontWeight: SetflowWeight.display,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
                     ),
-                    Semantics(
-                      button: true,
-                      label: '휴식 끝내기',
-                      child: IconButton(
-                        key: const ValueKey('rest-bar-finish'),
-                        onPressed: onCancel,
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(
-                          SetflowIcons.close,
+                    if (where != null)
+                      Text(
+                        where,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
                           color: Colors.white,
-                          size: 20,
+                          fontSize: SetflowFontSize.label,
                         ),
                       ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          key: const ValueKey('rest-bar-add'),
+                          onPressed: onAddTime,
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('+30초'),
+                        ),
+                        TextButton(
+                          key: const ValueKey('rest-bar-finish'),
+                          onPressed: onCancel,
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('끝내기'),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -1261,7 +1261,7 @@ Future<void> _showMemberHealthConsentSheet(
               ),
               const SizedBox(height: SetflowSpacing.md),
               Text(
-                '승인하면 현재 프로필, 신체 정보와 체성분, 통증·부상, 회복 상태의 최신값을 볼 수 있습니다. 전체 건강정보 사본은 수업 기록에 저장하지 않습니다.',
+                '승인하면 현재 프로필, 신체 정보와 전체 체성분 기록, 통증·부상·회복 상태, 수업 전 개인 운동을 포함한 과거 운동 기록과 세트별 무게·횟수·메모를 볼 수 있습니다. 전체 건강정보 사본은 수업 기록에 저장하지 않습니다.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   height: 1.5,

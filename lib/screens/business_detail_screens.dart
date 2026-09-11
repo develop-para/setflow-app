@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../app_state.dart';
+import 'coaching_workout_history_screen.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import '../widgets/common.dart';
 import '../widgets/recommendation_profile_summary.dart';
 
@@ -1210,7 +1212,7 @@ class _CoachingHealthOverviewSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                '${data.memberName}님의 건강정보',
+                '${data.memberName}님의 회원 정보',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: SetflowSpacing.xs),
@@ -1234,6 +1236,18 @@ class _CoachingHealthOverviewSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: SetflowSpacing.xl),
+              OutlinedButton.icon(
+                key: const ValueKey('coaching-open-workout-history'),
+                icon: const Icon(SetflowIcons.pastDays),
+                label: const Text('전체 운동 기록 보기'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        CoachingWorkoutHistoryScreen(schedule: schedule),
+                  ),
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
               const SectionTitle('기본 건강 정보'),
               const SizedBox(height: SetflowSpacing.sm),
               if (facts.isEmpty)
@@ -1265,12 +1279,12 @@ class _CoachingHealthOverviewSheet extends StatelessWidget {
               else
                 const Text('회원이 등록한 통증·부상·회복 정보가 없습니다.'),
               const SizedBox(height: SetflowSpacing.xl),
-              const SectionTitle('최근 체성분'),
+              const SectionTitle('체성분 기록'),
               const SizedBox(height: SetflowSpacing.sm),
               if (data.bodyCompositions.isEmpty)
                 const Text('등록된 체성분 기록이 없습니다.')
               else
-                for (final composition in data.bodyCompositions.take(5))
+                for (final composition in data.bodyCompositions)
                   Padding(
                     padding: const EdgeInsets.only(bottom: SetflowSpacing.sm),
                     child: SetflowCard(

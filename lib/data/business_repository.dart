@@ -1968,3 +1968,30 @@ abstract interface class RoutineShareRevocationRepository {
     required String requestId,
   });
 }
+
+/// 수업의 담당자와 공유 동의를 매 요청 확인하는 과거 운동 기록 조회.
+abstract interface class CoachingWorkoutHistoryRepository {
+  Future<CoachingWorkoutHistoryPage> listCoachingWorkoutHistory(
+    String scheduleId, {
+    CoachingWorkoutCursor? before,
+  });
+}
+
+class CoachingWorkoutCursor {
+  const CoachingWorkoutCursor({required this.date, required this.sessionId});
+  final DateTime date;
+  final String sessionId;
+}
+
+class CoachingWorkoutHistoryPage {
+  const CoachingWorkoutHistoryPage({
+    required this.scheduleId,
+    required this.memberUserId,
+    required this.sessions,
+    this.nextCursor,
+  });
+  final String scheduleId;
+  final String memberUserId;
+  final List<BusinessWorkoutSession> sessions;
+  final CoachingWorkoutCursor? nextCursor;
+}

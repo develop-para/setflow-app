@@ -244,6 +244,7 @@ class SupabaseBusinessRepository
         TrainerConsultationSettingsRepository,
         MobileCoachingRepository,
         CoachingHealthConsentRepository,
+        CoachingWorkoutHistoryRepository,
         RoutineShareRevocationRepository,
         ConsultationRecommendationProfileShareRepository {
   const SupabaseBusinessRepository(this._client);
@@ -1066,6 +1067,40 @@ class SupabaseBusinessRepository
       throw StateError('Health consent was not returned.');
     }
     return _coachingHealthConsentFromRow(row);
+  }
+
+  @override
+  Future<CoachingWorkoutHistoryPage> listCoachingWorkoutHistory(
+    String scheduleId, {
+    CoachingWorkoutCursor? before,
+  }) async {
+    _requireUser();
+    final result = await _client.rpc(
+      'list_coaching_workout_history',
+      params: {
+        'schedule_id': _validatedUuid(scheduleId, 'scheduleId'),
+        'before_date': before == null ? null : _dateOnly(before.date),
+        'before_id': before == null
+            ? null
+            : _validatedUuid(before.sessionId, 'sessionId'),
+      },
+    );
+    final row = _mapValue(result);
+    if (row == null) throw StateError('회원 운동 기록을 불러오지 못했습니다.');
+    final cursor = _mapValue(row['next_cursor']);
+    return CoachingWorkoutHistoryPage(
+      scheduleId: _requiredUuid(row, 'schedule_id'),
+      memberUserId: _requiredUuid(row, 'member_user_id'),
+      sessions: List.unmodifiable(
+        _mapListValue(row['sessions']).map(_businessWorkoutSessionFromRow),
+      ),
+      nextCursor: cursor == null
+          ? null
+          : CoachingWorkoutCursor(
+              date: DateTime.parse(cursor['date'] as String),
+              sessionId: _requiredUuid(cursor, 'id'),
+            ),
+    );
   }
 
   @override
