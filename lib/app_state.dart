@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
 import 'data/business_repository.dart';
+import 'data/coaching_workout_repository.dart';
 import 'data/backend_cache.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
@@ -79,6 +80,7 @@ class AppState extends ChangeNotifier {
     this.exerciseCatalogRepository,
     this.togetherRepository,
     this.notificationRepository,
+    this.coachingWorkoutRepository,
   }) : _repository = repository ?? MemoryAppRepository(),
        _authSignOut = authSignOut ?? Auth.instance.signOut {
     if (routineCatalogRepository == null) {
@@ -111,6 +113,113 @@ class AppState extends ChangeNotifier {
   /// 알림함. Null이면 화면이 "알림은 로그인하면 볼 수 있어요"로 내려간다 —
   /// 알림은 계정에 붙으므로 로컬 대체본이 없다.
   final NotificationRepository? notificationRepository;
+  final CoachingWorkoutRepository? coachingWorkoutRepository;
+  List<CoachingWorkout> coachingWorkouts = const [];
+  bool coachingWorkoutsLoading = false;
+  Object? coachingWorkoutsError;
+  int _coachingWorkoutRequest = 0;
+
+  /// 개인 일지와 별도 원본을 합쳐 표시한다. 저장 경로는 각 원본을 계속 분리한다.
+  Future<void> refreshCoachingWorkouts() async {
+    final repository = coachingWorkoutRepository;
+    if (repository == null ||
+        (!Auth.instance.hasAuthenticatedUser && !loadBusinessWithoutAuth)) {
+      return;
+    }
+    final epoch = _accountEpoch;
+    final request = ++_coachingWorkoutRequest;
+    coachingWorkoutsLoading = true;
+    notifyListeners();
+    try {
+      final records = await repository.listCoachingWorkouts();
+      if (!_isCurrentAccount(epoch) || request != _coachingWorkoutRequest) {
+        return;
+      }
+      coachingWorkouts = List.unmodifiable(records);
+      coachingWorkoutsError = null;
+      _projectCoachingWorkouts();
+    } catch (error) {
+      if (!_isCurrentAccount(epoch) || request != _coachingWorkoutRequest) {
+        return;
+      }
+      coachingWorkoutsError = error;
+      rethrow;
+    } finally {
+      if (_isCurrentAccount(epoch) && request == _coachingWorkoutRequest) {
+        coachingWorkoutsLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  void _projectCoachingWorkouts() {
+    final projectedDates = <DateTime>[];
+    for (final entry in sessions.entries) {
+      final session = entry.value;
+      if (session.exercises.any(
+        (exercise) => exercise.coachingWorkoutId != null,
+      )) {
+        projectedDates.add(entry.key);
+      }
+      session.exercises.removeWhere(
+        (exercise) => exercise.coachingWorkoutId != null,
+      );
+    }
+    for (final date in projectedDates) {
+      if (sessions[date]?.exercises.isEmpty == true) sessions.remove(date);
+    }
+    final userId = Auth.instance.currentUser?.id ?? businessAccess?.userId;
+    if (userId == null) return;
+    for (final workout in coachingWorkouts) {
+      if (workout.memberUserId != userId || workout.session.exercises.isEmpty) {
+        continue;
+      }
+      final day = dateOnly(workout.date);
+      for (final exercise in workout.session.exercises) {
+        final sets = exercise.sets
+            .where((set) => !workout.isCancelled || set.completed)
+            .map((set) => set.copy()..completed = set.completed)
+            .toList();
+        if (sets.isEmpty) continue;
+        final session = sessions.putIfAbsent(
+          day,
+          () => WorkoutSession(date: day, exercises: []),
+        );
+        session.exercises.add(
+          WorkoutExercise(
+            id: 'coaching:${workout.id}:${exercise.id}',
+            template: exercise.template,
+            sets: sets,
+            coachingWorkoutId: workout.id,
+            coachingAuthor: workout.trainerName,
+          ),
+        );
+      }
+    }
+  }
+
+  bool _isCoachingSet(WorkoutSetEntry set) => sessions.values.any(
+    (session) => session.exercises.any(
+      (exercise) =>
+          exercise.coachingWorkoutId != null && exercise.sets.contains(set),
+    ),
+  );
+
+  Map<DateTime, WorkoutSession> _personalSessionsForPersistence() => {
+    for (final entry in sessions.entries)
+      if (entry.value.exercises.any(
+        (exercise) => exercise.coachingWorkoutId == null,
+      ))
+        entry.key: WorkoutSession(
+          date: entry.value.date,
+          startedAt: entry.value.startedAt,
+          endedAt: entry.value.endedAt,
+          exercises: entry.value.exercises
+              .where((exercise) => exercise.coachingWorkoutId == null)
+              .toList(),
+        ),
+  };
+
   Timer? _persistTimer;
   Timer? _serverSyncTimer;
   bool _initialized = false;
@@ -1807,6 +1916,7 @@ class AppState extends ChangeNotifier {
   }
 
   void addSet(WorkoutExercise exercise) {
+    if (exercise.coachingWorkoutId != null) return;
     final previous = exercise.sets.lastOrNull;
     final template = exercise.template;
     exercise.sets.add(
@@ -1845,12 +1955,14 @@ class AppState extends ChangeNotifier {
   }
 
   void removeExercise(WorkoutSession session, WorkoutExercise exercise) {
+    if (exercise.coachingWorkoutId != null) return;
     session.exercises.remove(exercise);
     _schedulePersist();
     notifyListeners();
   }
 
   void removeSet(WorkoutExercise exercise, WorkoutSetEntry set) {
+    if (exercise.coachingWorkoutId != null) return;
     exercise.sets.remove(set);
     for (var index = 0; index < exercise.sets.length; index++) {
       exercise.sets[index].number = index + 1;
@@ -1871,6 +1983,7 @@ class AppState extends ChangeNotifier {
     int? rir,
     bool clearRir = false,
   }) {
+    if (_isCoachingSet(set)) return;
     if (weight != null) set.weight = weight.clamp(0, 999);
     // null을 "안 바꿈"으로 쓰는 다른 인자와 달리 RIR은 null이 값이다 —
     // 지우려면 clearRir로 말해야 한다.
@@ -1902,6 +2015,7 @@ class AppState extends ChangeNotifier {
   /// must not rely on the debounce timer because the user may leave the page
   /// immediately afterwards.
   Future<void> toggleSet(WorkoutSetEntry set, {bool startRest = true}) async {
+    if (_isCoachingSet(set)) return;
     set.completed = !set.completed;
     RestFocus? focus;
     if (set.completed) {
@@ -2004,6 +2118,7 @@ class AppState extends ChangeNotifier {
     WorkoutExercise exercise,
     WorkoutSetEntry from,
   ) {
+    if (exercise.coachingWorkoutId != null) return 0;
     final index = exercise.sets.indexOf(from);
     if (index < 0) return 0;
     final cardio = exercise.template.isCardio;
@@ -2042,6 +2157,7 @@ class AppState extends ChangeNotifier {
   void restorePendingSets(Map<WorkoutSetEntry, Map<String, num>> snapshot) {
     if (snapshot.isEmpty) return;
     snapshot.forEach((set, values) {
+      if (_isCoachingSet(set)) return;
       set.weight = values['weight']!.toDouble();
       set.reps = values['reps']!.toInt();
       set.durationSeconds = values['durationSeconds']!.toInt();
@@ -2087,6 +2203,7 @@ class AppState extends ChangeNotifier {
 
   void deleteSession(DateTime date) {
     sessions.remove(dateOnly(date));
+    _projectCoachingWorkouts();
     _schedulePersist();
     notifyListeners();
   }
@@ -2094,6 +2211,7 @@ class AppState extends ChangeNotifier {
   int applyRoutine(RoutineData routine, DateTime date) {
     final session = sessionFor(date);
     final existingTemplateIds = session.exercises
+        .where((exercise) => exercise.coachingWorkoutId == null)
         .map((exercise) => exercise.template.id)
         .toSet();
     final additions = routine.exercises
@@ -2158,7 +2276,11 @@ class AppState extends ChangeNotifier {
   ) {
     final session = sessionFor(date);
     var exercise = session.exercises
-        .where((item) => item.template.id == recommendation.template.id)
+        .where(
+          (item) =>
+              item.coachingWorkoutId == null &&
+              item.template.id == recommendation.template.id,
+        )
         .firstOrNull;
     if (exercise == null) {
       exercise = WorkoutExercise(
@@ -2224,7 +2346,9 @@ class AppState extends ChangeNotifier {
   ) {
     final session = sessionFor(date);
     if (session.exercises.any(
-      (exercise) => exercise.template.id == recommendation.template.id,
+      (exercise) =>
+          exercise.coachingWorkoutId == null &&
+          exercise.template.id == recommendation.template.id,
     )) {
       return false;
     }
@@ -2383,6 +2507,13 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    if (canLoadPrivateData && coachingWorkoutRepository != null) {
+      try {
+        await refreshCoachingWorkouts();
+      } catch (_) {
+        /* own surface shows the error */
+      }
+    }
     if (firstError case final Object error) throw error;
   }
 
@@ -6331,7 +6462,9 @@ class AppState extends ChangeNotifier {
     businessNotifications: Map<String, bool>.unmodifiable(
       businessNotifications,
     ),
-    sessions: Map<DateTime, WorkoutSession>.unmodifiable(sessions),
+    sessions: Map<DateTime, WorkoutSession>.unmodifiable(
+      _personalSessionsForPersistence(),
+    ),
     routines: List<RoutineData>.unmodifiable(routines),
     goals: List<String>.unmodifiable(goals),
     heightCm: heightCm,
@@ -6502,8 +6635,11 @@ class AppState extends ChangeNotifier {
       sessions[entry.key] = WorkoutSession(
         date: entry.value.date,
         exercises: userExercises,
+        startedAt: entry.value.startedAt,
+        endedAt: entry.value.endedAt,
       );
     }
+    _projectCoachingWorkouts();
     routines
       ..clear()
       ..addAll(snapshot.routines);
@@ -6523,6 +6659,10 @@ class AppState extends ChangeNotifier {
   }
 
   void _resetForSignedOutUser() {
+    coachingWorkouts = const [];
+    coachingWorkoutsLoading = false;
+    coachingWorkoutsError = null;
+    _coachingWorkoutRequest++;
     _verifiedAdmin = false;
     hasPaidPlan = false;
     cloudSyncError = null;

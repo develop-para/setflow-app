@@ -6,6 +6,8 @@ import '../data/business_repository.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/pro_access_gate.dart';
+import 'coaching_workout_screens.dart';
 import '../widgets/recommendation_profile_summary.dart';
 
 enum BusinessTool {
@@ -239,100 +241,125 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: SetflowCard(
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(
-              schedule.isCompleted
-                  ? Icons.check_rounded
-                  : Icons.schedule_rounded,
-              color: schedule.isCompleted
-                  ? context.setflowColors.success
-                  : SetflowColors.ink,
-            ),
-            const SizedBox(width: SetflowSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    schedule.title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      decoration: schedule.isCompleted
-                          ? TextDecoration.lineThrough
+            Row(
+              children: [
+                Icon(
+                  schedule.isCompleted
+                      ? Icons.check_rounded
+                      : Icons.schedule_rounded,
+                  color: schedule.isCompleted
+                      ? context.setflowColors.success
+                      : SetflowColors.ink,
+                ),
+                const SizedBox(width: SetflowSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        schedule.title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          decoration: schedule.isCompleted
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(height: SetflowSpacing.xs),
+                      Text(
+                        '${_scheduleTime(schedule.startMinutes)}–${_scheduleTime(schedule.endMinutes)} · $counterpart',
+                        style: TextStyle(
+                          fontSize: SetflowFontSize.caption,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (showsHealthAccess)
+                  IconButton(
+                    key: Key('coaching-health-view-${schedule.id}'),
+                    tooltip: canViewHealth
+                        ? '회원 건강정보 열람'
+                        : schedule.isCompleted
+                        ? '수업 종료로 접근 만료'
+                        : '회원 동의 대기 중',
+                    onPressed: canViewHealth
+                        ? () => _showHealthOverviewSheet(context, schedule)
+                        : null,
+                    icon: Icon(
+                      canViewHealth
+                          ? Icons.health_and_safety_rounded
+                          : Icons.health_and_safety_outlined,
+                    ),
+                  ),
+                if (pending)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (canManage) ...[
+                  if (schedule.memberUserId != null && schedule.gymId != null)
+                    IconButton(
+                      key: Key('coaching-session-share-${schedule.id}'),
+                      tooltip: sharedRecord == null ? '수업 기록 공유' : '공유 완료',
+                      onPressed: sharedRecord == null
+                          ? () => _showPublishRecordSheet(context, schedule)
                           : null,
+                      icon: Icon(
+                        sharedRecord == null
+                            ? Icons.ios_share_outlined
+                            : Icons.verified_outlined,
+                      ),
                     ),
+                  Checkbox(
+                    key: Key('coaching-schedule-complete-${schedule.id}'),
+                    value: schedule.isCompleted,
+                    onChanged: (value) =>
+                        _toggleSchedule(context, schedule, value ?? false),
                   ),
-                  const SizedBox(height: SetflowSpacing.xs),
-                  Text(
-                    '${_scheduleTime(schedule.startMinutes)}–${_scheduleTime(schedule.endMinutes)} · $counterpart',
-                    style: TextStyle(
-                      fontSize: SetflowFontSize.caption,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  IconButton(
+                    key: Key('coaching-schedule-delete-${schedule.id}'),
+                    tooltip: '일정 삭제',
+                    onPressed: () => _deleteSchedule(context, schedule),
+                    icon: const Icon(Icons.delete_outline_rounded),
                   ),
-                ],
-              ),
+                ] else
+                  Icon(
+                    schedule.isCompleted
+                        ? Icons.check_circle_rounded
+                        : Icons.lock_outline_rounded,
+                    color: schedule.isCompleted
+                        ? context.setflowColors.success
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
+              ],
             ),
-            if (showsHealthAccess)
-              IconButton(
-                key: Key('coaching-health-view-${schedule.id}'),
-                tooltip: canViewHealth
-                    ? '회원 건강정보 열람'
-                    : schedule.isCompleted
-                    ? '수업 종료로 접근 만료'
-                    : '회원 동의 대기 중',
-                onPressed: canViewHealth
-                    ? () => _showHealthOverviewSheet(context, schedule)
-                    : null,
-                icon: Icon(
-                  canViewHealth
-                      ? Icons.health_and_safety_rounded
-                      : Icons.health_and_safety_outlined,
-                ),
+            if (canManage &&
+                schedule.memberUserId != null &&
+                state.coachingWorkoutRepository != null) ...[
+              const SizedBox(height: SetflowSpacing.sm),
+              OutlinedButton.icon(
+                key: Key('lesson-workout-${schedule.id}'),
+                icon: const Icon(SetflowIcons.record),
+                label: const Text('수업 운동 기록'),
+                onPressed: () async {
+                  if (!await requireProAccess(context)) return;
+                  if (!context.mounted) return;
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          CoachingWorkoutScreen(scheduleId: schedule.id),
+                    ),
+                  );
+                },
               ),
-            if (pending)
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            else if (canManage) ...[
-              if (schedule.memberUserId != null && schedule.gymId != null)
-                IconButton(
-                  key: Key('coaching-session-share-${schedule.id}'),
-                  tooltip: sharedRecord == null ? '수업 기록 공유' : '공유 완료',
-                  onPressed: sharedRecord == null
-                      ? () => _showPublishRecordSheet(context, schedule)
-                      : null,
-                  icon: Icon(
-                    sharedRecord == null
-                        ? Icons.ios_share_outlined
-                        : Icons.verified_outlined,
-                  ),
-                ),
-              Checkbox(
-                key: Key('coaching-schedule-complete-${schedule.id}'),
-                value: schedule.isCompleted,
-                onChanged: (value) =>
-                    _toggleSchedule(context, schedule, value ?? false),
-              ),
-              IconButton(
-                key: Key('coaching-schedule-delete-${schedule.id}'),
-                tooltip: '일정 삭제',
-                onPressed: () => _deleteSchedule(context, schedule),
-                icon: const Icon(Icons.delete_outline_rounded),
-              ),
-            ] else
-              Icon(
-                schedule.isCompleted
-                    ? Icons.check_circle_rounded
-                    : Icons.lock_outline_rounded,
-                color: schedule.isCompleted
-                    ? context.setflowColors.success
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-                size: 20,
-              ),
+            ],
           ],
         ),
       ),

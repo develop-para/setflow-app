@@ -10,6 +10,27 @@ abstract final class AppSnapshotCodec {
 
   static String encode(AppSnapshot snapshot) => jsonEncode(toJson(snapshot));
 
+  /// 코칭 원본에도 같은 세트 형식을 사용한다. 카탈로그 밖 종목도 복원된다.
+  static Map<String, dynamic> sessionToJson(WorkoutSession session) => {
+    ..._sessionToJson(session),
+    'exercises': session.exercises
+        .map(
+          (exercise) => {
+            ..._workoutExerciseToJson(exercise),
+            'template': _exerciseTemplateToJson(
+              exercise.template,
+              includeSearchMetadata: false,
+            ),
+          },
+        )
+        .toList(),
+  };
+
+  static WorkoutSession? sessionFromJson(
+    Map<String, dynamic> json,
+    List<ExerciseTemplate> exerciseCatalog,
+  ) => _sessionFromJson(json, _templateLookup(exerciseCatalog));
+
   /// A single routine, on the wire.
   ///
   /// Handing a routine to a training partner has to produce exactly the shape

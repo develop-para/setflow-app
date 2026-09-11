@@ -654,11 +654,17 @@ class WorkoutExercise {
     required this.id,
     required this.template,
     required this.sets,
+    this.coachingWorkoutId,
+    this.coachingAuthor,
   });
 
   final String id;
   final ExerciseTemplate template;
   final List<WorkoutSetEntry> sets;
+
+  /// 서버 원본에서 합쳐 보여 주는 코칭 세트. 개인 스냅샷에는 저장하지 않는다.
+  final String? coachingWorkoutId;
+  final String? coachingAuthor;
 
   WorkoutExercise copy() => WorkoutExercise(
     id: '${id}_copy_${DateTime.now().microsecondsSinceEpoch}',
@@ -687,7 +693,7 @@ class WorkoutSession {
   Duration? elapsedUntil(DateTime now) {
     final start = startedAt;
     if (start == null) return null;
-    final end = isComplete ? (endedAt ?? now) : now;
+    final end = isTimedWorkoutComplete ? (endedAt ?? now) : now;
     final elapsed = end.difference(start);
     return elapsed.isNegative ? Duration.zero : elapsed;
   }
@@ -715,6 +721,15 @@ class WorkoutSession {
   bool get hasResistance =>
       exercises.any((exercise) => !exercise.template.isCardio);
   bool get isComplete => totalSets > 0 && completedSets == totalSets;
+
+  /// 시작·종료 시각은 개인 원본의 도장이다. 별도 코칭 계획 때문에 늘리지 않는다.
+  bool get isTimedWorkoutComplete {
+    final timedSets = exercises
+        .where((exercise) => exercise.coachingWorkoutId == null)
+        .expand((exercise) => exercise.sets);
+    return timedSets.isNotEmpty && timedSets.every((set) => set.completed);
+  }
+
   double get completion => totalSets == 0 ? 0 : completedSets / totalSets;
 }
 

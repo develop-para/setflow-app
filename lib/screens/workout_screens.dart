@@ -14,8 +14,61 @@ import '../theme/muscle_illustrations.dart';
 import '../widgets/common.dart';
 import '../widgets/exercise_muscle_map.dart';
 import 'evidence_library_screen.dart';
+import 'coaching_workout_screens.dart';
 import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
+
+class _CoachedExerciseCard extends StatelessWidget {
+  const _CoachedExerciseCard({required this.exercise});
+  final WorkoutExercise exercise;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SetflowCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${exercise.coachingAuthor ?? '트레이너'} · 코칭 운동',
+            style: theme.textTheme.labelMedium,
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          Text(exercise.template.name, style: theme.textTheme.titleMedium),
+          const SizedBox(height: SetflowSpacing.sm),
+          for (final set in exercise.sets)
+            Padding(
+              padding: const EdgeInsets.only(bottom: SetflowSpacing.xs),
+              child: Text(
+                '${set.number}세트 · ${exercise.template.isCardio || exercise.template.isDurationHold ? '${set.durationSeconds}초' : '${set.weight}kg × ${set.reps}회'} · ${set.completed ? '완료' : '예정'}',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          TextButton.icon(
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CoachingWorkoutScreen(
+                    workoutId: exercise.coachingWorkoutId,
+                  ),
+                ),
+              );
+              if (context.mounted) {
+                unawaited(
+                  AppScope.of(
+                    context,
+                  ).refreshCoachingWorkouts().catchError((_) {}),
+                );
+              }
+            },
+            icon: const Icon(SetflowIcons.forward),
+            label: const Text('코칭 운동 열기'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class DailyWorkoutScreen extends StatefulWidget {
   const DailyWorkoutScreen({
@@ -163,22 +216,25 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                   ],
                 ),
               ),
-              PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.delete_outline_rounded,
-                      color: context.setflowColors.error,
-                    ),
-                    SizedBox(width: SetflowSpacing.sm2),
-                    Text(
-                      '이 날짜 기록 삭제',
-                      style: TextStyle(color: context.setflowColors.error),
-                    ),
-                  ],
+              if (session.exercises.any(
+                (exercise) => exercise.coachingWorkoutId == null,
+              ))
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        color: context.setflowColors.error,
+                      ),
+                      SizedBox(width: SetflowSpacing.sm2),
+                      Text(
+                        '이 날짜 기록 삭제',
+                        style: TextStyle(color: context.setflowColors.error),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ],
@@ -268,11 +324,13 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                 return Padding(
                   key: ValueKey(exercise.id),
                   padding: const EdgeInsets.only(bottom: 14),
-                  child: _ExerciseCard(
-                    date: date,
-                    exercise: exercise,
-                    index: index,
-                  ),
+                  child: exercise.coachingWorkoutId != null
+                      ? _CoachedExerciseCard(exercise: exercise)
+                      : _ExerciseCard(
+                          date: date,
+                          exercise: exercise,
+                          index: index,
+                        ),
                 );
               },
             ),
@@ -384,12 +442,25 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
   }
 
   Future<void> _deleteWorkout(BuildContext context) async {
+    final session = AppScope.of(context).sessionFor(date);
+    if (!session.exercises.any(
+      (exercise) => exercise.coachingWorkoutId == null,
+    )) {
+      return;
+    }
+    final hasCoaching = session.exercises.any(
+      (exercise) => exercise.coachingWorkoutId != null,
+    );
     final confirmed =
         await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('운동 기록을 삭제할까요?'),
-            content: Text('${date.month}월 ${date.day}일의 운동과 세트 기록이 모두 삭제됩니다.'),
+            content: Text(
+              hasCoaching
+                  ? '${date.month}월 ${date.day}일의 개인 운동 기록만 삭제됩니다. 코칭 운동 기록은 남습니다.'
+                  : '${date.month}월 ${date.day}일의 운동과 세트 기록이 모두 삭제됩니다.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
@@ -409,7 +480,10 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
         false;
     if (!confirmed || !context.mounted) return;
     AppScope.of(context).deleteSession(date);
-    AppSnackbar.success(context, '운동 기록을 삭제했어요.');
+    AppSnackbar.success(
+      context,
+      hasCoaching ? '개인 운동 기록을 삭제했어요.' : '운동 기록을 삭제했어요.',
+    );
     // Hosted as the 기록 tab this screen is the root route, so only a pushed
     // copy (a past date opened from the calendar) may close itself.
     final navigator = Navigator.of(context);
@@ -457,7 +531,7 @@ class _WorkoutSummaryBarState extends State<_WorkoutSummaryBar> {
     final running =
         session.startedAt != null &&
         session.totalSets > 0 &&
-        session.completedSets < session.totalSets;
+        !session.isTimedWorkoutComplete;
     if (running && _ticker == null) {
       _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
         if (mounted) setState(() {});

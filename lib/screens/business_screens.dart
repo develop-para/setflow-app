@@ -9,6 +9,8 @@ import '../data/business_repository.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/pro_access_gate.dart';
+import 'coaching_workout_screens.dart';
 import '../widgets/exercise_muscle_map.dart';
 import '../widgets/portal.dart';
 import '../widgets/recommendation_profile_summary.dart';
@@ -2175,6 +2177,27 @@ class _PeoplePageState extends State<PeoplePage> {
                       ),
                     ],
                   ),
+                  if (widget.role == UserRole.trainer &&
+                      liveMember?.userId != null &&
+                      state.coachingWorkoutRepository != null) ...[
+                    const SizedBox(height: SetflowSpacing.md),
+                    OutlinedButton.icon(
+                      icon: const Icon(SetflowIcons.record),
+                      label: const Text('운동 과제 관리'),
+                      onPressed: () async {
+                        if (!await requireProAccess(context)) return;
+                        if (!context.mounted || !sheetContext.mounted) return;
+                        Navigator.pop(sheetContext);
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => CoachingAssignmentsScreen(
+                              memberUserId: liveMember!.userId!,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                   const SizedBox(height: SetflowSpacing.md2),
                   OutlinedButton.icon(
                     onPressed: () {
@@ -2449,6 +2472,25 @@ class _PeoplePageState extends State<PeoplePage> {
               ),
             ),
             const SizedBox(height: SetflowSpacing.xl),
+            if (state.coachingWorkoutRepository != null) ...[
+              OutlinedButton.icon(
+                icon: const Icon(SetflowIcons.record),
+                label: const Text('운동 과제 관리'),
+                onPressed: () async {
+                  if (!await requireProAccess(context)) return;
+                  if (!context.mounted || !sheetContext.mounted) return;
+                  Navigator.pop(sheetContext);
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => CoachingAssignmentsScreen(
+                        memberUserId: connection.memberUserId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+            ],
             const SectionTitle('공유한 수업 기록'),
             const SizedBox(height: SetflowSpacing.sm),
             if (records.isEmpty)

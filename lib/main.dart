@@ -10,6 +10,8 @@ import 'data/backend_cache.dart';
 import 'data/business_repository.dart';
 import 'data/hive_app_repository.dart';
 import 'data/community_repository.dart';
+import 'data/coaching_workout_repository.dart';
+import 'data/supabase_coaching_workout_repository.dart';
 import 'data/exercise_catalog.dart';
 import 'data/exercise_catalog_repository.dart';
 import 'data/routine_catalog_repository.dart';
@@ -23,6 +25,7 @@ import 'data/supabase_routine_catalog_repository.dart';
 import 'data/supabase_notification_repository.dart';
 import 'data/supabase_together_repository.dart';
 import 'screens/business_screens.dart';
+import 'screens/coaching_workout_screens.dart';
 import 'screens/member_screens.dart';
 import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
@@ -76,6 +79,9 @@ Future<void> main() async {
     SetflowApp(
       repository: repository,
       businessRepository: SupabaseBusinessRepository(Supabase.instance.client),
+      coachingWorkoutRepository: SupabaseCoachingWorkoutRepository(
+        Supabase.instance.client,
+      ),
       routineCatalogRepository: SupabaseRoutineCatalogRepository(
         Supabase.instance.client,
         cache: backendCache,
@@ -103,6 +109,7 @@ class SetflowApp extends StatefulWidget {
   const SetflowApp({
     this.repository,
     this.businessRepository,
+    this.coachingWorkoutRepository,
     this.routineCatalogRepository,
     this.communityRepository,
     this.exerciseCatalogRepository,
@@ -113,6 +120,7 @@ class SetflowApp extends StatefulWidget {
 
   final AppRepository? repository;
   final BusinessRepository? businessRepository;
+  final CoachingWorkoutRepository? coachingWorkoutRepository;
   final RoutineCatalogRepository? routineCatalogRepository;
   final CommunityRepository? communityRepository;
   final ExerciseCatalogRepository? exerciseCatalogRepository;
@@ -134,6 +142,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   /// 보내므로, 이것이 없으면 같은 알림의 상세가 매 프레임 다시 열린다.
   int _handledPushSerial = 0;
   Timer? _persistenceSyncTimer;
+  Timer? _coachingSyncTimer;
   String? _observedAuthUserId;
 
   /// The recovery link arrives on a stream, not from a widget, so there is no
@@ -155,6 +164,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     state = AppState(
       repository: widget.repository,
       businessRepository: widget.businessRepository,
+      coachingWorkoutRepository: widget.coachingWorkoutRepository,
       routineCatalogRepository: widget.routineCatalogRepository,
       communityRepository: widget.communityRepository,
       exerciseCatalogRepository: widget.exerciseCatalogRepository,
@@ -166,6 +176,14 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     state.addListener(_openPendingPushDetail);
     _persistenceSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       unawaited(state.syncPersistenceToServer().catchError((_) {}));
+    });
+    _coachingSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (state.isInitialized &&
+          (WidgetsBinding.instance.lifecycleState == null ||
+              WidgetsBinding.instance.lifecycleState ==
+                  AppLifecycleState.resumed)) {
+        unawaited(state.refreshCoachingWorkouts().catchError((_) {}));
+      }
     });
     _appLinks = AppLinks();
     _observedAuthUserId = Auth.instance.currentUser?.id;
@@ -200,6 +218,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   /// 것은 셸이 같은 값을 보고 한다. 알림을 탭한 경로(푸시)와 알림함에서 누른
   /// 경로가 여기서 하나로 합쳐진다.
   void _openPendingPushDetail() {
+    if (!state.isInitialized) return;
     final open = state.pendingPushOpen;
     if (open == null || open.serial == _handledPushSerial) return;
     _handledPushSerial = open.serial;
@@ -210,6 +229,17 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     if (!mounted || !state.isInitialized) return;
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
+    if (open.event == 'coaching_workout') {
+      final workoutId = open.data['workoutId'];
+      if (workoutId != null && workoutId.isNotEmpty) {
+        navigator.push(
+          MaterialPageRoute(
+            builder: (_) => CoachingWorkoutScreen(workoutId: workoutId),
+          ),
+        );
+      }
+      return;
+    }
     final memberShell =
         state.role == UserRole.guest || state.role == UserRole.member;
     if (open.kind == 'community_reaction') {
@@ -353,6 +383,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       // 자리를 비운 사이 알림이 왔을 수 있다. 헤더의 점이 그때 붙어야
       // "배지는 있는데 앱은 모르는" 상태가 안 생긴다.
       unawaited(state.refreshUnreadNotifications().catchError((_) {}));
+      unawaited(state.refreshCoachingWorkouts().catchError((_) {}));
     }
     if (lifecycleState != AppLifecycleState.resumed ||
         !state.isInitialized ||
@@ -408,6 +439,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     unawaited(_appLinkSubscription?.cancel());
     unawaited(_pushOpenSubscription?.cancel());
     _persistenceSyncTimer?.cancel();
+    _coachingSyncTimer?.cancel();
     state.dispose();
     super.dispose();
   }

@@ -47,6 +47,7 @@ final architectureRules = <ArchitectureRule>[
       'lib/main.dart', // composition root: binds the adapters
       'lib/data/supabase_app_repository.dart',
       'lib/data/supabase_business_repository.dart',
+      'lib/data/supabase_coaching_workout_repository.dart',
       'lib/data/supabase_community_repository.dart',
       'lib/data/supabase_exercise_catalog_repository.dart',
       'lib/data/supabase_notification_repository.dart',

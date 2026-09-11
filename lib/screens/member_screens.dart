@@ -19,6 +19,7 @@ import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
 import '../widgets/portal.dart';
 import 'detail_screens.dart';
+import 'coaching_workout_screens.dart';
 import 'evidence_library_screen.dart';
 import 'member_menu_screen.dart';
 import 'notification_screen.dart';
@@ -1139,6 +1140,22 @@ class _MemberCoachingScheduleSection extends StatelessWidget {
                         upcoming[index],
                       ),
               ),
+              if (AppScope.of(context).coachingWorkoutRepository != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    key: Key('member-lesson-workout-${upcoming[index].id}'),
+                    icon: const Icon(SetflowIcons.record),
+                    label: const Text('수업 기록 · 대행 허용'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CoachingWorkoutScreen(
+                          scheduleId: upcoming[index].id,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ],
         ),
@@ -2003,6 +2020,7 @@ class HomeScreen extends StatelessWidget {
         ),
         children: [
           _TodaySection(onOpenRecord: onOpenRecord),
+          const MemberCoachingTasksCard(),
           const SizedBox(height: SetflowSpacing.xl),
           const _WeekSection(),
           const SizedBox(height: SetflowSpacing.xl),
