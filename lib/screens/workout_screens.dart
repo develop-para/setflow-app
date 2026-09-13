@@ -17,6 +17,7 @@ import 'evidence_library_screen.dart';
 import 'coaching_workout_screens.dart';
 import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
+import 'local_equipment_screen.dart';
 
 class _CoachedExerciseCard extends StatelessWidget {
   const _CoachedExerciseCard({required this.exercise});
@@ -1126,9 +1127,30 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                             _showExerciseGuide(context, exercise.template);
                           } else if (value == 'delete') {
                             _confirmDeleteExercise(context, state);
+                          } else if (value == 'equipment') {
+                            final item = state.localEquipment
+                                .where(
+                                  (item) => item.id == exercise.template.id,
+                                )
+                                .firstOrNull;
+                            if (item != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      EquipmentEditorScreen(item: item),
+                                ),
+                              );
+                            }
                           }
                         },
                         itemBuilder: (_) => [
+                          if (state.localEquipment.any(
+                            (item) => item.id == exercise.template.id,
+                          ))
+                            const PopupMenuItem(
+                              value: 'equipment',
+                              child: Text('기구 사진·설정'),
+                            ),
                           if (exerciseGuides.containsKey(exercise.template.id))
                             const PopupMenuItem(
                               value: 'guide',
@@ -3013,6 +3035,15 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       appBar: AppBar(
         title: const Text('운동 선택'),
         actions: [
+          IconButton(
+            tooltip: '내 기구 · 사진과 백업',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => LocalEquipmentScreen(date: widget.date),
+              ),
+            ),
+            icon: const Icon(SetflowIcons.equipment),
+          ),
           IconButton(
             tooltip: '새 운동 만들기',
             onPressed: () => _createExercise(context),

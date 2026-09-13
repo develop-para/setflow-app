@@ -12,6 +12,9 @@ import 'data/backend_cache.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
 import 'data/exercise_catalog_repository.dart';
+import 'data/local_equipment_repository.dart';
+import 'data/offline_exercise_catalog.dart';
+import 'data/bodyweight_exercise_catalog.dart';
 import 'data/notification_repository.dart';
 import 'data/routine_catalog_repository.dart';
 import 'data/together_repository.dart';
@@ -81,7 +84,10 @@ class AppState extends ChangeNotifier {
     this.togetherRepository,
     this.notificationRepository,
     this.coachingWorkoutRepository,
+    LocalEquipmentRepository? localEquipmentRepository,
   }) : _repository = repository ?? MemoryAppRepository(),
+       localEquipmentRepository =
+           localEquipmentRepository ?? MemoryLocalEquipmentRepository(),
        _authSignOut = authSignOut ?? Auth.instance.signOut {
     if (routineCatalogRepository == null) {
       _seedMarketRoutines();
@@ -99,6 +105,59 @@ class AppState extends ChangeNotifier {
   }
 
   final AppRepository _repository;
+  final LocalEquipmentRepository localEquipmentRepository;
+  List<LocalEquipment> localEquipment = const [];
+  Object? localEquipmentError;
+  bool _equipmentWriting = false;
+
+  Future<void> loadLocalEquipment() async {
+    try {
+      final items = await localEquipmentRepository.load();
+      if (_disposed) return;
+      localEquipment = List.unmodifiable(items);
+      localEquipmentError = null;
+      _rebuildSelectableExercises();
+      _rebindStoredExerciseTemplates();
+    } catch (error) {
+      localEquipmentError = error;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> saveLocalEquipment(LocalEquipment item) => _writeEquipment([
+    ...localEquipment.where((existing) => existing.id != item.id),
+    item,
+  ]);
+
+  Future<int> restoreEquipment(String source) async {
+    final incoming = EquipmentBackupCodec.decode(source);
+    // An older backup must not overwrite a newer seat setting or photo.
+    final existingIds = localEquipment.map((item) => item.id).toSet();
+    final additions = incoming
+        .where((item) => !existingIds.contains(item.id))
+        .toList();
+    await _writeEquipment([...localEquipment, ...additions]);
+    return additions.length;
+  }
+
+  Future<void> _writeEquipment(List<LocalEquipment> items) async {
+    if (_equipmentWriting || localEquipmentError != null) {
+      throw StateError('기구 목록을 다시 불러온 뒤 시도해주세요.');
+    }
+    _equipmentWriting = true;
+    try {
+      EquipmentBackupCodec.decode(EquipmentBackupCodec.encode(items));
+      await localEquipmentRepository.save(items);
+      if (_disposed) return;
+      localEquipment = List.unmodifiable(items);
+      _rebuildSelectableExercises();
+      _rebindStoredExerciseTemplates();
+      notifyListeners();
+    } finally {
+      _equipmentWriting = false;
+    }
+  }
+
   final Future<void> Function() _authSignOut;
   final BusinessRepository? businessRepository;
   final bool loadBusinessWithoutAuth;
@@ -357,7 +416,7 @@ class AppState extends ChangeNotifier {
   Timer? _restTimer;
   DateTime? _restTimerEndsAt;
 
-  final List<ExerciseTemplate> exercises = List.of(exerciseCatalog);
+  final List<ExerciseTemplate> exercises = List.of(offlineExerciseCatalog);
   final List<ExerciseTemplate> _sharedCatalogExercises = [];
   final List<ExerciseTemplate> customExercises = [];
   bool exerciseCatalogLoading = false;
@@ -611,9 +670,13 @@ class AppState extends ChangeNotifier {
 
   void _rebuildSelectableExercises() {
     final byId = <String, ExerciseTemplate>{
-      for (final exercise in exerciseCatalog) exercise.id: exercise,
+      for (final exercise in offlineExerciseCatalog) exercise.id: exercise,
       for (final exercise in _sharedCatalogExercises) exercise.id: exercise,
+      // Keep reviewed support-equipment labels when the original source only
+      // says body-only (e.g. hanging movements still need a pull-up bar).
+      for (final exercise in bodyweightExerciseCatalog) exercise.id: exercise,
       for (final exercise in customExercises) exercise.id: exercise,
+      for (final item in localEquipment) item.id: item.exercise,
     };
     exercises
       ..clear()
@@ -734,6 +797,7 @@ class AppState extends ChangeNotifier {
     final accountEpoch = _accountEpoch;
     try {
       await _loadCachedExerciseCatalog();
+      await loadLocalEquipment();
       if (exerciseCatalogRepository != null) {
         // Catalog refresh owns no account data, so begin it before the account
         // snapshot/network path. Snapshot retries must not delay exercise

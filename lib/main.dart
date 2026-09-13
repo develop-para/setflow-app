@@ -9,10 +9,12 @@ import 'data/app_repository.dart';
 import 'data/backend_cache.dart';
 import 'data/business_repository.dart';
 import 'data/hive_app_repository.dart';
+import 'data/hive_local_equipment_repository.dart';
+import 'data/local_equipment_repository.dart';
 import 'data/community_repository.dart';
 import 'data/coaching_workout_repository.dart';
 import 'data/supabase_coaching_workout_repository.dart';
-import 'data/exercise_catalog.dart';
+import 'data/offline_exercise_catalog.dart';
 import 'data/exercise_catalog_repository.dart';
 import 'data/routine_catalog_repository.dart';
 import 'data/notification_repository.dart';
@@ -77,6 +79,7 @@ Future<void> main() async {
       : null;
   runApp(
     SetflowApp(
+      localEquipmentRepository: HiveLocalEquipmentRepository(),
       repository: repository,
       businessRepository: SupabaseBusinessRepository(Supabase.instance.client),
       coachingWorkoutRepository: SupabaseCoachingWorkoutRepository(
@@ -96,7 +99,7 @@ Future<void> main() async {
       ),
       togetherRepository: SupabaseTogetherRepository(
         Supabase.instance.client,
-        exerciseCatalog: exerciseCatalog,
+        exerciseCatalog: offlineExerciseCatalog,
       ),
       notificationRepository: SupabaseNotificationRepository(
         Supabase.instance.client,
@@ -107,6 +110,7 @@ Future<void> main() async {
 
 class SetflowApp extends StatefulWidget {
   const SetflowApp({
+    this.localEquipmentRepository,
     this.repository,
     this.businessRepository,
     this.coachingWorkoutRepository,
@@ -119,6 +123,7 @@ class SetflowApp extends StatefulWidget {
   });
 
   final AppRepository? repository;
+  final LocalEquipmentRepository? localEquipmentRepository;
   final BusinessRepository? businessRepository;
   final CoachingWorkoutRepository? coachingWorkoutRepository;
   final RoutineCatalogRepository? routineCatalogRepository;
@@ -162,6 +167,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     state = AppState(
+      localEquipmentRepository: widget.localEquipmentRepository,
       repository: widget.repository,
       businessRepository: widget.businessRepository,
       coachingWorkoutRepository: widget.coachingWorkoutRepository,

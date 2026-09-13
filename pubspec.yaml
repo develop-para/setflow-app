@@ -21,7 +21,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # by hand for real releases. The build number here is a placeholder for plain
 # `flutter run`; every distributed build overrides it with --build-number set
 # to the commit count. See docs/versioning.md.
-version: 1.15.0+1
+version: 1.16.0+1
 
 environment:
   sdk: ^3.12.2
@@ -48,6 +48,7 @@ dependencies:
   image: 4.9.1
   app_links: 7.2.1
   share_plus: 10.1.4
+  file_selector: 1.1.0
   url_launcher: 6.3.2
   firebase_core: ^4.14.0
   firebase_messaging: ^16.6.0

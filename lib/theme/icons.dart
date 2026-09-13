@@ -14,6 +14,11 @@ import 'package:flutter/material.dart';
 /// is how the app ended up with a rocket, a barbell and a gavel all meaning
 /// "important".
 abstract final class SetflowIcons {
+  static const equipment = Icons.fitness_center_rounded;
+  static const camera = Icons.photo_camera_outlined;
+  static const gallery = Icons.photo_library_outlined;
+  static const backup = Icons.file_upload_outlined;
+  static const restore = Icons.file_download_outlined;
   // --- primary navigation ---------------------------------------------------
   /// 홈 — 오늘 요약과 소식이 모이는 곳. 캘린더가 기록 탭으로 옮겨 가면서
   /// "홈 = 훈련 캘린더" 등식이 깨졌으므로 글리프도 집으로 돌아왔다.

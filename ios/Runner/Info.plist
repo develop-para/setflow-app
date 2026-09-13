@@ -42,9 +42,9 @@
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>근처에서 열린 함께 운동 공개방을 찾는 데만 씁니다.</string>
 		<key>NSCameraUsageDescription</key>
-		<string>운동 기록 사진을 바로 촬영해 커뮤니티에 공유하기 위해 카메라를 사용합니다.</string>
+		<string>기구 사진을 기기에 보관하거나 운동 기록 사진을 촬영하기 위해 카메라를 사용합니다.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>운동 기록 사진을 선택해 커뮤니티에 공유하기 위해 사진 보관함을 사용합니다.</string>
+		<string>기구 사진을 기기에 보관하거나 공유할 운동 기록 사진을 선택하기 위해 사진 보관함을 사용합니다.</string>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>

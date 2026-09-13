@@ -6,6 +6,7 @@ import 'package:setflow/app_state.dart';
 import 'package:setflow/data/app_repository.dart';
 import 'package:setflow/data/app_snapshot_codec.dart';
 import 'package:setflow/data/exercise_catalog.dart';
+import 'package:setflow/data/offline_exercise_catalog.dart';
 import 'package:setflow/data/exercise_catalog_repository.dart';
 import 'package:setflow/data/supabase_exercise_catalog_repository.dart';
 import 'package:setflow/theme/icons.dart';
@@ -123,7 +124,7 @@ void main() {
       await state.initialize();
 
       expect(state.exercises.any((item) => item.id == remote.id), isTrue);
-      expect(state.exercises.length, exerciseCatalog.length + 1);
+      expect(state.exercises.length, offlineExerciseCatalog.length + 1);
     },
   );
 
@@ -250,7 +251,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      expect(state.exercises.length, exerciseCatalog.length);
+      expect(state.exercises.length, offlineExerciseCatalog.length);
       expect(
         state.sessions[date]!.exercises.single.template.databaseId,
         remote.databaseId,
