@@ -902,6 +902,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(state.precisionRecommendationPrompted, isTrue);
       expect(state.recommendationProfile, isNull);
+      await _continueFullRecommendation(tester);
       expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
 
       state.dispose();
@@ -946,6 +947,7 @@ void main() {
     expect(state.recommendationProfile!.availableEquipment, {
       TrainingEquipment.bodyweight,
     });
+    await _continueFullRecommendation(tester);
     expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
 
     state.dispose();
@@ -989,6 +991,7 @@ void main() {
     await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
 
+    await _continueFullRecommendation(tester);
     expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
     expect(find.text(recommendation.template.name), findsOneWidget);
     expect(find.textContaining('중량 직접 선택'), findsOneWidget);
@@ -1033,6 +1036,7 @@ void main() {
     await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
 
+    await _continueFullRecommendation(tester);
     expect(find.text(first.template.name), findsOneWidget);
     await tester.tap(find.byKey(const Key('recommendation-no-equipment')));
     await tester.pumpAndSettle();
@@ -1073,6 +1077,7 @@ void main() {
 
     await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
+    await _continueFullRecommendation(tester);
     expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
     expect(find.text('직접 선택'), findsOneWidget);
     expect(await tester.binding.handlePopRoute(), isTrue);
@@ -1452,5 +1457,13 @@ Future<void> _logSet(WidgetTester tester, int number) async {
     find.byKey(ValueKey('inline-set-weight-$number')),
     const Offset(400, 0),
   );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _continueFullRecommendation(WidgetTester tester) async {
+  final apply = find.byKey(const ValueKey('training-focus-apply'));
+  expect(apply, findsOneWidget);
+  await tester.ensureVisible(apply);
+  await tester.tap(apply);
   await tester.pumpAndSettle();
 }

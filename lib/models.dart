@@ -673,16 +673,34 @@ class WorkoutExercise {
   );
 }
 
+enum TrainingMuscle {
+  chest('가슴'),
+  back('등'),
+  legs('하체'),
+  shoulders('어깨'),
+  biceps('이두'),
+  triceps('삼두'),
+  core('복근');
+
+  const TrainingMuscle(this.label);
+  final String label;
+}
+
 class WorkoutSession {
   WorkoutSession({
     required this.date,
     required this.exercises,
     this.startedAt,
     this.endedAt,
+    this.trainingFocus,
   });
 
   final DateTime date;
   final List<WorkoutExercise> exercises;
+
+  /// null: 아직 선택하지 않음. 빈 집합: 부위 제한 없는 완전 추천.
+  /// 날짜별 선택이며 다음 날로 자동 복사하지 않는다.
+  Set<TrainingMuscle>? trainingFocus;
 
   /// 첫 세트를 완료한 순간과 마지막 세트를 완료한 순간. "몇 시간 몇 분
   /// 운동했나"는 계획이 아니라 이 두 도장 사이의 시간이다. 세트를 되돌려도

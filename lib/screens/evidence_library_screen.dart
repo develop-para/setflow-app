@@ -8,9 +8,14 @@ import '../widgets/common.dart';
 typedef EvidenceLinkLauncher = Future<bool> Function(Uri uri);
 
 class EvidenceLibraryScreen extends StatelessWidget {
-  const EvidenceLibraryScreen({this.linkLauncher, super.key});
+  const EvidenceLibraryScreen({
+    this.linkLauncher,
+    this.referenceIds,
+    super.key,
+  });
 
   final EvidenceLinkLauncher? linkLauncher;
+  final Set<String>? referenceIds;
 
   Future<void> _openReference(
     BuildContext context,
@@ -38,7 +43,12 @@ class EvidenceLibraryScreen extends StatelessWidget {
     final referencesByCategory = {
       for (final category in EvidenceCategory.values)
         category: evidenceCatalog
-            .where((reference) => reference.category == category)
+            .where(
+              (reference) =>
+                  reference.category == category &&
+                  (referenceIds == null ||
+                      referenceIds!.contains(reference.id)),
+            )
             .toList(growable: false),
     };
 
@@ -96,7 +106,9 @@ class EvidenceLibraryScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: SetflowSpacing.lg),
-              for (final category in EvidenceCategory.values) ...[
+              for (final category in EvidenceCategory.values.where(
+                (category) => referencesByCategory[category]!.isNotEmpty,
+              )) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     SetflowSpacing.xs,
@@ -119,7 +131,7 @@ class EvidenceLibraryScreen extends StatelessWidget {
               ],
               const SizedBox(height: SetflowSpacing.sm),
               Text(
-                '최종 검토: 2026년 8월 17일 · 논문 내용과 앱 규칙이 바뀌면 이 목록도 함께 갱신합니다.',
+                '목록 업데이트: 2026년 9월 15일 · 논문 내용과 앱 규칙이 바뀌면 이 목록도 함께 갱신합니다.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,

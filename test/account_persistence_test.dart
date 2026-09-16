@@ -576,8 +576,16 @@ void main() {
 
     test('legacy snapshot requires an exact explicit user claim', () async {
       final gateway = _FakeSupabaseGateway(currentUserId: 'account-b');
+      final focusDay = DateTime(2026, 9, 15);
       final source = _ClaimedLegacySource(
         _snapshot(
+          sessions: {
+            focusDay: WorkoutSession(
+              date: focusDay,
+              exercises: [],
+              trainingFocus: {TrainingMuscle.chest, TrainingMuscle.triceps},
+            ),
+          },
           goals: const ['근육 증가'],
           routines: [
             _routine('mine_1'),
@@ -616,6 +624,17 @@ void main() {
       ]);
       expect(source.clearedFor, 'account-a');
       expect(gateway.rows, contains('account-a'));
+      expect(imported?.sessions[focusDay]?.trainingFocus, {
+        TrainingMuscle.chest,
+        TrainingMuscle.triceps,
+      });
+      final reloaded = await SupabaseAppRepository.withGateway(
+        gateway,
+      ).load(const []);
+      expect(reloaded?.sessions[focusDay]?.trainingFocus, {
+        TrainingMuscle.chest,
+        TrainingMuscle.triceps,
+      });
     });
   });
 
@@ -802,6 +821,7 @@ void main() {
 }
 
 AppSnapshot _snapshot({
+  Map<DateTime, WorkoutSession> sessions = const {},
   List<String> goals = const [],
   bool isDarkMode = false,
   String weightUnit = 'kg',
@@ -817,7 +837,7 @@ AppSnapshot _snapshot({
   isDarkMode: isDarkMode,
   weightUnit: weightUnit,
   restDefaultSeconds: 90,
-  sessions: const {},
+  sessions: sessions,
   routines: routines,
   goals: goals,
   heightCm: heightCm,

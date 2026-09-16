@@ -43,6 +43,44 @@ class EvidenceReference {
 
 final evidenceCatalog = List<EvidenceReference>.unmodifiable([
   EvidenceReference(
+    id: 'pelland_2026_dose_response',
+    category: EvidenceCategory.trainingPrescription,
+    title:
+        'The Resistance Training Dose Response: Meta-Regressions Exploring the Effects of Weekly Volume and Frequency on Muscle Hypertrophy and Strength Gains',
+    authors:
+        'Joshua C. Pelland, Jacob F. Remmert, Zac P. Robinson, Seth R. Hinson, Michael C. Zourdos',
+    year: 2026,
+    source: 'Sports Medicine, 56(2), 481–505',
+    evidenceType: '체계적 문헌고찰 · 메타회귀',
+    doi: '10.1007/s40279-025-02344-w',
+    officialUrl: Uri.parse('https://pubmed.ncbi.nlm.nih.gov/41343037/'),
+    appRules: const [
+      '자동 추천은 최근 7일 완료 세트와 오늘 계획을 함께 보고 추가 운동량을 정합니다.',
+      '검토한 복합 운동의 주동근은 1세트, 보조근은 0.5세트로 계산합니다.',
+    ],
+    limitations:
+        '67개 연구, 2,058명의 집단 평균입니다. 부위 분류와 일일 4–8세트·주간 6–16세트 예산은 앱의 보수적인 기본값이며, 논문이 개인별 상한이나 최적 세트 수를 확정한 것은 아닙니다.',
+  ),
+  EvidenceReference(
+    id: 'ramos_2024_split_full_body',
+    category: EvidenceCategory.trainingPrescription,
+    title:
+        'Efficacy of Split Versus Full-Body Resistance Training on Strength and Muscle Growth: A Systematic Review With Meta-Analysis',
+    authors:
+        'Domingo J. Ramos-Campo, Pedro J. Benito-Peinado, Luis Andreu-Caravaca, Miguel A. Rojo-Tirado, Jacobo Á. Rubio-Arias',
+    year: 2024,
+    source: 'Journal of Strength and Conditioning Research, 38(7), 1330–1340',
+    evidenceType: '체계적 문헌고찰 · 메타분석',
+    doi: '10.1519/JSC.0000000000004774',
+    officialUrl: Uri.parse('https://pubmed.ncbi.nlm.nih.gov/38595233/'),
+    appRules: const [
+      '오늘 부위를 직접 고르는 3·5분할과 부위 제한 없는 완전 추천을 제공합니다.',
+      '분할 이름의 우열 대신 선택한 부위, 누적 운동량과 수행 기록을 우선합니다.',
+    ],
+    limitations:
+        '운동량이 같을 때 분할과 전신 방식의 근력·근비대 차이가 뚜렷하지 않았습니다. 앱의 3·5분할 부위 조합 각각이 최적이라는 검증은 아닙니다.',
+  ),
+  EvidenceReference(
     id: 'brzycki-1993',
     category: EvidenceCategory.strengthEstimate,
     title: 'Strength Testing—Predicting a One-Rep Max from Reps-to-Fatigue',

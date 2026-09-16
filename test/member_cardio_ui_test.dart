@@ -55,6 +55,8 @@ void main() {
     await pumpScreen(tester, state, DailyWorkoutScreen(date: today));
     await tester.tap(find.text('운동 선택'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('training-focus-apply')));
+    await tester.pumpAndSettle();
 
     final recommendationCard = find.byType(SetflowCard).last;
     final recommendationText = tester
@@ -117,9 +119,12 @@ void main() {
 
     await pumpScreen(tester, state, const DashboardScreen());
     expect(find.text('근력 볼륨'), findsOneWidget);
-    expect(find.text('이번 주 유산소 30.5분'), findsOneWidget);
-    expect(find.text('시간·거리·RPE 기록'), findsOneWidget);
-    expect(find.text('주간 근력 볼륨'), findsOneWidget);
+    expect(find.text('500 kg·회'), findsOneWidget);
+    expect(find.text('유산소 30.5분'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('stats-period-week')));
+    await tester.pumpAndSettle();
+    expect(find.text('500 kg·회'), findsOneWidget);
+    expect(find.text('유산소 30.5분'), findsOneWidget);
     await state.flushPersistence();
   });
 
@@ -141,8 +146,10 @@ void main() {
     await pumpScreen(tester, state, const DashboardScreen());
 
     expect(find.text('유산소 시간'), findsOneWidget);
-    expect(find.text('45 분', findRichText: true), findsOneWidget);
-    expect(find.text('주간 유산소 시간'), findsOneWidget);
+    expect(find.text('45분'), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('stats-period-week')));
+    await tester.pumpAndSettle();
+    expect(find.text('45분'), findsWidgets);
     expect(find.text('근력 볼륨'), findsNothing);
     await state.flushPersistence();
   });

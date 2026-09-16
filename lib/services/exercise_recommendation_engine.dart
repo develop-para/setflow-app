@@ -3,6 +3,7 @@ import '../domain/exercise_recommendation_traits.dart';
 import '../models.dart';
 import 'cardio_prescription_engine.dart';
 import 'performance_engine.dart';
+import 'resistance_prescription_engine.dart';
 
 class NextExerciseRecommendation {
   const NextExerciseRecommendation({
@@ -133,6 +134,12 @@ abstract final class ExerciseRecommendationEngine {
     if (focus == _GoalFocus.strength || focus == _GoalFocus.muscleGain) {
       candidates.removeWhere((item) => item.isCardio);
     }
+    candidates.removeWhere(
+      (item) => !ResistancePrescriptionEngine.matchesFocus(
+        item,
+        session.trainingFocus,
+      ),
+    );
     if (candidates.isEmpty) return null;
 
     final referenceDay = DateTime(
@@ -149,6 +156,30 @@ abstract final class ExerciseRecommendationEngine {
           return !day.isAfter(referenceDay);
         })
         .toList(growable: false);
+    final weeklyVolume = ResistancePrescriptionEngine.volume(
+      history: history,
+      session: session,
+    );
+    final todayVolume = ResistancePrescriptionEngine.volume(
+      history: history,
+      session: session,
+      todayOnly: true,
+    );
+    candidates.removeWhere(
+      (item) =>
+          !item.isCardio &&
+          ResistancePrescriptionEngine.remainingSets(
+                template: item,
+                goal: trainingGoal,
+                weeklyVolume: weeklyVolume,
+                todayVolume: todayVolume,
+                profile: recommendationProfile,
+                plannedSessionSets:
+                    ResistancePrescriptionEngine.plannedSessionSets(session),
+              ) ==
+              0,
+    );
+    if (candidates.isEmpty) return null;
     final weeklySets = _weeklyCompletedSetsByMuscle(history, session.date);
     final weeklyCardioMinutes = _weeklyCardioMinutes(history, session.date);
     final originalOrder = {
@@ -189,13 +220,21 @@ abstract final class ExerciseRecommendationEngine {
       });
     }
     final primaryCandidate = candidates.first;
-    final candidate = _selectVariedCandidate(
-      candidates: candidates,
-      history: history,
-      referenceDay: referenceDay,
-      focus: focus,
-      rotateTies: completedExercise == null,
-    );
+    final candidate = primaryCandidate.isCardio
+        ? _selectVariedCandidate(
+            candidates: candidates,
+            history: history,
+            referenceDay: referenceDay,
+            focus: focus,
+            rotateTies: completedExercise == null,
+          )
+        : _selectResistanceCandidate(
+            candidates: candidates.where((item) => !item.isCardio).toList(),
+            history: history,
+            session: session,
+            completedExercise: completedExercise,
+            weeklyVolume: weeklyVolume,
+          );
 
     final prescription = PerformanceEngine.prescriptionFor(trainingGoal);
     final recoveryIsCurrent =
@@ -220,10 +259,12 @@ abstract final class ExerciseRecommendationEngine {
         : baseCardioPrescription;
     final historicalRecommendation = candidate.isCardio
         ? null
-        : PerformanceEngine.recommend(
-            sessions: history,
+        : ResistancePrescriptionEngine.prescribe(
+            history: history,
+            session: session,
             template: candidate,
             goal: trainingGoal,
+            profile: recommendationProfile,
           );
     final weeklyMuscleSets = weeklySets[candidate.muscle] ?? 0;
     final remainingCardio = 150 - weeklyCardioMinutes;
@@ -244,41 +285,43 @@ abstract final class ExerciseRecommendationEngine {
             : '심폐 체력과 전신 근지구력을 함께 구성하기 위한 규칙 제안입니다.',
       _GoalFocus.health => '밀기·당기기·하체·유산소 활동이 한쪽으로 치우치지 않게 하는 규칙 기반 제안입니다.',
     };
-    final reason = candidate.id == primaryCandidate.id
+    final reason = candidate.isCardio
         ? baseReason
-        : '$baseReason 최근 4주의 반복을 줄이고 종목을 고르게 순환했습니다.';
+        : historicalRecommendation!.reason;
     final personalizedReason = [
       reason,
+      if (session.trainingFocus?.isNotEmpty ?? false)
+        '오늘 선택한 ${session.trainingFocus!.map((item) => item.label).join(' · ')} 안에서 추천합니다.',
       if (recommendationProfile != null) '입력한 장비·숙련도와 직접 지정한 제외 동작을 반영했습니다.',
       if (recoveryIsLow) '오늘 회복 상태가 낮아 운동량과 기록 기반 시작 중량을 보수적으로 낮췄습니다.',
     ].join(' ');
     final startingWeight = historicalRecommendation?.weight ?? 0;
     final evidenceIds = <String>{
       ...(cardioPrescription?.evidenceIds ??
-          {...prescription.evidenceIds, 'nunes_2021_exercise_order'}),
+          {
+            ...historicalRecommendation!.evidenceIds,
+            'nunes_2021_exercise_order',
+            'ramos_2024_split_full_body',
+          }),
       if (recoveryIsLow) 'craven_2022_sleep_loss',
     };
     return NextExerciseRecommendation(
       template: candidate,
-      sets: recoveryIsLow && prescription.sets > 1
-          ? prescription.sets - 1
-          : prescription.sets,
-      minReps: prescription.minReps,
-      maxReps: prescription.maxReps,
-      restSeconds: prescription.restSeconds,
+      sets: historicalRecommendation?.sets ?? prescription.sets,
+      minReps: historicalRecommendation?.minReps ?? prescription.minReps,
+      maxReps: historicalRecommendation?.maxReps ?? prescription.maxReps,
+      restSeconds:
+          historicalRecommendation?.restSeconds ?? prescription.restSeconds,
       // A population-level paper cannot determine a safe kilogram value for
       // someone with no history on this exact exercise. Reuse only the
       // member's own eligible records; otherwise leave weight for direct input.
-      startingWeight: recoveryIsLow
-          ? _reducedStartingWeight(startingWeight)
-          : startingWeight,
+      startingWeight: startingWeight,
       goalLabel: trainingGoal.label,
       reason: personalizedReason,
       evidenceIds: evidenceIds,
       evidenceNote:
           cardioPrescription?.safetyNote ??
-          '세트·반복·휴식과 운동 우선순위는 연구 원칙을 반영합니다. '
-              '특정 종목, 장비, 숙련도, 제외 동작 필터는 설문과 기록을 조합한 앱 규칙이며 의학적 진단이 아닙니다.',
+          historicalRecommendation!.evidenceNote,
       cardioPrescription: cardioPrescription,
     );
   }
@@ -299,11 +342,6 @@ abstract final class ExerciseRecommendationEngine {
     TrainingExperienceLevel.advanced => CardioExperience.advanced,
     TrainingExperienceLevel.beginner || null => CardioExperience.beginner,
   };
-
-  static double _reducedStartingWeight(double weight) {
-    if (weight <= 0) return 0;
-    return (weight * .9 * 2).floorToDouble() / 2;
-  }
 
   static CardioPrescription _reduceCardioForLowRecovery(
     CardioPrescription prescription,
@@ -548,6 +586,88 @@ abstract final class ExerciseRecommendationEngine {
       return [...cardioFirst, '하체', '가슴', '어깨', '복근', '팔', '등'];
     }
     return [...cardioFirst, '하체', '등', '복근', '가슴', '어깨', '팔'];
+  }
+
+  static ExerciseTemplate _selectResistanceCandidate({
+    required List<ExerciseTemplate> candidates,
+    required List<WorkoutSession> history,
+    required WorkoutSession session,
+    required WorkoutExercise? completedExercise,
+    required Map<TrainingMuscle, double> weeklyVolume,
+  }) {
+    final order = {
+      for (var i = 0; i < candidates.length; i++) candidates[i].id: i,
+    };
+    final recentStart = DateTime(
+      session.date.year,
+      session.date.month,
+      session.date.day - 28,
+    );
+    final familiar = history
+        .where(
+          (item) =>
+              !item.date.isBefore(recentStart) &&
+              item.date.isBefore(
+                ResistancePrescriptionEngine.day(session.date),
+              ),
+        )
+        .expand((item) => item.exercises)
+        .where(
+          (item) =>
+              !item.id.startsWith('seed_') &&
+              item.sets.any((set) => set.completed && set.type == '일반'),
+        )
+        .map((item) => item.template.id)
+        .toSet();
+    final completedMuscles = completedExercise == null
+        ? <TrainingMuscle>{}
+        : ResistancePrescriptionEngine.primaryMuscles(
+            completedExercise.template,
+          );
+    bool continuesMuscle(ExerciseTemplate item) =>
+        ResistancePrescriptionEngine.primaryMuscles(
+          item,
+        ).any(completedMuscles.contains);
+    double volumeFor(ExerciseTemplate item) =>
+        ResistancePrescriptionEngine.primaryMuscles(
+          item,
+        ).fold<double>(0, (sum, muscle) => sum + (weeklyVolume[muscle] ?? 0));
+    int movementPriority(ExerciseTemplate item) {
+      final priorCompounds = session.exercises
+          .where(
+            (exercise) =>
+                exercise.template.muscle == item.muscle &&
+                ResistancePrescriptionEngine.compoundIds.contains(
+                  exercise.template.id,
+                ),
+          )
+          .length;
+      final preferCompound = priorCompounds < 2;
+      return ResistancePrescriptionEngine.compoundIds.contains(item.id) ==
+              preferCompound
+          ? 0
+          : 1;
+    }
+
+    candidates.sort((left, right) {
+      // 부위와 동작 우선순위가 먼저다. 날짜별 임의 순환은 기록의 연속성을 끊는다.
+      if (continuesMuscle(left) != continuesMuscle(right)) {
+        return continuesMuscle(left) ? -1 : 1;
+      }
+      final byMovement = movementPriority(
+        left,
+      ).compareTo(movementPriority(right));
+      if (byMovement != 0) return byMovement;
+      if (left.muscle != right.muscle) {
+        final byVolume = volumeFor(left).compareTo(volumeFor(right));
+        if (byVolume != 0) return byVolume;
+      }
+      if (familiar.contains(left.id) != familiar.contains(right.id)) {
+        return familiar.contains(left.id) ? -1 : 1;
+      }
+      return order[left.id]!.compareTo(order[right.id]!);
+    });
+    return candidates.first;
   }
 
   static ExerciseTemplate _selectVariedCandidate({

@@ -23,7 +23,9 @@ import 'models.dart';
 import 'services/setflow_web.dart';
 import 'services/cardio_prescription_engine.dart';
 import 'services/exercise_recommendation_engine.dart';
+import 'services/resistance_prescription_engine.dart';
 import 'services/performance_engine.dart';
+import 'services/workout_analytics.dart';
 import 'services/push_service.dart';
 import 'services/rest_timer_platform.dart';
 import 'services/auth_service.dart';
@@ -33,6 +35,7 @@ export 'domain/cardio.dart';
 export 'services/cardio_prescription_engine.dart';
 export 'services/exercise_recommendation_engine.dart';
 export 'services/performance_engine.dart';
+export 'services/workout_analytics.dart';
 
 class MemberProfileDraft {
   MemberProfileDraft({
@@ -225,7 +228,10 @@ class AppState extends ChangeNotifier {
       );
     }
     for (final date in projectedDates) {
-      if (sessions[date]?.exercises.isEmpty == true) sessions.remove(date);
+      if (sessions[date]?.exercises.isEmpty == true &&
+          sessions[date]?.trainingFocus == null) {
+        sessions.remove(date);
+      }
     }
     final userId = Auth.instance.currentUser?.id ?? businessAccess?.userId;
     if (userId == null) return;
@@ -267,12 +273,14 @@ class AppState extends ChangeNotifier {
   Map<DateTime, WorkoutSession> _personalSessionsForPersistence() => {
     for (final entry in sessions.entries)
       if (entry.value.exercises.any(
-        (exercise) => exercise.coachingWorkoutId == null,
-      ))
+            (exercise) => exercise.coachingWorkoutId == null,
+          ) ||
+          entry.value.trainingFocus != null)
         entry.key: WorkoutSession(
           date: entry.value.date,
           startedAt: entry.value.startedAt,
           endedAt: entry.value.endedAt,
+          trainingFocus: entry.value.trainingFocus,
           exercises: entry.value.exercises
               .where((exercise) => exercise.coachingWorkoutId == null)
               .toList(),
@@ -1552,6 +1560,12 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  WorkoutAnalytics get workoutAnalytics => WorkoutAnalyticsEngine.summarize(
+    sessions: sessions.values,
+    today: DateTime.now(),
+    formula: oneRepMaxFormula,
+  );
+
   ExercisePerformanceSummary? get featuredPerformance {
     ExercisePerformanceSummary? featured;
     for (final template in exercises) {
@@ -1586,16 +1600,27 @@ class AppState extends ChangeNotifier {
           ? null
           : _cardioWorkoutRecommendation(template, prescription);
     }
-    return PerformanceEngine.recommend(
-      sessions: history,
+    final referenceDay = dateOnly(before ?? DateTime.now());
+    return ResistancePrescriptionEngine.prescribe(
+      history: history,
+      session:
+          sessions[referenceDay] ??
+          WorkoutSession(date: referenceDay, exercises: []),
       template: template,
       goal: goal,
+      profile: recommendationProfile,
     );
   }
 
   WorkoutRecommendation? recommendationForDate(DateTime date) {
     if (!hasTrainingGoal) return null;
     final session = sessions[dateOnly(date)];
+    if (session != null &&
+        session.exercises.isEmpty &&
+        session.trainingFocus != null) {
+      final first = firstExerciseRecommendationForDate(date);
+      return first == null ? null : _nextExerciseWorkoutRecommendation(first);
+    }
     if (session != null && session.exercises.isNotEmpty) {
       WorkoutExercise? pendingExercise;
       for (final exercise in session.exercises) {
@@ -1630,6 +1655,8 @@ class AppState extends ChangeNotifier {
           recommendationProfile: recommendationProfile,
         );
         if (next != null) return _nextExerciseWorkoutRecommendation(next);
+        // 부위/운동량 조건을 만족한 후보가 없으면 예전 PR 종목으로 우회하지 않는다.
+        return null;
       }
     }
 
@@ -1667,6 +1694,26 @@ class AppState extends ChangeNotifier {
       recommendationProfile: recommendationProfile,
     );
   }
+
+  void setTrainingFocus(DateTime date, Set<TrainingMuscle> muscles) {
+    sessionFor(date).trainingFocus = Set.unmodifiable(muscles);
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  NextExerciseRecommendation? nextExerciseRecommendationForDate(
+    DateTime date, {
+    required WorkoutExercise completedExercise,
+    Set<String> excludedTemplateIds = const {},
+  }) => ExerciseRecommendationEngine.recommendNext(
+    catalog: _curatedRecommendationCatalog,
+    session: sessionFor(date),
+    completedExercise: completedExercise,
+    goals: goals,
+    weeklyHistory: sessions.values,
+    excludedTemplateIds: excludedTemplateIds,
+    recommendationProfile: recommendationProfile,
+  );
 
   WorkoutRecommendation? get featuredRecommendation {
     return recommendationForDate(DateTime.now());
@@ -1923,17 +1970,28 @@ class AppState extends ChangeNotifier {
     final resistancePrescription = !template.isCardio && goal != null
         ? PerformanceEngine.prescriptionFor(goal)
         : null;
-    final resistanceRecommendation = !template.isCardio
-        ? recommendationFor(template, before: dateOnly(date))
+    final resistanceRecommendation = !template.isCardio && goal != null
+        ? ResistancePrescriptionEngine.prescribe(
+            template: template,
+            goal: goal,
+            history: sessions.values,
+            session: session,
+            profile: recommendationProfile,
+          )
         : null;
     final previousPerformance = !template.isCardio
         ? performanceFor(template, before: dateOnly(date))
         : null;
+    // 11회 이상 기록은 e1RM 요약에서 빠져도 실제 중량 기록이다.
+    final hasResistanceHistory =
+        previousPerformance != null ||
+        (resistanceRecommendation?.weight ?? 0) > 0;
     final suggestedWeight =
         resistanceRecommendation?.weight ??
         previousPerformance?.latestSessionBest.set.weight ??
         0;
     final suggestedReps =
+        (!hasResistanceHistory ? defaultRepCount : null) ??
         resistanceRecommendation?.minReps ??
         previousPerformance?.latestSessionBest.set.reps ??
         defaultRepCount ??
@@ -1958,8 +2016,8 @@ class AppState extends ChangeNotifier {
                 ),
               ]
             : List.generate(
-                resistanceRecommendation?.sets ??
-                    defaultSetCount ??
+                (!hasResistanceHistory ? defaultSetCount : null) ??
+                    resistanceRecommendation?.sets ??
                     resistancePrescription?.sets ??
                     3,
                 (index) => WorkoutSetEntry(
@@ -2069,6 +2127,51 @@ class AppState extends ChangeNotifier {
     }
     if (intensityRpe != null) {
       set.intensityRpe = intensityRpe.clamp(0, 10);
+    }
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  /// 다이얼의 적용이 저장 지점이다. 뒤의 일반 세트 중 가벼운 무게만 올린다.
+  /// 사용자가 직접 고른 현재 값은 유지하고, 추정해 바꾼 뒤의 값만 되돌릴 수 있다.
+  Map<WorkoutSetEntry, double> updateSetWeight(
+    WorkoutExercise exercise,
+    WorkoutSetEntry from,
+    double weight,
+  ) {
+    if (exercise.coachingWorkoutId != null ||
+        !exercise.sets.contains(from) ||
+        !exercise.template.usesWeight ||
+        !weight.isFinite) {
+      return const {};
+    }
+    final previous = <WorkoutSetEntry, double>{};
+    final nextWeight = weight.clamp(0, 999).toDouble();
+    if (from.type == '일반' && nextWeight != from.weight) {
+      for (final set in exercise.sets.skip(exercise.sets.indexOf(from) + 1)) {
+        if (!set.completed && set.type == '일반' && set.weight < nextWeight) {
+          previous[set] = set.weight;
+          set.weight = nextWeight;
+        }
+      }
+    }
+    updateSet(from, weight: nextWeight);
+    return previous;
+  }
+
+  void restorePendingWeights(
+    WorkoutExercise exercise,
+    Map<WorkoutSetEntry, double> previous,
+    double propagatedWeight,
+  ) {
+    if (exercise.coachingWorkoutId != null) return;
+    for (final entry in previous.entries) {
+      final set = entry.key;
+      if (exercise.sets.contains(set) &&
+          !set.completed &&
+          set.weight == propagatedWeight) {
+        set.weight = entry.value;
+      }
     }
     _schedulePersist();
     notifyListeners();
@@ -2190,6 +2293,8 @@ class AppState extends ChangeNotifier {
     var changed = 0;
     for (final set in exercise.sets.skip(index + 1)) {
       if (set.completed) continue;
+      if (!cardio && (from.type != '일반' || set.type != '일반')) continue;
+      if (exercise.template.usesWeight && set.weight > from.weight) continue;
       final differs = cardio
           ? set.durationSeconds != from.durationSeconds ||
                 set.distanceKm != from.distanceKm ||
@@ -2218,10 +2323,22 @@ class AppState extends ChangeNotifier {
   }
 
   /// Puts back exactly what [snapshotPendingSets] captured.
-  void restorePendingSets(Map<WorkoutSetEntry, Map<String, num>> snapshot) {
+  void restorePendingSets(
+    Map<WorkoutSetEntry, Map<String, num>> snapshot, {
+    Map<WorkoutSetEntry, Map<String, num>>? expected,
+  }) {
     if (snapshot.isEmpty) return;
     snapshot.forEach((set, values) {
-      if (_isCoachingSet(set)) return;
+      if (set.completed || _isCoachingSet(set)) return;
+      final applied = expected?[set];
+      if (applied != null &&
+          (set.weight != applied['weight'] ||
+              set.reps != applied['reps'] ||
+              set.durationSeconds != applied['durationSeconds'] ||
+              set.distanceKm != applied['distanceKm'] ||
+              set.intensityRpe != applied['intensityRpe'])) {
+        return;
+      }
       set.weight = values['weight']!.toDouble();
       set.reps = values['reps']!.toInt();
       set.durationSeconds = values['durationSeconds']!.toInt();
@@ -6695,12 +6812,13 @@ class AppState extends ChangeNotifier {
       final userExercises = entry.value.exercises
           .where((exercise) => !exercise.id.startsWith('seed_'))
           .toList();
-      if (userExercises.isEmpty) continue;
+      if (userExercises.isEmpty && entry.value.trainingFocus == null) continue;
       sessions[entry.key] = WorkoutSession(
         date: entry.value.date,
         exercises: userExercises,
         startedAt: entry.value.startedAt,
         endedAt: entry.value.endedAt,
+        trainingFocus: entry.value.trainingFocus,
       );
     }
     _projectCoachingWorkouts();

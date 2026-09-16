@@ -279,6 +279,10 @@ abstract final class AppSnapshotCodec {
         'startedAt': session.startedAt!.toIso8601String(),
       if (session.endedAt != null)
         'endedAt': session.endedAt!.toIso8601String(),
+      if (session.trainingFocus != null)
+        'trainingFocus': session.trainingFocus!
+            .map((item) => item.name)
+            .toList(),
       'exercises': session.exercises.map(_workoutExerciseToJson).toList(),
     };
   }
@@ -302,6 +306,14 @@ abstract final class AppSnapshotCodec {
       exercises: exercises,
       startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
       endedAt: DateTime.tryParse(json['endedAt'] as String? ?? ''),
+      trainingFocus: json['trainingFocus'] is List
+          ? Set.unmodifiable(
+              TrainingMuscle.values.where(
+                (muscle) =>
+                    (json['trainingFocus'] as List).contains(muscle.name),
+              ),
+            )
+          : null,
     );
   }
 

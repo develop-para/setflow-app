@@ -896,10 +896,14 @@ class SupabaseAppRepository
       sessions: {
         for (final entry in source.sessions.entries)
           if (entry.value.exercises.any(
-            (exercise) => !exercise.id.startsWith('seed_'),
-          ))
+                (exercise) => !exercise.id.startsWith('seed_'),
+              ) ||
+              entry.value.trainingFocus != null)
             entry.key: WorkoutSession(
               date: entry.value.date,
+              startedAt: entry.value.startedAt,
+              endedAt: entry.value.endedAt,
+              trainingFocus: entry.value.trainingFocus,
               exercises: entry.value.exercises
                   .where((exercise) => !exercise.id.startsWith('seed_'))
                   .toList(growable: false),

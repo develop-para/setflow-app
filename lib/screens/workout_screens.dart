@@ -18,6 +18,7 @@ import 'coaching_workout_screens.dart';
 import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
 import 'local_equipment_screen.dart';
+import 'training_focus_sheet.dart';
 
 class _CoachedExerciseCard extends StatelessWidget {
   const _CoachedExerciseCard({required this.exercise});
@@ -112,6 +113,22 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
           onRecommendationChanged: state.setAutoRecommendNextExercise,
         ),
       ),
+      if (state.autoRecommendNextExercise && session.exercises.isEmpty)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const ValueKey('daily-training-focus'),
+            onPressed: _selectTrainingFocus,
+            icon: const Icon(SetflowIcons.goal),
+            label: Text(
+              session.trainingFocus == null
+                  ? '오늘 운동 부위 선택'
+                  : session.trainingFocus!.isEmpty
+                  ? '오늘 · 완전 추천'
+                  : '오늘 · ${session.trainingFocus!.map((item) => item.label).join(' · ')}',
+            ),
+          ),
+        ),
       if (state.persistenceError != null)
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -203,10 +220,20 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
             onSelected: (value) {
               if (value == 'delete') _deleteWorkout(context);
               if (value == 'set-defaults') _showSetDefaultsSheet(context);
+              if (value == 'training-focus') _selectTrainingFocus();
             },
             // 메모와 공유는 눌러도 토스트만 뜨고 아무것도 저장·공유하지 않아서 뺐다.
             // 만들어지면 그때 다시 넣는다 — 있는 척하는 메뉴가 없는 것보다 나쁘다.
             itemBuilder: (_) => [
+              if (state.autoRecommendNextExercise)
+                PopupMenuItem(
+                  value: 'training-focus',
+                  child: Text(
+                    session.trainingFocus?.isNotEmpty ?? false
+                        ? '오늘 부위 · ${session.trainingFocus!.map((item) => item.label).join(' · ')}'
+                        : '오늘 운동 부위',
+                  ),
+                ),
               const PopupMenuItem(
                 value: 'set-defaults',
                 child: Row(
@@ -365,6 +392,9 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
       return;
     }
 
+    if (session.trainingFocus == null && !await _selectTrainingFocus()) return;
+    if (!mounted) return;
+
     final unavailableEquipment = <String>{};
     while (mounted) {
       final recommendation = state.firstExerciseRecommendationForDate(
@@ -374,9 +404,7 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
       if (recommendation == null) {
         AppSnackbar.info(
           context,
-          state.recommendationProfile == null
-              ? '사용 가능한 기구에 맞는 다른 추천이 없어요. 직접 선택해주세요.'
-              : '입력한 장비·숙련도·제외 동작에 맞는 추천이 없어요. 직접 선택하거나 설문을 수정해주세요.',
+          '오늘 부위·장비·운동량에 맞는 추천이 없어요. 부위를 바꾸거나 직접 선택해주세요.',
         );
         setState(() => emptyDayRecommendationDismissed = true);
         _openLibrary();
@@ -419,6 +447,18 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ExerciseLibraryScreen(date: date)),
     );
+  }
+
+  Future<bool> _selectTrainingFocus() async {
+    final state = AppScope.of(context);
+    final selected = await showTrainingFocusSheet(
+      context,
+      initialFocus: state.sessionFor(date).trainingFocus,
+    );
+    if (selected == null || !mounted) return false;
+    state.setTrainingFocus(date, selected);
+    setState(() => emptyDayRecommendationDismissed = false);
+    return true;
   }
 
   Future<void> _openRoutinePicker(BuildContext context) async {
@@ -1241,7 +1281,13 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                                     onTypeChanged: (type) =>
                                         state.updateSet(set, type: type),
                                     onWeightChanged: (weight) =>
-                                        state.updateSet(set, weight: weight),
+                                        _applySetWeight(
+                                          context,
+                                          state,
+                                          exercise,
+                                          set,
+                                          weight,
+                                        ),
                                     onRepsChanged: (reps) =>
                                         state.updateSet(set, reps: reps),
                                     onDurationChanged: (seconds) =>
@@ -1317,6 +1363,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     // snapshot is taken first so the toast can hand it straight back.
     final undo = AppState.snapshotPendingSets(widget.exercise, set);
     final adopted = state.adoptActualIntoPendingSets(widget.exercise, set);
+    final applied = AppState.snapshotPendingSets(widget.exercise, set);
     // The undo has to survive a PR: the first set of an exercise is very often
     // a record, and that is exactly the set whose numbers get propagated.
     // Announcing the record instead of the change would leave the guess
@@ -1327,7 +1374,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
         context,
         '$headline · 남은 $adopted$unit도 같은 값으로 맞췄어요.',
         actionLabel: '되돌리기',
-        onAction: () => state.restorePendingSets(undo),
+        onAction: () => state.restorePendingSets(undo, expected: applied),
       );
     } else if (labels.isNotEmpty) {
       AppSnackbar.success(context, '🏆 $labels을 달성했어요!');
@@ -1356,10 +1403,8 @@ class _ExerciseCardState extends State<_ExerciseCard> {
         return;
       }
     }
-    final hasGoals = await ensureMemberTrainingGoals(context);
-    if (!hasGoals || !mounted) return;
-    await ensurePrecisionRecommendationSurvey(context);
-    if (!mounted) return;
+    // 진행 중에는 설문을 자동으로 열지 않는다. 부위는 상단에서 언제든 바꾼다.
+    if (!state.hasTrainingGoal || !mounted) return;
     if (state.recommendationProfile?.shouldPauseAutomaticRecommendation ??
         false) {
       AppSnackbar.info(
@@ -1370,21 +1415,15 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     }
     final unavailableEquipment = <String>{};
     while (mounted) {
-      final recommendation = ExerciseRecommendationEngine.recommendNext(
-        catalog: state.exercises,
-        session: session,
+      final recommendation = state.nextExerciseRecommendationForDate(
+        widget.date,
         completedExercise: widget.exercise,
-        goals: state.goals,
-        weeklyHistory: state.sessions.values,
         excludedTemplateIds: unavailableEquipment,
-        recommendationProfile: state.recommendationProfile,
       );
       if (recommendation == null) {
         AppSnackbar.info(
           context,
-          state.recommendationProfile == null
-              ? '사용 가능한 기구에 맞는 다른 추천이 없어요.'
-              : '입력한 장비·숙련도·제외 동작에 맞는 다른 추천이 없어요.',
+          '오늘 부위·장비·운동량에 맞는 다음 추천이 없어요. 여기서 마치거나 직접 추가할 수 있어요.',
         );
         return;
       }
@@ -2845,6 +2884,24 @@ class _CompletedSetLine extends StatelessWidget {
 
 enum _RecommendationAction { chooseManually, noEquipment, add }
 
+void _applySetWeight(
+  BuildContext context,
+  AppState state,
+  WorkoutExercise exercise,
+  WorkoutSetEntry set,
+  double weight,
+) {
+  final previous = state.updateSetWeight(exercise, set, weight);
+  if (previous.isEmpty) return;
+  AppSnackbar.undoable(
+    context,
+    '뒤의 가벼운 ${previous.length}세트를 ${PerformanceEngine.formatWeight(set.weight)}${state.weightUnit}으로 맞췄어요.',
+    actionLabel: '되돌리기',
+    onAction: () =>
+        state.restorePendingWeights(exercise, previous, weight.clamp(0, 999)),
+  );
+}
+
 class _NextExerciseRecommendationSheet extends StatelessWidget {
   const _NextExerciseRecommendationSheet({
     required this.recommendation,
@@ -2859,56 +2916,43 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cardio = recommendation.cardioPrescription;
+    final theme = Theme.of(context);
+    final template = recommendation.template;
     final prescriptionText = cardio == null
-        ? '${recommendation.startingWeight > 0 ? '${PerformanceEngine.formatWeight(recommendation.startingWeight)}$unit' : '중량 직접 선택'} · '
-              '${recommendation.minReps}–${recommendation.maxReps}회 · '
+        ? '${template.usesWeight ? (recommendation.startingWeight > 0 ? '${PerformanceEngine.formatWeight(recommendation.startingWeight)}$unit' : '중량 직접 선택') : '맨몸'} · '
+              '${template.isDurationHold ? '60초' : '${recommendation.minReps}–${recommendation.maxReps}회'} · '
               '${recommendation.sets}세트 · 휴식 ${recommendation.restSeconds}초'
         : '${cardio.durationMinutes}분'
               '${cardio.targetDistanceKm == null ? '' : ' · ${cardio.targetDistanceKm!.toStringAsFixed(1)}km'}'
               ' · RPE ${cardio.minimumRpe}–${cardio.maximumRpe}';
-    return SafeArea(
+    return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 2, 20, 24),
+        padding: SetflowInsets.pageForm,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: SetflowSpacing.sm,
+              runSpacing: SetflowSpacing.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Icon(
-                  Icons.auto_awesome_rounded,
-                  color: context.setflowColors.orange,
-                ),
-                const SizedBox(width: SetflowSpacing.sm2),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: SetflowFontSize.headline,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const Spacer(),
+                Text(title, style: theme.textTheme.titleLarge),
                 Chip(label: Text(recommendation.goalLabel)),
               ],
             ),
             const SizedBox(height: SetflowSpacing.md2),
             SetflowCard(
-              color: SetflowColors.primary.withValues(alpha: .14),
+              color: context.setflowColors.brandSoft,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     recommendation.template.name,
-                    style: const TextStyle(
-                      fontSize: SetflowFontSize.titleLarge,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: SetflowSpacing.xs2),
-                  Text(
-                    prescriptionText,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
+                  Text(prescriptionText, style: theme.textTheme.titleSmall),
                   const SizedBox(height: SetflowSpacing.sm2),
                   Text(
                     recommendation.reason,
@@ -2939,10 +2983,12 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                 child: TextButton.icon(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => const EvidenceLibraryScreen(),
+                      builder: (_) => EvidenceLibraryScreen(
+                        referenceIds: recommendation.evidenceIds,
+                      ),
                     ),
                   ),
-                  icon: const Icon(Icons.menu_book_outlined, size: 18),
+                  icon: const Icon(SetflowIcons.guide),
                   label: Text('근거 논문 ${recommendation.evidenceIds.length}건 보기'),
                 ),
               ),
@@ -2953,7 +2999,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                 key: const Key('recommendation-no-equipment'),
                 onPressed: () =>
                     Navigator.pop(context, _RecommendationAction.noEquipment),
-                icon: const Icon(Icons.sync_rounded),
+                icon: const Icon(SetflowIcons.activityAlternate),
                 label: const Text('기구 없음 · 다른 운동 추천'),
               ),
             ),
@@ -2974,7 +3020,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                   child: FilledButton.icon(
                     onPressed: () =>
                         Navigator.pop(context, _RecommendationAction.add),
-                    icon: const Icon(Icons.add_rounded),
+                    icon: const Icon(SetflowIcons.addExercise),
                     label: const Text('추천 운동 추가'),
                   ),
                 ),
@@ -4339,11 +4385,10 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
     if (editsDuration) {
       state.updateSet(set, durationSeconds: result.round());
     } else if (editsWeight) {
-      state.updateSet(set, weight: result);
+      _applySetWeight(context, state, widget.exercise, set, result);
     } else {
       state.updateSet(set, reps: result.round());
     }
-    AppSnackbar.success(context, '세트 값을 저장했어요.');
   }
 
   Future<bool> _confirmDeleteSet(

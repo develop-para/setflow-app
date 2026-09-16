@@ -21,6 +21,8 @@ void main() {
       'reynolds_2006_rm_prediction',
       'schumann_2022_concurrent',
       'helgerud_2007_4x4',
+      'pelland_2026_dose_response',
+      'ramos_2024_split_full_body',
     };
     expect(
       evidenceCatalog.map((reference) => reference.id).toSet(),
@@ -125,6 +127,31 @@ void main() {
 
     expect(find.text('공식 논문 페이지를 열지 못했어요.'), findsOneWidget);
   });
+
+  testWidgets(
+    'recommendation sources show only the papers used in that recommendation',
+    (tester) async {
+      await _pumpEvidence(
+        tester,
+        const EvidenceLibraryScreen(
+          referenceIds: {
+            'pelland_2026_dose_response',
+            'ramos_2024_split_full_body',
+          },
+        ),
+      );
+      expect(find.text('근력 추정'), findsNothing);
+      expect(
+        find.textContaining('The Resistance Training Dose Response:'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Efficacy of Split Versus Full-Body'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Strength Testing—Predicting'), findsNothing);
+    },
+  );
 
   testWidgets('member settings opens the related papers screen', (
     tester,

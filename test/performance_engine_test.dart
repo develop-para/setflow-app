@@ -243,49 +243,55 @@ void main() {
       }
     });
 
-    test('next exercise and performance engines share goal prescriptions', () {
-      final state = AppState();
-      addTearDown(state.dispose);
-      final completedExercise = WorkoutExercise(
-        id: 'bench_today',
-        template: bench,
-        sets: [
-          WorkoutSetEntry(number: 1, weight: 100, reps: 8, completed: true),
-        ],
-      );
-      final workout = WorkoutSession(
-        date: DateTime(2026, 8, 10),
-        exercises: [completedExercise],
-      );
-
-      for (final goal in TrainingGoal.values) {
-        final performance = PerformanceEngine.recommend(
-          sessions: [workout],
+    test(
+      'next exercise keeps the goal while adapting to the selected movement',
+      () {
+        final state = AppState();
+        addTearDown(state.dispose);
+        final completedExercise = WorkoutExercise(
+          id: 'bench_today',
           template: bench,
-          goal: goal,
-        )!;
-        final nextExercise = ExerciseRecommendationEngine.recommendNext(
-          catalog: state.exercises,
-          session: workout,
-          completedExercise: completedExercise,
-          goals: [goal.label],
-        )!;
+          sets: [
+            WorkoutSetEntry(number: 1, weight: 100, reps: 8, completed: true),
+          ],
+        );
+        final workout = WorkoutSession(
+          date: DateTime(2026, 8, 10),
+          exercises: [completedExercise],
+        );
 
-        expect(
-          nextExercise.goalLabel,
-          performance.goal.label,
-          reason: goal.name,
-        );
-        expect(nextExercise.minReps, performance.minReps, reason: goal.name);
-        expect(nextExercise.maxReps, performance.maxReps, reason: goal.name);
-        expect(nextExercise.sets, performance.sets, reason: goal.name);
-        expect(
-          nextExercise.restSeconds,
-          performance.restSeconds,
-          reason: goal.name,
-        );
-      }
-    });
+        for (final goal in TrainingGoal.values) {
+          final performance = PerformanceEngine.recommend(
+            sessions: [workout],
+            template: bench,
+            goal: goal,
+          )!;
+          final nextExercise = ExerciseRecommendationEngine.recommendNext(
+            catalog: state.exercises,
+            session: workout,
+            completedExercise: completedExercise,
+            goals: [goal.label],
+          )!;
+
+          expect(
+            nextExercise.goalLabel,
+            performance.goal.label,
+            reason: goal.name,
+          );
+          expect(nextExercise.minReps, greaterThan(0), reason: goal.name);
+          expect(
+            nextExercise.maxReps,
+            greaterThanOrEqualTo(nextExercise.minReps),
+          );
+          expect(nextExercise.sets, inInclusiveRange(1, performance.sets));
+          if (goal == TrainingGoal.hypertrophy) {
+            expect(nextExercise.minReps, 8);
+            expect(nextExercise.maxReps, 12);
+            expect(nextExercise.restSeconds, 120);
+          }
+        }
+      },
+    );
   });
 
   group('PerformanceEngine recommendation', () {
@@ -555,55 +561,63 @@ void main() {
       state.dispose();
     });
 
-    test('first exercise rotates recent history and never invents weight', () {
-      final state = AppState();
-      state.sessions.clear();
-      state.setMemberProfile(goals: const ['근력 향상']);
-      final targetDate = DateTime(2026, 8, 20);
+    test(
+      'first exercise considers recent muscle volume and never invents weight',
+      () {
+        final state = AppState();
+        state.sessions.clear();
+        state.setMemberProfile(goals: const ['근력 향상']);
+        final targetDate = DateTime(2026, 8, 20);
 
-      final withoutHistory = state.firstExerciseRecommendationForDate(
-        targetDate,
-      )!;
-      expect(withoutHistory.startingWeight, 0);
-      expect(withoutHistory.evidenceIds, contains('nunes_2021_exercise_order'));
+        final withoutHistory = state.firstExerciseRecommendationForDate(
+          targetDate,
+        )!;
+        expect(withoutHistory.startingWeight, 0);
+        expect(
+          withoutHistory.evidenceIds,
+          contains('nunes_2021_exercise_order'),
+        );
 
-      final historyDate = targetDate.subtract(const Duration(days: 1));
-      state.addExercise(historyDate, withoutHistory.template);
-      for (final set in state.sessions[historyDate]!.exercises.single.sets) {
-        state.updateSet(set, weight: 100, reps: 5);
-        state.toggleSet(set, startRest: false);
-      }
+        final historyDate = targetDate.subtract(const Duration(days: 1));
+        state.addExercise(historyDate, withoutHistory.template);
+        for (final set in state.sessions[historyDate]!.exercises.single.sets) {
+          state.updateSet(set, weight: 100, reps: 5);
+          state.toggleSet(set, startRest: false);
+        }
 
-      final familiarExercise = state.firstExerciseRecommendationForDate(
-        targetDate,
-        excludedTemplateIds: state.exercises
-            .where((item) => item.id != withoutHistory.template.id)
-            .map((item) => item.id)
-            .toSet(),
-      )!;
-      expect(familiarExercise.template.id, withoutHistory.template.id);
-      expect(familiarExercise.startingWeight, greaterThan(0));
+        final familiarExercise = state.firstExerciseRecommendationForDate(
+          targetDate,
+          excludedTemplateIds: state.exercises
+              .where((item) => item.id != withoutHistory.template.id)
+              .map((item) => item.id)
+              .toSet(),
+        )!;
+        expect(familiarExercise.template.id, withoutHistory.template.id);
+        expect(familiarExercise.startingWeight, greaterThan(0));
 
-      final withHistory = state.firstExerciseRecommendationForDate(targetDate)!;
-      expect(withHistory.template.id, isNot(withoutHistory.template.id));
-      expect(withHistory.startingWeight, 0);
-      expect(withHistory.reason, contains('종목을 고르게 순환'));
+        final withHistory = state.firstExerciseRecommendationForDate(
+          targetDate,
+        )!;
+        expect(withHistory.template.id, isNot(withoutHistory.template.id));
+        expect(withHistory.startingWeight, 0);
+        expect(withHistory.reason, contains('최근 7일'));
 
-      final futureDate = targetDate.add(const Duration(days: 1));
-      state.addExercise(futureDate, state.exercises[1]);
-      for (final set in state.sessions[futureDate]!.exercises.single.sets) {
-        state.updateSet(set, weight: 250, reps: 5);
-        state.toggleSet(set, startRest: false);
-      }
-      final futureIgnored = state.firstExerciseRecommendationForDate(
-        targetDate,
-      )!;
-      expect(futureIgnored.template.id, withHistory.template.id);
-      expect(futureIgnored.startingWeight, withHistory.startingWeight);
-      state.dispose();
-    });
+        final futureDate = targetDate.add(const Duration(days: 1));
+        state.addExercise(futureDate, state.exercises[1]);
+        for (final set in state.sessions[futureDate]!.exercises.single.sets) {
+          state.updateSet(set, weight: 250, reps: 5);
+          state.toggleSet(set, startRest: false);
+        }
+        final futureIgnored = state.firstExerciseRecommendationForDate(
+          targetDate,
+        )!;
+        expect(futureIgnored.template.id, withHistory.template.id);
+        expect(futureIgnored.startingWeight, withHistory.startingWeight);
+        state.dispose();
+      },
+    );
 
-    test('first exercise rotates through goal-relevant options by date', () {
+    test('first exercise stays stable without new training history', () {
       final state = AppState();
       state.sessions.clear();
       state.setMemberProfile(goals: const ['근력 향상']);
@@ -626,7 +640,7 @@ void main() {
               .id,
       };
 
-      expect(recommendations.length, greaterThanOrEqualTo(4));
+      expect(recommendations.length, 1);
       expect(recommendations.difference(coreStrengthIds), isEmpty);
       state.dispose();
     });
