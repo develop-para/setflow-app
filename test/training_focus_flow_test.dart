@@ -64,10 +64,30 @@ void main() {
       await tester.pumpAndSettle();
       expect(exercise.sets.map((set) => set.weight), everyElement(60));
       expect(exercise.sets.first.completed, isFalse);
+      String visibleWeight(int number) => tester
+          .widget<TextField>(
+            find.descendant(
+              of: find.byKey(ValueKey('inline-set-weight-$number')),
+              matching: find.byType(TextField),
+            ),
+          )
+          .controller!
+          .text;
+      for (final set in exercise.sets) {
+        expect(
+          visibleWeight(set.number),
+          '60',
+          reason: '전파된 저장값이 화면에도 즉시 보여야 한다',
+        );
+      }
       await tester.tap(find.text('되돌리기'));
       await tester.pumpAndSettle();
       expect(exercise.sets.first.weight, 60);
       expect(exercise.sets.skip(1).map((set) => set.weight), everyElement(0));
+      expect(visibleWeight(1), '60');
+      for (final set in exercise.sets.skip(1)) {
+        expect(visibleWeight(set.number), '0', reason: '되돌린 값도 화면에 반영해야 한다');
+      }
       state.cancelRestTimer();
     },
   );

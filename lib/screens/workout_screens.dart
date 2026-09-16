@@ -1579,14 +1579,16 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
     super.didUpdateWidget(oldWidget);
     // Un-completing reopens the card: a set that is no longer logged has to
     // show its dials again.
-    if (oldWidget.set.completed && !widget.set.completed) reopened = false;
-    if (oldWidget.set.durationSeconds != widget.set.durationSeconds) {
+    if (!widget.set.completed) reopened = false;
+    // Sets are mutated in place, so oldWidget.set is the same object. Compare
+    // the rendered text with the saved value, not two references to that set.
+    if (durationController.text != _durationText()) {
       durationController.text = _durationText();
     }
-    if (oldWidget.set.distanceKm != widget.set.distanceKm) {
+    if (distanceController.text != _distanceText()) {
       distanceController.text = _distanceText();
     }
-    if (oldWidget.set.intensityRpe != widget.set.intensityRpe) {
+    if (rpeController.text != _rpeText()) {
       rpeController.text = _rpeText();
     }
   }
@@ -2068,17 +2070,19 @@ class _InlineSetRowState extends State<_InlineSetRow> {
     super.didUpdateWidget(oldWidget);
     // Un-completing reopens the card: a set that is no longer logged has to
     // show its dials again.
-    if (oldWidget.set.completed && !widget.set.completed) reopened = false;
-    if (oldWidget.set.weight != widget.set.weight) {
+    if (!widget.set.completed) reopened = false;
+    // Propagation and undo mutate the same WorkoutSetEntry used by oldWidget.
+    // These read-only fields must follow the saved values on every update.
+    if (weightController.text != _weightText()) {
       weightController.text = _weightText();
     }
-    if (oldWidget.set.reps != widget.set.reps) {
+    if (repsController.text != '${widget.set.reps}') {
       repsController.text = '${widget.set.reps}';
     }
-    if (oldWidget.set.durationSeconds != widget.set.durationSeconds) {
+    if (durationController.text != '${widget.set.durationSeconds}') {
       durationController.text = '${widget.set.durationSeconds}';
     }
-    if (oldWidget.set.restSeconds != widget.set.restSeconds) {
+    if (restController.text != '${widget.set.restSeconds}') {
       restController.text = '${widget.set.restSeconds}';
     }
   }
