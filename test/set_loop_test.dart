@@ -87,6 +87,9 @@ void main() {
     expect(find.textContaining('100kg × 10회'), findsOneWidget);
 
     // And it reopens: a logged set is still editable.
+    // The first record can show a PR/propagation toast over the editor.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('inline-set-done-1')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('inline-set-weight-1')), findsOneWidget);

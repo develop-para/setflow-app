@@ -1704,6 +1704,18 @@ class _InlineCardioRowState extends State<_InlineCardioRow> {
                     ),
                   ),
                 ),
+                if (widget.set.completed)
+                  IconButton(
+                    key: ValueKey(
+                      'inline-cardio-collapse-${widget.set.number}',
+                    ),
+                    tooltip: '${widget.set.number}구간 접기',
+                    onPressed: () => setState(() {
+                      reopened = false;
+                      deleteRevealed = false;
+                    }),
+                    icon: const Icon(SetflowIcons.collapse),
+                  ),
               ],
             ),
             const SizedBox(height: SetflowSpacing.sm),
@@ -2246,6 +2258,16 @@ class _InlineSetRowState extends State<_InlineSetRow> {
                   ),
                 ),
                 const SizedBox(width: SetflowSpacing.xs),
+                if (widget.set.completed)
+                  IconButton(
+                    key: ValueKey('inline-set-collapse-${widget.set.number}'),
+                    tooltip: '${widget.set.number}세트 접기',
+                    onPressed: () => setState(() {
+                      reopened = false;
+                      deleteRevealed = false;
+                    }),
+                    icon: const Icon(SetflowIcons.collapse),
+                  ),
               ],
             ),
             const SizedBox(height: SetflowSpacing.sm),
@@ -2877,6 +2899,11 @@ class _CompletedSetLine extends StatelessWidget {
                     color: theme.colorScheme.onPrimaryContainer,
                   ),
                 ),
+              ),
+              const SizedBox(width: SetflowSpacing.sm),
+              Icon(
+                SetflowIcons.expand,
+                color: theme.colorScheme.onPrimaryContainer,
               ),
             ],
           ),
