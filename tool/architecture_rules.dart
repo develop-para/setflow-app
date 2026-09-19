@@ -46,6 +46,8 @@ final architectureRules = <ArchitectureRule>[
     allow: const [
       'lib/main.dart', // composition root: binds the adapters
       'lib/data/supabase_app_repository.dart',
+      // Private account data crosses only AccountProfileRepository domain types.
+      'lib/data/supabase_account_profile_repository.dart',
       'lib/data/supabase_business_repository.dart',
       'lib/data/supabase_coaching_workout_repository.dart',
       'lib/data/supabase_community_repository.dart',

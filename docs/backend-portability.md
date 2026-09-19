@@ -50,6 +50,11 @@ Supabase를 아는 파일은 **6개뿐**이고 전부 포트 뒤에 있다.
 나머지 하나는 `lib/main.dart` — **컴포지션 루트**다. 여기서만 구현체를 고르고 묶는다.
 `Auth.use(SupabaseAuthService.instance)` 한 줄이 인증 바인딩 지점이다.
 
+이 바인딩만 바꿔서 인증 이전이 끝나지는 않는다. 데이터 어댑터도 현재 클라이언트의
+사용자·토큰을 사용하고, 서버는 `auth.sessions`와 `auth.users`를 검사한다. 자체 인증은
+이 의존성과 데이터 권한 검사를 함께 이전한다. 현재 전환 조건은
+[Vercel 인증 이전](vercel-auth-migration.md)에 있다.
+
 포트를 넘나드는 타입도 전부 앱 소유다: `AuthUser`, `AuthChange`, `AuthEvent`, `AuthSignUpResult`,
 `AuthFailure`, `SocialLoginProvider`. Supabase의 `User`/`AuthState`/`AuthResponse`는 앱에 안 들어온다.
 
@@ -131,9 +136,9 @@ Deno 런타임 + `SUPABASE_SERVICE_ROLE_KEY` + jsr import에 묶여 있어서 EC
 같은 Postgres다. Supabase → RDS/Aurora는 덤프·복원이고 스키마는 `supabase/migrations/`(38개)에 있다.
 지켜야 할 것 하나뿐:
 
-- **`auth.users`를 FK로 참조하지 않기.** 그 테이블은 Supabase Auth의 것이라 같이 안 따라온다.
-  현재 참조 **0건** — 이미 깨끗하니 유지할 것. 사용자 식별은 `user_id uuid`를 우리 테이블에 두고
-  값만 넣는다.
+- **새 계정 데이터는 앱 소유 `public.users`를 참조한다.** `auth.users`는 Supabase Auth 소유다.
+  2026-09-20 운영 점검에서 `auth` 스키마 밖의 참조 FK가 **9개** 확인됐다. 기존의 "0건" 기록은
+  현재 상태와 다르다. 이전 시 UUID·소유권·삭제 동작을 보존하면서 이 FK도 함께 옮겨야 한다.
 - Supabase 전용 확장(`pgsodium`/Vault, `pg_graphql`)에 로직을 얹지 않기.
 
 ### 2. Realtime — 아직 0건, 지금이 규칙 세울 타이밍

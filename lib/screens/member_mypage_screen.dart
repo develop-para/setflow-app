@@ -7,6 +7,7 @@ import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
 import 'member_membership_screen.dart';
+import 'account_profile_screen.dart';
 import 'member_screens.dart';
 import 'password_screens.dart';
 import 'welcome_screen.dart';
@@ -60,6 +61,21 @@ class MyPageScreen extends StatelessWidget {
             builder: (_) => const MemberMembershipScreen(),
           ),
           const Divider(height: SetflowSpacing.section),
+          if (signedIn && AppScope.of(context).accountProfileRepository != null)
+            _MyPageEntry(
+              key: const ValueKey('mypage-account-profile'),
+              icon: SetflowIcons.account,
+              title: '계정 정보',
+              subtitle: '이메일 · 생년월일',
+              builder: (_) => AccountProfileScreen(
+                repository: AppScope.of(context).accountProfileRepository!,
+              ),
+              onResult: (context, saved) {
+                if (saved == true) {
+                  AppSnackbar.success(context, '계정 정보를 저장했어요.');
+                }
+              },
+            ),
           // Only an email account has a password to change. Social sign-ins
           // authenticate elsewhere, so offering it would open a form that can
           // never succeed.

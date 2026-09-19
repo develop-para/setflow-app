@@ -4,8 +4,9 @@
 /// ours. That is the point: the plan is to move off Supabase onto our own
 /// server, and the cost of that move is roughly "how much of the app names
 /// Supabase types". Screens talk to [AuthService] through [Auth]; swapping the
-/// backend then means writing one more implementation and rebinding it in
-/// `main()`, not editing every screen.
+/// backend keeps screen code stable. The data adapters, server-side session
+/// validation and account foreign keys must move with it; rebinding in `main()`
+/// alone does not migrate those dependencies.
 ///
 /// The data layer already works this way — `AppRepository`,
 /// `BusinessRepository`, `CommunityRepository` and `RoutineCatalogRepository`

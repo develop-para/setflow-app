@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_state.dart';
 import 'data/app_repository.dart';
+import 'data/account_profile_repository.dart';
+import 'data/supabase_account_profile_repository.dart';
 import 'data/backend_cache.dart';
 import 'data/business_repository.dart';
 import 'data/hive_app_repository.dart';
@@ -82,6 +84,9 @@ Future<void> main() async {
     SetflowApp(
       localEquipmentRepository: HiveLocalEquipmentRepository(),
       repository: repository,
+      accountProfileRepository: SupabaseAccountProfileRepository(
+        Supabase.instance.client,
+      ),
       businessRepository: SupabaseBusinessRepository(Supabase.instance.client),
       coachingWorkoutRepository: SupabaseCoachingWorkoutRepository(
         Supabase.instance.client,
@@ -113,6 +118,7 @@ class SetflowApp extends StatefulWidget {
   const SetflowApp({
     this.localEquipmentRepository,
     this.repository,
+    this.accountProfileRepository,
     this.businessRepository,
     this.coachingWorkoutRepository,
     this.routineCatalogRepository,
@@ -124,6 +130,7 @@ class SetflowApp extends StatefulWidget {
   });
 
   final AppRepository? repository;
+  final AccountProfileRepository? accountProfileRepository;
   final LocalEquipmentRepository? localEquipmentRepository;
   final BusinessRepository? businessRepository;
   final CoachingWorkoutRepository? coachingWorkoutRepository;
@@ -171,6 +178,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     state = AppState(
       localEquipmentRepository: widget.localEquipmentRepository,
       repository: widget.repository,
+      accountProfileRepository: widget.accountProfileRepository,
       businessRepository: widget.businessRepository,
       coachingWorkoutRepository: widget.coachingWorkoutRepository,
       routineCatalogRepository: widget.routineCatalogRepository,

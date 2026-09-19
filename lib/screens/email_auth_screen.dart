@@ -87,7 +87,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                       if (_isSignUp) ...[
                         const SizedBox(height: SetflowSpacing.sm),
                         Text(
-                          '가입하면 기록이 계정에 백업돼요.',
+                          '이메일을 아이디로 사용해요. 가입하면 기록이 백업돼요.',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyMedium,
                         ),

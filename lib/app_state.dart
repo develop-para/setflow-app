@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
+import 'data/account_profile_repository.dart';
 import 'data/business_repository.dart';
 import 'data/coaching_workout_repository.dart';
 import 'data/backend_cache.dart';
@@ -78,6 +79,7 @@ class RestFocus {
 class AppState extends ChangeNotifier {
   AppState({
     AppRepository? repository,
+    this.accountProfileRepository,
     this.businessRepository,
     this.loadBusinessWithoutAuth = false,
     Future<void> Function()? authSignOut,
@@ -474,6 +476,8 @@ class AppState extends ChangeNotifier {
 
   bool _verifiedAdmin = false;
   bool hasPaidPlan = false;
+
+  final AccountProfileRepository? accountProfileRepository;
 
   bool get isAdmin => _verifiedAdmin;
   bool get usesLiveBusinessData => businessRepository != null;

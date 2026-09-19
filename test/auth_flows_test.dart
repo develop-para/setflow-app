@@ -189,6 +189,43 @@ void main() {
     });
   });
 
+  testWidgets(
+    'signup with a session returns without an email verification step',
+    (tester) async {
+      final auth = bind(_RecordingAuthService());
+      bool? result;
+      await show(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              result = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const EmailAuthScreen(initialMode: EmailAuthMode.signUp),
+                ),
+              );
+            },
+            child: const Text('가입 화면 열기'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('가입 화면 열기'));
+      await tester.pumpAndSettle();
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), '테스터');
+      await tester.enterText(fields.at(1), 'new@example.com');
+      await tester.enterText(fields.at(2), 'longenough');
+      await tester.enterText(fields.at(3), 'longenough');
+      await tester.tap(find.text('회원가입'));
+      await tester.pumpAndSettle();
+      expect(auth.calls, ['signUp']);
+      expect(result, isTrue);
+      expect(find.byKey(const ValueKey('auth-confirm-email')), findsNothing);
+      expect(find.byType(EmailAuthScreen), findsNothing);
+    },
+  );
+
   group('unconfirmed signup', () {
     testWidgets('offers a resend and then holds it on a cooldown', (
       tester,

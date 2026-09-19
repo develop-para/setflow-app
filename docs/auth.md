@@ -13,6 +13,11 @@ Supabase를 아는 건 어댑터 한 개(`supabase_auth_service.dart`)뿐이다.
 
 ## 이메일 가입
 
+운영 정책은 인증 메일 없이 즉시 가입이다. 2026-09-20 공개 Auth 설정의
+`mailer_autoconfirm=true`를 확인했고, 임시 계정의 실제 가입에서 세션 발급과
+회원 권한 RPC의 HTTP 200을 확인한 뒤 임시 계정을 삭제했다. 이메일은 로그인
+아이디이며, 이 설정만으로 그 메일함을 소유한 사람이라고 증명되지는 않는다.
+
 ```
 회원가입 → (프로젝트 설정에 따라)
   ├─ 확인 메일 OFF → 세션 발급, 즉시 사용
@@ -52,6 +57,32 @@ Supabase를 아는 건 어댑터 한 개(`supabase_auth_service.dart`)뿐이다.
 가입은 회원과 똑같이 즉시 된다. 트레이너 화면만 관리자 승인 후 열린다.
 진실은 서버의 `BusinessAccess.availableRoles`이고, 게이트는 `requireProAccess()`다.
 신청서 상태(`applicationStatus`)를 진실로 쓰지 말 것 — 승인이 취소돼도 상태는 남는다.
+
+## 우리 DB의 계정 정보
+
+`AccountProfileRepository` 포트로 본인의 이메일·생년월일을 조회하고 저장한다.
+마이 > 계정 정보에서 생년월일을 입력하거나 지울 수 있다. 날짜는 선택 정보이고
+공개 프로필·운동 스냅샷·트레이너 공유 데이터에 넣지 않는다.
+
+- 이메일: 기존 `public.users.email`에 보관하며 인증 서비스에서 변경되면 동기화한다.
+- SNS 연결: `private.account_identity_links`에 제공자와 고유 subject를 보관한다.
+  클라이언트 메타데이터와 이메일 문자열로 계정을 연결하지 않는다.
+- 생년월일: `private.account_personal_details`에 보관한다. 테이블 직접 접근은 막고,
+  유효한 현재 세션에 대해 본인 조회·저장 RPC만 허용한다.
+
+`20260919231805_portable_account_profiles.sql`을 2026-09-20 운영 서버에 적용했다.
+기존 SNS/이메일 식별자 복사 수가 원본과 일치하고, 익명 RPC 호출·인증 사용자의
+테이블 직접 접근·이메일 직접 변경 권한이 없음을 확인했다. 두 private 테이블은
+RLS 정책을 만들지 않아 기본 거부로 유지하고, 서버 함수만 접근하도록 설계했다.
+브라우저에서 임시 계정의 즉시 가입 → 생년월일 저장 → 재조회 → 삭제를 확인했으며,
+DB 저장값도 함께 검사했다. 임시 계정과 연결된 개인정보는 검증 후 삭제했다.
+
+Google 기본 로그인은 생년월일이나 Google 비밀번호를 주지 않는다. SNS를 활성화할 때
+생년월일 입력 단계를 연결하고, 자체 비밀번호는 사용자가 별도로 정하도록 한다.
+현재 운영의 Google·Kakao·Apple 로그인은 비활성이다. 이 변경은 계정 데이터 분리이며
+**Supabase Auth를 대체하는 자체 로그인 서버가 완성됐다는 뜻은 아니다.**
+
+자체 인증 서버 전환의 계약과 선행 설정은 [Vercel 인증 이전](vercel-auth-migration.md)을 따른다.
 
 ## 시작할 화면 선택
 
@@ -107,12 +138,13 @@ Supabase를 아는 건 어댑터 한 개(`supabase_auth_service.dart`)뿐이다.
 ```sh
 npm install --prefix .dart_tool/workspace-security --no-audit --no-fund @electric-sql/pglite@0.5.8
 node tool/test_workspace_access.mjs
+node tool/test_account_profiles.mjs
 ```
 
 이 테스트는 일회성 메모리 Postgres에서 마이그레이션 원문을 실행한다. 계정 정지·세션
 폐기·다른 계정의 세션·메타데이터 권한 위조·승인 취소·게스트 경로·스토리지 행 격리를
 검증하며 운영 서버에는 접속하지 않는다. 실제 Supabase 서비스까지의 검증은 배포 후 별도다.
-`Verify` CI도 같은 18개 검사를 실행한다.
+`Verify` CI도 세션·역할 18개와 계정 정보 보호 10개 검사를 실행한다.
 
 2026-09-20 운영 서버에 적용했다. 기존 로그인 세션의 권한 조회, 세션 없는 요청 거부,
 게스트 운동 카탈로그의 실제 HTTP 응답을 확인했다. RLS 제한 정책은 143개 테이블에 적용됐다.

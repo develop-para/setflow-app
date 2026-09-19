@@ -9,8 +9,8 @@ import 'auth_service.dart';
 import 'supabase_config.dart';
 
 /// The Supabase adapter for [AuthService]. Everything Supabase-shaped stops
-/// here: the rest of the app only sees the app's own auth types, so replacing
-/// this class is the whole cost of moving auth to another backend.
+/// here: screens only see the app's own auth types. Moving to another backend
+/// also requires migrating data adapters and the server's session validation.
 class SupabaseAuthService implements AuthService {
   SupabaseAuthService._();
 
