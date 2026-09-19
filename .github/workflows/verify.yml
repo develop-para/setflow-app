@@ -53,6 +53,16 @@ jobs:
       - name: Test
         run: flutter test
 
+      - name: Set up Node for database security checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Database security checks
+        run: |
+          npm install --prefix .dart_tool/workspace-security --no-audit --no-fund @electric-sql/pglite@0.5.8
+          node tool/test_workspace_access.mjs
+
       # The app also ships as a web bundle on Vercel. Dart that compiles for
       # mobile can still fail here (dart:io, platform channels), and Vercel
       # would be the first to find out — which is too late.

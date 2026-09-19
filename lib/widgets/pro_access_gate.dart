@@ -46,7 +46,8 @@ ProAccessState proAccessStateOf(AppState state) {
   return switch (access.trainerApplication?.status) {
     BusinessApplicationStatus.pending => ProAccessState.pending,
     BusinessApplicationStatus.rejected => ProAccessState.rejected,
-    BusinessApplicationStatus.approved => ProAccessState.approved,
+    // An old approved application survives a later suspension/revocation.
+    BusinessApplicationStatus.approved => ProAccessState.notApplied,
     _ => ProAccessState.notApplied,
   };
 }

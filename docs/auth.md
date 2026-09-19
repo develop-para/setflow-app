@@ -53,6 +53,75 @@ Supabase를 아는 건 어댑터 한 개(`supabase_auth_service.dart`)뿐이다.
 진실은 서버의 `BusinessAccess.availableRoles`이고, 게이트는 `requireProAccess()`다.
 신청서 상태(`applicationStatus`)를 진실로 쓰지 말 것 — 승인이 취소돼도 상태는 남는다.
 
+## 시작할 화면 선택
+
+한 로그인 계정에 연결된 역할을 선택한다. 서로 다른 이메일 계정을 병합하거나
+선택으로 새 권한을 주는 기능은 아니다.
+
+```
+앱 로딩 / 로그인 완료
+  ├─ 게스트 → 개인 운동 화면
+  └─ 서버 get_my_business_access로 현재 세션·계정·역할 확인
+       ├─ 회원만 → 개인 운동 화면
+       ├─ 여러 역할 → 회원 / 트레이너 / 사업장 / 운영 관리자 중 보유한 역할 선택
+       └─ 확인 실패 → 다시 확인 / 개인 운동 기록으로 계속 / 로그아웃
+```
+
+선택을 누를 때 서버 권한을 다시 조회한다. 선택은 실행 중에만 기억하고 다음 실행이나
+다른 계정 로그인 때 다시 묻는다. 일반 새로고침이나 운동 도중 추가 승인을 받은 경우에는
+선택 화면을 자동으로 띄우지 않는다. 게스트와 오프라인 개인 기록은 계속 사용할 수 있다.
+
+`BusinessRepository.loadAccess()`의 Supabase 구현은 `get_my_business_access` RPC를
+사용한다. 회원·트레이너·사업장·관리자 권한을 클라이언트가 신청서나 저장된 역할로
+조합하지 않는다. 서버가 돌려준 `available_roles`가 유일한 입장 기준이다.
+
+## 서버 세션과 변조 앱 대응
+
+`20260919163342_server_managed_workspace_access.sql`은 다음을 추가한다.
+
+- JWT의 `session_id`와 `sub`가 실제 `auth.sessions`의 같은 사용자에 속해야 한다.
+  만료된 `not_after`, 삭제된 세션, 삭제·차단된 Auth 사용자, 익명 Auth 사용자는 거절한다.
+- `public.users.status`가 `active`여야 한다. 클라이언트가 수정 가능한 사용자
+  메타데이터나 저장된 역할은 이 판정에 사용하지 않는다.
+- PostgREST의 `private.check_app_session` 사전 요청 검사로 테이블·뷰·RPC 호출을
+  보호한다. 기존 사전 요청 훅이 있으면 덮어쓰지 않고 마이그레이션을 중단한다.
+- 현재의 public RLS 테이블 및 `storage.objects`에 제한 정책을 **추가**한다.
+  기존 행 소유권 정책과 AND로 결합되며 새로운 조회·수정 권한을 부여하지 않는다.
+  새 테이블을 추가할 때도 `app_active_session` 제한 정책을 함께 추가해야 한다.
+- 트레이너·사업장의 코칭 루틴 직접 쓰기는 소유권에 더해 현재 승인을 검사한다.
+  승인 서류 제출에 쓰이는 소유권 함수 자체는 승인 전에도 사용 가능하다.
+
+세션 폐기 후에도 JWT 서명은 유효할 수 있어 DB의 현재 세션을 확인한다.
+[Supabase 세션 문서](https://supabase.com/docs/guides/auth/sessions#how-to-ensure-an-access-token-jwt-cannot-be-used-after-a-user-signs-out)
+참고. 사전 요청 훅은 PostgREST에만 적용되므로 Storage·Realtime에는 RLS 검사도 필요하다.
+[Data API 보안 문서](https://supabase.com/docs/guides/api/securing-your-api#pre-request-checks)
+참고. 이미 발급한 파일 URL의 유효기간, 이미 전달된 데이터, 별도 Edge Function의 인증은
+별도로 관리해야 한다.
+
+이 정책은 권한 없는 서버 이용을 막는다. 정상 계정으로 자기 권한 안에서 접속하는
+변조 앱을 식별하거나, 기기 안의 오프라인 기능 실행을 막는 앱 무결성 검증은 포함하지 않는다.
+
+**배포 순서:** 서버 마이그레이션 → 앱 배포. RPC가 없거나 실패하면 앱에서 예전 방식으로
+권한을 추측해 우회하지 않는다. 운영 서버 적용 전 아래 격리 테스트를 실행한다.
+
+```sh
+npm install --prefix .dart_tool/workspace-security --no-audit --no-fund @electric-sql/pglite@0.5.8
+node tool/test_workspace_access.mjs
+```
+
+이 테스트는 일회성 메모리 Postgres에서 마이그레이션 원문을 실행한다. 계정 정지·세션
+폐기·다른 계정의 세션·메타데이터 권한 위조·승인 취소·게스트 경로·스토리지 행 격리를
+검증하며 운영 서버에는 접속하지 않는다. 실제 Supabase 서비스까지의 검증은 배포 후 별도다.
+`Verify` CI도 같은 18개 검사를 실행한다.
+
+2026-09-20 운영 서버에 적용했다. 기존 로그인 세션의 권한 조회, 세션 없는 요청 거부,
+게스트 운동 카탈로그의 실제 HTTP 응답을 확인했다. RLS 제한 정책은 143개 테이블에 적용됐다.
+
+2026-09-20 운영 서버 점검에서 유출 비밀번호 차단이 꺼져 있는 것도 확인했다.
+배포와 별도로 프로젝트 플랜/설정에서 활성화 가능 여부를 확인해야 한다.
+[비밀번호 보호 설정](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)
+참고. 기존 RPC/함수에 대한 Advisor 경고까지 전부 해결한 보안 감사로 해석하지 않는다.
+
 ## Supabase 대시보드에서 켜야 하는 것
 
 | 항목 | 위치 | 비고 |

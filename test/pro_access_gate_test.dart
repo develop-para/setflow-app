@@ -106,6 +106,15 @@ void main() {
     expect(proAccessStateOf(state), ProAccessState.approved);
   });
 
+  test('an approved application cannot restore a revoked role', () {
+    final state = AppState();
+    addTearDown(state.dispose);
+    state.businessAccess = access(
+      application: BusinessApplicationStatus.approved,
+    );
+    expect(proAccessStateOf(state), ProAccessState.notApplied);
+  });
+
   Future<void> openGate(WidgetTester tester, AppState state) async {
     await tester.pumpWidget(
       AppScope(

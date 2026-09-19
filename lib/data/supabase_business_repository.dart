@@ -254,50 +254,28 @@ class SupabaseBusinessRepository
   @override
   Future<BusinessAccess> loadAccess() async {
     final authUser = _requireUser();
-    final results = await Future.wait<Object?>([
-      _client
-          .from('users')
-          .select('id,email,role')
-          .eq('id', authUser.id)
-          .maybeSingle(),
-      _client.rpc('get_my_trainer_profile'),
-      _client.rpc('get_my_gym_profile'),
-      _client
-          .from('trainer_applications')
-          .select(
-            'id,trainer_id,user_id,name,submitted_at,sla_due_at,status,'
-            'reject_reason,reviewer_id',
-          )
-          .eq('user_id', authUser.id)
-          .order('submitted_at', ascending: false)
-          .limit(1)
-          .maybeSingle(),
-      _client
-          .from('gym_applications')
-          .select(
-            'id,gym_id,owner_user_id,gym_name,owner_name,biz_reg_no,'
-            'submitted_at,sla_due_at,status,reject_reason,reviewer_id',
-          )
-          .eq('owner_user_id', authUser.id)
-          .order('submitted_at', ascending: false)
-          .limit(1)
-          .maybeSingle(),
-      _client.rpc('is_admin'),
-    ]);
-
-    final userRow = _mapValue(results[0]);
-    if (userRow == null) {
-      throw StateError('Authenticated user has no public users row.');
+    Map<String, dynamic>? result;
+    try {
+      result = _mapValue(await _client.rpc('get_my_business_access'));
+    } on PostgrestException catch (error) {
+      if (error.code == '42501') throw const BusinessAccessDenied();
+      rethrow;
+    }
+    final userRow = _mapValue(result?['user']);
+    if (result == null || userRow == null) {
+      throw StateError('The server did not return account access.');
     }
     final userId = _requiredUuid(userRow, 'id');
+    if (userId != authUser.id || _client.auth.currentUser?.id != userId) {
+      throw StateError('The account changed while loading access.');
+    }
     final accountRole = _userRoleFromDatabase(userRow['role']);
-    final trainerRow = _mapValue(results[1]);
-    final gymRow = _mapValue(results[2]);
+    final trainerRow = _mapValue(result['trainer']);
+    final gymRow = _mapValue(result['gym']);
     final trainer = trainerRow == null ? null : _trainerFromRow(trainerRow);
     final gym = gymRow == null ? null : _gymFromRow(gymRow);
-    final trainerApplicationRow = _mapValue(results[3]);
-    final gymApplicationRow = _mapValue(results[4]);
-    final isActiveAdmin = _boolValue(results[5]);
+    final trainerApplicationRow = _mapValue(result['trainer_application']);
+    final gymApplicationRow = _mapValue(result['gym_application']);
     final trainerApplication = trainerApplicationRow == null
         ? null
         : _applicationFromRow(
@@ -308,19 +286,16 @@ class SupabaseBusinessRepository
         ? null
         : _applicationFromRow(gymApplicationRow, BusinessApplicationKind.gym);
 
-    final availableRoles = <UserRole>{};
-    if (accountRole == UserRole.guest) {
-      availableRoles.add(UserRole.guest);
-    } else {
-      availableRoles.add(UserRole.member);
+    // Grants are computed by the server from the active session and current
+    // approval rows. Profile/application data is display-only here.
+    final availableRoles = <UserRole>{
+      for (final value in result['available_roles'] as List? ?? const [])
+        if (const ['member', 'trainer', 'gym', 'admin'].contains(value))
+          _userRoleFromDatabase(value),
+    };
+    if (!availableRoles.contains(UserRole.member)) {
+      throw StateError('The server did not grant member access.');
     }
-    if (trainer?.status == BusinessProfileStatus.approved) {
-      availableRoles.add(UserRole.trainer);
-    }
-    if (gym?.status == BusinessProfileStatus.verified) {
-      availableRoles.add(UserRole.gym);
-    }
-    if (isActiveAdmin) availableRoles.add(UserRole.admin);
 
     final resolvedRole = availableRoles.contains(accountRole)
         ? accountRole
@@ -356,9 +331,7 @@ class SupabaseBusinessRepository
   Future<BusinessWorkspaceData> loadWorkspace(UserRole role) async {
     final access = await loadAccess();
     if (!access.canUse(role)) {
-      throw StateError(
-        'The current user cannot access the ${role.name} workspace.',
-      );
+      throw const BusinessAccessDenied();
     }
 
     return switch (role) {

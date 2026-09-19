@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/data/supabase_business_repository.dart';
+import 'package:setflow/data/business_repository.dart';
 import 'package:setflow/models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -12,6 +13,44 @@ const _memberUserId = '33333333-3333-4333-8333-333333333333';
 const _consultationId = '44444444-4444-4444-8444-444444444444';
 
 void main() {
+  test(
+    'server grants override an approved profile and saved account role',
+    () async {
+      final backend = await _TrainerWorkspaceBackend.start(
+        availableRoles: const ['member'],
+      );
+      addTearDown(backend.close);
+      final repository = SupabaseBusinessRepository(backend.client);
+      expect((await repository.loadAccess()).availableRoles, {UserRole.member});
+      await expectLater(
+        repository.loadWorkspace(UserRole.trainer),
+        throwsA(isA<BusinessAccessDenied>()),
+      );
+    },
+  );
+
+  test('failed access RPC never falls back to client-computed roles', () async {
+    final backend = await _TrainerWorkspaceBackend.start(
+      failingResources: const {'get_my_business_access'},
+    );
+    addTearDown(backend.close);
+    await expectLater(
+      SupabaseBusinessRepository(backend.client).loadAccess(),
+      throwsA(isA<BusinessAccessDenied>()),
+    );
+  });
+
+  test('access returned for another account is rejected', () async {
+    final backend = await _TrainerWorkspaceBackend.start(
+      accessUserId: _memberUserId,
+    );
+    addTearDown(backend.close);
+    await expectLater(
+      SupabaseBusinessRepository(backend.client).loadAccess(),
+      throwsStateError,
+    );
+  });
+
   test(
     'dashboard failure preserves successful trainer workspace data',
     () async {
@@ -68,7 +107,9 @@ class _TrainerWorkspaceBackend {
   final SupabaseClient client;
 
   static Future<_TrainerWorkspaceBackend> start({
-    required Set<String> failingResources,
+    Set<String> failingResources = const {},
+    List<String> availableRoles = const ['member', 'trainer'],
+    String accessUserId = _trainerUserId,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final client = SupabaseClient(
@@ -77,7 +118,14 @@ class _TrainerWorkspaceBackend {
       authOptions: const AuthClientOptions(autoRefreshToken: false),
     );
     final backend = _TrainerWorkspaceBackend._(server, client);
-    server.listen((request) => backend._handle(request, failingResources));
+    server.listen(
+      (request) => backend._handle(
+        request,
+        failingResources,
+        availableRoles,
+        accessUserId,
+      ),
+    );
     await client.auth.recoverSession(
       jsonEncode({
         'access_token': 'test-access-token',
@@ -105,6 +153,8 @@ class _TrainerWorkspaceBackend {
   Future<void> _handle(
     HttpRequest request,
     Set<String> failingResources,
+    List<String> availableRoles,
+    String accessUserId,
   ) async {
     await request.drain<void>();
     final resource = request.uri.pathSegments.last;
@@ -118,26 +168,26 @@ class _TrainerWorkspaceBackend {
       return;
     }
 
-    final Object? body = switch (resource) {
-      'users' => {
-        'id': _trainerUserId,
-        'email': 'trainer@example.com',
-        'role': 'trainer',
+    final Object body = switch (resource) {
+      'get_my_business_access' => {
+        'user': {
+          'id': accessUserId,
+          'email': 'trainer@example.com',
+          'role': 'trainer',
+        },
+        'available_roles': availableRoles,
+        'trainer': {
+          'id': _trainerId,
+          'user_id': _trainerUserId,
+          'display_name': '테스트 트레이너',
+          'rating_avg': 4.9,
+          'post_count': 3,
+          'coaching_total': 5,
+          'is_public': true,
+          'verified_badge': true,
+          'status': 'approved',
+        },
       },
-      'get_my_trainer_profile' => {
-        'id': _trainerId,
-        'user_id': _trainerUserId,
-        'display_name': '테스트 트레이너',
-        'rating_avg': 4.9,
-        'post_count': 3,
-        'coaching_total': 5,
-        'is_public': true,
-        'verified_badge': true,
-        'status': 'approved',
-      },
-      'get_my_gym_profile' => null,
-      'trainer_applications' || 'gym_applications' => const [],
-      'is_admin' => false,
       'v_trainer_dashboard' => {
         'trainer_id': _trainerId,
         'unread_consults': 1,

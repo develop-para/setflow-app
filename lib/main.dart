@@ -32,6 +32,7 @@ import 'screens/member_screens.dart';
 import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
 import 'screens/splash_screen.dart';
+import 'screens/workspace_selection_screen.dart';
 import 'services/auth_service.dart';
 import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
@@ -161,6 +162,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   /// Asked at most once per run. Declining leaves the records on the device,
   /// so re-asking on every session restore would only be nagging.
   bool _guestDataOffered = false;
+  bool _workspaceNavigationScheduled = false;
 
   @override
   void initState() {
@@ -180,6 +182,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     // 알림함에서 누른 것도 시스템 알림을 누른 것과 같은 길을 타야 한다. 두
     // 통로가 각자 상세 화면을 열면 목적지 표가 두 벌이 된다.
     state.addListener(_openPendingPushDetail);
+    state.addListener(_revealWorkspaceSelection);
     _persistenceSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       unawaited(state.syncPersistenceToServer().catchError((_) {}));
     });
@@ -220,11 +223,28 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   /// push한다. 초기화 전에 도착하면 셸이 뜨고 나서 처리되도록 상태에만 남긴다.
   void _handlePushOpen(PushOpen open) => state.openPush(open);
 
+  void _revealWorkspaceSelection() {
+    if (_workspaceNavigationScheduled ||
+        _passwordRecoveryOpen ||
+        !state.isInitialized ||
+        state.businessAccess == null ||
+        !state.needsWorkspaceSelection) {
+      return;
+    }
+    _workspaceNavigationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _workspaceNavigationScheduled = false;
+      if (mounted && !_passwordRecoveryOpen && state.needsWorkspaceSelection) {
+        _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      }
+    });
+  }
+
   /// [AppState.pendingPushOpen]이 새것으로 바뀌면 상세 화면을 연다. 탭을 옮기는
   /// 것은 셸이 같은 값을 보고 한다. 알림을 탭한 경로(푸시)와 알림함에서 누른
   /// 경로가 여기서 하나로 합쳐진다.
   void _openPendingPushDetail() {
-    if (!state.isInitialized) return;
+    if (!state.isInitialized || state.needsWorkspaceSelection) return;
     final open = state.pendingPushOpen;
     if (open == null || open.serial == _handledPushSerial) return;
     _handledPushSerial = open.serial;
@@ -232,7 +252,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   }
 
   void _openPushDetail(PushOpen open) {
-    if (!mounted || !state.isInitialized) return;
+    if (!mounted || !state.isInitialized || state.needsWorkspaceSelection) {
+      return;
+    }
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
     if (open.event == 'coaching_workout') {
@@ -317,6 +339,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       await state.syncAfterAuthentication();
     } catch (_) {
       // AppState surfaces the failure through persistenceError.
+    }
+    if (mounted && state.needsWorkspaceSelection && !_passwordRecoveryOpen) {
+      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
     }
     // 계정이 정해진 뒤에 등록해야 토큰이 맞는 사람에게 붙는다. 실패해도
     // 로그인을 막지 않는다.
@@ -441,6 +466,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     state.removeListener(_openPendingPushDetail);
+    state.removeListener(_revealWorkspaceSelection);
     unawaited(_authSubscription?.cancel());
     unawaited(_appLinkSubscription?.cancel());
     unawaited(_pushOpenSubscription?.cancel());
@@ -746,9 +772,8 @@ class _RootScreenState extends State<RootScreen> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    // Launch straight into the member home. Signing in is optional and lives in
-    // settings, so a signed-out (guest) session gets the same shell as a member
-    // and only trainer/gym/admin roles swap the shell out.
+    // Guests and member-only accounts go straight to their records. A restored
+    // multi-role account chooses its workspace before a business shell opens.
     final shellRole = state.role == UserRole.guest
         ? UserRole.member
         : state.role;
@@ -770,6 +795,8 @@ class _RootScreenState extends State<RootScreen> {
               key: const ValueKey('splash'),
               onFinished: () => setState(() => _showSplash = false),
             )
+          : state.needsWorkspaceSelection
+          ? const WorkspaceSelectionScreen(key: ValueKey('workspace-selection'))
           : KeyedSubtree(key: ValueKey(shellRole), child: page),
     );
   }

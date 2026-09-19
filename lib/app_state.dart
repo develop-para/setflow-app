@@ -894,6 +894,101 @@ class AppState extends ChangeNotifier {
   /// True while the portal transition overlay owns the screen.
   bool isPortalSwitching = false;
 
+  // Deliberately not persisted: each app launch/account gets a fresh choice.
+  bool _workspaceChosen = false;
+  bool workspaceEntryLoading = false;
+  Object? workspaceEntryError;
+
+  List<UserRole> get availableWorkspaceRoles => [
+    for (final candidate in const [
+      UserRole.member,
+      UserRole.trainer,
+      UserRole.gym,
+      UserRole.admin,
+    ])
+      if (businessAccess?.canUse(candidate) == true &&
+          (candidate != UserRole.admin || _verifiedAdmin))
+        candidate,
+  ];
+
+  bool get needsWorkspaceSelection =>
+      businessRepository != null &&
+      Auth.instance.hasAuthenticatedUser &&
+      !_workspaceChosen &&
+      (businessAccess == null || availableWorkspaceRoles.length > 1);
+
+  void _acceptBusinessAccess(BusinessAccess access) {
+    businessAccess = access;
+    if (!_workspaceChosen && availableWorkspaceRoles.length == 1) {
+      // A later approval must not interrupt a workout with a launch prompt.
+      _workspaceChosen = true;
+    }
+  }
+
+  /// Recheck the server immediately before entry. Never let a late response
+  /// restore the previous account's access after sign-out or an account switch.
+  Future<bool> enterWorkspace(UserRole selectedRole) async {
+    if (workspaceEntryLoading) return false;
+    final repository = businessRepository;
+    if (repository == null) {
+      chooseRole(selectedRole);
+      return role == selectedRole;
+    }
+    final accountEpoch = _accountEpoch;
+    final userId = Auth.instance.currentUser?.id;
+    workspaceEntryLoading = true;
+    workspaceEntryError = null;
+    notifyListeners();
+    try {
+      final access = await repository.loadAccess().timeout(
+        const Duration(seconds: 15),
+      );
+      if (!_isCurrentAccount(accountEpoch) ||
+          Auth.instance.currentUser?.id != userId) {
+        return false;
+      }
+      if (userId != access.userId || !access.canUse(selectedRole)) {
+        throw const AuthFailure('이 역할의 이용 권한이 없어요. 다시 확인해주세요.');
+      }
+      _acceptBusinessAccess(access);
+      _verifiedAdmin = access.canUse(UserRole.admin);
+      _workspaceChosen = true;
+      chooseRole(selectedRole);
+      return role == selectedRole;
+    } catch (error) {
+      if (!_isCurrentAccount(accountEpoch)) return false;
+      workspaceEntryError = error;
+      _workspaceChosen = false;
+      businessAccess = null;
+      chooseRole(UserRole.member);
+      if (error is BusinessAccessDenied) _clearRejectedBusinessAccess(error);
+      return false;
+    } finally {
+      if (_isCurrentAccount(accountEpoch)) {
+        workspaceEntryLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Personal records remain available when the server cannot be reached.
+  void continueWithPersonalWorkspace() {
+    _workspaceChosen = true;
+    workspaceEntryError = null;
+    chooseRole(UserRole.member);
+  }
+
+  void _clearRejectedBusinessAccess(BusinessAccessDenied error) {
+    businessAccess = null;
+    _verifiedAdmin = false;
+    businessWorkspace = null;
+    _clearBusinessMemberDetailCache();
+    _resetLiveBusinessDashboards();
+    role = UserRole.member;
+    _workspaceChosen = false;
+    workspaceEntryError = error;
+  }
+
   AppPortal get portal => switch (role) {
     UserRole.guest || UserRole.member => AppPortal.client,
     UserRole.trainer || UserRole.gym || UserRole.admin => AppPortal.trainer,
@@ -912,29 +1007,32 @@ class AppState extends ChangeNotifier {
     return UserRole.trainer;
   }
 
-  /// Swaps the whole shell behind a brand transition. The pro portal is a
-  /// preview surface here, so the local access gate is skipped — the server
-  /// still decides what its screens can actually read.
+  /// Swaps the shell only after a fresh server access check in a live build.
   Future<void> switchPortal(AppPortal target) async {
     if (isPortalSwitching) return;
     final desired = target == AppPortal.client
         ? UserRole.member
         : portalTrainerRole;
     if (portal == target && role == desired) return;
+    final accountEpoch = _accountEpoch;
     isPortalSwitching = true;
     notifyListeners();
     final settle = Future<void>.delayed(portalSwitchDuration);
-    chooseRole(desired, enforceAccess: false);
+    if (target == AppPortal.client) {
+      continueWithPersonalWorkspace();
+    } else {
+      await enterWorkspace(desired);
+    }
     await settle;
+    if (!_isCurrentAccount(accountEpoch)) return;
     isPortalSwitching = false;
     notifyListeners();
   }
 
-  void chooseRole(UserRole value, {bool enforceAccess = true}) {
+  void chooseRole(UserRole value) {
     if (value == UserRole.admin && !_verifiedAdmin) return;
     final access = businessAccess;
-    if (enforceAccess &&
-        businessRepository != null &&
+    if (businessRepository != null &&
         value != UserRole.member &&
         (access == null || !access.canUse(value))) {
       return;
@@ -994,13 +1092,13 @@ class AppState extends ChangeNotifier {
         return;
       }
       businessError = error;
-      if (!preserveExistingWorkspace) {
-        businessWorkspace = null;
-        _resetLiveBusinessDashboards();
-      }
+      // A failed authorization refresh must not leave private cached content
+      // visible after approval has been revoked.
+      businessWorkspace = null;
+      _resetLiveBusinessDashboards();
+      if (error is BusinessAccessDenied) _clearRejectedBusinessAccess(error);
     } finally {
-      if (_isCurrentBusinessRequest(accountEpoch, requestToken) &&
-          role == selectedRole) {
+      if (_isCurrentBusinessRequest(accountEpoch, requestToken)) {
         businessLoading = false;
         notifyListeners();
       }
@@ -2822,17 +2920,26 @@ class AppState extends ChangeNotifier {
     Object? auxiliaryError;
     void rememberAuxiliaryError(Object error) => auxiliaryError ??= error;
     try {
-      final access = await repository.loadAccess();
+      final access = await repository.loadAccess().timeout(
+        const Duration(seconds: 15),
+      );
       if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+      _acceptBusinessAccess(access);
       final resolvedRole = _resolveRefreshedBusinessRole(access);
+      if (resolvedRole != role) {
+        businessWorkspace = null;
+        _resetLiveBusinessDashboards();
+      }
+      role = resolvedRole;
 
+      notifyListeners();
       BusinessWorkspaceData? refreshedWorkspace;
       if (_isBusinessWorkspaceRole(resolvedRole)) {
         refreshedWorkspace = await repository.loadWorkspace(resolvedRole);
         if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
       }
 
-      businessAccess = access;
+      _acceptBusinessAccess(access);
       role = resolvedRole;
       businessWorkspace = refreshedWorkspace;
       if (refreshedWorkspace != null) {
@@ -3037,6 +3144,7 @@ class AppState extends ChangeNotifier {
         memberConsultationsError = error;
       }
       businessError = error;
+      if (error is BusinessAccessDenied) _clearRejectedBusinessAccess(error);
       rethrow;
     } finally {
       if (_isCurrentBusinessRequest(accountEpoch, requestToken)) {
@@ -3121,13 +3229,15 @@ class AppState extends ChangeNotifier {
   UserRole _resolveRefreshedBusinessRole(BusinessAccess access) {
     final selectedRole = role;
     if (selectedRole == UserRole.member) return UserRole.member;
-    if (selectedRole == UserRole.admin && _verifiedAdmin) {
+    if (selectedRole == UserRole.admin &&
+        _verifiedAdmin &&
+        access.canUse(UserRole.admin)) {
       return UserRole.admin;
     }
     if (selectedRole != UserRole.admin && access.canUse(selectedRole)) {
       return selectedRole;
     }
-    if (_verifiedAdmin) return UserRole.admin;
+    if (_verifiedAdmin && access.canUse(UserRole.admin)) return UserRole.admin;
     if (access.resolvedRole != UserRole.admin &&
         (access.resolvedRole == UserRole.member ||
             access.canUse(access.resolvedRole))) {
@@ -4403,15 +4513,32 @@ class AppState extends ChangeNotifier {
     final repository = businessRepository;
     if (repository == null) return;
     final accountEpoch = _accountEpoch;
+    workspaceEntryLoading = true;
+    notifyListeners();
     try {
-      final access = await repository.loadAccess();
+      final access = await repository.loadAccess().timeout(
+        const Duration(seconds: 15),
+      );
       if (!_isCurrentAccount(accountEpoch)) return;
-      businessAccess = access;
+      _acceptBusinessAccess(access);
+      businessError = null;
+      workspaceEntryError = null;
+      if (_isBusinessWorkspaceRole(role) && !access.canUse(role)) {
+        chooseRole(UserRole.member);
+      }
       notifyListeners();
     } catch (error) {
       if (!_isCurrentAccount(accountEpoch)) return;
+      businessAccess = null;
+      if (_isBusinessWorkspaceRole(role)) chooseRole(UserRole.member);
       businessError = error;
+      if (error is BusinessAccessDenied) _clearRejectedBusinessAccess(error);
       notifyListeners();
+    } finally {
+      if (_isCurrentAccount(accountEpoch)) {
+        workspaceEntryLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -6767,7 +6894,11 @@ class AppState extends ChangeNotifier {
   }
 
   void _applySnapshot(AppSnapshot snapshot) {
-    role = businessRepository == null ? snapshot.role : UserRole.guest;
+    if (businessRepository == null) {
+      role = snapshot.role;
+    } else if (!_workspaceChosen) {
+      role = UserRole.guest;
+    }
     isDarkMode = snapshot.isDarkMode;
     weightUnit = snapshot.weightUnit;
     restDefaultSeconds = snapshot.restDefaultSeconds;
@@ -6896,7 +7027,11 @@ class AppState extends ChangeNotifier {
       _seedSocial();
     }
     businessAccess = null;
+    _workspaceChosen = false;
+    workspaceEntryLoading = false;
+    workspaceEntryError = null;
     businessWorkspace = null;
+    isPortalSwitching = false;
     publicTrainers = const [];
     topCoachingTrainers = const [];
     memberConsultations = const [];

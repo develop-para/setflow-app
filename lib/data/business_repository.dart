@@ -129,6 +129,16 @@ enum BusinessInviteStatus {
   final String databaseValue;
 }
 
+/// A server authorization refusal, distinct from a temporary network failure.
+class BusinessAccessDenied implements Exception {
+  const BusinessAccessDenied();
+
+  String get message => '이용 권한이 만료되었거나 변경됐어요. 다시 로그인해주세요.';
+
+  @override
+  String toString() => message;
+}
+
 class BusinessAccess {
   const BusinessAccess({
     required this.userId,
@@ -1725,6 +1735,8 @@ class ShareOwnedRoutineInput {
 }
 
 abstract interface class BusinessRepository {
+  /// The server resolves current grants from the active account and session.
+  /// A saved role or an application status is never an authorization source.
   Future<BusinessAccess> loadAccess();
 
   Future<BusinessWorkspaceData> loadWorkspace(UserRole role);

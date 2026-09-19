@@ -560,7 +560,7 @@ void main() {
     addTearDown(state.dispose);
 
     Future<void> portal(UserRole role, String name, List<String> tabs) async {
-      state.chooseRole(role, enforceAccess: false);
+      state.chooseRole(role);
       await tester.pumpWidget(
         AppScope(
           notifier: state,
