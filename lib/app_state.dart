@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'data/app_repository.dart';
 import 'data/account_profile_repository.dart';
+import 'member_navigation.dart';
 import 'data/business_repository.dart';
 import 'data/coaching_workout_repository.dart';
 import 'data/backend_cache.dart';
@@ -379,6 +380,38 @@ class AppState extends ChangeNotifier {
   /// 트레이너·센터 업무 알림 스위치. 서버의 `push_enabled`가 스냅샷에서
   /// 같은 키를 읽는다 — 키가 없으면 켜진 것이다.
   Map<String, bool> businessNotifications = {};
+
+  List<MemberDestination> _memberNavigation = MemberNavigation.defaults;
+  List<MemberDestination> get memberNavigation => _memberNavigation;
+
+  /// Success means the account/guest snapshot is durable on this device.
+  /// Server synchronization uses the existing account-scoped outbox.
+  Future<bool> saveMemberNavigation(
+    List<MemberDestination> destinations,
+  ) async {
+    if (destinations.length != MemberNavigation.defaults.length ||
+        destinations.toSet().length != destinations.length) {
+      throw ArgumentError('하단 메뉴는 서로 다른 다섯 개 항목이어야 합니다.');
+    }
+    final epoch = _accountEpoch;
+    final previous = _memberNavigation;
+    _memberNavigation = List.unmodifiable(destinations);
+    _schedulePersist();
+    notifyListeners();
+    try {
+      await flushPersistence();
+      if (!_isCurrentAccount(epoch)) return false;
+      _scheduleServerSync();
+      return true;
+    } catch (_) {
+      if (_isCurrentAccount(epoch)) {
+        _memberNavigation = previous;
+        _queuedSnapshot = _snapshotForPersistence();
+        notifyListeners();
+      }
+      rethrow;
+    }
+  }
 
   /// 방금 탭한 푸시. 셸이 이걸 보고 탭을 옮기고, 상세 화면이 필요하면
   /// main.dart가 그 위에 push한다. [PushOpen.serial]로 "이미 처리한 것"을 가른다.
@@ -6774,6 +6807,7 @@ class AppState extends ChangeNotifier {
     businessNotifications: Map<String, bool>.unmodifiable(
       businessNotifications,
     ),
+    memberNavigation: _memberNavigation,
     sessions: Map<DateTime, WorkoutSession>.unmodifiable(
       _personalSessionsForPersistence(),
     ),
@@ -6927,6 +6961,7 @@ class AppState extends ChangeNotifier {
       AppSnapshot.latestReminderHour,
     );
     businessNotifications = Map.of(snapshot.businessNotifications);
+    _memberNavigation = MemberNavigation.restore(snapshot.memberNavigation);
     goals = List.of(snapshot.goals);
     heightCm = snapshot.heightCm;
     weight = snapshot.weight;
@@ -7006,6 +7041,7 @@ class AppState extends ChangeNotifier {
     pushWorkoutReminder = false;
     workoutReminderHour = 19;
     businessNotifications = {};
+    _memberNavigation = MemberNavigation.defaults;
     goals = [];
     heightCm = null;
     weight = null;

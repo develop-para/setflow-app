@@ -1,4 +1,5 @@
 import '../models.dart';
+import '../member_navigation.dart';
 
 class AppSnapshot {
   const AppSnapshot({
@@ -23,6 +24,7 @@ class AppSnapshot {
     this.pushWorkoutReminder = false,
     this.workoutReminderHour = 19,
     this.businessNotifications = const {},
+    this.memberNavigation = MemberNavigation.defaults,
     this.goals = const [],
     this.heightCm,
     this.weight,
@@ -78,6 +80,7 @@ class AppSnapshot {
   /// 트레이너·센터의 업무 알림 스위치(`primary`·`feedback`·`settlement`·
   /// `marketing`). 키가 없으면 켜진 것으로 본다 — 서버의 기본값과 같다.
   final Map<String, bool> businessNotifications;
+  final List<MemberDestination> memberNavigation;
   final Map<DateTime, WorkoutSession> sessions;
   final List<RoutineData> routines;
   final List<String> goals;

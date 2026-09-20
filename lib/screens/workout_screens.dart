@@ -3065,8 +3065,9 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
 }
 
 class ExerciseLibraryScreen extends StatefulWidget {
-  const ExerciseLibraryScreen({required this.date, super.key});
+  const ExerciseLibraryScreen({required this.date, this.onAdded, super.key});
   final DateTime date;
+  final VoidCallback? onAdded;
 
   @override
   State<ExerciseLibraryScreen> createState() => _ExerciseLibraryScreenState();
@@ -3456,7 +3457,12 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       state.addExercise(widget.date, template);
     }
     AppSnackbar.success(context, '${selected.length}개 운동을 추가했어요.');
-    Navigator.of(context).pop();
+    if (widget.onAdded != null) {
+      setState(selected.clear);
+      widget.onAdded!();
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 }
 

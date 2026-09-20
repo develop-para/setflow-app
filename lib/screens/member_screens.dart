@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../app_state.dart';
+import '../member_navigation.dart';
 import '../services/push_service.dart';
 import '../korean_holidays.dart';
 import '../data/business_repository.dart';
@@ -17,6 +18,7 @@ import '../widgets/common.dart';
 import '../widgets/exercise_muscle_map.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
+import '../widgets/member_navigation_items.dart';
 import '../widgets/portal.dart';
 import 'detail_screens.dart';
 import 'coaching_workout_screens.dart';
@@ -29,6 +31,7 @@ import 'member_social_detail_screens.dart';
 import 'routine_editor_screen.dart';
 import 'together_screens.dart';
 import 'workout_screens.dart';
+import 'workout_dashboard_screen.dart';
 import 'welcome_screen.dart';
 
 export 'workout_dashboard_screen.dart' show DashboardScreen;
@@ -196,7 +199,9 @@ int? memberPageForPush(PushOpen open) {
 /// 바텀바는 다섯 자리뿐이라, 자리를 잃은 화면들(통계·체성분·코칭·설정)이
 /// 전부 이 한 버튼 뒤의 [MemberMenuScreen]에서 열린다.
 class _AppMenuHeaderButton extends StatelessWidget {
-  const _AppMenuHeaderButton();
+  const _AppMenuHeaderButton({required this.onSelected});
+
+  final ValueChanged<MemberDestination> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -205,9 +210,12 @@ class _AppMenuHeaderButton extends StatelessWidget {
       tooltip: '전체 메뉴',
       visualDensity: VisualDensity.compact,
       icon: const Icon(SetflowIcons.appMenu, size: 22),
-      onPressed: () => Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const MemberMenuScreen())),
+      onPressed: () async {
+        final destination = await Navigator.of(context).push<MemberDestination>(
+          MaterialPageRoute(builder: (_) => const MemberMenuScreen()),
+        );
+        if (context.mounted && destination != null) onSelected(destination);
+      },
     );
   }
 }
@@ -249,8 +257,9 @@ class RecordScreen extends StatelessWidget {
 }
 
 class _MemberShellState extends State<MemberShell> {
-  /// Index into the page list, where 2 is the center destination.
+  /// Stable page index, independent of the configured bottom-bar position.
   int index = 0;
+  final _visitedCustomPages = <int>{};
   bool _recordSheetOpen = false;
 
   /// 함께 방에 들어가 있는가. 방은 운동 중 전용 화면이라 셸의 헤더와 바텀바를
@@ -269,8 +278,23 @@ class _MemberShellState extends State<MemberShell> {
 
   void _show(int page) => setState(() {
     if (page != _recordPage) _recordShowToday = null;
+    _visitedCustomPages.add(page);
     index = page;
   });
+
+  Future<void> _openDestination(MemberDestination destination) async {
+    if (destination == MemberDestination.membership &&
+        !await requireSignIn(context, reason: AuthReason.membership)) {
+      return;
+    }
+    if (!mounted) return;
+    if (destination == MemberDestination.record) {
+      _handleRecordTap();
+      return;
+    }
+    _closeRecordSheet();
+    _show(destination.index);
+  }
 
   /// "오늘 기록으로" — 어느 탭에서 왔든 캘린더를 거치지 않고 오늘 세트 화면에
   /// 내린다. 운동 중인 사람의 경로라 탭 하나도 아깝다(AGENTS.md 5절).
@@ -282,44 +306,30 @@ class _MemberShellState extends State<MemberShell> {
   String? _handledRoutineShareToken;
   int _handledPushSerial = 0;
 
-  /// Page index the center disc owns.
+  /// Keep page indices stable for push/deep links even when menus move.
   static const _recordPage = 2;
   static const _togetherPage = 1;
 
-  /// 홈. The only page that carries the 일반인/트레이너 switch.
+  /// Home also shows the workout-location selector and notifications.
   static const _homePage = 0;
 
-  /// Bar slots left of the center action, then right of it.
-  static const destinations = [
-    SetflowNavItem(
-      icon: SetflowIcons.home,
-      selectedIcon: SetflowIcons.homeActive,
-      label: '홈',
-    ),
-    SetflowNavItem(
-      icon: SetflowIcons.together,
-      selectedIcon: SetflowIcons.togetherActive,
-      label: '함께',
-    ),
-    SetflowNavItem(
-      icon: SetflowIcons.community,
-      selectedIcon: SetflowIcons.communityActive,
-      label: '커뮤니티',
-    ),
-    SetflowNavItem(
-      icon: SetflowIcons.my,
-      selectedIcon: SetflowIcons.myActive,
-      label: '마이',
-    ),
-  ];
+  static const _sideSlots = [0, 1, 3, 4];
 
-  /// Bar slot -> page. Slots 0/1 sit before the center page, 2/3 after it.
-  static const _slotToPage = [0, 1, 3, 4];
-
-  int? get _selectedSlot {
-    final slot = _slotToPage.indexOf(index);
-    return slot == -1 ? null : slot;
-  }
+  Widget _customPage(MemberDestination destination, DateTime today) =>
+      switch (destination) {
+        MemberDestination.routines => const RoutinesScreen(),
+        MemberDestination.market => const MarketScreen(),
+        MemberDestination.library => ExerciseLibraryScreen(
+          date: today,
+          onAdded: _showRecordToday,
+        ),
+        MemberDestination.dashboard => const DashboardScreen(),
+        MemberDestination.body => const BodyCompositionScreen(),
+        MemberDestination.coaching => const CoachingScreen(),
+        MemberDestination.membership => const MemberMembershipScreen(),
+        MemberDestination.settings => const SettingsScreen(),
+        _ => const SizedBox.shrink(),
+      };
 
   @override
   void didChangeDependencies() {
@@ -358,6 +368,11 @@ class _MemberShellState extends State<MemberShell> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final navigation = AppScope.of(context).memberNavigation;
+    final selectedSlot = _sideSlots.indexWhere(
+      (slot) => navigation[slot].index == index,
+    );
+    final center = navigation[2];
     final pages = [
       // 홈은 이제 캘린더가 아니라 소식이다 — 캘린더·나의 루틴은 기록 탭으로
       // 옮겼다(기록 버튼 → 캘린더 → 날짜 → 운동 기록). "오늘" 카드의 버튼은
@@ -387,6 +402,13 @@ class _MemberShellState extends State<MemberShell> {
       ),
       const CommunityScreen(),
       const MyPageScreen(),
+      for (final destination in MemberDestination.values.skip(5))
+        KeyedSubtree(
+          key: ValueKey('member-page-${destination.name}'),
+          child: _visitedCustomPages.contains(destination.index)
+              ? _customPage(destination, today)
+              : const SizedBox.shrink(),
+        ),
     ];
 
     return PopScope(
@@ -406,15 +428,14 @@ class _MemberShellState extends State<MemberShell> {
                     // 자리가 없는 화면들(통계·체성분·코칭·설정)의 입구.
                     // 트레이너 전환 세그먼트는 여기 없다: 두 역할을 오가는
                     // 사람은 극소수라, 그 문은 전체 메뉴의 한 줄이다.
-                    leading: index == _homePage
-                        ? const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _AppMenuHeaderButton(),
-                              _WorkoutLocationHeaderButton(),
-                            ],
-                          )
-                        : null,
+                    leading: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _AppMenuHeaderButton(onSelected: _openDestination),
+                        if (index == _homePage)
+                          const _WorkoutLocationHeaderButton(),
+                      ],
+                    ),
                     // 알림함은 홈에서만 연다 — 다른 탭에서도 띄우면 헤더가
                     // 탭마다 다른 것을 들고 있게 된다.
                     trailing: index == _homePage
@@ -471,18 +492,27 @@ class _MemberShellState extends State<MemberShell> {
         bottomNavigationBar: _inTogetherSession
             ? null
             : SetflowActionNavBar(
-                items: destinations,
-                selectedIndex: _selectedSlot,
-                onSelected: (slot) {
-                  _closeRecordSheet();
-                  _show(_slotToPage[slot]);
-                },
-                centerLabel: '기록',
-                centerIcon: _recordSheetOpen
+                items: [
+                  for (final slot in _sideSlots)
+                    navigation[slot] == MemberDestination.record &&
+                            _recordSheetOpen
+                        ? const SetflowNavItem(
+                            icon: SetflowIcons.close,
+                            selectedIcon: SetflowIcons.close,
+                            label: '기록',
+                          )
+                        : navigation[slot].navItem,
+                ],
+                selectedIndex: selectedSlot < 0 ? null : selectedSlot,
+                onSelected: (slot) =>
+                    _openDestination(navigation[_sideSlots[slot]]),
+                centerLabel: center.label,
+                centerIcon:
+                    center == MemberDestination.record && _recordSheetOpen
                     ? SetflowIcons.close
-                    : SetflowIcons.record,
-                centerSelected: index == _recordPage,
-                onCenterTap: _handleCenterTap,
+                    : center.icon,
+                centerSelected: index == center.index,
+                onCenterTap: () => _openDestination(center),
               ),
       ),
     );
@@ -490,7 +520,7 @@ class _MemberShellState extends State<MemberShell> {
 
   /// The OKX Trade contract: the first tap opens the core surface, a second tap
   /// while already there opens its action sheet, and a third closes it.
-  void _handleCenterTap() {
+  void _handleRecordTap() {
     if (_recordSheetOpen) {
       _closeRecordSheet();
       return;
@@ -5126,9 +5156,11 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   Future<void> _logout(BuildContext context, AppState state) async {
-    final route = ModalRoute.of(context);
-    Navigator.of(context).pop();
-    await route?.completed;
+    if (Navigator.of(context).canPop()) {
+      final route = ModalRoute.of(context);
+      Navigator.of(context).pop();
+      await route?.completed;
+    }
     await state.logout();
   }
 
@@ -5254,7 +5286,7 @@ class SettingsScreen extends StatelessWidget {
               title: const Text('트레이너 화면 보기 (데모)'),
               subtitle: const Text('샘플 데이터로 채운 미리보기예요.'),
               onTap: () {
-                Navigator.pop(context);
+                if (Navigator.of(context).canPop()) Navigator.pop(context);
                 state.chooseRole(UserRole.trainer);
               },
             ),
@@ -5263,7 +5295,7 @@ class SettingsScreen extends StatelessWidget {
               title: const Text('헬스장 화면 보기 (데모)'),
               subtitle: const Text('샘플 데이터로 채운 미리보기예요.'),
               onTap: () {
-                Navigator.pop(context);
+                if (Navigator.of(context).canPop()) Navigator.pop(context);
                 state.chooseRole(UserRole.gym);
               },
             ),
@@ -5273,7 +5305,7 @@ class SettingsScreen extends StatelessWidget {
               leading: const Icon(Icons.admin_panel_settings_outlined),
               title: const Text('운영 관리자 화면 보기 (데모)'),
               onTap: () {
-                Navigator.pop(context);
+                if (Navigator.of(context).canPop()) Navigator.pop(context);
                 state.chooseRole(UserRole.admin);
               },
             ),
@@ -5382,7 +5414,7 @@ class _BusinessRoleEntry extends StatelessWidget {
           : () async {
               final state = AppScope.of(context);
               if (hasAccess) {
-                Navigator.pop(context);
+                if (Navigator.of(context).canPop()) Navigator.pop(context);
                 state.chooseRole(role);
                 return;
               }

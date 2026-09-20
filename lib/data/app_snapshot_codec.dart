@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../models.dart';
+import '../member_navigation.dart';
 import 'app_repository.dart';
 
 abstract final class AppSnapshotCodec {
@@ -74,6 +75,9 @@ abstract final class AppSnapshotCodec {
         'pushWorkoutReminder': snapshot.pushWorkoutReminder,
         'workoutReminderHour': snapshot.workoutReminderHour,
         'businessNotifications': snapshot.businessNotifications,
+        'memberNavigation': snapshot.memberNavigation
+            .map((item) => item.name)
+            .toList(),
       },
       'profile': {
         'nickname': snapshot.nickname,
@@ -244,6 +248,9 @@ abstract final class AppSnapshotCodec {
                   .entries)
             if (entry.value is bool) entry.key: entry.value as bool,
         },
+        memberNavigation: MemberNavigation.restore(
+          preferences['memberNavigation'],
+        ),
         sessions: sessions,
         routines: routines,
         goals: (profile['goals'] as List<dynamic>? ?? const [])

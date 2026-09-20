@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
+import 'package:setflow/member_navigation.dart';
 import 'package:setflow/data/app_repository.dart';
 import 'package:setflow/data/app_snapshot_codec.dart';
 import 'package:setflow/data/hive_app_repository.dart';
@@ -12,6 +13,38 @@ import 'package:setflow/data/supabase_app_repository.dart';
 
 void main() {
   group('AppState account boundaries', () {
+    test(
+      'navigation preferences sync to another device for the same account',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final state = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(state.dispose);
+        await state.initialize();
+        final navigation = MemberNavigation.place(
+          MemberNavigation.defaults,
+          MemberDestination.routines,
+          1,
+        );
+        await state.saveMemberNavigation(navigation);
+        await state.syncPersistenceToServer();
+
+        final secondDevice = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(secondDevice.dispose);
+        await secondDevice.initialize();
+        expect(secondDevice.memberNavigation, navigation);
+      },
+    );
+
     test('A to empty B switch clears every core account value', () async {
       final repository = _SwitchingAccountRepository()
         ..currentUserId = 'account-a'
@@ -30,6 +63,12 @@ void main() {
       expect(state.isDarkMode, isTrue);
       expect(state.weightUnit, 'lb');
       expect(state.heightCm, 181);
+      final navigation = MemberNavigation.place(
+        MemberNavigation.defaults,
+        MemberDestination.dashboard,
+        0,
+      );
+      await state.saveMemberNavigation(navigation);
       expect(
         state.routines.any((item) => item.id == 'account-a-routine'),
         isTrue,
@@ -42,6 +81,8 @@ void main() {
       expect(state.isDarkMode, isFalse);
       expect(state.weightUnit, 'kg');
       expect(state.heightCm, isNull);
+      expect(state.memberNavigation, MemberNavigation.defaults);
+      expect(repository.snapshots['account-a']?.memberNavigation, navigation);
       expect(state.sessions, isEmpty);
       expect(
         state.routines.any((item) => item.id == 'account-a-routine'),

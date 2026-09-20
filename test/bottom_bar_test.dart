@@ -188,6 +188,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(MemberMenuScreen), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('menu-stats')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.byKey(const ValueKey('menu-stats')));
     await tester.pumpAndSettle();
     expect(find.byType(DashboardScreen), findsOneWidget);

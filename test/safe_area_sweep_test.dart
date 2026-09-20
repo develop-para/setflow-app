@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/main.dart';
+import 'package:setflow/widgets/bottom_bar.dart';
 import 'package:setflow/data/business_repository.dart';
 import 'package:setflow/screens/account_deletion_screen.dart';
 import 'package:setflow/screens/admin_content_screens.dart';
@@ -184,17 +185,26 @@ void main() {
   testWidgets('every trainer-portal tab keeps its pinned buttons reachable', (
     tester,
   ) async {
-    // The pro shell still uses Material's NavigationBar rather than
-    // SetflowActionNavBar, so it insets itself differently from the member one.
+    // Trainer shares the member action bar; gym/admin retain their tab bar.
     for (final role in [UserRole.trainer, UserRole.gym, UserRole.admin]) {
       var inspected = 0;
       await pumpScreen(tester, BusinessShell(role: role));
 
-      final tabs = find.byType(NavigationDestination).evaluate().length;
+      final trainer = role == UserRole.trainer;
+      final tabs = trainer
+          ? 5
+          : find.byType(NavigationDestination).evaluate().length;
       expect(tabs, greaterThan(0), reason: '$role 셸에 탭이 없다');
 
       for (var i = 0; i < tabs; i++) {
-        await tester.tap(find.byType(NavigationDestination).at(i));
+        await tester.tap(
+          trainer
+              ? find.descendant(
+                  of: find.byType(SetflowActionNavBar),
+                  matching: find.text(const ['홈', '회원', '루틴', '상담', '설정'][i]),
+                )
+              : find.byType(NavigationDestination).at(i),
+        );
         await tester.pumpAndSettle();
         final result = sweep(tester);
         inspected += result.inspected;

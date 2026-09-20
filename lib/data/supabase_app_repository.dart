@@ -893,6 +893,7 @@ class SupabaseAppRepository
       pushWorkoutReminder: source.pushWorkoutReminder,
       workoutReminderHour: source.workoutReminderHour,
       businessNotifications: source.businessNotifications,
+      memberNavigation: source.memberNavigation,
       sessions: {
         for (final entry in source.sessions.entries)
           if (entry.value.exercises.any(
