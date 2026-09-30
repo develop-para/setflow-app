@@ -693,7 +693,11 @@ class WorkoutSession {
     this.startedAt,
     this.endedAt,
     this.trainingFocus,
-  });
+    Map<String, String> correctionVersions = const {},
+  }) : correctionVersions = Map.of(correctionVersions);
+
+  /// 확인한 서버 정정 버전. 오래된 기기의 일괄 저장이 정정을 되돌리지 않는다.
+  final Map<String, String> correctionVersions;
 
   final DateTime date;
   final List<WorkoutExercise> exercises;

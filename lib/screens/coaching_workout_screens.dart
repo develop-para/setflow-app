@@ -53,16 +53,16 @@ String? _actorId(AppState state) =>
     Auth.instance.currentUser?.id ?? state.businessAccess?.userId;
 
 /// 계정 변경 시 내부 State도 제거해 이전 초안과 늦은 응답을 차단한다.
-class _CoachingAccountBoundary extends StatefulWidget {
-  const _CoachingAccountBoundary({required this.child});
+class CoachingAccountBoundary extends StatefulWidget {
+  const CoachingAccountBoundary({required this.child, super.key});
   final Widget child;
 
   @override
-  State<_CoachingAccountBoundary> createState() =>
+  State<CoachingAccountBoundary> createState() =>
       _CoachingAccountBoundaryState();
 }
 
-class _CoachingAccountBoundaryState extends State<_CoachingAccountBoundary> {
+class _CoachingAccountBoundaryState extends State<CoachingAccountBoundary> {
   bool _bound = false;
   bool _expired = false;
   String? _initialActor;
@@ -136,7 +136,7 @@ class CoachingWorkoutScreen extends StatelessWidget {
   final String? scheduleId;
 
   @override
-  Widget build(BuildContext context) => _CoachingAccountBoundary(
+  Widget build(BuildContext context) => CoachingAccountBoundary(
     child: _CoachingWorkoutPage(workoutId: workoutId, scheduleId: scheduleId),
   );
 }
@@ -1121,7 +1121,7 @@ class CoachingAssignmentsScreen extends StatelessWidget {
   const CoachingAssignmentsScreen({this.memberUserId, super.key});
   final String? memberUserId;
   @override
-  Widget build(BuildContext context) => _CoachingAccountBoundary(
+  Widget build(BuildContext context) => CoachingAccountBoundary(
     child: _CoachingAssignmentsPage(memberUserId: memberUserId),
   );
 }
@@ -1242,7 +1242,7 @@ class _CoachingAssignmentsScreenState extends State<_CoachingAssignmentsPage> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute<void>(
-                builder: (_) => const _CoachingAccountBoundary(
+                builder: (_) => const CoachingAccountBoundary(
                   child: _CoachingReminderScreen(),
                 ),
               ),
@@ -1360,7 +1360,7 @@ class CoachingAssignmentComposerScreen extends StatelessWidget {
   });
   final String memberUserId;
   @override
-  Widget build(BuildContext context) => _CoachingAccountBoundary(
+  Widget build(BuildContext context) => CoachingAccountBoundary(
     child: _CoachingAssignmentComposerPage(memberUserId: memberUserId),
   );
 }

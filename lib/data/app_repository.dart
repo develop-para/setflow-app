@@ -204,6 +204,12 @@ abstract interface class PendingSaveAwareRepository {
 }
 
 /// Repository capability for local-first persistence with deferred cloud sync.
+abstract interface class WorkoutCorrectionSync {
+  /// Drain corrections reconciled during upload so the live editor also sees
+  /// the corrected values, without replacing unrelated unsaved local work.
+  List<WorkoutSession> takeReconciledWorkouts();
+}
+
 abstract interface class DeferredSyncAppRepository {
   bool get hasPendingSave;
 

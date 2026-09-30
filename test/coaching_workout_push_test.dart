@@ -7,6 +7,7 @@ import 'package:setflow/data/app_repository.dart';
 import 'package:setflow/data/coaching_workout_repository.dart';
 import 'package:setflow/main.dart';
 import 'package:setflow/screens/coaching_workout_screens.dart';
+import 'package:setflow/screens/coaching_management_screen.dart';
 import 'package:setflow/services/auth_service.dart';
 import 'package:setflow/services/push_service.dart';
 
@@ -15,6 +16,33 @@ void main() {
   tearDown(() {
     Auth.reset();
     Push.bind(const DisabledPushService());
+  });
+
+  testWidgets('management notifications open the same approval inbox once', (
+    tester,
+  ) async {
+    final local = _DelayedLocalRepository()..complete();
+    final notification = PushOpen(
+      kind: 'coaching_feedback',
+      data: const {'event': 'coaching_management', 'linkId': 'link'},
+    );
+    final push = _ColdStartPush(notification);
+    Push.bind(push);
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await push.events.close();
+    });
+    await tester.pumpWidget(SetflowApp(repository: local));
+    await tester.pump(const Duration(milliseconds: 1900));
+    await tester.pumpAndSettle();
+    expect(find.byType(CoachingManagementScreen), findsOneWidget);
+    push.events.add(notification);
+    await tester.pumpAndSettle();
+    expect(
+      find.byType(CoachingManagementScreen, skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

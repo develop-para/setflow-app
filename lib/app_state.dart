@@ -10,6 +10,8 @@ import 'data/account_profile_repository.dart';
 import 'member_navigation.dart';
 import 'data/business_repository.dart';
 import 'data/coaching_workout_repository.dart';
+import 'data/workout_correction_merge.dart';
+import 'data/coaching_management_repository.dart';
 import 'data/backend_cache.dart';
 import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
@@ -284,6 +286,7 @@ class AppState extends ChangeNotifier {
           startedAt: entry.value.startedAt,
           endedAt: entry.value.endedAt,
           trainingFocus: entry.value.trainingFocus,
+          correctionVersions: entry.value.correctionVersions,
           exercises: entry.value.exercises
               .where((exercise) => exercise.coachingWorkoutId == null)
               .toList(),
@@ -6653,12 +6656,21 @@ class AppState extends ChangeNotifier {
   /// Flushes the newest snapshot to device storage, then asks the deferred
   /// repository to synchronize its durable outbox with Supabase.
   Future<void> syncPersistenceToServer() async {
+    final accountEpoch = _accountEpoch;
     await flushPersistence();
     final repository = _repository;
     if (repository is! DeferredSyncAppRepository) return;
     final syncRepository = repository as DeferredSyncAppRepository;
     try {
       await syncRepository.syncPending();
+      if (!_isCurrentAccount(accountEpoch)) return;
+      if (repository is WorkoutCorrectionSync) {
+        for (final remote
+            in (repository as WorkoutCorrectionSync).takeReconciledWorkouts()) {
+          final local = sessions[dateOnly(remote.date)];
+          if (local != null) applyUnseenWorkoutCorrections(local, remote);
+        }
+      }
       persistenceSyncError = null;
     } catch (error) {
       persistenceSyncError = error;
@@ -6666,6 +6678,48 @@ class AppState extends ChangeNotifier {
       rethrow;
     }
     if (!_disposed) notifyListeners();
+  }
+
+  /// The owner's approval inbox returns newest corrections first. Reflect only
+  /// previously unseen personal-record corrections in the live diary.
+  void applyConfirmedWorkoutCorrections(
+    Iterable<WorkoutCorrection> corrections,
+  ) {
+    final seen = <String>{};
+    var changed = false;
+    for (final correction in corrections) {
+      if (correction.viewerRole != 'member' ||
+          correction.status != 'applied' ||
+          !correction.recordKey.startsWith('personal:') ||
+          !seen.add('${correction.recordKey}:${correction.correctionKey}')) {
+        continue;
+      }
+      final session = sessions[dateOnly(correction.date)];
+      if (session == null ||
+          session.correctionVersions[correction.correctionKey] ==
+              correction.id) {
+        continue;
+      }
+      final exercise = session.exercises
+          .where((e) => e.id == correction.exerciseId)
+          .firstOrNull;
+      final set = exercise?.sets
+          .where((s) => s.number == correction.setNumber)
+          .firstOrNull;
+      if (set != null) {
+        applyWorkoutMetricCorrection(
+          set,
+          correction.metric.name,
+          correction.after,
+        );
+      }
+      session.correctionVersions[correction.correctionKey] = correction.id;
+      changed = true;
+    }
+    if (changed) {
+      _schedulePersist();
+      notifyListeners();
+    }
   }
 
   /// 탈퇴는 서버가 있어야 성립한다 — 게스트에게는 지울 계정이 없다.
@@ -6989,6 +7043,7 @@ class AppState extends ChangeNotifier {
         startedAt: entry.value.startedAt,
         endedAt: entry.value.endedAt,
         trainingFocus: entry.value.trainingFocus,
+        correctionVersions: entry.value.correctionVersions,
       );
     }
     _projectCoachingWorkouts();

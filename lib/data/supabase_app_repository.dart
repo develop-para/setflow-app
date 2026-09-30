@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models.dart';
 import 'app_repository.dart';
 import 'app_snapshot_codec.dart';
+import 'workout_correction_merge.dart';
 
 class SupabaseAppSnapshotRow {
   const SupabaseAppSnapshotRow({
@@ -201,6 +202,7 @@ class SupabaseAppRepository
         AppRepository,
         PendingSaveAwareRepository,
         DeferredSyncAppRepository,
+        WorkoutCorrectionSync,
         LocalFirstAppRepository,
         GuestDataAdoption,
         AccountDeletion,
@@ -624,6 +626,12 @@ class SupabaseAppRepository
             localSnapshot,
             preferLocal: preferLocal,
           );
+    if (remoteSnapshot != null) {
+      _reconciledUserId = userId;
+      _reconciledWorkouts = remoteSnapshot.sessions.values
+          .where((s) => s.correctionVersions.isNotEmpty)
+          .toList();
+    }
     await _stageForUser(
       userId,
       resolved,
@@ -841,7 +849,24 @@ class SupabaseAppRepository
         key: 'role',
       ),
     };
-    return AppSnapshotCodec.fromJson(merged, _exerciseCatalog) ?? local;
+    final result = AppSnapshotCodec.fromJson(merged, _exerciseCatalog) ?? local;
+    for (final entry in remote.sessions.entries) {
+      final target = result.sessions[entry.key];
+      if (target != null) applyUnseenWorkoutCorrections(target, entry.value);
+    }
+    return result;
+  }
+
+  List<WorkoutSession> _reconciledWorkouts = [];
+  String? _reconciledUserId;
+
+  @override
+  List<WorkoutSession> takeReconciledWorkouts() {
+    final result = _gateway.currentUserId == _reconciledUserId
+        ? _reconciledWorkouts
+        : <WorkoutSession>[];
+    _reconciledWorkouts = [];
+    return result;
   }
 
   Map<String, dynamic> _mergeJsonMaps(Object? secondary, Object? preferred) => {

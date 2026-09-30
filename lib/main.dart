@@ -30,6 +30,7 @@ import 'data/supabase_notification_repository.dart';
 import 'data/supabase_together_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/coaching_workout_screens.dart';
+import 'screens/coaching_management_screen.dart';
 import 'screens/member_screens.dart';
 import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
@@ -265,6 +266,14 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     }
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
+    if (open.event == 'coaching_management') {
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const CoachingManagementScreen(),
+        ),
+      );
+      return;
+    }
     if (open.event == 'coaching_workout') {
       final workoutId = open.data['workoutId'];
       if (workoutId != null && workoutId.isNotEmpty) {

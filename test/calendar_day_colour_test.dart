@@ -67,7 +67,10 @@ void main() {
     final onSurface = SetflowTheme.light.colorScheme.onSurface;
 
     final sunday = dayIn(month, (d) => d.weekday == DateTime.sunday);
-    final saturday = dayIn(month, (d) => d.weekday == DateTime.saturday);
+    final saturday = dayIn(
+      month,
+      (d) => d.weekday == DateTime.saturday && holidayOf(d) == null,
+    );
     final weekday = dayIn(
       month,
       (d) =>
