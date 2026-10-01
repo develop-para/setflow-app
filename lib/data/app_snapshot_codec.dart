@@ -282,6 +282,8 @@ abstract final class AppSnapshotCodec {
   static Map<String, dynamic> _sessionToJson(WorkoutSession session) {
     return {
       'date': session.date.toIso8601String(),
+      if (session.correctionVersions.isNotEmpty)
+        'correctionVersions': session.correctionVersions,
       if (session.startedAt != null)
         'startedAt': session.startedAt!.toIso8601String(),
       if (session.endedAt != null)
@@ -311,6 +313,9 @@ abstract final class AppSnapshotCodec {
     return WorkoutSession(
       date: DateTime(date.year, date.month, date.day),
       exercises: exercises,
+      correctionVersions: Map<String, String>.from(
+        json['correctionVersions'] as Map? ?? const {},
+      ),
       startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
       endedAt: DateTime.tryParse(json['endedAt'] as String? ?? ''),
       trainingFocus: json['trainingFocus'] is List

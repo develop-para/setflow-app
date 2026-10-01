@@ -1,9 +1,35 @@
 # Android 테스트 배포 (Firebase App Distribution)
 
-Setflow의 백엔드는 Supabase입니다. **앱에는 Firebase SDK가 들어가지 않습니다.**
-Firebase는 오직 테스터에게 APK를 나눠주는 **배포 채널**로만 씁니다 — CLI가 APK를
-업로드하고 Firebase가 테스터에게 메일을 보낼 뿐, 앱 바이너리는 그대로입니다.
-따라서 `google-services.json`도, `firebase_core` 패키지도 필요 없습니다.
+Setflow의 백엔드는 Supabase입니다. Firebase는 푸시와 APK 테스트 배포에 사용합니다.
+테스터 빌드는 공식 App Distribution Android SDK로 앱 안에서 새 버전을 확인하고 설치합니다.
+화면은 `AppUpdateService` 포트만 사용하고 SDK 호출은 네이티브 어댑터에 격리합니다.
+
+## 앱 안에서 업데이트
+
+1. 최초 한 번 [Firebase App Testers API](https://console.cloud.google.com/apis/library/firebaseapptesters.googleapis.com?project=setflow-18eeb)를 활성화합니다.
+2. 이 기능이 포함된 첫 APK는 기존 Firebase 초대 링크로 설치합니다. 이전 APK에 기능이 소급 적용되지는 않습니다.
+3. 앱의 **설정 → 앱 업데이트 → 계정 연결하고 확인**에서 초대받은 Google 계정으로 연결합니다.
+   앱의 회원 로그인과는 별개이며 게스트도 사용할 수 있습니다.
+4. 이후 앱 실행/복귀 시 새 버전을 조용히 확인합니다(5분 간격 제한).
+   새 버전이 있으면 홈에 안내가 나오며, 설정에서도 직접 확인할 수 있습니다.
+5. **업데이트**를 누르면 SDK가 다운로드하고 Android 설치 화면으로 이어집니다.
+   기기에 따라 출처를 알 수 없는 앱 설치 허용이 필요합니다. 설치 취소 시 기존 앱을 계속 씁니다.
+
+운동 중에는 업데이트 팝업을 자동으로 열지 않습니다. 설치는 기록을 마친 뒤 진행합니다.
+현재 계정에 공개된 새 빌드만 조회하며, 실패를 "최신 버전"으로 표시하지 않습니다.
+
+CI와 `tool/distribute-android.ps1`은 `--dart-define=APP_DISTRIBUTION_UPDATES=true`를 전달합니다.
+일반 `flutter build apk`/`appbundle`은 기본적으로 자체 업데이트 SDK를 포함하지 않습니다.
+**Google Play 빌드에는 이 플래그를 넣지 않습니다.** Flutter와 Gradle이 동일한 플래그를 읽어
+메뉴 노출과 SDK 포함 여부가 일치합니다.
+
+검증: `flutter test test/app_update_test.dart`와
+`flutter build apk --debug --dart-define=APP_DISTRIBUTION_UPDATES=true`.
+실제 설치 검증은 같은 배포 서명 키로 서명한 빌드 A/B를 Firebase에 배포하고,
+A에서 연결한 뒤 더 높은 versionCode의 B를 설치하여 기록 유지까지 확인합니다.
+디버그 서명 APK로는 기존 Firebase 배포본을 덮어쓸 수 없습니다.
+
+공식 문서: [App Distribution 앱 내 업데이트](https://firebase.google.com/docs/app-distribution/set-up-alerts?platform=android).
 
 ## 최초 1회 세팅
 
@@ -39,10 +65,8 @@ firebase apps:create android com.teampara.setflow --project <project-id>
 `firebase-distribution.json`의 `appId`에 넣습니다.
 App ID와 계정 이메일은 비밀값이 아니라서 커밋해도 됩니다.
 
-> Firebase 콘솔의 "Android 앱에 Firebase 추가" 마법사가 안내하는
-> `google-services.json` 다운로드와 Gradle 플러그인 추가는 **하지 마세요.**
-> 그건 앱에 Firebase SDK를 심는 네이티브 Android 경로이고, App Distribution과는
-> 무관합니다. 앱 용량·Play Services 의존성·개인정보 신고 의무만 늘어납니다.
+`android/app/google-services.json`과 Google Services Gradle 플러그인은 이미
+푸시 알림을 위해 연결되어 있고, 앱 내 업데이트 SDK도 같은 프로젝트 설정을 사용합니다.
 
 ### 3. 테스터 그룹 만들기
 

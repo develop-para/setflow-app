@@ -12,6 +12,10 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
+            "com.teampara.setflow/app_updates",
+        ).setMethodCallHandler(FirebaseAppUpdateBridge())
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
             RestTimerService.CHANNEL_NAME,
         ).setMethodCallHandler { call, result ->
             when (call.method) {

@@ -5,6 +5,7 @@ import '../data/business_repository.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import 'coaching_management_screen.dart';
 
 class MemberMembershipScreen extends StatelessWidget {
   const MemberMembershipScreen({super.key});
@@ -107,6 +108,16 @@ class MemberMembershipScreen extends StatelessWidget {
         child: ListView(
           padding: SetflowInsets.pageList,
           children: [
+            if (managementRepository(context) != null) ...[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('트레이너 연결과 기록 승인'),
+                subtitle: const Text('담당 트레이너 · 기록 수정 요청 · 업장 공유'),
+                trailing: const Icon(SetflowIcons.forward),
+                onTap: () => openCoachingManagement(context),
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+            ],
             SectionTitle(
               '나의 운동 장소',
               action: '추가',

@@ -12,6 +12,7 @@ import '../widgets/common.dart';
 import '../widgets/bottom_bar.dart';
 import '../widgets/pro_access_gate.dart';
 import 'coaching_workout_screens.dart';
+import 'coaching_management_screen.dart';
 import '../widgets/exercise_muscle_map.dart';
 import '../widgets/portal.dart';
 import '../widgets/recommendation_profile_summary.dart';
@@ -1915,7 +1916,17 @@ class _PeoplePageState extends State<PeoplePage> {
       return matchesQuery && matchesFilter;
     }).toList();
     return Scaffold(
-      appBar: AppBar(title: Text(gym ? '전체 회원' : '관리 회원')),
+      appBar: AppBar(
+        title: Text(gym ? '전체 회원' : '관리 회원'),
+        actions: [
+          if (managementRepository(context) != null)
+            IconButton(
+              tooltip: '운동 관리 연결과 수정 요청',
+              icon: const Icon(SetflowIcons.coaching),
+              onPressed: () => openCoachingManagement(context),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(
@@ -5025,6 +5036,18 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                       ),
                       const SizedBox(height: SetflowSpacing.sm),
                       Text(consultation.question ?? '질문 내용이 없습니다.'),
+                      if (widget.role == UserRole.trainer &&
+                          managementRepository(context) != null)
+                        OutlinedButton(
+                          key: const ValueKey(
+                            'trainer-consultation-management',
+                          ),
+                          onPressed: () => openCoachingManagement(
+                            sheetContext,
+                            consultationId: consultation.id,
+                          ),
+                          child: const Text('운동 관리 연결 요청'),
+                        ),
                       if (consultation.sharedRecommendationProfile != null &&
                           consultation.recommendationProfileShareRevokedAt ==
                               null) ...[

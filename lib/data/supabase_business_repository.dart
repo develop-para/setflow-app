@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models.dart';
 import '../services/user_image_optimizer.dart';
 import 'business_repository.dart';
+import 'supabase_coaching_management_repository.dart';
 
 const _memberConsultationPageSize = 200;
 
@@ -234,6 +235,7 @@ const _coachingSessionRecordSelect = '''
 ''';
 
 class SupabaseBusinessRepository
+    with SupabaseCoachingManagement
     implements
         BusinessRepository,
         PublicTrainerSearchRepository,
@@ -250,6 +252,10 @@ class SupabaseBusinessRepository
   const SupabaseBusinessRepository(this._client);
 
   final SupabaseClient _client;
+
+  @override
+  Future<dynamic> managementRpc(String name, {Map<String, dynamic>? params}) =>
+      _client.rpc(name, params: params);
 
   @override
   Future<BusinessAccess> loadAccess() async {

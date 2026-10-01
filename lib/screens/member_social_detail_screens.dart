@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'coaching_management_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -2587,6 +2588,17 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 40),
         children: [
+          if (managementRepository(context) != null) ...[
+            OutlinedButton(
+              key: const ValueKey('consultation-management'),
+              onPressed: () => openCoachingManagement(
+                context,
+                consultationId: consultation.id,
+              ),
+              child: const Text('트레이너 연결 및 기록 관리'),
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+          ],
           Row(
             children: [
               _StatusChip(status: consultation.status),

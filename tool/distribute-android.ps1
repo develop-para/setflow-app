@@ -194,6 +194,7 @@ Push-Location $repoRoot
 try {
     $buildArgs = @(
         'build', 'apk', '--release',
+        '--dart-define=APP_DISTRIBUTION_UPDATES=true',
         "--build-name=$versionName",
         "--build-number=$buildNumber"
     )

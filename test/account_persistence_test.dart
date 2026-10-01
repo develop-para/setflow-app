@@ -14,6 +14,46 @@ import 'package:setflow/data/supabase_app_repository.dart';
 void main() {
   group('AppState account boundaries', () {
     test(
+      'restoring and saving a diary retains acknowledged correction versions',
+      () async {
+        final day = DateTime(2026, 9, 11);
+        const versions = {'["squat-1", 1, "weight"]': 'correction'};
+        final repository = _SwitchingAccountRepository()
+          ..currentUserId = 'member';
+        repository.snapshots['member'] = _snapshot(
+          sessions: {
+            day: WorkoutSession(
+              date: day,
+              correctionVersions: versions,
+              exercises: [
+                WorkoutExercise(
+                  id: 'squat-1',
+                  template: const ExerciseTemplate(
+                    id: 'squat',
+                    name: '스쿼트',
+                    muscle: '하체',
+                    icon: Icons.fitness_center,
+                  ),
+                  sets: [WorkoutSetEntry(number: 1, weight: 45, reps: 10)],
+                ),
+              ],
+            ),
+          },
+        );
+        final state = AppState(repository: repository);
+        addTearDown(state.dispose);
+        await state.initialize();
+        expect(state.sessions[day]!.correctionVersions, versions);
+        state.setRestDefaultSeconds(120);
+        await state.flushPersistence();
+        expect(
+          repository.snapshots['member']!.sessions[day]!.correctionVersions,
+          versions,
+        );
+      },
+    );
+
+    test(
       'navigation preferences sync to another device for the same account',
       () async {
         final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
@@ -612,6 +652,88 @@ void main() {
         );
         expect(outbox.pendingByUser, isNot(contains('account-a')));
         expect(gateway.expectedSaveUserIds, ['account-a', 'account-a']);
+      },
+    );
+
+    test(
+      'server corrections survive newer offline work without replacing unrelated metrics',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final outbox = _MemoryOutbox();
+        final day = DateTime(2026, 9, 11);
+        const template = ExerciseTemplate(
+          id: 'squat',
+          name: '스쿼트',
+          muscle: '하체',
+          icon: Icons.fitness_center,
+        );
+        const correctionKey = '["squat-1", 1, "weight"]';
+        WorkoutSession workout({
+          double weight = 40,
+          int reps = 10,
+          bool corrected = false,
+          bool extra = false,
+        }) => WorkoutSession(
+          date: day,
+          correctionVersions: corrected
+              ? const {correctionKey: 'server-correction'}
+              : const {},
+          exercises: [
+            WorkoutExercise(
+              id: 'squat-1',
+              template: template,
+              sets: [
+                WorkoutSetEntry(number: 1, weight: weight, reps: reps),
+                if (extra) WorkoutSetEntry(number: 2, weight: 30, reps: 8),
+              ],
+            ),
+          ],
+        );
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(
+            _snapshot(sessions: {day: workout()}),
+          ),
+          updatedAt: DateTime.utc(2026, 8, 31, 10),
+        );
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: outbox,
+          cache: outbox,
+        );
+        await repository.load(const [template]);
+        await repository.save(
+          _snapshot(
+            sessions: {day: workout(reps: 12, extra: true)},
+            goals: ['로컬 목표'],
+          ),
+        );
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(
+            _snapshot(sessions: {day: workout(weight: 45, corrected: true)}),
+          ),
+          updatedAt: DateTime.utc(2026, 8, 31, 11),
+        );
+        await repository.syncPending();
+        final stored = AppSnapshotCodec.fromJson(
+          gateway.rows['account-a']!.payload,
+          const [template],
+        )!;
+        final result = stored.sessions[day]!;
+        expect(result.exercises.single.sets.first.weight, 45);
+        expect(result.exercises.single.sets.first.reps, 12);
+        expect(result.exercises.single.sets.length, 2);
+        expect(result.correctionVersions, {correctionKey: 'server-correction'});
+        expect(stored.goals, ['로컬 목표']);
+        expect(repository.takeReconciledWorkouts(), hasLength(1));
+        expect(repository.takeReconciledWorkouts(), isEmpty);
+        result.exercises.single.sets.first.weight = 46;
+        await repository.save(stored);
+        await repository.syncPending();
+        final edited = AppSnapshotCodec.fromJson(
+          gateway.rows['account-a']!.payload,
+          const [template],
+        )!;
+        expect(edited.sessions[day]!.exercises.single.sets.first.weight, 46);
       },
     );
 

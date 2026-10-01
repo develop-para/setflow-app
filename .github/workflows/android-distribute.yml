@@ -1,8 +1,7 @@
 name: Distribute Android
 
 # Every push to main builds a signed release APK and sends it to the Firebase
-# App Distribution "testers" group. Nothing about Firebase is compiled into the
-# app -- the CLI just uploads the finished APK.
+# App Distribution tester group. Only these tester builds include in-app updates.
 on:
   push:
     branches: [main]
@@ -180,6 +179,7 @@ jobs:
           BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
         run: |
           flutter build apk --release \
+            --dart-define=APP_DISTRIBUTION_UPDATES=true \
             --build-name="$VERSION_NAME" \
             --build-number="$BUILD_NUMBER"
 

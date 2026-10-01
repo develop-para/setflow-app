@@ -30,6 +30,7 @@ import 'data/supabase_notification_repository.dart';
 import 'data/supabase_together_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/coaching_workout_screens.dart';
+import 'screens/coaching_management_screen.dart';
 import 'screens/member_screens.dart';
 import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
@@ -44,6 +45,8 @@ import 'services/firebase_push_service.dart';
 import 'services/geolocator_location_service.dart';
 import 'services/location_service.dart';
 import 'services/push_service.dart';
+import 'services/app_update_controller.dart';
+import 'services/firebase_app_update_service.dart';
 import 'widgets/common.dart';
 import 'widgets/guest_data_prompt.dart';
 import 'widgets/portal.dart';
@@ -66,6 +69,7 @@ Future<void> main() async {
   // 구현이 돌아온다 — 알림이 없는 것과 앱이 안 켜지는 것은 등급이 다르다.
   Push.bind(await FirebasePushService.create());
   Location.bind(const GeolocatorLocationService());
+  AppUpdates.instance = AppUpdateController(const FirebaseAppUpdateService());
 
   AppRepository? migrationSource;
   try {
@@ -175,6 +179,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(AppUpdates.instance.check());
     state = AppState(
       localEquipmentRepository: widget.localEquipmentRepository,
       repository: widget.repository,
@@ -265,6 +270,14 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     }
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
+    if (open.event == 'coaching_management') {
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const CoachingManagementScreen(),
+        ),
+      );
+      return;
+    }
     if (open.event == 'coaching_workout') {
       final workoutId = open.data['workoutId'];
       if (workoutId != null && workoutId.isNotEmpty) {
@@ -417,6 +430,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       return;
     }
     if (lifecycleState == AppLifecycleState.resumed) {
+      unawaited(AppUpdates.instance.check());
       unawaited(state.syncRestTimerFromPlatform());
       unawaited(state.syncPersistenceToServer().catchError((_) {}));
       // 자리를 비운 사이 알림이 왔을 수 있다. 헤더의 점이 그때 붙어야

@@ -15,6 +15,7 @@ import '../theme/icons.dart';
 import '../theme/muscle_illustrations.dart';
 import '../third_party_licenses.dart';
 import '../widgets/common.dart';
+import '../widgets/app_update_tile.dart';
 import '../widgets/exercise_muscle_map.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
@@ -2052,6 +2053,7 @@ class HomeScreen extends StatelessWidget {
         ),
         children: [
           _TodaySection(onOpenRecord: onOpenRecord),
+          const AppUpdateTile(onlyWhenAvailable: true),
           const MemberCoachingTasksCard(),
           const SizedBox(height: SetflowSpacing.xl),
           const _WeekSection(),
@@ -5177,6 +5179,7 @@ class SettingsScreen extends StatelessWidget {
           28,
         ),
         children: [
+          const AppUpdateTile(),
           ListTile(
             title: Text(
               '계정 & 개인화',

@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../theme/icons.dart';
 import '../third_party_licenses.dart';
 import '../widgets/common.dart';
+import '../widgets/app_update_tile.dart';
 import 'account_deletion_screen.dart';
 import 'evidence_library_screen.dart';
 
@@ -31,6 +32,7 @@ class BusinessSettingsListScreen extends StatelessWidget {
             SetflowSpacing.xxl,
           ),
           children: [
+            const AppUpdateTile(),
             ListTile(
               title: Text(
                 '계정',
