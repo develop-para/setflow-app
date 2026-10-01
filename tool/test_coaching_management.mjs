@@ -128,7 +128,7 @@ await db.exec(`reset role;
   insert into members values('${id(120)}','${gym}','${member}','active');
   insert into gym_trainers values('${gym}','${otherTrainer}','active');
 `);
-await db.exec(readFileSync('supabase/migrations/20260930120000_coaching_management_consent.sql','utf8')
+await db.exec(readFileSync('supabase/migrations/20261001063252_coaching_management_consent.sql','utf8')
   .replaceAll('clock_timestamp()', 'private.test_clock()')
   .replaceAll('statement_timestamp()', 'private.test_clock()'));
 // Historical personal snapshots use KST without a zone; this is 10:00 UTC.
