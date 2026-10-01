@@ -11,6 +11,10 @@ const _trainerUserId = '11111111-1111-4111-8111-111111111111';
 const _trainerId = '22222222-2222-4222-8222-222222222222';
 const _memberUserId = '33333333-3333-4333-8333-333333333333';
 const _consultationId = '44444444-4444-4444-8444-444444444444';
+const _secondMemberUserId = '55555555-5555-4555-8555-555555555555';
+const _secondConsultationId = '66666666-6666-4666-8666-666666666666';
+const _connectionId = '77777777-7777-4777-8777-777777777777';
+const _secondConnectionId = '88888888-8888-4888-8888-888888888888';
 
 void main() {
   test(
@@ -98,6 +102,74 @@ void main() {
       },
     );
   }
+
+  test(
+    'one trainer receives consultations and connections for both members',
+    () async {
+      final backend = await _TrainerWorkspaceBackend.start(
+        resourceBodies: {
+          'consultations': [
+            {
+              'id': _consultationId,
+              'user_id': _memberUserId,
+              'trainer_id': _trainerId,
+              'requester_name': '첫 회원',
+              'question': '스쿼트 자세 질문',
+              'status': 'pending',
+              'created_at': '2026-10-01T01:00:00Z',
+            },
+            {
+              'id': _secondConsultationId,
+              'user_id': _secondMemberUserId,
+              'trainer_id': _trainerId,
+              'requester_name': '둘째 회원',
+              'question': '벤치 프레스 자세 질문',
+              'status': 'replied',
+              'created_at': '2026-10-01T02:00:00Z',
+            },
+          ],
+          'list_my_coaching_connections': [
+            {
+              'id': _connectionId,
+              'trainer_id': _trainerId,
+              'member_user_id': _memberUserId,
+              'member_name': '첫 회원',
+              'status': 'active',
+              'created_at': '2026-10-01T01:00:00Z',
+            },
+            {
+              'id': _secondConnectionId,
+              'trainer_id': _trainerId,
+              'member_user_id': _secondMemberUserId,
+              'member_name': '둘째 회원',
+              'status': 'active',
+              'created_at': '2026-10-01T02:00:00Z',
+            },
+          ],
+        },
+      );
+      addTearDown(backend.close);
+      final workspace = await SupabaseBusinessRepository(
+        backend.client,
+      ).loadWorkspace(UserRole.trainer);
+      expect(workspace.consultations.map((c) => c.userId), [
+        _memberUserId,
+        _secondMemberUserId,
+      ]);
+      expect(workspace.consultations.map((c) => c.question), [
+        '스쿼트 자세 질문',
+        '벤치 프레스 자세 질문',
+      ]);
+      expect(workspace.coachingConnections.map((c) => c.memberUserId), [
+        _memberUserId,
+        _secondMemberUserId,
+      ]);
+      expect(workspace.coachingConnections.map((c) => c.memberName), [
+        '첫 회원',
+        '둘째 회원',
+      ]);
+    },
+  );
 }
 
 class _TrainerWorkspaceBackend {
@@ -110,6 +182,7 @@ class _TrainerWorkspaceBackend {
     Set<String> failingResources = const {},
     List<String> availableRoles = const ['member', 'trainer'],
     String accessUserId = _trainerUserId,
+    Map<String, Object> resourceBodies = const {},
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final client = SupabaseClient(
@@ -124,6 +197,7 @@ class _TrainerWorkspaceBackend {
         failingResources,
         availableRoles,
         accessUserId,
+        resourceBodies,
       ),
     );
     await client.auth.recoverSession(
@@ -155,6 +229,7 @@ class _TrainerWorkspaceBackend {
     Set<String> failingResources,
     List<String> availableRoles,
     String accessUserId,
+    Map<String, Object> resourceBodies,
   ) async {
     await request.drain<void>();
     final resource = request.uri.pathSegments.last;
@@ -168,6 +243,11 @@ class _TrainerWorkspaceBackend {
       return;
     }
 
+    final fixture = resourceBodies[resource];
+    if (fixture != null) {
+      await _writeJson(request.response, fixture);
+      return;
+    }
     final Object body = switch (resource) {
       'get_my_business_access' => {
         'user': {

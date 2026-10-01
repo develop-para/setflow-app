@@ -194,5 +194,37 @@ const beforeNotifications = await count('user_notifications');
 await asUser(member); await send(direct,'알림을 꺼도 대화는 저장돼요');
 assert.equal(await count('user_notifications'),beforeNotifications);
 assert.equal(Number((await admin('select count(*) value from consultation_messages'))[0].value),9);
+
+// The same trainer can chat with two members. Both the conversation queries and
+// writes stay scoped to the member even when the trainer participates in both.
+const secondMember = id(7), secondDirect = id(33);
+await admin('insert into users(id,nickname) values($1,$2)',[secondMember,'두 번째 회원']);
+await admin('insert into auth.users(id) values($1)',[secondMember]);
+await admin('insert into auth.sessions(id,user_id) values($1,$1)',[secondMember]);
+await admin('insert into device_tokens values($1,$2)',[secondMember,secondMember]);
+await admin(`insert into consultations(id,user_id,trainer_id,requester_name,question)
+  values($1,$2,$3,$4,$5)`,[secondDirect,secondMember,trainer,'두 번째 회원','별도 상담']);
+await asUser(member);
+await send(direct,'첫 회원의 추가 질문');
+await refusal(()=>send(secondDirect,'다른 회원 대화 접근'));
+assert.equal((await sql('select * from consultations where id=$1',[secondDirect])).length,0);
+assert.equal((await sql('select * from consultation_messages where consultation_id=$1',[secondDirect])).length,0);
+await asUser(secondMember);
+await send(secondDirect,'두 번째 회원의 추가 질문');
+await refusal(()=>send(direct,'첫 회원 대화 접근'));
+assert.equal((await sql('select * from consultations')).length,1);
+assert.equal((await sql('select * from consultation_messages where consultation_id=$1',[direct])).length,0);
+await asUser(trainerUser);
+assert.deepEqual((await sql('select id from consultations where trainer_id=$1 order by id',[trainer])).map(c=>c.id),[direct,secondDirect]);
+await send(direct,'첫 회원에게 답변',request(),'reply_business_consultation');
+await send(secondDirect,'두 번째 회원에게 답변',request(),'reply_business_consultation');
+await asUser(member);
+assert.equal((await sql('select text from consultation_messages where consultation_id=$1 order by created_at desc limit 1',[direct]))[0].text,'첫 회원에게 답변');
+await asUser(secondMember);
+assert.deepEqual((await sql('select text from consultation_messages order by created_at')).map(m=>m.text),[
+  '두 번째 회원의 추가 질문','두 번째 회원에게 답변']);
+const secondNotices = await admin('select * from user_notifications where user_id=$1',[secondMember]);
+assert.equal(secondNotices.length,1);
+assert.equal(secondNotices[0].data.consultationId,secondDirect);
 await db.close();
-console.log('Consultation chat passed: member/trainer/gym messaging, canonical sender, retries, pending state, RLS, session revocation, reassignment and notification routing.');
+console.log('Consultation chat passed: member/trainer/gym messaging, canonical sender, retries, pending state, RLS, session revocation, reassignment, notification routing and multiple isolated member conversations.');

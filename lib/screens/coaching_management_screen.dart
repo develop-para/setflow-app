@@ -22,11 +22,29 @@ Future<void> openCoachingManagement(
     return;
   }
   if (!context.mounted) return;
+  final state = AppScope.of(context);
+  final accountId = state.businessAccess?.userId;
+  final role = state.role;
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => CoachingManagementScreen(consultationId: consultationId),
     ),
   );
+  if (!context.mounted ||
+      state.businessAccess?.userId != accountId ||
+      state.role != role) {
+    return;
+  }
+  if (state.usesLiveBusinessData &&
+      (role == UserRole.trainer || role == UserRole.gym)) {
+    try {
+      await state.refreshBusinessDashboard(role);
+    } catch (_) {
+      if (context.mounted) {
+        AppSnackbar.error(context, '회원 목록을 새로고침하지 못했어요. 다시 확인해주세요.');
+      }
+    }
+  }
 }
 
 CoachingManagementRepository? managementRepository(BuildContext context) {
@@ -312,6 +330,7 @@ class _ManagementPageState extends State<_ManagementPage>
                     const Text('아직 운동 관리 연결이 없어요. 상담 상세에서 상대에게 연결을 요청할 수 있어요.'),
                   for (final link in _links) ...[
                     SetflowCard(
+                      key: ValueKey('management-link-${link.id}'),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -320,6 +339,14 @@ class _ManagementPageState extends State<_ManagementPage>
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           Text(_status(link.status)),
+                          if (link.status == 'pending')
+                            Text(
+                              link.canRespond
+                                  ? '동의하고 수락하면 운동 기록 관리가 시작돼요.'
+                                  : link.viewerRole == 'gym'
+                                  ? '회원과 트레이너의 수락을 기다리고 있어요.'
+                                  : '상대의 수락을 기다리고 있어요.',
+                            ),
                           if (link.gymName != null)
                             Text('공유 업장 · ${link.gymName}'),
                           if (link.canRespond) ...[
@@ -358,6 +385,7 @@ class _ManagementPageState extends State<_ManagementPage>
                           ],
                           if (link.isActive) ...[
                             OutlinedButton(
+                              key: ValueKey('management-history-${link.id}'),
                               onPressed: _busy
                                   ? null
                                   : () async {

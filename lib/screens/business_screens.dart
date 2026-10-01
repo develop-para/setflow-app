@@ -2627,13 +2627,18 @@ class _PeoplePageState extends State<PeoplePage> {
     await showSetflowSheet<void>(
       context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) {
         sheetCompleted ??= ModalRoute.of(sheetContext)?.completed;
         return StatefulBuilder(
           builder: (context, setSheetState) => SafeArea(
             top: false,
-            child: Padding(
-              padding: SetflowInsets.pageForm,
+            child: SingleChildScrollView(
+              padding: SetflowInsets.pageForm.add(
+                EdgeInsets.only(
+                  bottom: MediaQuery.viewInsetsOf(context).bottom,
+                ),
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2648,6 +2653,10 @@ class _PeoplePageState extends State<PeoplePage> {
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
+                  ),
+                  const SizedBox(height: SetflowSpacing.sm),
+                  const Text(
+                    '여러 회원을 연결할 수 있어요. 초대 링크는 한 회원만 수락할 수 있으니 회원마다 새 링크를 보내주세요.',
                   ),
                   const SizedBox(height: SetflowSpacing.xl),
                   if (creation == null) ...[
@@ -2707,6 +2716,15 @@ class _PeoplePageState extends State<PeoplePage> {
                                 );
                               }
                             },
+                    ),
+                    const SizedBox(height: SetflowSpacing.sm),
+                    OutlinedButton(
+                      key: const Key('coaching-invite-next-member'),
+                      onPressed: () {
+                        nameController.clear();
+                        setSheetState(() => creation = null);
+                      },
+                      child: const Text('다른 회원 초대'),
                     ),
                   ],
                 ],
