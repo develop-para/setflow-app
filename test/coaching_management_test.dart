@@ -97,6 +97,75 @@ void main() {
     },
   );
 
+  for (final viewer in ['member', 'trainer']) {
+    testWidgets(
+      '$viewer self connection shows the actual refusal and keeps retry enabled',
+      (tester) async {
+        final repository = _Repository()
+          ..viewer = viewer
+          ..requestFailure = const CoachingManagementFailure(
+            CoachingManagementFailureReason.selfConnection,
+          );
+        await mount(tester, repository, consultationId: 'self-consultation');
+        final request = find.byKey(const ValueKey('request-management-link'));
+        await tester.tap(request);
+        await tester.pumpAndSettle();
+        expect(
+          find.text('본인 계정과는 연결할 수 없어요. 다른 회원 또는 트레이너와 상담해주세요.'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('처리하지 못했어요.'), findsNothing);
+        expect(find.text('연결 목록에서 상태를 확인해주세요'), findsNothing);
+        expect(tester.widget<FilledButton>(request).onPressed, isNotNull);
+        expect(repository.requestedConsultation, 'self-consultation');
+        expect(repository.requestCalls, 1);
+      },
+    );
+  }
+
+  testWidgets(
+    'authorization refusal explains access without treating it as a network failure',
+    (tester) async {
+      final repository = _Repository()
+        ..requestFailure = const CoachingManagementFailure(
+          CoachingManagementFailureReason.accessDenied,
+        );
+      await mount(tester, repository, consultationId: 'assigned-elsewhere');
+      final request = find.byKey(const ValueKey('request-management-link'));
+      await tester.tap(request);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('현재 이 상담의 연결을 요청할 권한이 없어요. 상담 목록과 담당 트레이너를 다시 확인해주세요.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('처리하지 못했어요.'), findsNothing);
+      expect(tester.widget<FilledButton>(request).onPressed, isNotNull);
+    },
+  );
+
+  testWidgets(
+    'temporary request failure preserves the consultation and succeeds on retry',
+    (tester) async {
+      final repository = _Repository()
+        ..requestFailure = StateError('network failed');
+      await mount(tester, repository, consultationId: 'retry-consultation');
+      final request = find.byKey(const ValueKey('request-management-link'));
+      await tester.tap(request);
+      await tester.pumpAndSettle();
+      expect(find.text('처리하지 못했어요. 연결 상태와 최신 기록을 다시 확인해주세요.'), findsOneWidget);
+      expect(tester.widget<FilledButton>(request).onPressed, isNotNull);
+      expect(find.text('연결 목록에서 상태를 확인해주세요'), findsNothing);
+      repository.requestFailure = null;
+      await tester.pump(const Duration(seconds: 4));
+      await tester.tap(request);
+      await tester.pumpAndSettle();
+      expect(repository.requestCalls, 2);
+      expect(repository.requestedConsultation, 'retry-consultation');
+      expect(find.text('연결 목록에서 상태를 확인해주세요'), findsOneWidget);
+      expect(tester.widget<FilledButton>(request).onPressed, isNull);
+    },
+  );
+
   testWidgets(
     'gym sees records and assignment controls, without edit or approval buttons',
     (tester) async {
@@ -217,6 +286,8 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
   bool? accepted;
   bool? correctionAccepted;
   String? requestedConsultation;
+  Object? requestFailure;
+  int requestCalls = 0;
   double? proposedValue;
   String? proposedRevision;
   String? proposedReason;
@@ -237,6 +308,8 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
   @override
   Future<void> requestManagementLink(String consultationId) async {
     requestedConsultation = consultationId;
+    requestCalls++;
+    if (requestFailure case final failure?) throw failure;
   }
 
   @override

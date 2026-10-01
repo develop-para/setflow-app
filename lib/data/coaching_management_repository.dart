@@ -1,5 +1,17 @@
 import '../models.dart';
 
+enum CoachingManagementFailureReason { selfConnection, accessDenied }
+
+/// 서버가 확인한 연결 요청의 거절 사유. 연결 권한은 계속 서버에서 판단한다.
+class CoachingManagementFailure implements Exception {
+  const CoachingManagementFailure(this.reason);
+
+  final CoachingManagementFailureReason reason;
+
+  @override
+  String toString() => 'CoachingManagementFailure(${reason.name})';
+}
+
 /// 상담과 기록 관리 동의는 별개다. 양쪽이 수락한 연결에만 권한을 준다.
 abstract interface class CoachingManagementRepository {
   Future<List<CoachingManagementLink>> listManagementLinks();

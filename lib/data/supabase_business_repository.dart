@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models.dart';
 import '../services/user_image_optimizer.dart';
 import 'business_repository.dart';
+import 'coaching_management_repository.dart';
 import 'supabase_coaching_management_repository.dart';
 
 const _memberConsultationPageSize = 200;
@@ -262,8 +263,23 @@ class SupabaseBusinessRepository
   final SupabaseClient _client;
 
   @override
-  Future<dynamic> managementRpc(String name, {Map<String, dynamic>? params}) =>
-      _client.rpc(name, params: params);
+  Future<dynamic> managementRpc(
+    String name, {
+    Map<String, dynamic>? params,
+  }) async {
+    try {
+      return await _client.rpc(name, params: params);
+    } on PostgrestException catch (error) {
+      if (name == 'request_management_link' && error.code == '42501') {
+        throw CoachingManagementFailure(
+          error.details == 'management_self_connection'
+              ? CoachingManagementFailureReason.selfConnection
+              : CoachingManagementFailureReason.accessDenied,
+        );
+      }
+      rethrow;
+    }
+  }
 
   @override
   Future<BusinessAccess> loadAccess() async {

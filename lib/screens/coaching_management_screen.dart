@@ -167,9 +167,20 @@ class _ManagementPageState extends State<_ManagementPage>
       await action(repository);
       if (!mounted) return;
       await _load();
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        AppSnackbar.error(context, '처리하지 못했어요. 연결 상태와 최신 기록을 다시 확인해주세요.');
+        final message = switch (error) {
+          CoachingManagementFailure(
+            reason: CoachingManagementFailureReason.selfConnection,
+          ) =>
+            '본인 계정과는 연결할 수 없어요. 다른 회원 또는 트레이너와 상담해주세요.',
+          CoachingManagementFailure(
+            reason: CoachingManagementFailureReason.accessDenied,
+          ) =>
+            '현재 이 상담의 연결을 요청할 권한이 없어요. 상담 목록과 담당 트레이너를 다시 확인해주세요.',
+          _ => '처리하지 못했어요. 연결 상태와 최신 기록을 다시 확인해주세요.',
+        };
+        AppSnackbar.error(context, message);
         await _load();
       }
     } finally {

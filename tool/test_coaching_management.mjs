@@ -124,13 +124,16 @@ await db.exec(`reset role;
   alter table workout_exercises add column client_id text;
   create table consultations(id uuid primary key,user_id uuid,trainer_id uuid,assigned_trainer_id uuid);
   insert into consultations values('${id(100)}','${member}','${trainer}',null),
-    ('${id(101)}','${otherMember}','${otherTrainer}',null);
+    ('${id(101)}','${otherMember}','${otherTrainer}',null),
+    ('${id(103)}','${trainerUser}','${trainer}',null);
   insert into members values('${id(120)}','${gym}','${member}','active');
   insert into gym_trainers values('${gym}','${otherTrainer}','active');
 `);
 await db.exec(readFileSync('supabase/migrations/20261001063252_coaching_management_consent.sql','utf8')
   .replaceAll('clock_timestamp()', 'private.test_clock()')
   .replaceAll('statement_timestamp()', 'private.test_clock()'));
+await db.exec(readFileSync('supabase/migrations/20261001134701_management_link_self_connection_error.sql','utf8')
+  .replaceAll('clock_timestamp()', 'private.test_clock()'));
 // Historical personal snapshots use KST without a zone; this is 10:00 UTC.
 const today = {...session(true),startedAt:'2026-09-11T18:00:00.000',endedAt:'2026-09-11T19:00:00.000'};
 const old = {...session(true,'2026-09-08'),startedAt:'2026-09-08T09:00:00Z',endedAt:'2026-09-08T10:00:00Z'};
@@ -151,6 +154,15 @@ const propose = (link,record,value=50,req=request(),metric='weight') => rpc('pro
 await asUser(trainerUser);
 assert.deepEqual(await links(),[]);
 await assert.rejects(() => history(id(999)),/consent required/);
+await assert.rejects(()=>rpc('request_management_link',[id(103)]),error=>
+  error.code === '42501' && error.detail === 'management_self_connection',
+  'A trainer using member mode cannot create a management relationship with themselves');
+assert.deepEqual(await links(),[],'Self requests never create a pending link');
+await asUser(stranger);
+await assert.rejects(()=>rpc('request_management_link',[id(103)]),error=>
+  error.code === '42501' && /participant required/.test(error.message)
+    && error.detail !== 'management_self_connection',
+  'An unrelated account gets the ordinary authorization error before any self-connection detail');
 for (const outsider of [stranger,gymOwner,pendingUser,otherTrainerUser]) {
   await asUser(outsider);
   await assert.rejects(()=>rpc('request_management_link',[id(100)]),/participant required/);
