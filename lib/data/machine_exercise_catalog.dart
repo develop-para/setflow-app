@@ -27,12 +27,13 @@ class MachineExercise {
 
   ExerciseTemplate get exercise => ExerciseTemplate(
     id: 'machine_$id',
-    name: '$brand $line $name',
+    name: '$line $name',
     nameEnglish: englishName,
     muscle: muscle,
     icon: SetflowIcons.equipment,
     equipmentKey: 'machine',
     aliases: [
+      brand,
       model,
       focus,
       line,

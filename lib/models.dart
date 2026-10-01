@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'domain/exercise_display_name.dart';
+
 enum UserRole { guest, member, trainer, gym, admin }
 
 /// 위경도 한 점. 근처 공개방을 찾는 데만 쓴다.
@@ -387,7 +389,7 @@ enum ExerciseMeasurement {
 class ExerciseTemplate {
   const ExerciseTemplate({
     required this.id,
-    required this.name,
+    required String name,
     required this.muscle,
     required this.icon,
     this.measurement = ExerciseMeasurement.weightReps,
@@ -402,10 +404,17 @@ class ExerciseTemplate {
     this.sourceName,
     this.sourceId,
     this.databaseId,
-  });
+    // Keep the public `name` argument while storing the original label privately.
+    // ignore: prefer_initializing_formals
+  }) : _name = name;
 
   final String id;
-  final String name;
+  final String _name;
+  String get name => exerciseDisplayName(_name);
+
+  /// Keep historical labels in persistence so an offline round trip preserves
+  /// manufacturer search terms and the original user-entered name.
+  String get storedName => _name;
   final String muscle;
   final IconData icon;
   final ExerciseMeasurement measurement;
@@ -519,6 +528,7 @@ class ExerciseTemplate {
 
   String get searchableText => [
     name,
+    if (_name != name) _name,
     ?nameEnglish,
     muscle,
     resolvedEquipmentName,

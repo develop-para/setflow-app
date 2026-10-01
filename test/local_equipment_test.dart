@@ -226,7 +226,7 @@ void main() {
           .toList();
       expect(advance, hasLength(23));
       for (final item in advance) {
-        expect(item.name, startsWith('뉴텍 어드벤스 '));
+        expect(item.name, startsWith('어드벤스 '));
         for (final query in ['뉴텍 어드벤스', '뉴텍 어드밴스', 'Newtech ADVANCE']) {
           expect(item.matchesCatalogQuery(query), isTrue);
         }
@@ -338,7 +338,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, 'MG2500');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('테크노짐 퓨어 로우 로우'));
+      await tester.tap(find.text('퓨어 로우 로우'));
       await tester.pumpAndSettle();
       final save = find.text('기기에 저장');
       await tester.scrollUntilVisible(

@@ -23,6 +23,7 @@ import 'data/notification_repository.dart';
 import 'data/routine_catalog_repository.dart';
 import 'data/together_repository.dart';
 import 'domain/cardio.dart';
+import 'domain/exercise_display_name.dart';
 import 'models.dart';
 import 'services/setflow_web.dart';
 import 'services/cardio_prescription_engine.dart';
@@ -1666,7 +1667,8 @@ class AppState extends ChangeNotifier {
     }
     final duplicate = exercises.any(
       (exercise) =>
-          exercise.name.trim().toLowerCase() == normalizedName.toLowerCase(),
+          exercise.name.trim().toLowerCase() ==
+          exerciseDisplayName(normalizedName).trim().toLowerCase(),
     );
     if (duplicate) return null;
     final exercise = ExerciseTemplate(

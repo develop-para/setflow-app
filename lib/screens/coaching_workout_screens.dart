@@ -1076,7 +1076,7 @@ class _ExercisePickerState extends State<_ExercisePicker> {
   @override
   Widget build(BuildContext context) {
     final items = widget.catalog
-        .where((item) => '${item.name} ${item.muscle}'.contains(_query))
+        .where((item) => item.matchesCatalogQuery(_query))
         .take(80)
         .toList();
     return Padding(

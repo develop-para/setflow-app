@@ -22,6 +22,7 @@ library;
 import 'dart:async';
 import 'dart:math';
 
+import '../domain/exercise_display_name.dart';
 import '../models.dart';
 
 /// 방 정원. 서버(join_training_party)와 메모리 백엔드가 같은 값을 강제한다 —
@@ -125,11 +126,13 @@ class PartyMember {
     this.restEndsAt,
     this.completedSets = 0,
     this.turnOrder = 0,
-    this.currentExercise,
+    String? currentExercise,
     this.currentSetNumber,
     this.currentSetTotal,
     this.totalVolume = 0,
-  });
+    // Keep the public argument while storing the original label privately.
+    // ignore: prefer_initializing_formals
+  }) : _currentExercise = currentExercise;
 
   final String userId;
   final String displayName;
@@ -146,7 +149,12 @@ class PartyMember {
   /// 전광판 정보 — 지금 무슨 종목의 몇 세트째인지, 오늘 볼륨이 얼마인지.
   /// 세트를 보고할 때 각자 자기 기록에서 실어 보낸다. 표시용 수치이지
   /// 장부가 아니다 — 진실은 각자의 오늘 기록에 있다.
-  final String? currentExercise;
+  final String? _currentExercise;
+  String? get currentExercise {
+    final name = _currentExercise;
+    return name == null ? null : exerciseDisplayName(name);
+  }
+
   final int? currentSetNumber;
   final int? currentSetTotal;
   final double totalVolume;
@@ -176,7 +184,7 @@ class PartyMember {
         : restEndsAt as DateTime?,
     completedSets: completedSets ?? this.completedSets,
     turnOrder: turnOrder ?? this.turnOrder,
-    currentExercise: currentExercise ?? this.currentExercise,
+    currentExercise: currentExercise ?? _currentExercise,
     currentSetNumber: currentSetNumber ?? this.currentSetNumber,
     currentSetTotal: currentSetTotal ?? this.currentSetTotal,
     totalVolume: totalVolume ?? this.totalVolume,

@@ -96,7 +96,7 @@ abstract final class AppSnapshotCodec {
           .map(
             (exercise) => {
               'id': exercise.id,
-              'name': exercise.name,
+              'name': exercise.storedName,
               'muscle': exercise.muscle,
               'measurement': exercise.measurement.name,
             },
@@ -405,7 +405,7 @@ abstract final class AppSnapshotCodec {
     bool includeSearchMetadata = true,
   }) => {
     'id': exercise.id,
-    'name': exercise.name,
+    'name': exercise.storedName,
     'muscle': exercise.muscle,
     'measurement': exercise.measurement.name,
     'nameEnglish': ?exercise.nameEnglish,

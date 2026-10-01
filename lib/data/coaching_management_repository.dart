@@ -1,3 +1,4 @@
+import '../domain/exercise_display_name.dart';
 import '../models.dart';
 
 enum CoachingManagementFailureReason { selfConnection, accessDenied }
@@ -126,7 +127,7 @@ class WorkoutCorrection {
     required this.trainerName,
     required this.workoutTitle,
     required this.date,
-    required this.exerciseName,
+    required String exerciseName,
     required this.setNumber,
     required this.metric,
     required this.before,
@@ -134,7 +135,9 @@ class WorkoutCorrection {
     required this.reason,
     required this.status,
     required this.canRespond,
-  });
+    // Keep the public argument while storing the original label privately.
+    // ignore: prefer_initializing_formals
+  }) : _exerciseName = exerciseName;
   final String id;
   final String viewerRole;
   final String recordKey;
@@ -144,7 +147,8 @@ class WorkoutCorrection {
   final String trainerName;
   final String workoutTitle;
   final DateTime date;
-  final String exerciseName;
+  final String _exerciseName;
+  String get exerciseName => exerciseDisplayName(_exerciseName);
   final int setNumber;
   final WorkoutMetric metric;
   final double? before;

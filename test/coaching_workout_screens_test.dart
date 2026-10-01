@@ -353,6 +353,42 @@ void main() {
     },
   );
 
+  testWidgets(
+    'assignment picker finds a machine by brand while displaying its movement',
+    (tester) async {
+      final repository = _Repository();
+      final state = _state(repository);
+      await _mount(
+        tester,
+        state,
+        const CoachingAssignmentComposerScreen(memberUserId: 'member'),
+      );
+      await tester.enterText(find.byType(TextFormField), '로우 운동 과제');
+      await tester.tap(find.byKey(const ValueKey('assignment-add-exercise')));
+      await tester.pumpAndSettle();
+      for (final query in ['뉴텍 어드벤스 시티드 로우', 'Newtech Advance Seated Row']) {
+        await tester.enterText(find.widgetWithText(TextField, '종목 검색'), query);
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(ListTile, '어드벤스 시티드 로우'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, '뉴텍 어드벤스 시티드 로우'), findsNothing);
+      }
+      await tester.tap(find.widgetWithText(ListTile, '어드벤스 시티드 로우'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('assignment-send')));
+      await tester.tap(find.byKey(const ValueKey('assignment-send')));
+      await tester.pumpAndSettle();
+      expect(
+        repository.createdSession!.exercises.single.template.id,
+        'machine_newtech_advance_seated_row',
+      );
+      expect(
+        repository.createdSession!.exercises.single.template.name,
+        '어드벤스 시티드 로우',
+      );
+      await _unmount(tester, state);
+    },
+  );
+
   testWidgets('assignment composer sends dated plans with no completed sets', (
     tester,
   ) async {

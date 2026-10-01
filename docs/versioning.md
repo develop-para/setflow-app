@@ -62,6 +62,8 @@ CI가 붙는 순간 이 방식은 깨집니다 — 로컬에서 올린 번호와
    자동 생성됩니다 (merge 커밋 제외).
 2. **중복 배포 차단** — 마지막 태그보다 크지 않은 번호는 거부됩니다.
 
+서명 검증을 마친 APK는 같은 GitHub Actions 실행의 `setflow-<versionName>-<versionCode>` 아티팩트에도 14일간 보관합니다. Firebase의 임시 파일 주소가 만료되어도 로그인한 팀원이 이 파일을 내려받을 수 있습니다. 로컬에 보관할 때는 `artifacts/setflow-<versionName>-<versionCode>.apk`를 사용합니다.
+
 ```powershell
 git tag -l 'dist/*' --sort=-version:refname   # 배포 이력 최신순
 git show dist/30                              # 그 빌드가 정확히 어느 커밋인지

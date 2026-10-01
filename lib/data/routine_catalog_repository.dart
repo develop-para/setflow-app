@@ -1,3 +1,4 @@
+import '../domain/exercise_display_name.dart';
 import '../models.dart';
 
 enum RoutineCatalogAccessTier {
@@ -57,16 +58,19 @@ class RoutineCatalogItem {
 class RoutineCatalogExercise {
   const RoutineCatalogExercise({
     required this.id,
-    required this.name,
+    required String name,
     required this.targetMuscle,
     required this.orderIndex,
     required this.sets,
     this.baseExerciseId,
-  });
+    // Keep the public `name` argument while storing the original label privately.
+    // ignore: prefer_initializing_formals
+  }) : _name = name;
 
   final String id;
   final String? baseExerciseId;
-  final String name;
+  final String _name;
+  String get name => exerciseDisplayName(_name);
   final String targetMuscle;
   final int orderIndex;
   final List<RoutineCatalogSet> sets;

@@ -823,41 +823,54 @@ void main() {
       state.cancelRestTimer();
     });
 
-    testWidgets('the scoreboard shows how far the partner has gone', (
-      tester,
-    ) async {
-      // "친구가 어디까지 했는지 전광판처럼" — 상대의 세트 보고가 순위·종목·
-      // 진행으로 내 화면에 나타나야 한다.
-      final room = await seatTwo(PartyMode.together);
-      final state = await pumpTogether(tester, repository: client('u-me', '나'));
-      await tester.tap(find.byKey(const ValueKey('together-join')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('together-code-input')),
-        room.code,
-      );
-      await tester.tap(find.byKey(const ValueKey('together-code-submit')));
-      await tester.pumpAndSettle();
+    for (final exercise in const [
+      (recorded: '데드리프트', displayed: '데드리프트'),
+      (recorded: '테크노짐 퓨어 체스트 프레스', displayed: '퓨어 체스트 프레스'),
+    ]) {
+      testWidgets(
+        'the scoreboard shows partner progress for ${exercise.recorded}',
+        (tester) async {
+          // "친구가 어디까지 했는지 전광판처럼" — 상대의 세트 보고가 순위·종목·
+          // 진행으로 내 화면에 나타나야 한다.
+          final room = await seatTwo(PartyMode.together);
+          final state = await pumpTogether(
+            tester,
+            repository: client('u-me', '나'),
+          );
+          await tester.tap(find.byKey(const ValueKey('together-join')));
+          await tester.pumpAndSettle();
+          await tester.enterText(
+            find.byKey(const ValueKey('together-code-input')),
+            room.code,
+          );
+          await tester.pumpAndSettle();
+          expect(state.activeTrainingPartyId, room.id);
 
-      await client('u-friend', '친구').reportSetDone(
-        partyId: room.id,
-        restSeconds: 60,
-        exerciseName: '데드리프트',
-        setNumber: 2,
-        setTotal: 5,
-        totalVolume: 360,
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-      await tester.pump();
+          await client('u-friend', '친구').reportSetDone(
+            partyId: room.id,
+            restSeconds: 60,
+            exerciseName: exercise.recorded,
+            setNumber: 2,
+            setTotal: 5,
+            totalVolume: 360,
+          );
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.pump();
 
-      // 상대 줄: 1위 배지 + 무슨 종목의 몇 세트째인지 + 볼륨.
-      expect(find.text('1위'), findsOneWidget);
-      expect(find.text('데드리프트 · 2/5세트'), findsOneWidget);
-      expect(find.textContaining('360kg', findRichText: true), findsWidgets);
-      // 격차 응원 줄 — 내가 쫓는 쪽이다.
-      expect(find.textContaining('따라잡아요'), findsOneWidget);
-      state.cancelRestTimer();
-    });
+          // 상대 줄: 1위 배지 + 무슨 종목의 몇 세트째인지 + 볼륨.
+          expect(find.text('1위'), findsOneWidget);
+          expect(find.text('${exercise.displayed} · 2/5세트'), findsOneWidget);
+          expect(find.textContaining('테크노짐'), findsNothing);
+          expect(
+            find.textContaining('360kg', findRichText: true),
+            findsWidgets,
+          );
+          // 격차 응원 줄 — 내가 쫓는 쪽이다.
+          expect(find.textContaining('따라잡아요'), findsOneWidget);
+          state.cancelRestTimer();
+        },
+      );
+    }
 
     test('a seventh member is refused — the room caps at six', () async {
       final host = client('u-1', '1번');

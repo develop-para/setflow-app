@@ -195,6 +195,16 @@ jobs:
             exit 1
           fi
 
+      - name: Save signed APK
+        if: steps.version.outputs.already != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: setflow-${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.build_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
       - name: Install Firebase CLI
         if: steps.version.outputs.already != 'true'
         run: npm install -g firebase-tools@15

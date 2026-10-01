@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../domain/exercise_display_name.dart';
 import '../models.dart';
 
 enum BusinessApplicationKind {
@@ -707,16 +708,19 @@ class BusinessWorkoutSession {
 class BusinessWorkoutExercise {
   const BusinessWorkoutExercise({
     required this.id,
-    required this.name,
+    required String name,
     required this.orderIndex,
     required this.sets,
     this.baseExerciseId,
     this.targetMuscle,
-  });
+    // Keep the public `name` argument while storing the original label privately.
+    // ignore: prefer_initializing_formals
+  }) : _name = name;
 
   final String id;
   final String? baseExerciseId;
-  final String name;
+  final String _name;
+  String get name => exerciseDisplayName(_name);
   final String? targetMuscle;
   final int orderIndex;
   final List<BusinessWorkoutSet> sets;
@@ -1287,17 +1291,20 @@ class OwnedRoutineExercise {
   const OwnedRoutineExercise({
     required this.id,
     required this.routineId,
-    required this.name,
+    required String name,
     required this.targetMuscle,
     required this.orderIndex,
     required this.sets,
     this.baseExerciseId,
-  });
+    // Keep the public `name` argument while storing the original label privately.
+    // ignore: prefer_initializing_formals
+  }) : _name = name;
 
   final String id;
   final String routineId;
   final String? baseExerciseId;
-  final String name;
+  final String _name;
+  String get name => exerciseDisplayName(_name);
   final String targetMuscle;
   final int orderIndex;
   final List<OwnedRoutineSet> sets;
