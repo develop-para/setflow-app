@@ -22,6 +22,7 @@ import 'business_detail_screens.dart';
 import 'business_routine_flow_screens.dart';
 import 'business_settings_screens.dart';
 import 'consultation_retarget_screen.dart';
+import 'consultation_chat_screen.dart';
 import 'member_detail_screens.dart';
 import 'notification_screen.dart';
 import 'settlement_detail_screens.dart';
@@ -4935,7 +4936,9 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                               ),
                                         ),
                                       Text(
-                                        item.question ?? '질문 내용이 없습니다.',
+                                        item.latestMessage?.text ??
+                                            item.question ??
+                                            '질문 내용이 없습니다.',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: Theme.of(context)
@@ -4977,6 +4980,45 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
   ) async {
     if (_openConsultationIds.contains(consultation.id)) return;
     setState(() => _openConsultationIds.add(consultation.id));
+    try {
+      if (AppScope.of(context).businessRepository
+          is ConsultationChatRepository) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => ConsultationChatScreen(
+              consultationId: consultation.id,
+              role: widget.role,
+              initialConsultation: consultation,
+              onShowDetails: () {
+                final current =
+                    AppScope.of(context).businessConsultations
+                        .where((item) => item.id == consultation.id)
+                        .firstOrNull ??
+                    consultation;
+                _showConsultationInformation(
+                  context,
+                  current,
+                  allowReplies: false,
+                );
+              },
+            ),
+          ),
+        );
+      } else {
+        await _showConsultationInformation(context, consultation);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _openConsultationIds.remove(consultation.id));
+      }
+    }
+  }
+
+  Future<void> _showConsultationInformation(
+    BuildContext context,
+    BusinessConsultation consultation, {
+    bool allowReplies = true,
+  }) async {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
     var submitting = false;
@@ -5153,53 +5195,63 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                                 },
                         ),
                       ],
-                      const SizedBox(height: SetflowSpacing.xl),
-                      AppTextField(
-                        controller: controller,
-                        maxLines: 4,
-                        label: '답변 작성',
-                        hint: '회원이 바로 실행할 수 있도록 구체적으로 작성해주세요.',
-                        validator: (value) {
-                          final answer = value?.trim() ?? '';
-                          if (answer.length < 10) return '답변을 10자 이상 입력해주세요.';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: SetflowSpacing.lg),
-                      AppButton(
-                        label: submitting
-                            ? '전송 중...'
-                            : doneLabel(_hasBusinessReply(consultation)),
-                        icon: Icons.send_rounded,
-                        onPressed: submitting
-                            ? null
-                            : () async {
-                                if (!(formKey.currentState?.validate() ??
-                                    false)) {
-                                  return;
-                                }
-                                setSheetState(() => submitting = true);
-                                try {
-                                  await AppScope.of(
-                                    context,
-                                  ).answerBusinessConsultationById(
-                                    role: widget.role,
-                                    consultationId: consultation.id,
-                                    answer: controller.text.trim(),
-                                  );
-                                  if (!sheetContext.mounted || !mounted) return;
-                                  Navigator.pop(sheetContext);
-                                  AppSnackbar.success(context, '상담 답변을 보냈어요.');
-                                } catch (_) {
-                                  if (mounted) {
-                                    AppSnackbar.error(context, '답변을 보내지 못했어요.');
+                      if (allowReplies) ...[
+                        const SizedBox(height: SetflowSpacing.xl),
+                        AppTextField(
+                          controller: controller,
+                          maxLines: 4,
+                          label: '답변 작성',
+                          hint: '회원이 바로 실행할 수 있도록 구체적으로 작성해주세요.',
+                          validator: (value) {
+                            final answer = value?.trim() ?? '';
+                            if (answer.length < 10) return '답변을 10자 이상 입력해주세요.';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: SetflowSpacing.lg),
+                        AppButton(
+                          label: submitting
+                              ? '전송 중...'
+                              : doneLabel(_hasBusinessReply(consultation)),
+                          icon: Icons.send_rounded,
+                          onPressed: submitting
+                              ? null
+                              : () async {
+                                  if (!(formKey.currentState?.validate() ??
+                                      false)) {
+                                    return;
                                   }
-                                  if (sheetContext.mounted) {
-                                    setSheetState(() => submitting = false);
+                                  setSheetState(() => submitting = true);
+                                  try {
+                                    await AppScope.of(
+                                      context,
+                                    ).answerBusinessConsultationById(
+                                      role: widget.role,
+                                      consultationId: consultation.id,
+                                      answer: controller.text.trim(),
+                                    );
+                                    if (!sheetContext.mounted || !mounted) {
+                                      return;
+                                    }
+                                    Navigator.pop(sheetContext);
+                                    AppSnackbar.success(
+                                      context,
+                                      '상담 답변을 보냈어요.',
+                                    );
+                                  } catch (_) {
+                                    if (mounted) {
+                                      AppSnackbar.error(
+                                        context,
+                                        '답변을 보내지 못했어요.',
+                                      );
+                                    }
+                                    if (sheetContext.mounted) {
+                                      setSheetState(() => submitting = false);
+                                    }
                                   }
-                                }
-                              },
-                      ),
+                                },
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -5211,9 +5263,6 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
     } finally {
       await sheetCompleted;
       controller.dispose();
-      if (mounted) {
-        setState(() => _openConsultationIds.remove(consultation.id));
-      }
     }
   }
 
@@ -5306,6 +5355,12 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
 String doneLabel(bool answered) => answered ? '답변 다시 보내기' : '답변 보내기';
 
 bool _hasBusinessReply(BusinessConsultation consultation) {
+  final latestMessage = consultation.latestMessage;
+  if (latestMessage?.sender == BusinessMessageSender.member) return false;
+  if (latestMessage?.sender == BusinessMessageSender.trainer ||
+      latestMessage?.sender == BusinessMessageSender.gym) {
+    return true;
+  }
   if (consultation.status == BusinessConsultationStatus.answered ||
       consultation.status == BusinessConsultationStatus.replied) {
     return true;

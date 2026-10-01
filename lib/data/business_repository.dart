@@ -1085,6 +1085,32 @@ abstract interface class ConsultationRecommendationProfileShareRepository {
   Future<void> revokeRecommendationProfileShare(String consultationId);
 }
 
+/// Participant-scoped conversation access, independent of the server vendor.
+abstract interface class ConsultationChatRepository {
+  Future<BusinessConsultation> loadConsultation(String consultationId);
+
+  /// The adapter owns live transport, refresh and subscription cancellation.
+  Stream<BusinessConsultation> watchConsultation(String consultationId);
+
+  Future<BusinessConsultation> sendConsultationMessage(
+    SendConsultationMessageInput input,
+  );
+}
+
+class SendConsultationMessageInput {
+  const SendConsultationMessageInput({
+    required this.consultationId,
+    required this.text,
+    required this.requestId,
+  });
+
+  final String consultationId;
+  final String text;
+
+  /// Retain this UUID when retrying the same message after a network failure.
+  final String requestId;
+}
+
 class BusinessConsultation {
   const BusinessConsultation({
     required this.id,
@@ -1137,6 +1163,20 @@ class BusinessConsultation {
   final DateTime? recommendationProfileSharedAt;
   final DateTime? recommendationProfileShareRevokedAt;
   final List<BusinessConsultationMessage> messages;
+
+  BusinessConsultationMessage? get latestMessage {
+    BusinessConsultationMessage? latest;
+    for (final message in messages) {
+      final previousAt = latest?.createdAt;
+      final nextAt = message.createdAt;
+      if (latest == null ||
+          previousAt == null ||
+          (nextAt != null && !nextAt.isBefore(previousAt))) {
+        latest = message;
+      }
+    }
+    return latest;
+  }
 }
 
 enum ConsultationMode {
@@ -1170,6 +1210,7 @@ class BusinessConsultationMessage {
     required this.sender,
     required this.text,
     this.senderId,
+    this.requestId,
     this.createdAt,
   });
 
@@ -1177,6 +1218,7 @@ class BusinessConsultationMessage {
   final String consultationId;
   final BusinessMessageSender sender;
   final String? senderId;
+  final String? requestId;
   final String text;
   final DateTime? createdAt;
 }

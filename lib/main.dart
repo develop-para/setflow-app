@@ -31,6 +31,7 @@ import 'data/supabase_together_repository.dart';
 import 'screens/business_screens.dart';
 import 'screens/coaching_workout_screens.dart';
 import 'screens/coaching_management_screen.dart';
+import 'screens/consultation_chat_screen.dart';
 import 'screens/member_screens.dart';
 import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
@@ -300,6 +301,46 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       navigator.push(
         MaterialPageRoute(
           builder: (_) => CommunityPostDetailScreen(post: post),
+        ),
+      );
+      return;
+    }
+    if (state.businessRepository is ConsultationChatRepository &&
+        const {
+          'consultation_reply',
+          'consultation_message',
+          'consultation_assigned',
+        }.contains(open.event)) {
+      final id = open.data['consultationId'];
+      if (id == null || id.trim().isEmpty) return;
+      final consultation =
+          (memberShell
+                  ? state.memberConsultations
+                  : state.businessConsultations)
+              .where((item) => item.id == id)
+              .firstOrNull;
+      final memberConsultation = memberShell
+          ? state.consultations.where((item) => item.id == id).firstOrNull
+          : null;
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => ConsultationChatScreen(
+            consultationId: id,
+            role: memberShell ? UserRole.member : state.role,
+            initialConsultation: consultation,
+            onShowDetails: memberConsultation == null
+                ? null
+                : () => navigator.push(
+                    MaterialPageRoute(
+                      builder: (_) => CoachingAccountBoundary(
+                        child: ConsultationDetailScreen(
+                          consultation: memberConsultation,
+                          showConversation: false,
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
         ),
       );
       return;

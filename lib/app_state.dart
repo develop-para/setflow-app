@@ -3414,6 +3414,55 @@ class AppState extends ChangeNotifier {
       );
   }
 
+  /// 채팅에서 확인한 원본을 목록에도 반영한다. 새 메시지는 추가만 되므로
+  /// 전송 직전 시작한 조회가 늦게 도착해 최신 답변을 지울 수 없다.
+  void applyConsultationChatUpdate(BusinessConsultation consultation) {
+    if (_disposed) return;
+    bool canReplace(BusinessConsultation previous) => previous.messages.every(
+      (message) => consultation.messages.any((item) => item.id == message.id),
+    );
+
+    var changed = false;
+    final memberIndex = memberConsultations.indexWhere(
+      (item) => item.id == consultation.id,
+    );
+    if (memberIndex >= 0 && canReplace(memberConsultations[memberIndex])) {
+      final updated = List<BusinessConsultation>.of(memberConsultations);
+      updated[memberIndex] = consultation;
+      memberConsultations = List.unmodifiable(updated);
+      _syncMemberConsultationsFromCloud();
+      changed = true;
+    }
+    final workspace = businessWorkspace;
+    final businessIndex = workspace?.consultations.indexWhere(
+      (item) => item.id == consultation.id,
+    );
+    if (workspace != null &&
+        businessIndex != null &&
+        businessIndex >= 0 &&
+        canReplace(workspace.consultations[businessIndex])) {
+      final updated = List<BusinessConsultation>.of(workspace.consultations);
+      updated[businessIndex] = consultation;
+      businessWorkspace = BusinessWorkspaceData(
+        role: workspace.role,
+        access: workspace.access,
+        dashboardStats: workspace.dashboardStats,
+        profile: workspace.profile,
+        members: workspace.members,
+        assignments: workspace.assignments,
+        trainers: workspace.trainers,
+        consultations: List.unmodifiable(updated),
+        ownedRoutines: workspace.ownedRoutines,
+        applications: workspace.applications,
+        coachingConnections: workspace.coachingConnections,
+        sessionRecords: workspace.sessionRecords,
+        memberSharingPreferences: workspace.memberSharingPreferences,
+      );
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
   void _resetLiveBusinessDashboards() {
     businessDashboards
       ..clear()
@@ -5813,13 +5862,13 @@ class AppState extends ChangeNotifier {
         return false;
       }
       final consultation = businessConsultations[consultationIndex];
+      final lastMessage = consultation.latestMessage;
+      if (lastMessage != null) {
+        return lastMessage.sender == BusinessMessageSender.trainer ||
+            lastMessage.sender == BusinessMessageSender.gym;
+      }
       return consultation.status == BusinessConsultationStatus.answered ||
-          consultation.status == BusinessConsultationStatus.replied ||
-          consultation.messages.any(
-            (message) =>
-                message.sender == BusinessMessageSender.trainer ||
-                message.sender == BusinessMessageSender.gym,
-          );
+          consultation.status == BusinessConsultationStatus.replied;
     }
     return dashboardFor(
           role,

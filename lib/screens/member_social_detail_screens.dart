@@ -17,6 +17,8 @@ import '../widgets/common.dart';
 import '../widgets/recommendation_profile_summary.dart';
 import '../widgets/routine_icon_picker.dart';
 import 'recommendation_profile_screen.dart';
+import 'consultation_chat_screen.dart';
+import 'coaching_workout_screens.dart' show CoachingAccountBoundary;
 
 typedef RoutineDraft = ({String name, String description, String? iconMuscle});
 
@@ -2440,9 +2442,14 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
 enum _OfflineLocationSource { gym, region }
 
 class ConsultationDetailScreen extends StatefulWidget {
-  const ConsultationDetailScreen({required this.consultation, super.key});
+  const ConsultationDetailScreen({
+    required this.consultation,
+    this.showConversation = true,
+    super.key,
+  });
 
   final ConsultationData consultation;
+  final bool showConversation;
 
   @override
   State<ConsultationDetailScreen> createState() =>
@@ -2581,8 +2588,33 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final consultation = widget.consultation;
-    final liveData = AppScope.of(context).usesLiveBusinessData;
+    final state = AppScope.of(context);
+    final consultation =
+        state.consultations
+            .where((item) => item.id == widget.consultation.id)
+            .firstOrNull ??
+        widget.consultation;
+    if (widget.showConversation &&
+        state.businessRepository is ConsultationChatRepository) {
+      return ConsultationChatScreen(
+        consultationId: consultation.id,
+        role: UserRole.member,
+        initialConsultation: state.memberConsultations
+            .where((item) => item.id == consultation.id)
+            .firstOrNull,
+        onShowDetails: () => Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => CoachingAccountBoundary(
+              child: ConsultationDetailScreen(
+                consultation: consultation,
+                showConversation: false,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    final liveData = state.usesLiveBusinessData;
     return Scaffold(
       appBar: AppBar(title: const Text('상담 상세')),
       body: ListView(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -10,7 +11,7 @@ import 'supabase_coaching_management_repository.dart';
 
 const _memberConsultationPageSize = 200;
 
-const _consultationSelect = '''
+const _consultationMetadataSelect = '''
   id,
   user_id,
   trainer_id,
@@ -50,12 +51,18 @@ const _consultationSelect = '''
   gym:gyms!fk_consult_gym(
     id,
     name
-  ),
+  )
+''';
+
+const _consultationSelect =
+    '''
+  $_consultationMetadataSelect,
   messages:consultation_messages(
     id,
     consultation_id,
     sender_type,
     sender_id,
+    request_id,
     text,
     created_at
   )
@@ -248,6 +255,7 @@ class SupabaseBusinessRepository
         CoachingHealthConsentRepository,
         CoachingWorkoutHistoryRepository,
         RoutineShareRevocationRepository,
+        ConsultationChatRepository,
         ConsultationRecommendationProfileShareRepository {
   const SupabaseBusinessRepository(this._client);
 
@@ -1951,14 +1959,201 @@ class SupabaseBusinessRepository
     return consultation;
   }
 
-  Future<BusinessConsultation> _loadConsultation(String id) async {
+  Future<BusinessConsultation> _loadConsultation(
+    String id, {
+    bool accessDeniedWhenMissing = false,
+    bool includeFullMessageHistory = false,
+  }) async {
     final row = await _client
         .from('consultations')
-        .select(_consultationSelect)
+        .select(
+          includeFullMessageHistory
+              ? _consultationMetadataSelect
+              : _consultationSelect,
+        )
         .eq('id', id)
         .maybeSingle();
-    if (row == null) throw StateError('Consultation was not found.');
+    if (row == null) {
+      if (accessDeniedWhenMissing) throw const BusinessAccessDenied();
+      throw StateError('Consultation was not found.');
+    }
+    if (includeFullMessageHistory) {
+      final messages = <Map<String, dynamic>>[];
+      String? cursorAt;
+      String? cursorId;
+      while (true) {
+        var query = _client
+            .from('consultation_messages')
+            .select(
+              'id,consultation_id,sender_type,sender_id,request_id,text,created_at',
+            )
+            .eq('consultation_id', id);
+        if (cursorAt != null && cursorId != null) {
+          query = query.or(
+            'created_at.gt.$cursorAt,and(created_at.eq.$cursorAt,id.gt.$cursorId)',
+          );
+        }
+        final page = await query
+            .order('created_at', ascending: true)
+            .order('id', ascending: true)
+            .limit(_memberConsultationPageSize);
+        messages.addAll(page);
+        if (page.length < _memberConsultationPageSize) break;
+        cursorAt = _nullableString(page.last['created_at']);
+        cursorId = _nullableUuid(page.last['id']);
+        if (cursorAt == null || cursorId == null) {
+          throw const FormatException(
+            'Consultation message cursor is invalid.',
+          );
+        }
+      }
+      row['messages'] = messages;
+    }
     return _consultationFromRow(row);
+  }
+
+  @override
+  Future<BusinessConsultation> loadConsultation(String consultationId) async {
+    final viewerId = _requireUser().id;
+    final id = _validatedUuid(consultationId, 'consultationId');
+    try {
+      final consultation = await _loadConsultation(
+        id,
+        accessDeniedWhenMissing: true,
+        includeFullMessageHistory: true,
+      );
+      if (_client.auth.currentUser?.id != viewerId) {
+        throw const BusinessAccessDenied();
+      }
+      return consultation;
+    } on PostgrestException catch (error) {
+      if (error.code == '42501') throw const BusinessAccessDenied();
+      rethrow;
+    }
+  }
+
+  @override
+  Stream<BusinessConsultation> watchConsultation(String consultationId) {
+    final id = _validatedUuid(consultationId, 'consultationId');
+    return Stream<BusinessConsultation>.multi((controller) {
+      final viewerId = _requireUser().id;
+      var cancelled = false;
+      var refreshing = false;
+      var refreshQueued = false;
+
+      Future<void> refresh() async {
+        if (cancelled) return;
+        if (refreshing) {
+          refreshQueued = true;
+          return;
+        }
+        refreshing = true;
+        try {
+          do {
+            refreshQueued = false;
+            try {
+              if (_client.auth.currentUser?.id != viewerId) {
+                throw const BusinessAccessDenied();
+              }
+              final consultation = await loadConsultation(id);
+              if (_client.auth.currentUser?.id != viewerId) {
+                throw const BusinessAccessDenied();
+              }
+              if (!cancelled) controller.add(consultation);
+            } catch (error, stack) {
+              if (!cancelled) controller.addError(error, stack);
+            }
+          } while (refreshQueued && !cancelled);
+        } finally {
+          refreshing = false;
+        }
+      }
+
+      // Realtime only signals changes. The RLS-protected canonical read decides
+      // what the viewer may receive, including reassignment and revoked shares.
+      final channel = _client
+          .channel('consultation-chat:$id:${_newRepositoryUuidV4()}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'consultation_messages',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'consultation_id',
+              value: id,
+            ),
+            callback: (_) => unawaited(refresh()),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'consultations',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: id,
+            ),
+            callback: (_) => unawaited(refresh()),
+          )
+          .subscribe((status, _) {
+            if (status == RealtimeSubscribeStatus.subscribed) {
+              unawaited(refresh());
+            }
+          });
+      // A lost socket, reconnect or backgrounded device cannot lose messages.
+      final timer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => unawaited(refresh()),
+      );
+      unawaited(refresh());
+      controller.onCancel = () async {
+        cancelled = true;
+        timer.cancel();
+        await _client.removeChannel(channel);
+      };
+    });
+  }
+
+  @override
+  Future<BusinessConsultation> sendConsultationMessage(
+    SendConsultationMessageInput input,
+  ) async {
+    final user = _requireUser();
+    final consultationId = _validatedUuid(
+      input.consultationId,
+      'consultationId',
+    );
+    final requestId = _validatedUuid(input.requestId, 'requestId');
+    final text = _requiredTrimmed(input.text, 'text');
+    if (text.runes.length > 5000) {
+      throw ArgumentError.value(input.text, 'text', 'At most 5000 characters.');
+    }
+    try {
+      final result = await _client.rpc(
+        'send_consultation_message',
+        params: {
+          'request_id': requestId,
+          'consultation_id': consultationId,
+          'text': text,
+        },
+      );
+      if (_uuidFromRpc(result) != consultationId) {
+        throw StateError('Server returned a different consultation message.');
+      }
+      final consultation = await loadConsultation(consultationId);
+      if (!consultation.messages.any(
+        (message) =>
+            message.senderId == user.id &&
+            message.requestId == requestId &&
+            message.text == text,
+      )) {
+        throw StateError('The sent consultation message was not persisted.');
+      }
+      return consultation;
+    } on PostgrestException catch (error) {
+      if (error.code == '42501') throw const BusinessAccessDenied();
+      rethrow;
+    }
   }
 
   @override
@@ -3176,6 +3371,7 @@ BusinessConsultationMessage _consultationMessageFromRow(
     consultationId: _requiredUuid(row, 'consultation_id'),
     sender: _messageSenderFromDatabase(row['sender_type']),
     senderId: _nullableUuid(row['sender_id']),
+    requestId: _nullableUuid(row['request_id']),
     text: _stringValue(row['text']),
     createdAt: _nullableDateTime(row['created_at']),
   );

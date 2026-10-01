@@ -4652,7 +4652,8 @@ class CoachingScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: SetflowSpacing.sm),
                       Text(
-                        entry.consultation.question,
+                        entry.cloud?.latestMessage?.text ??
+                            entry.consultation.question,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(height: 1.45),
@@ -4918,7 +4919,8 @@ class _ConsultationHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final consultation = entry.consultation;
-    final answer = consultation.response?.trim();
+    final latestMessage = entry.cloud?.latestMessage;
+    final answer = latestMessage?.text.trim() ?? consultation.response?.trim();
     // 이력은 읽는 목록 — 카드가 아니라 헤어라인 줄. 답변 미리보기 상자
     // (surfaceContainer)는 인용 블록이라 남는다.
     return InkWell(
@@ -4989,7 +4991,9 @@ class _ConsultationHistoryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '전문가 답변',
+                    latestMessage?.sender == BusinessMessageSender.member
+                        ? '내 마지막 메시지'
+                        : '전문가 답변',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(),
                   ),
                   const SizedBox(height: SetflowSpacing.xs),

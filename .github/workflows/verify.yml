@@ -64,6 +64,7 @@ jobs:
           node tool/test_workspace_access.mjs
           node tool/test_account_profiles.mjs
           node tool/test_coaching_management.mjs
+          node tool/test_consultation_chat.mjs
 
       # The app also ships as a web bundle on Vercel. Dart that compiles for
       # mobile can still fail here (dart:io, platform channels), and Vercel
