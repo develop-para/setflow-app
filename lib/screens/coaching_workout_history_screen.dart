@@ -5,6 +5,7 @@ import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/workout_history_calendar.dart';
 
 /// 수업 전 개인 운동까지 포함한 회원 기록. 페이지마다 서버가 권한을 확인한다.
 class CoachingWorkoutHistoryScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _CoachingWorkoutHistoryScreenState
     with WidgetsBindingObserver {
   final _sessions = <BusinessWorkoutSession>[];
   CoachingWorkoutCursor? _cursor;
+  DateTime? _selectedHistoryDate;
   bool _requested = false;
   bool _loading = false;
   bool _failed = false;
@@ -77,6 +79,10 @@ class _CoachingWorkoutHistoryScreenState
         _cursor = page.nextCursor;
         _loading = false;
       });
+      if (reset && _sessions.isNotEmpty) {
+        final date = _selectedHistoryDate ?? _sessions.first.date;
+        await _loadMonth(DateTime(date.year, date.month));
+      }
     } catch (_) {
       if (!mounted || generation != _generation) return;
       setState(() {
@@ -87,6 +93,24 @@ class _CoachingWorkoutHistoryScreenState
         _failed = true;
       });
     }
+  }
+
+  Future<void> _loadMonth(DateTime month) async {
+    while (mounted && !_failed && !_loading && _cursor != null) {
+      if (_cursor!.date.isBefore(month)) break;
+      final previousCursor = _cursor;
+      await _load();
+      if (_cursor?.sessionId == previousCursor?.sessionId) break;
+    }
+  }
+
+  Future<void> _loadOlder() async {
+    final previousCount = _sessions.length;
+    await _load();
+    if (!mounted || _failed || _sessions.length <= previousCount) return;
+    final date = _sessions[previousCount].date;
+    setState(() => _selectedHistoryDate = date);
+    await _loadMonth(DateTime(date.year, date.month));
   }
 
   @override
@@ -102,8 +126,6 @@ class _CoachingWorkoutHistoryScreenState
             '수업 전 개인 운동을 포함한 전체 기록',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: SetflowSpacing.sm),
-          const Text('최근 기록부터 표시합니다. 날짜를 누르면 종목과 세트별 기록을 볼 수 있어요.'),
           const SizedBox(height: SetflowSpacing.lg),
           if (_failed) ...[
             const Text('기록을 열 수 없어요. 회원의 공유 동의와 수업 상태를 확인해주세요.'),
@@ -113,15 +135,34 @@ class _CoachingWorkoutHistoryScreenState
             ),
           ] else if (!_loading && _sessions.isEmpty)
             const Text('아직 저장된 운동 기록이 없습니다.'),
-          for (final session in _sessions) ...[
-            CoachingWorkoutSessionCard(session: session),
-            const SizedBox(height: SetflowSpacing.md),
-          ],
-          if (_loading) const Center(child: CircularProgressIndicator()),
+          if (!_failed)
+            WorkoutHistoryCalendar(
+              days: [
+                for (final session in _sessions)
+                  WorkoutHistoryDay.business(session),
+              ],
+              initialDate: _selectedHistoryDate,
+              onDateSelected: (date) => _selectedHistoryDate = date,
+              loading: _loading,
+              onMonthChanged: _loadMonth,
+              recordBuilder: (date) => Column(
+                children: [
+                  for (final session in _sessions.where(
+                    (session) => DateUtils.isSameDay(session.date, date),
+                  )) ...[
+                    CoachingWorkoutSessionCard(
+                      key: ValueKey(session.id),
+                      session: session,
+                    ),
+                    const SizedBox(height: SetflowSpacing.md),
+                  ],
+                ],
+              ),
+            ),
           if (!_loading && _cursor != null)
             OutlinedButton(
               key: const ValueKey('coaching-history-more'),
-              onPressed: _load,
+              onPressed: _loadOlder,
               child: const Text('이전 기록 더 보기'),
             ),
         ],

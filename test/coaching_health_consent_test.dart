@@ -35,17 +35,25 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('2020.01.01'), findsOneWidget);
+      await tester.ensureVisible(find.text('2020.01.01'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('2020.01.01'));
       await tester.pumpAndSettle();
       expect(find.text('스쿼트'), findsOneWidget);
       expect(find.textContaining('100.0kg × 8회'), findsOneWidget);
       expect(find.textContaining('자세 메모'), findsOneWidget);
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('coaching-history-more')),
-      );
-      await tester.tap(find.byKey(const ValueKey('coaching-history-more')));
-      await tester.pumpAndSettle();
+      // 처음 표시하는 달도 페이지 경계에서 잘리지 않도록 자동으로 채운다.
       expect(repository.historyCursors.last?.sessionId, 'old-session');
+      expect(find.text('2018.01.01'), findsNothing);
+      await tester.ensureVisible(find.text('2020.01'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2020.01'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Switch to input'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '01/01/2018');
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
       expect(find.text('2018.01.01'), findsOneWidget);
       expect(find.byKey(const ValueKey('coaching-history-more')), findsNothing);
       repository.historyRevoked = true;

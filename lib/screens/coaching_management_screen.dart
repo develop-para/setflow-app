@@ -7,6 +7,7 @@ import '../data/coaching_management_repository.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/workout_history_calendar.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/pro_access_gate.dart';
 import 'coaching_workout_screens.dart' show CoachingAccountBoundary;
@@ -526,6 +527,7 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
     with WidgetsBindingObserver {
   final List<ManagedWorkout> _workouts = [];
   String? _next;
+  DateTime? _selectedHistoryDate;
   bool _loading = false;
   bool _busy = false;
   bool _failed = false;
@@ -575,6 +577,30 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+    if (mounted && !more && !_failed && _workouts.isNotEmpty) {
+      final date = _selectedHistoryDate ?? _workouts.first.session.date;
+      await _loadMonth(DateTime(date.year, date.month));
+    }
+  }
+
+  Future<void> _loadMonth(DateTime month) async {
+    while (mounted && !_failed && !_loading && _next != null) {
+      final dates = _workouts.map((workout) => workout.session.date).toList()
+        ..sort();
+      if (dates.isNotEmpty && dates.first.isBefore(month)) break;
+      final previousCursor = _next;
+      await _load(more: true);
+      if (_next == previousCursor) break;
+    }
+  }
+
+  Future<void> _loadOlder() async {
+    final previousCount = _workouts.length;
+    await _load(more: true);
+    if (!mounted || _failed || _workouts.length <= previousCount) return;
+    final date = _workouts[previousCount].session.date;
+    setState(() => _selectedHistoryDate = date);
+    await _loadMonth(DateTime(date.year, date.month));
   }
 
   Future<void> _correct(
@@ -663,80 +689,100 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
         ],
         if (!_loading && !_failed && _workouts.isEmpty)
           const Text('아직 서버에 저장된 운동 기록이 없어요.'),
-        for (final workout in _workouts) ...[
-          SetflowCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        if (!_failed)
+          WorkoutHistoryCalendar(
+            days: [
+              for (final workout in _workouts)
+                WorkoutHistoryDay.workout(workout.session),
+            ],
+            initialDate: _selectedHistoryDate,
+            onDateSelected: (date) => _selectedHistoryDate = date,
+            loading: _loading,
+            onMonthChanged: _loadMonth,
+            recordBuilder: (date) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  '${_date(workout.session.date)} · ${workout.title}',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                if (workout.canPropose)
-                  Text(
-                    workout.requiresApproval
-                        ? '수정 시 회원 승인이 필요해요.'
-                        : '종료 후 48시간 이내 · 수정 시 회원에게 알려요.',
-                  ),
-                for (final exercise in workout.session.exercises) ...[
-                  const SizedBox(height: SetflowSpacing.md),
-                  Text(
-                    exercise.template.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  for (final set in exercise.sets) ...[
-                    Text('${set.number}세트 · ${set.completed ? '완료' : '미완료'}'),
-                    Wrap(
-                      spacing: SetflowSpacing.sm,
-                      runSpacing: SetflowSpacing.xs,
+                for (final workout in _workouts.where(
+                  (workout) => DateUtils.isSameDay(workout.session.date, date),
+                )) ...[
+                  SetflowCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        for (final metric in [
-                          if (exercise.template.isCardio) ...[
-                            WorkoutMetric.durationSeconds,
-                            WorkoutMetric.distanceKm,
-                            WorkoutMetric.intensityRpe,
-                          ] else if (exercise.template.isDurationHold)
-                            WorkoutMetric.durationSeconds
-                          else ...[
-                            WorkoutMetric.weight,
-                            WorkoutMetric.reps,
-                          ],
-                          WorkoutMetric.restSeconds,
-                          if (!exercise.template.isCardio) WorkoutMetric.rir,
-                        ])
-                          workout.canPropose
-                              ? OutlinedButton(
-                                  key: ValueKey(
-                                    '${workout.key}-${exercise.id}-${set.number}-${metric.name}',
-                                  ),
-                                  onPressed: _busy || _loading
-                                      ? null
-                                      : () => _correct(
-                                          workout,
-                                          exercise,
-                                          set,
-                                          metric,
+                        Text(
+                          '${_date(workout.session.date)} · ${workout.title}',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        if (workout.canPropose)
+                          Text(
+                            workout.requiresApproval
+                                ? '수정 시 회원 승인이 필요해요.'
+                                : '종료 후 48시간 이내 · 수정 시 회원에게 알려요.',
+                          ),
+                        for (final exercise in workout.session.exercises) ...[
+                          const SizedBox(height: SetflowSpacing.md),
+                          Text(
+                            exercise.template.name,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          for (final set in exercise.sets) ...[
+                            Text(
+                              '${set.number}세트 · ${set.completed ? '완료' : '미완료'}',
+                            ),
+                            Wrap(
+                              spacing: SetflowSpacing.sm,
+                              runSpacing: SetflowSpacing.xs,
+                              children: [
+                                for (final metric in [
+                                  if (exercise.template.isCardio) ...[
+                                    WorkoutMetric.durationSeconds,
+                                    WorkoutMetric.distanceKm,
+                                    WorkoutMetric.intensityRpe,
+                                  ] else if (exercise.template.isDurationHold)
+                                    WorkoutMetric.durationSeconds
+                                  else ...[
+                                    WorkoutMetric.weight,
+                                    WorkoutMetric.reps,
+                                  ],
+                                  WorkoutMetric.restSeconds,
+                                  if (!exercise.template.isCardio)
+                                    WorkoutMetric.rir,
+                                ])
+                                  workout.canPropose
+                                      ? OutlinedButton(
+                                          key: ValueKey(
+                                            '${workout.key}-${exercise.id}-${set.number}-${metric.name}',
+                                          ),
+                                          onPressed: _busy || _loading
+                                              ? null
+                                              : () => _correct(
+                                                  workout,
+                                                  exercise,
+                                                  set,
+                                                  metric,
+                                                ),
+                                          child: Text(
+                                            '${metric.label} ${_number(metric == WorkoutMetric.rir && set.rir == null ? null : metric.read(set))} ${metric.unit}',
+                                          ),
+                                        )
+                                      : Text(
+                                          '${metric.label} ${_number(metric == WorkoutMetric.rir && set.rir == null ? null : metric.read(set))} ${metric.unit}',
                                         ),
-                                  child: Text(
-                                    '${metric.label} ${_number(metric == WorkoutMetric.rir && set.rir == null ? null : metric.read(set))} ${metric.unit}',
-                                  ),
-                                )
-                              : Text(
-                                  '${metric.label} ${_number(metric == WorkoutMetric.rir && set.rir == null ? null : metric.read(set))} ${metric.unit}',
-                                ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ],
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: SetflowSpacing.md),
                 ],
               ],
             ),
           ),
-          const SizedBox(height: SetflowSpacing.md),
-        ],
-        if (_loading) const Center(child: CircularProgressIndicator()),
         if (_next != null && !_loading)
           OutlinedButton(
-            onPressed: _busy ? null : () => _load(more: true),
+            onPressed: _busy ? null : _loadOlder,
             child: const Text('이전 기록 더 보기'),
           ),
       ],

@@ -8,6 +8,7 @@ import 'package:setflow/screens/member_detail_screens.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/widgets/common.dart';
 import 'package:setflow/widgets/exercise_muscle_map.dart';
+import 'package:setflow/widgets/workout_history_calendar.dart';
 
 const _memberId = '44444444-4444-4444-8444-444444444444';
 const _memberUserId = '11111111-1111-4111-8111-111111111111';
@@ -49,6 +50,7 @@ void main() {
       expect(find.text('운동 기록 공유가 꺼져 있어요'), findsOneWidget);
       expect(find.text('바벨 벤치 프레스 · E2E'), findsNothing);
       expect(find.textContaining('82.5'), findsNothing);
+      expect(find.byType(WorkoutHistoryCalendar), findsNothing);
     },
   );
 
@@ -102,6 +104,60 @@ void main() {
     expect(find.textContaining('82.5'), findsOneWidget);
     expect(find.textContaining('8회'), findsOneWidget);
     expect(find.textContaining('120초'), findsOneWidget);
+  });
+
+  testWidgets('calendar selects one day and retains the month on refresh', (
+    tester,
+  ) async {
+    final repository = _FakeBusinessRepository(
+      detail: _memberDetail(
+        canReadWorkouts: true,
+        sessions: [
+          _session(),
+          _session(id: 'second-session', date: DateTime(2026, 8, 14)),
+        ],
+      ),
+    );
+    final state = await pumpMemberDetail(tester, repository);
+    expect(find.text('2026.08'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('member-session-$_sessionId')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('member-session-second-session')),
+      findsNothing,
+    );
+    final day = find.byKey(const ValueKey('history-calendar-day-2026-08-14'));
+    await tester.ensureVisible(day);
+    await tester.tap(day);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('member-session-second-session')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('member-session-$_sessionId')),
+      findsNothing,
+    );
+
+    await tester.ensureVisible(find.byTooltip('이전 달'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('이전 달'));
+    await tester.pumpAndSettle();
+    expect(find.text('2026.07'), findsOneWidget);
+    expect(repository.requestedRanges.last, (
+      from: DateTime(2026, 7),
+      to: DateTime(2026, 7, 31),
+    ));
+    expect(find.text('이 날짜에는 저장된 운동 기록이 없어요.'), findsOneWidget);
+    await state.loadBusinessMemberDetail(_memberId, force: true);
+    await tester.pumpAndSettle();
+    expect(find.text('2026.07'), findsOneWidget);
+    expect(repository.requestedRanges.last, (
+      from: DateTime(2026, 7),
+      to: DateTime(2026, 7, 31),
+    ));
   });
 
   testWidgets(
@@ -160,6 +216,8 @@ void main() {
 Future<void> _expandSession(WidgetTester tester) async {
   final card = find.byKey(const ValueKey('member-session-$_sessionId'));
   expect(card, findsOneWidget);
+  await tester.ensureVisible(card);
+  await tester.pumpAndSettle();
   await tester.tap(
     find.descendant(of: card, matching: find.byType(ListTile)).first,
   );
@@ -177,7 +235,10 @@ BusinessMember _member() => const BusinessMember(
   completionRate: 75,
 );
 
-BusinessMemberDetail _memberDetail({required bool canReadWorkouts}) {
+BusinessMemberDetail _memberDetail({
+  required bool canReadWorkouts,
+  List<BusinessWorkoutSession>? sessions,
+}) {
   return BusinessMemberDetail(
     memberId: _memberId,
     memberUserId: _memberUserId,
@@ -186,43 +247,44 @@ BusinessMemberDetail _memberDetail({required bool canReadWorkouts}) {
     canReadWorkouts: canReadWorkouts,
     // The server may still return a defensive payload. The UI must honor the
     // explicit consent decision before rendering any nested workout data.
-    sessions: [_session()],
+    sessions: sessions ?? [_session()],
   );
 }
 
-BusinessWorkoutSession _session() => BusinessWorkoutSession(
-  id: _sessionId,
-  userId: _memberUserId,
-  date: DateTime(2026, 8, 15),
-  category: 'strength',
-  intensity: 'moderate',
-  startedAt: DateTime.utc(2026, 8, 15, 9),
-  endedAt: DateTime.utc(2026, 8, 15, 10),
-  exercises: [
-    BusinessWorkoutExercise(
-      id: '66666666-6666-4666-8666-666666666666',
-      name: '바벨 벤치 프레스 · E2E',
-      targetMuscle: '가슴',
-      orderIndex: 0,
-      sets: [
-        BusinessWorkoutSet(
-          id: '77777777-7777-4777-8777-777777777777',
-          setNumber: 1,
-          type: 'normal',
-          weight: 82.5,
-          reps: 8,
-          rir: 2,
-          memo: '하강 2초',
-          completed: true,
-          completedAt: DateTime.utc(2026, 8, 15, 9, 15),
-          estimated1Rm: 104.5,
-          restSeconds: 120,
+BusinessWorkoutSession _session({String id = _sessionId, DateTime? date}) =>
+    BusinessWorkoutSession(
+      id: id,
+      userId: _memberUserId,
+      date: date ?? DateTime(2026, 8, 15),
+      category: 'strength',
+      intensity: 'moderate',
+      startedAt: DateTime.utc(2026, 8, 15, 9),
+      endedAt: DateTime.utc(2026, 8, 15, 10),
+      exercises: [
+        BusinessWorkoutExercise(
+          id: '66666666-6666-4666-8666-666666666666',
+          name: '바벨 벤치 프레스 · E2E',
+          targetMuscle: '가슴',
+          orderIndex: 0,
+          sets: [
+            BusinessWorkoutSet(
+              id: '77777777-7777-4777-8777-777777777777',
+              setNumber: 1,
+              type: 'normal',
+              weight: 82.5,
+              reps: 8,
+              rir: 2,
+              memo: '하강 2초',
+              completed: true,
+              completedAt: DateTime.utc(2026, 8, 15, 9, 15),
+              estimated1Rm: 104.5,
+              restSeconds: 120,
+            ),
+          ],
         ),
       ],
-    ),
-  ],
-  feedbacks: const [],
-);
+      feedbacks: const [],
+    );
 
 class _FakeBusinessRepository implements BusinessRepository {
   _FakeBusinessRepository({required this.detail, this.feedbackCompleter});
@@ -230,6 +292,7 @@ class _FakeBusinessRepository implements BusinessRepository {
   final BusinessMemberDetail detail;
   final Completer<BusinessSessionFeedback>? feedbackCompleter;
   final List<String> requestedMemberIds = [];
+  final requestedRanges = <({DateTime? from, DateTime? to})>[];
   final List<SendSessionFeedbackInput> feedbackInputs = [];
 
   @override
@@ -253,6 +316,7 @@ class _FakeBusinessRepository implements BusinessRepository {
     DateTime? to,
   }) async {
     requestedMemberIds.add(memberId);
+    requestedRanges.add((from: from, to: to));
     return detail;
   }
 

@@ -309,6 +309,8 @@ class AppState extends ChangeNotifier {
   final Map<String, Future<dynamic>> _businessMutations = {};
   final Map<String, Future<BusinessMemberDetail>> _memberDetailLoads = {};
   final Map<String, BusinessMemberDetail> _businessMemberDetails = {};
+  final Map<String, ({DateTime? from, DateTime? to})>
+  _businessMemberDetailRanges = {};
   final Map<String, Object> _businessMemberDetailErrors = {};
   final Map<String, String> _businessInviteAcceptRequestIds = {};
   final Map<String, String> _coachingInviteAcceptRequestIds = {};
@@ -4799,6 +4801,7 @@ class AppState extends ChangeNotifier {
           );
       if (!_isCurrentAccount(accountEpoch)) return ended;
       _businessMemberDetails.remove(memberId);
+      _businessMemberDetailRanges.remove(memberId);
       _businessMemberDetailErrors.remove(memberId);
       memberMemberships = memberMemberships
           .where((item) => item.id != memberId)
@@ -4826,6 +4829,10 @@ class AppState extends ChangeNotifier {
         StateError('실데이터 저장소가 연결되지 않았습니다.'),
       );
     }
+    if (from != null || to != null) {
+      _businessMemberDetailRanges[memberId] = (from: from, to: to);
+    }
+    final range = _businessMemberDetailRanges[memberId];
     if (force) {
       _memberDetailGeneration++;
       _businessMemberDetails.remove(memberId);
@@ -4841,7 +4848,7 @@ class AppState extends ChangeNotifier {
     final accountEpoch = _accountEpoch;
     final detailGeneration = _memberDetailGeneration;
     final request = repository
-        .loadMemberDetail(memberId, from: from, to: to)
+        .loadMemberDetail(memberId, from: range?.from, to: range?.to)
         .then((detail) {
           if (!_isCurrentAccount(accountEpoch) ||
               detailGeneration != _memberDetailGeneration) {
@@ -4878,6 +4885,7 @@ class AppState extends ChangeNotifier {
     _memberDetailGeneration++;
     _memberDetailLoads.clear();
     _businessMemberDetails.clear();
+    _businessMemberDetailRanges.clear();
     _businessMemberDetailErrors.clear();
   }
 
@@ -7194,6 +7202,7 @@ class AppState extends ChangeNotifier {
     coachingSchedules = const [];
     _memberDetailLoads.clear();
     _businessMemberDetails.clear();
+    _businessMemberDetailRanges.clear();
     _businessMemberDetailErrors.clear();
     businessLoading = false;
     businessError = null;

@@ -6,6 +6,7 @@ import '../data/business_repository.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/exercise_muscle_map.dart';
+import '../widgets/workout_history_calendar.dart';
 
 const _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -171,7 +172,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
   }
 }
 
-class _LiveMemberRecordTab extends StatelessWidget {
+class _LiveMemberRecordTab extends StatefulWidget {
   const _LiveMemberRecordTab({
     required this.member,
     required this.detail,
@@ -183,6 +184,30 @@ class _LiveMemberRecordTab extends StatelessWidget {
   final BusinessMemberDetail? detail;
   final bool loading;
   final Object? error;
+
+  @override
+  State<_LiveMemberRecordTab> createState() => _LiveMemberRecordTabState();
+}
+
+class _LiveMemberRecordTabState extends State<_LiveMemberRecordTab> {
+  DateTime? _selectedHistoryDate;
+  BusinessMember get member => widget.member;
+  BusinessMemberDetail? get detail => widget.detail;
+  bool get loading => widget.loading;
+  Object? get error => widget.error;
+
+  Future<void> _loadMonth(DateTime month) async {
+    try {
+      await AppScope.of(context).loadBusinessMemberDetail(
+        member.id,
+        force: true,
+        from: month,
+        to: DateTime(month.year, month.month + 1, 0),
+      );
+    } catch (_) {
+      // 공유 권한 철회와 조회 실패는 기존 오류 화면으로 안내한다.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -226,22 +251,6 @@ class _LiveMemberRecordTab extends StatelessWidget {
         message: '회원이 개인정보 설정에서 운동 기록 공유에 동의하면 담당자에게만 표시됩니다.',
       );
     }
-    if (detail!.sessions.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: () => state.loadBusinessMemberDetail(member.id, force: true),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: SetflowInsets.pageListTight,
-          children: const [
-            EmptyState(
-              icon: Icons.event_busy_outlined,
-              title: '공유할 운동 기록이 없어요',
-              message: '회원이 운동을 저장하면 이곳에 자동으로 표시됩니다.',
-            ),
-          ],
-        ),
-      );
-    }
     return RefreshIndicator(
       onRefresh: () => state.loadBusinessMemberDetail(member.id, force: true),
       child: ListView(
@@ -274,10 +283,29 @@ class _LiveMemberRecordTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: SetflowSpacing.lg),
-          for (final session in detail!.sessions) ...[
-            _LiveSessionCard(memberId: member.id, session: session),
-            const SizedBox(height: SetflowSpacing.md),
-          ],
+          WorkoutHistoryCalendar(
+            days: [
+              for (final session in detail!.sessions)
+                WorkoutHistoryDay.business(session),
+            ],
+            initialDate: _selectedHistoryDate,
+            onDateSelected: (date) => _selectedHistoryDate = date,
+            onMonthChanged: _loadMonth,
+            recordBuilder: (date) => Column(
+              children: [
+                for (final session in detail!.sessions.where(
+                  (session) => DateUtils.isSameDay(session.date, date),
+                )) ...[
+                  _LiveSessionCard(
+                    key: ValueKey(session.id),
+                    memberId: member.id,
+                    session: session,
+                  ),
+                  const SizedBox(height: SetflowSpacing.md),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -285,7 +313,11 @@ class _LiveMemberRecordTab extends StatelessWidget {
 }
 
 class _LiveSessionCard extends StatefulWidget {
-  const _LiveSessionCard({required this.memberId, required this.session});
+  const _LiveSessionCard({
+    required this.memberId,
+    required this.session,
+    super.key,
+  });
 
   final String memberId;
   final BusinessWorkoutSession session;

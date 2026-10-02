@@ -8,6 +8,7 @@ import 'package:setflow/data/coaching_management_repository.dart';
 import 'package:setflow/screens/coaching_management_screen.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/theme/icons.dart';
+import 'package:setflow/widgets/workout_history_calendar.dart';
 
 const _template = ExerciseTemplate(
   id: 'squat',
@@ -234,6 +235,41 @@ void main() {
     expect(find.textContaining('공유 권한을 확인'), findsOneWidget);
   });
 
+  testWidgets('managed history switches days and loads older calendar months', (
+    tester,
+  ) async {
+    final repository = _Repository()..hasOlderPage = true;
+    await mount(tester, repository);
+    await tester.tap(find.text('전체 운동 기록'));
+    await tester.pumpAndSettle();
+    expect(find.byType(WorkoutHistoryCalendar), findsOneWidget);
+    expect(find.text('2026.09'), findsOneWidget);
+    expect(repository.historyCursors, [null, 'older']);
+    expect(find.text('스쿼트'), findsOneWidget);
+    expect(find.text('지난달 운동'), findsNothing);
+
+    final emptyDay = find.byKey(
+      const ValueKey('history-calendar-day-2026-09-10'),
+    );
+    await tester.tap(emptyDay);
+    await tester.pumpAndSettle();
+    expect(find.text('스쿼트'), findsNothing);
+    expect(find.text('이 날짜에는 저장된 운동 기록이 없어요.'), findsOneWidget);
+    await tester.tap(find.byTooltip('이전 달'));
+    await tester.pumpAndSettle();
+    expect(find.text('2026.08'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('history-calendar-day-2026-08-11')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('지난달 운동'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('personal:2026-09-11-squat-1-weight')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('late response after switching accounts cannot restore records', (
     tester,
   ) async {
@@ -293,6 +329,8 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
   String? proposedReason;
   String? requestId;
   Completer<void>? historyGate;
+  bool hasOlderPage = false;
+  final historyCursors = <String?>[];
 
   @override
   Future<List<CoachingManagementLink>> listManagementLinks() async => [
@@ -326,9 +364,29 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
     String linkId, {
     String? before,
   }) async {
+    historyCursors.add(before);
     await historyGate?.future;
     if (failHistory) throw StateError('Permission revoked');
+    if (before != null) {
+      return ManagedWorkoutPage(
+        workouts: [
+          ManagedWorkout(
+            key: 'personal:2026-08-11',
+            revision: 'older-revision',
+            title: '지난달 운동',
+            kind: 'personal',
+            session: WorkoutSession(
+              date: DateTime(2026, 8, 11),
+              exercises: _session().exercises,
+            ),
+            canPropose: false,
+            requiresApproval: true,
+          ),
+        ],
+      );
+    }
     return ManagedWorkoutPage(
+      nextCursor: hasOlderPage ? 'older' : null,
       workouts: [
         ManagedWorkout(
           key: 'personal:2026-09-11',
