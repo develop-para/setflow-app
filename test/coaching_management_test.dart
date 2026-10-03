@@ -24,6 +24,7 @@ void main() {
     _Repository repository, {
     double scale = 1,
     String? consultationId,
+    String? linkId,
   }) async {
     await tester.binding.setSurfaceSize(Size(scale > 1 ? 320 : 432, 900));
     final state = _State(businessRepository: repository)
@@ -39,7 +40,10 @@ void main() {
             ).copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: CoachingManagementScreen(consultationId: consultationId),
+          home: CoachingManagementScreen(
+            consultationId: consultationId,
+            linkId: linkId,
+          ),
         ),
       ),
     );
@@ -52,6 +56,39 @@ void main() {
     });
     return state;
   }
+
+  testWidgets('알림으로 받은 연결 요청을 목록 맨 위에 표시한다', (tester) async {
+    final repository = _Repository()
+      ..status = 'pending'
+      ..extraLinks = const [
+        CoachingManagementLink(
+          id: 'notified-link',
+          memberName: '알림 회원',
+          trainerName: '알림 트레이너',
+          status: 'pending',
+          viewerRole: 'member',
+          canRespond: true,
+        ),
+      ];
+    await mount(tester, repository, linkId: 'notified-link');
+    expect(
+      tester
+          .getTopLeft(
+            find.byKey(const ValueKey('management-link-notified-link')),
+          )
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('management-link-link')))
+            .dy,
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('accept-link-notified-link')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'consultation requests explicit consent and receiver accepts the connection',
@@ -316,6 +353,7 @@ class _State extends AppState {
 
 class _Repository implements BusinessRepository, CoachingManagementRepository {
   String status = 'active';
+  List<CoachingManagementLink> extraLinks = [];
   String viewer = 'member';
   bool hasCorrection = false;
   bool failHistory = false;
@@ -342,6 +380,7 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
       viewerRole: viewer,
       canRespond: status == 'pending',
     ),
+    ...extraLinks,
   ];
   @override
   Future<void> requestManagementLink(String consultationId) async {

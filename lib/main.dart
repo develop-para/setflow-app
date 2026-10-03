@@ -274,7 +274,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     if (open.event == 'coaching_management') {
       navigator.push(
         MaterialPageRoute<void>(
-          builder: (_) => const CoachingManagementScreen(),
+          builder: (_) => CoachingManagementScreen(linkId: open.data['linkId']),
         ),
       );
       return;

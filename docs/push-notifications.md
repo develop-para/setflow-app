@@ -96,6 +96,27 @@ main.dart가 그 위에 상세 화면을 push한다. 표: `test/push_catalog_tes
 
 ## 함정
 
+### 운동 관리 연결 알림
+
+- 회원이 연결을 신청하면 트레이너의 `business` 알림으로 신청자 이름을 보낸다.
+  트레이너가 먼저 요청하면 회원의 `coaching_feedback` 알림으로 트레이너 이름을 보낸다.
+- 양쪽 동의가 완료되면 회원과 트레이너에게 각각 연결 완료를 알린다. 같은 요청이나
+  응답을 다시 보내도 알림은 중복되지 않는다. 담당 변경은 두 사람이 모두 수락해야 완료 알림이 간다.
+- `data.event=coaching_management`, `data.linkId`는 푸시와 알림함이 공유하는 목적지다.
+  알림으로 앱을 켜면 그 연결을 목록 맨 위에 표시한다.
+- Android `SetflowApplication`이 `setflow_messages` 채널을 미리 생성한다.
+  중요도는 HIGH이고 서버의 메시지도 같은 채널과 기본 소리·진동을 지정한다.
+  Flutter가 꺼져 있어도 시스템이 `notification`을 표시하므로 앱의 백그라운드 실행에 의존하지 않는다.
+  사용자가 기기에서 알림·소리·팝업을 껐다면 그 선택을 따른다.
+- 전송은 기존 매분 크론을 사용한다. 앱 종료와 기기 설정의 **강제 종료**는 다르며,
+  강제 종료 후에는 앱을 한 번 다시 열어야 한다.
+  [Firebase 수신 조건](https://firebase.google.com/docs/cloud-messaging/flutter/receive-messages)을 따른다.
+
+서버 변경은 `20261003124541_management_connection_push.sql` 마이그레이션과
+`supabase/functions/send-push` 배포가 함께 필요하다. 앱을 배포하는 GitHub Actions는
+이 서버 변경을 자동 배포하지 않는다. 검증은 `node tool/test_coaching_management.mjs`와
+`node --experimental-strip-types tool/test_push_message.mjs`로 실행한다.
+
 - **토큰은 계정이 아니라 기기에 붙는다.** 같은 폰을 두 사람이 쓰면 토큰이 계정을
   옮겨 다녀야 한다. 그래서 `device_tokens.token`이 unique이고 `register_push_token`이
   upsert로 소유자를 갈아탄다. 로그아웃할 때 **세션이 살아 있는 동안** 떼어야 하므로

@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "@supabase/supabase-js";
+import { buildPushMessage } from "./message.ts";
 
 // push_outbox를 비우고 FCM으로 보낸다.
 //
@@ -171,22 +172,7 @@ async function sendToToken(
         authorization: `Bearer ${bearer}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        message: {
-          token,
-          notification: { title: row.title, body: row.body },
-          data: Object.fromEntries(
-            Object.entries({ kind: row.kind, ...row.data }).map((
-              [key, value],
-            ) => [key, String(value)]),
-          ),
-          android: { priority: "HIGH" },
-          apns: {
-            headers: { "apns-priority": "10" },
-            payload: { aps: { sound: "default" } },
-          },
-        },
-      }),
+      body: JSON.stringify(buildPushMessage(token, row)),
     },
   );
   if (response.ok) return { ok: true, stale: false };

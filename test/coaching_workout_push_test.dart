@@ -36,6 +36,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1900));
     await tester.pumpAndSettle();
     expect(find.byType(CoachingManagementScreen), findsOneWidget);
+    expect(
+      tester
+          .widget<CoachingManagementScreen>(
+            find.byType(CoachingManagementScreen),
+          )
+          .linkId,
+      'link',
+    );
     push.events.add(notification);
     await tester.pumpAndSettle();
     expect(

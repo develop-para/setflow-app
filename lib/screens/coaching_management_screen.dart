@@ -79,18 +79,20 @@ String _status(String status) => switch (status) {
 };
 
 class CoachingManagementScreen extends StatelessWidget {
-  const CoachingManagementScreen({this.consultationId, super.key});
+  const CoachingManagementScreen({this.consultationId, this.linkId, super.key});
   final String? consultationId;
+  final String? linkId;
 
   @override
   Widget build(BuildContext context) => CoachingAccountBoundary(
-    child: _ManagementPage(consultationId: consultationId),
+    child: _ManagementPage(consultationId: consultationId, linkId: linkId),
   );
 }
 
 class _ManagementPage extends StatefulWidget {
-  const _ManagementPage({this.consultationId});
+  const _ManagementPage({this.consultationId, this.linkId});
   final String? consultationId;
+  final String? linkId;
   @override
   State<_ManagementPage> createState() => _ManagementPageState();
 }
@@ -139,7 +141,11 @@ class _ManagementPageState extends State<_ManagementPage>
       ]);
       if (!mounted || generation != _generation) return;
       setState(() {
-        _links = results[0] as List<CoachingManagementLink>;
+        final links = results[0] as List<CoachingManagementLink>;
+        _links = [
+          ...links.where((link) => link.id == widget.linkId),
+          ...links.where((link) => link.id != widget.linkId),
+        ];
         _corrections = results[1] as List<WorkoutCorrection>;
       });
       AppScope.of(context).applyConfirmedWorkoutCorrections(_corrections);

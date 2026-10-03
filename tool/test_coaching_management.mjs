@@ -67,6 +67,7 @@ await db.exec(sourceFunction('supabase/migrations/20260830020453_mobile_coaching
   'private.has_active_coaching_schedule_relationship('));
 await db.exec(sourceFunction('supabase/migrations/20260828090000_push_catalog.sql', 'private.push_enabled('));
 await db.exec(sourceFunction('supabase/migrations/20260828090000_push_catalog.sql', 'private.display_name_of('));
+await db.exec(sourceFunction('supabase/migrations/20260828090000_push_catalog.sql', 'private.trainer_name('));
 await db.exec(sourceFunction('supabase/migrations/20260903090000_notification_inbox.sql', 'private.enqueue_push('));
 await db.exec(sourceFunction('supabase/migrations/20260830031529_coaching_health_data_consent.sql', 'private.coaching_health_access_role('));
 await db.exec(sourceFunction('supabase/migrations/20260911122556_coaching_workout_history.sql', 'private.list_coaching_workout_history('));
@@ -133,6 +134,8 @@ await db.exec(readFileSync('supabase/migrations/20261001063252_coaching_manageme
   .replaceAll('clock_timestamp()', 'private.test_clock()')
   .replaceAll('statement_timestamp()', 'private.test_clock()'));
 await db.exec(readFileSync('supabase/migrations/20261001134701_management_link_self_connection_error.sql','utf8')
+  .replaceAll('clock_timestamp()', 'private.test_clock()'));
+await db.exec(readFileSync('supabase/migrations/20261003124541_management_connection_push.sql','utf8')
   .replaceAll('clock_timestamp()', 'private.test_clock()'));
 // Historical personal snapshots use KST without a zone; this is 10:00 UTC.
 const today = {...session(true),startedAt:'2026-09-11T18:00:00.000',endedAt:'2026-09-11T19:00:00.000'};
@@ -389,5 +392,57 @@ assert.equal((await links()).find(l=>l.id === secondLink).status,'active');
 const remainingRecord = (await history(secondLink)).workouts[0];
 await propose(secondLink,remainingRecord,37.5);
 assert.equal((await history(secondLink)).workouts[0].session.exercises[0].sets[0].weight,37.5);
-console.log('PASS: mutual consent, full history, atomic corrections, 48h boundaries, approvals, gym access, reassignment, revocation, RPC permissions, multiple members and isolated records');
+// Requests and completed connections remain deliverable without any client
+// activity. Replays create neither duplicate inbox items nor duplicate pushes.
+const pushConsultation = id(500);
+await admin('insert into consultations values($1,$2,$3,null)',[pushConsultation,stranger,trainer]);
+await admin('update users set nickname=$1 where id=$2',['신청 회원',stranger]);
+await admin('insert into device_tokens values($1,$2),($3,$4)',[
+  trainerUser,'trainer-device',stranger,'member-device']);
+await admin('insert into app_state_snapshots(user_id,payload) values($1,$2)',[
+  trainerUser,{preferences:{businessNotifications:{primary:false},pushCoachingFeedback:true}}]);
+await asUser(stranger);
+await rpc('request_management_link',[pushConsultation]);
+let pushLink = (await links()).find(l=>l.status === 'pending').id;
+const pushes = async linkId => admin("select * from push_outbox where data->>'linkId'=$1",[linkId]);
+const inbox = async linkId => admin("select * from user_notifications where data->>'linkId'=$1",[linkId]);
+assert.equal((await inbox(pushLink)).length,0,'Trainer requests respect the business switch');
+assert.equal((await pushes(pushLink)).length,0);
+await asUser(trainerUser);
+await rpc('respond_management_link',[pushLink,false]);
+let pushRows = await pushes(pushLink);
+assert.equal(pushRows.length,1);
+assert.equal(pushRows[0].user_id,stranger);
+assert.equal(pushRows[0].kind,'coaching_feedback');
+assert.equal(pushRows[0].data.action,'rejected');
+await asUser(trainerUser);
+await rpc('respond_management_link',[pushLink,false]);
+assert.equal((await pushes(pushLink)).length,1,'Repeated rejection is quiet');
+
+await admin('update app_state_snapshots set payload=$1 where user_id=$2',[
+  {preferences:{businessNotifications:{primary:true},pushCoachingFeedback:false}},trainerUser]);
+await asUser(stranger);
+await rpc('request_management_link',[pushConsultation]);
+await rpc('request_management_link',[pushConsultation]);
+pushLink = (await links()).find(l=>l.status === 'pending').id;
+pushRows = await pushes(pushLink);
+assert.equal(pushRows.length,1,'Repeated requests enqueue once');
+assert.equal(pushRows[0].user_id,trainerUser);
+assert.equal(pushRows[0].kind,'business','Trainer alerts do not use the member feedback switch');
+assert.match(pushRows[0].body,/신청 회원님이 운동 관리 연결을 신청했어요/);
+assert.equal(pushRows[0].data.action,'requested');
+await asUser(trainerUser);
+await rpc('respond_management_link',[pushLink,true]);
+await rpc('respond_management_link',[pushLink,true]);
+pushRows = await pushes(pushLink);
+assert.equal(pushRows.length,3,'A connection sends one completion to each participant');
+const completed = pushRows.filter(n=>n.data.action === 'accepted');
+assert.equal(completed.length,2);
+assert.equal(completed.find(n=>n.user_id===stranger).kind,'coaching_feedback');
+assert.match(completed.find(n=>n.user_id===stranger).body,/담당 트레이너 트레이너와 운동 관리가 연결됐어요/);
+assert.equal(completed.find(n=>n.user_id===trainerUser).kind,'business');
+assert.match(completed.find(n=>n.user_id===trainerUser).body,/신청 회원님과 운동 관리가 연결됐어요/);
+assert.equal((await inbox(pushLink)).length,3,'Every push has a durable inbox entry');
+
+console.log('PASS: mutual consent, full history, corrections, approvals, gym access, revocation, isolated members, named connection pushes, role-specific settings and notification replay safety');
 await db.close();
