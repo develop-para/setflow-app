@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/io_client.dart';
+import 'package:setflow/app_state.dart';
 import 'package:setflow/data/supabase_business_repository.dart';
 import 'package:setflow/data/business_repository.dart';
-import 'package:setflow/models.dart';
+import 'package:setflow/screens/business_screens.dart';
+import 'package:setflow/theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _trainerUserId = '11111111-1111-4111-8111-111111111111';
@@ -15,8 +19,124 @@ const _secondMemberUserId = '55555555-5555-4555-8555-555555555555';
 const _secondConsultationId = '66666666-6666-4666-8666-666666666666';
 const _connectionId = '77777777-7777-4777-8777-777777777777';
 const _secondConnectionId = '88888888-8888-4888-8888-888888888888';
+const _otherTrainerId = '99999999-9999-4999-8999-999999999999';
 
 void main() {
+  testWidgets(
+    'trainer member list excludes received coaching and preserves a namesake',
+    (tester) async {
+      final backend = await tester.runAsync(
+        () => _TrainerWorkspaceBackend.start(
+          resourceBodies: {
+            'list_my_coaching_connections': [
+              _connectionRow(_connectionId, _trainerId, _memberUserId, '황성안'),
+              _connectionRow(
+                _secondConnectionId,
+                _otherTrainerId,
+                _trainerUserId,
+                '본인 회원 역할',
+              ),
+              _connectionRow(
+                _consultationId,
+                _trainerId,
+                _trainerUserId,
+                '잘못된 본인 연결',
+              ),
+              _connectionRow(
+                _secondConsultationId,
+                _otherTrainerId,
+                _secondMemberUserId,
+                '다른 트레이너 회원',
+              ),
+            ],
+          },
+        ),
+      );
+      expect(backend, isNotNull);
+      addTearDown(backend!.close);
+      final repository = SupabaseBusinessRepository(backend.client);
+      final workspace = await tester.runAsync(
+        () => repository.loadWorkspace(UserRole.trainer),
+      );
+      expect(workspace, isNotNull);
+      expect(
+        workspace!.coachingConnections.map((connection) => connection.id),
+        [_connectionId],
+      );
+      final state = AppState(businessRepository: repository)
+        ..businessAccess = workspace.access
+        ..businessWorkspace = workspace;
+      addTearDown(state.dispose);
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            home: const PeoplePage(role: UserRole.trainer),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('황성안'), findsOneWidget);
+      expect(find.text('본인 회원 역할'), findsNothing);
+      expect(find.text('잘못된 본인 연결'), findsNothing);
+      expect(find.text('다른 트레이너 회원'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  test(
+    'trainer workspace excludes an assignment to the trainer account',
+    () async {
+      final backend = await _TrainerWorkspaceBackend.start(
+        resourceBodies: {
+          'member_assignments': [
+            _assignmentRow(_connectionId, _consultationId, _trainerUserId),
+            _assignmentRow(
+              _secondConnectionId,
+              _secondConsultationId,
+              _memberUserId,
+            ),
+          ],
+          'user_profiles': <Object>[],
+        },
+      );
+      addTearDown(backend.close);
+      final workspace = await SupabaseBusinessRepository(
+        backend.client,
+      ).loadWorkspace(UserRole.trainer);
+      expect(workspace.members.map((member) => member.userId), [_memberUserId]);
+      expect(workspace.assignments.map((assignment) => assignment.id), [
+        _secondConnectionId,
+      ]);
+    },
+  );
+
+  test(
+    'member workspace retains coaching received by a trainer account',
+    () async {
+      final backend = await _TrainerWorkspaceBackend.start(
+        resourceBodies: {
+          'list_my_coaching_connections': [
+            _connectionRow(
+              _secondConnectionId,
+              _otherTrainerId,
+              _trainerUserId,
+              '황성안',
+            ),
+          ],
+          'user_consents': <Object>[],
+        },
+      );
+      addTearDown(backend.close);
+      final workspace = await SupabaseBusinessRepository(
+        backend.client,
+      ).loadWorkspace(UserRole.member);
+      expect(workspace.coachingConnections.single.memberUserId, _trainerUserId);
+      expect(workspace.coachingConnections.single.trainerId, _otherTrainerId);
+    },
+  );
+
   test(
     'server grants override an approved profile and saved account role',
     () async {
@@ -172,6 +292,36 @@ void main() {
   );
 }
 
+Map<String, Object> _connectionRow(
+  String id,
+  String trainerId,
+  String memberUserId,
+  String name,
+) => {
+  'id': id,
+  'trainer_id': trainerId,
+  'member_user_id': memberUserId,
+  'member_name': name,
+  'trainer_name': '황성안',
+  'status': 'active',
+  'created_at': '2026-10-03T01:00:00Z',
+};
+
+Map<String, Object> _assignmentRow(String id, String memberId, String userId) =>
+    {
+      'id': id,
+      'member_id': memberId,
+      'trainer_id': _trainerId,
+      'gym_id': _otherTrainerId,
+      'active': true,
+      'member': {
+        'id': memberId,
+        'gym_id': _otherTrainerId,
+        'user_id': userId,
+        'name': '황성안',
+      },
+    };
+
 class _TrainerWorkspaceBackend {
   _TrainerWorkspaceBackend._(this._server, this.client);
 
@@ -188,6 +338,12 @@ class _TrainerWorkspaceBackend {
     final client = SupabaseClient(
       'http://${server.address.host}:${server.port}',
       'test-anon-key',
+      httpClient: IOClient(
+        HttpOverrides.runWithHttpOverrides(
+          () => HttpClient(),
+          _ServerHttpOverrides(),
+        ),
+      ),
       authOptions: const AuthClientOptions(autoRefreshToken: false),
     );
     final backend = _TrainerWorkspaceBackend._(server, client);
@@ -324,3 +480,6 @@ class _TrainerWorkspaceBackend {
     await response.close();
   }
 }
+
+// Loopback adapter tests need their own transport even with a widget binding.
+class _ServerHttpOverrides extends HttpOverrides {}

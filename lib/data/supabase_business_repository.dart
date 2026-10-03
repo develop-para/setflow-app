@@ -445,7 +445,13 @@ class SupabaseBusinessRepository
           .limit(200),
     ]);
 
-    final assignmentRows = _mapListValue(results[1]);
+    final assignmentRows = _mapListValue(results[1])
+        .where(
+          (row) =>
+              _nullableUuid(_mapValue(row['member'])?['user_id']) !=
+              access.userId,
+        )
+        .toList(growable: false);
     final assignmentMemberRows = assignmentRows
         .map((row) => _mapValue(row['member']))
         .whereType<Map<String, dynamic>>()
@@ -474,7 +480,15 @@ class SupabaseBusinessRepository
       assignments: List.unmodifiable(assignmentRows.map(_assignmentFromRow)),
       consultations: _consultationList(results[2]),
       ownedRoutines: _routineList(results[3]),
-      coachingConnections: _coachingConnectionList(results[4]),
+      // The participant RPC also includes coaching received as a member.
+      // A trainer workspace contains only this trainer's other members.
+      coachingConnections: List.unmodifiable(
+        _coachingConnectionList(results[4]).where(
+          (connection) =>
+              connection.trainerId == trainer.id &&
+              connection.memberUserId != access.userId,
+        ),
+      ),
       sessionRecords: _coachingSessionRecordList(results[5]),
     );
   }
