@@ -91,6 +91,8 @@ abstract final class AppSnapshotCodec {
         'hasSwipedSet': snapshot.hasSwipedSet,
         'hasSeenTogetherGuide': snapshot.hasSeenTogetherGuide,
         'recommendationProfile': snapshot.recommendationProfile?.toJson(),
+        'recommendationPreferences': snapshot.recommendationPreferences
+            .toJson(),
       },
       'customExercises': snapshot.customExercises
           .map(
@@ -99,6 +101,8 @@ abstract final class AppSnapshotCodec {
               'name': exercise.storedName,
               'muscle': exercise.muscle,
               'measurement': exercise.measurement.name,
+              if (exercise.customRecommendation != null)
+                'customRecommendation': exercise.customRecommendation!.toJson(),
             },
           )
           .toList(),
@@ -157,6 +161,9 @@ abstract final class AppSnapshotCodec {
             muscle: muscle,
             icon: exerciseIconForMuscle(muscle),
             measurement: measurement,
+            customRecommendation: CustomExerciseRecommendation.tryFromJson(
+              value['customRecommendation'],
+            ),
           ),
         );
       }
@@ -267,6 +274,9 @@ abstract final class AppSnapshotCodec {
         recommendationProfile: RecommendationProfile.tryFromJson(
           profile['recommendationProfile'],
         ),
+        recommendationPreferences: RecommendationPreferences.fromJson(
+          profile['recommendationPreferences'],
+        ),
         communityPosts: posts,
         consultations: consultations,
         businessDashboards: businessDashboards,
@@ -282,6 +292,14 @@ abstract final class AppSnapshotCodec {
   static Map<String, dynamic> _sessionToJson(WorkoutSession session) {
     return {
       'date': session.date.toIso8601String(),
+      if (session.timeBudgetMinutes != null)
+        'timeBudgetMinutes': session.timeBudgetMinutes,
+      if (session.skippedRecommendationIds.isNotEmpty)
+        'skippedRecommendationIds': session.skippedRecommendationIds.toList()
+          ..sort(),
+      if (session.unavailableEquipmentExerciseIds.isNotEmpty)
+        'unavailableEquipmentExerciseIds':
+            session.unavailableEquipmentExerciseIds.toList()..sort(),
       if (session.correctionVersions.isNotEmpty)
         'correctionVersions': session.correctionVersions,
       if (session.startedAt != null)
@@ -318,6 +336,23 @@ abstract final class AppSnapshotCodec {
       ),
       startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
       endedAt: DateTime.tryParse(json['endedAt'] as String? ?? ''),
+      timeBudgetMinutes:
+          json['timeBudgetMinutes'] is int &&
+              (json['timeBudgetMinutes'] as int) >= 5 &&
+              (json['timeBudgetMinutes'] as int) <= 180
+          ? json['timeBudgetMinutes'] as int
+          : null,
+      skippedRecommendationIds: json['skippedRecommendationIds'] is List
+          ? (json['skippedRecommendationIds'] as List)
+                .whereType<String>()
+                .toSet()
+          : const {},
+      unavailableEquipmentExerciseIds:
+          json['unavailableEquipmentExerciseIds'] is List
+          ? (json['unavailableEquipmentExerciseIds'] as List)
+                .whereType<String>()
+                .toSet()
+          : const {},
       trainingFocus: json['trainingFocus'] is List
           ? Set.unmodifiable(
               TrainingMuscle.values.where(
@@ -408,6 +443,8 @@ abstract final class AppSnapshotCodec {
     'name': exercise.storedName,
     'muscle': exercise.muscle,
     'measurement': exercise.measurement.name,
+    if (exercise.customRecommendation != null)
+      'customRecommendation': exercise.customRecommendation!.toJson(),
     'nameEnglish': ?exercise.nameEnglish,
     'equipmentKey': ?exercise.equipmentKey,
     'equipmentName': ?exercise.equipmentName,
@@ -460,6 +497,9 @@ abstract final class AppSnapshotCodec {
       muscle: muscle,
       icon: exerciseIconForMuscle(muscle),
       measurement: measurement,
+      customRecommendation: CustomExerciseRecommendation.tryFromJson(
+        json['customRecommendation'],
+      ),
       nameEnglish: optionalString('nameEnglish'),
       equipmentKey: optionalString('equipmentKey'),
       equipmentName: optionalString('equipmentName'),

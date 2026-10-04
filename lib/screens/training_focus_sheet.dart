@@ -7,22 +7,35 @@ import '../widgets/common.dart';
 Future<Set<TrainingMuscle>?> showTrainingFocusSheet(
   BuildContext context, {
   Set<TrainingMuscle>? initialFocus,
+  int? initialTimeBudgetMinutes,
+  ValueChanged<int?>? onTimeBudgetChanged,
 }) => showSetflowSheet<Set<TrainingMuscle>>(
   context,
   isScrollControlled: true,
   showDragHandle: true,
-  builder: (_) => _TrainingFocusSheet(initialFocus: initialFocus),
+  builder: (_) => _TrainingFocusSheet(
+    initialFocus: initialFocus,
+    initialTimeBudgetMinutes: initialTimeBudgetMinutes,
+    onTimeBudgetChanged: onTimeBudgetChanged,
+  ),
 );
 
 class _TrainingFocusSheet extends StatefulWidget {
-  const _TrainingFocusSheet({this.initialFocus});
+  const _TrainingFocusSheet({
+    this.initialFocus,
+    this.initialTimeBudgetMinutes,
+    this.onTimeBudgetChanged,
+  });
   final Set<TrainingMuscle>? initialFocus;
+  final int? initialTimeBudgetMinutes;
+  final ValueChanged<int?>? onTimeBudgetChanged;
 
   @override
   State<_TrainingFocusSheet> createState() => _TrainingFocusSheetState();
 }
 
 class _TrainingFocusSheetState extends State<_TrainingFocusSheet> {
+  late int? timeBudgetMinutes = widget.initialTimeBudgetMinutes;
   late final selected = <TrainingMuscle>{...?widget.initialFocus};
 
   void choose(Set<TrainingMuscle> muscles) => setState(() {
@@ -46,6 +59,25 @@ class _TrainingFocusSheetState extends State<_TrainingFocusSheet> {
             '부위를 고르면 오늘의 첫 운동과 다음 운동을 그 안에서 추천해요. 여러 부위를 함께 골라도 돼요.',
             style: theme.textTheme.bodyMedium,
           ),
+          if (widget.onTimeBudgetChanged != null) ...[
+            const SizedBox(height: SetflowSpacing.md),
+            Text('오늘 운동 시간', style: theme.textTheme.titleSmall),
+            const SizedBox(height: SetflowSpacing.sm),
+            Wrap(
+              spacing: SetflowSpacing.sm,
+              runSpacing: SetflowSpacing.xs,
+              children: [
+                for (final minutes in <int?>[null, 15, 30, 45, 60, 90])
+                  ChoiceChip(
+                    key: ValueKey('training-time-${minutes ?? 'unlimited'}'),
+                    label: Text(minutes == null ? '제한 없음' : '$minutes분'),
+                    selected: timeBudgetMinutes == minutes,
+                    onSelected: (_) =>
+                        setState(() => timeBudgetMinutes = minutes),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: SetflowSpacing.md),
           ChoiceChip(
             key: const ValueKey('training-focus-auto'),
@@ -142,8 +174,10 @@ class _TrainingFocusSheetState extends State<_TrainingFocusSheet> {
             width: double.infinity,
             child: FilledButton(
               key: const ValueKey('training-focus-apply'),
-              onPressed: () =>
-                  Navigator.pop(context, Set<TrainingMuscle>.of(selected)),
+              onPressed: () {
+                widget.onTimeBudgetChanged?.call(timeBudgetMinutes);
+                Navigator.pop(context, Set<TrainingMuscle>.of(selected));
+              },
               child: Text(selected.isEmpty ? '완전 추천으로 계속' : '선택한 부위로 계속'),
             ),
           ),

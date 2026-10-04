@@ -66,10 +66,17 @@ void main() {
     final colors = SetflowTheme.light.extension<SetflowSemanticColors>()!;
     final onSurface = SetflowTheme.light.colorScheme.onSurface;
 
-    final sunday = dayIn(month, (d) => d.weekday == DateTime.sunday);
+    // 오늘은 요일 색보다 라임 원 위 onPrimary가 우선한다. 일반 주말은 다른 날로 잰다.
+    final sunday = dayIn(
+      month,
+      (d) => d.weekday == DateTime.sunday && d.day != month.day,
+    );
     final saturday = dayIn(
       month,
-      (d) => d.weekday == DateTime.saturday && holidayOf(d) == null,
+      (d) =>
+          d.weekday == DateTime.saturday &&
+          holidayOf(d) == null &&
+          d.day != month.day,
     );
     final weekday = dayIn(
       month,
@@ -83,6 +90,11 @@ void main() {
     expect(colourOf(tester, sunday), colors.error, reason: '일요일이 빨강이 아니다');
     expect(colourOf(tester, saturday), colors.blue, reason: '토요일이 파랑이 아니다');
     expect(colourOf(tester, weekday), onSurface, reason: '평일이 주말 색으로 칠해졌다');
+    expect(
+      colourOf(tester, month.day),
+      SetflowTheme.light.colorScheme.onPrimary,
+      reason: '오늘의 라임 원 위에는 대비가 확보된 onPrimary를 써야 한다',
+    );
   });
 
   testWidgets('a holiday is red wherever it lands', (tester) async {

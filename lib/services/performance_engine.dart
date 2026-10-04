@@ -110,6 +110,15 @@ class ExercisePerformanceSummary {
   final PerformanceSetRecord latestSessionBest;
 }
 
+enum RecommendationTrend {
+  insufficient,
+  stable,
+  progressing,
+  declining,
+  plateau,
+  returning,
+}
+
 class WorkoutRecommendation {
   const WorkoutRecommendation({
     required this.template,
@@ -123,6 +132,9 @@ class WorkoutRecommendation {
     this.restSeconds = 90,
     this.evidenceIds = const {},
     this.evidenceNote = '',
+    this.summary = '',
+    this.historyCount = 0,
+    this.trend = RecommendationTrend.insufficient,
     this.cardioDurationSeconds,
     this.cardioDistanceKm,
     this.cardioMinimumRpe,
@@ -139,6 +151,9 @@ class WorkoutRecommendation {
   final int sets;
   final double nextWeight;
   final String reason;
+  final String summary;
+  final int historyCount;
+  final RecommendationTrend trend;
   final int restSeconds;
   final Set<String> evidenceIds;
   final String evidenceNote;

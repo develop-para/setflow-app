@@ -28,6 +28,7 @@ import 'models.dart';
 import 'services/setflow_web.dart';
 import 'services/cardio_prescription_engine.dart';
 import 'services/exercise_recommendation_engine.dart';
+import 'domain/custom_exercise_recommendation_rules.dart';
 import 'services/resistance_prescription_engine.dart';
 import 'services/performance_engine.dart';
 import 'services/workout_analytics.dart';
@@ -235,7 +236,7 @@ class AppState extends ChangeNotifier {
     }
     for (final date in projectedDates) {
       if (sessions[date]?.exercises.isEmpty == true &&
-          sessions[date]?.trainingFocus == null) {
+          sessions[date]?.hasRecommendationSettings == false) {
         sessions.remove(date);
       }
     }
@@ -281,12 +282,16 @@ class AppState extends ChangeNotifier {
       if (entry.value.exercises.any(
             (exercise) => exercise.coachingWorkoutId == null,
           ) ||
-          entry.value.trainingFocus != null)
+          entry.value.hasRecommendationSettings)
         entry.key: WorkoutSession(
           date: entry.value.date,
           startedAt: entry.value.startedAt,
           endedAt: entry.value.endedAt,
           trainingFocus: entry.value.trainingFocus,
+          timeBudgetMinutes: entry.value.timeBudgetMinutes,
+          skippedRecommendationIds: entry.value.skippedRecommendationIds,
+          unavailableEquipmentExerciseIds:
+              entry.value.unavailableEquipmentExerciseIds,
           correctionVersions: entry.value.correctionVersions,
           exercises: entry.value.exercises
               .where((exercise) => exercise.coachingWorkoutId == null)
@@ -461,6 +466,8 @@ class AppState extends ChangeNotifier {
   bool hasSwipedSet = false;
   bool hasSeenTogetherGuide = false;
   RecommendationProfile? recommendationProfile;
+  RecommendationPreferences recommendationPreferences =
+      const RecommendationPreferences();
   int restRemaining = 0;
   Timer? _restTimer;
   DateTime? _restTimerEndsAt;
@@ -741,6 +748,7 @@ class AppState extends ChangeNotifier {
     return [
       for (final fallback in exerciseCatalog)
         selectableById[fallback.id] ?? fallback,
+      ...customExercises.where(CustomExerciseRecommendationRules.participates),
     ];
   }
 
@@ -764,6 +772,8 @@ class AppState extends ChangeNotifier {
           id: current.id,
           template: template,
           sets: current.sets,
+          coachingWorkoutId: current.coachingWorkoutId,
+          coachingAuthor: current.coachingAuthor,
         );
       }
     }
@@ -1690,6 +1700,26 @@ class AppState extends ChangeNotifier {
     return exercise;
   }
 
+  void saveCustomExerciseRecommendation(
+    String exerciseId,
+    CustomExerciseRecommendation? info,
+  ) {
+    final index = customExercises.indexWhere(
+      (exercise) => exercise.id == exerciseId,
+    );
+    if (index < 0) throw StateError('내가 만든 운동을 찾을 수 없어요.');
+    final current = customExercises[index];
+    if (info != null &&
+        !CustomExerciseRecommendationRules.isValid(current, info)) {
+      throw ArgumentError('추천에 필요한 운동 정보를 확인해주세요.');
+    }
+    customExercises[index] = current.withCustomRecommendation(info);
+    _rebuildSelectableExercises();
+    _rebindStoredExerciseTemplates();
+    _schedulePersist();
+    notifyListeners();
+  }
+
   ExercisePerformanceSummary? performanceFor(
     ExerciseTemplate template, {
     DateTime? before,
@@ -1735,6 +1765,8 @@ class AppState extends ChangeNotifier {
     if (template.isCardio) {
       final prescription = CardioPrescriptionEngine.recommend(
         exerciseId: template.id,
+        definitionExerciseId:
+            CustomExerciseRecommendationRules.cardioDefinitionIdFor(template),
         goal: goal,
         history: _cardioHistory(before: before),
       );
@@ -1795,6 +1827,8 @@ class AppState extends ChangeNotifier {
           goals: goals,
           weeklyHistory: sessions.values,
           recommendationProfile: recommendationProfile,
+          preferences: recommendationPreferences,
+          now: DateTime.now(),
         );
         if (next != null) return _nextExerciseWorkoutRecommendation(next);
         // 부위/운동량 조건을 만족한 후보가 없으면 예전 PR 종목으로 우회하지 않는다.
@@ -1819,6 +1853,7 @@ class AppState extends ChangeNotifier {
   NextExerciseRecommendation? firstExerciseRecommendationForDate(
     DateTime date, {
     Set<String> excludedTemplateIds = const {},
+    ExerciseTemplate? alternativeTo,
   }) {
     if (!hasTrainingGoal) return null;
     final day = dateOnly(date);
@@ -1834,6 +1869,9 @@ class AppState extends ChangeNotifier {
       weeklyHistory: eligibleHistory,
       excludedTemplateIds: excludedTemplateIds,
       recommendationProfile: recommendationProfile,
+      preferences: recommendationPreferences,
+      alternativeTo: alternativeTo,
+      now: DateTime.now(),
     );
   }
 
@@ -1843,10 +1881,52 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setWorkoutTimeBudget(DateTime date, int? minutes) {
+    if (minutes != null && (minutes < 5 || minutes > 180)) {
+      throw RangeError.range(minutes, 5, 180, 'minutes');
+    }
+    sessionFor(date).timeBudgetMinutes = minutes;
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void skipRecommendedExercise(
+    DateTime date,
+    String templateId, {
+    bool equipmentUnavailable = false,
+  }) {
+    sessionFor(date).skippedRecommendationIds.add(templateId);
+    if (equipmentUnavailable) {
+      sessionFor(date).unavailableEquipmentExerciseIds.add(templateId);
+    }
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void restoreSkippedRecommendation(DateTime date, String templateId) {
+    sessionFor(date).skippedRecommendationIds.remove(templateId);
+    sessionFor(date).unavailableEquipmentExerciseIds.remove(templateId);
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  void setExerciseExcludedFromRecommendations(
+    String templateId,
+    bool excluded,
+  ) {
+    recommendationPreferences = recommendationPreferences.exclude(
+      templateId,
+      excluded,
+    );
+    _schedulePersist();
+    notifyListeners();
+  }
+
   NextExerciseRecommendation? nextExerciseRecommendationForDate(
     DateTime date, {
     required WorkoutExercise completedExercise,
     Set<String> excludedTemplateIds = const {},
+    ExerciseTemplate? alternativeTo,
   }) => ExerciseRecommendationEngine.recommendNext(
     catalog: _curatedRecommendationCatalog,
     session: sessionFor(date),
@@ -1855,6 +1935,9 @@ class AppState extends ChangeNotifier {
     weeklyHistory: sessions.values,
     excludedTemplateIds: excludedTemplateIds,
     recommendationProfile: recommendationProfile,
+    preferences: recommendationPreferences,
+    alternativeTo: alternativeTo,
+    now: DateTime.now(),
   );
 
   WorkoutRecommendation? get featuredRecommendation {
@@ -1953,6 +2036,9 @@ class AppState extends ChangeNotifier {
         sets: materialized.sets,
         nextWeight: 0,
         reason: next.reason,
+        summary: next.summary,
+        historyCount: next.historyCount,
+        trend: next.trend,
         restSeconds: 0,
         evidenceIds: next.evidenceIds,
         evidenceNote: next.evidenceNote,
@@ -1979,6 +2065,9 @@ class AppState extends ChangeNotifier {
       sets: next.sets,
       nextWeight: weight + increment,
       reason: next.reason,
+      summary: next.summary,
+      historyCount: next.historyCount,
+      trend: next.trend,
       restSeconds: next.restSeconds,
       evidenceIds: next.evidenceIds,
       evidenceNote: next.evidenceNote,
@@ -1990,7 +2079,10 @@ class AppState extends ChangeNotifier {
       if (before != null && !session.date.isBefore(before)) continue;
       for (final exercise in session.exercises) {
         if (!exercise.template.isCardio ||
-            cardioDefinitionForExercise(exercise.template.id) == null) {
+            CustomExerciseRecommendationRules.cardioDefinitionIdFor(
+                  exercise.template,
+                ) ==
+                null) {
           continue;
         }
         // WHO's moderate/vigorous target must not silently count an unknown
@@ -2022,6 +2114,11 @@ class AppState extends ChangeNotifier {
         yield CardioSessionRecord(
           id: exercise.id,
           exerciseId: exercise.template.id,
+          definitionExerciseId: exercise.template.id.startsWith('custom_')
+              ? CustomExerciseRecommendationRules.cardioDefinitionIdFor(
+                  exercise.template,
+                )
+              : null,
           occurredAt: session.date,
           duration: Duration(seconds: durationSeconds),
           intensity: averageRpe != null && averageRpe >= 7
@@ -2105,6 +2202,10 @@ class AppState extends ChangeNotifier {
 
   void addExercise(DateTime date, ExerciseTemplate template) {
     final session = sessionFor(date);
+    recommendationPreferences = recommendationPreferences.recordSelection(
+      template.id,
+      date,
+    );
     final cardioRecommendation = template.isCardio
         ? recommendationFor(template, before: dateOnly(date))
         : null;
@@ -2715,7 +2816,8 @@ class AppState extends ChangeNotifier {
           (index) => WorkoutSetEntry(
             number: index + 1,
             weight: weight,
-            reps: reps,
+            reps: recommendation.template.isDurationHold ? 0 : reps,
+            durationSeconds: recommendation.template.isDurationHold ? 60 : 0,
             restSeconds: recommendation.restSeconds,
           ),
         ),
@@ -6934,6 +7036,7 @@ class AppState extends ChangeNotifier {
     hasSwipedSet: hasSwipedSet,
     hasSeenTogetherGuide: hasSeenTogetherGuide,
     recommendationProfile: recommendationProfile,
+    recommendationPreferences: recommendationPreferences,
     communityPosts: communityRepository == null
         ? List<CommunityPost>.unmodifiable(communityPosts)
         : const [],
@@ -7086,6 +7189,7 @@ class AppState extends ChangeNotifier {
     hasSwipedSet = snapshot.hasSwipedSet;
     hasSeenTogetherGuide = snapshot.hasSeenTogetherGuide;
     recommendationProfile = snapshot.recommendationProfile;
+    recommendationPreferences = snapshot.recommendationPreferences;
     customExercises
       ..clear()
       ..addAll(snapshot.customExercises);
@@ -7095,13 +7199,19 @@ class AppState extends ChangeNotifier {
       final userExercises = entry.value.exercises
           .where((exercise) => !exercise.id.startsWith('seed_'))
           .toList();
-      if (userExercises.isEmpty && entry.value.trainingFocus == null) continue;
+      if (userExercises.isEmpty && !entry.value.hasRecommendationSettings) {
+        continue;
+      }
       sessions[entry.key] = WorkoutSession(
         date: entry.value.date,
         exercises: userExercises,
         startedAt: entry.value.startedAt,
         endedAt: entry.value.endedAt,
         trainingFocus: entry.value.trainingFocus,
+        timeBudgetMinutes: entry.value.timeBudgetMinutes,
+        skippedRecommendationIds: entry.value.skippedRecommendationIds,
+        unavailableEquipmentExerciseIds:
+            entry.value.unavailableEquipmentExerciseIds,
         correctionVersions: entry.value.correctionVersions,
       );
     }
@@ -7165,6 +7275,7 @@ class AppState extends ChangeNotifier {
     hasSwipedSet = false;
     hasSeenTogetherGuide = false;
     recommendationProfile = null;
+    recommendationPreferences = const RecommendationPreferences();
     customExercises.clear();
     _rebuildSelectableExercises();
     sessions.clear();

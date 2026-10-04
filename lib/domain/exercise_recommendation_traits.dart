@@ -1,4 +1,19 @@
 import '../models.dart';
+import 'custom_exercise_recommendation_rules.dart';
+
+ExerciseRecommendationTraits? recommendationTraitsFor(
+  ExerciseTemplate exercise,
+) {
+  final builtIn = exerciseRecommendationTraits[exercise.id];
+  if (builtIn != null) return builtIn;
+  final info = CustomExerciseRecommendationRules.infoFor(exercise);
+  if (info == null || !info.enabled) return null;
+  return ExerciseRecommendationTraits(
+    requiredEquipment: info.requiredEquipment,
+    minimumExperience: info.minimumExperience,
+    movements: CustomExerciseRecommendationRules.movementsFor(exercise),
+  );
+}
 
 class ExerciseRecommendationTraits {
   const ExerciseRecommendationTraits({

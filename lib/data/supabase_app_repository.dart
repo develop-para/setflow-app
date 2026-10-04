@@ -905,6 +905,7 @@ class SupabaseAppRepository
       useRir: source.useRir,
       autoStartRestTimer: source.autoStartRestTimer,
       autoRecommendNextExercise: source.autoRecommendNextExercise,
+      recommendationPreferences: source.recommendationPreferences,
       restTimerNotifications: source.restTimerNotifications,
       timerVibration: source.timerVibration,
       // 소리 설정과 1RM 공식도 사용자가 고른 값이다. 여기서 빠지면 게스트
@@ -924,12 +925,16 @@ class SupabaseAppRepository
           if (entry.value.exercises.any(
                 (exercise) => !exercise.id.startsWith('seed_'),
               ) ||
-              entry.value.trainingFocus != null)
+              entry.value.hasRecommendationSettings)
             entry.key: WorkoutSession(
               date: entry.value.date,
               startedAt: entry.value.startedAt,
               endedAt: entry.value.endedAt,
               trainingFocus: entry.value.trainingFocus,
+              timeBudgetMinutes: entry.value.timeBudgetMinutes,
+              skippedRecommendationIds: entry.value.skippedRecommendationIds,
+              unavailableEquipmentExerciseIds:
+                  entry.value.unavailableEquipmentExerciseIds,
               exercises: entry.value.exercises
                   .where((exercise) => !exercise.id.startsWith('seed_'))
                   .toList(growable: false),

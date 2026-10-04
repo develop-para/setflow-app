@@ -37,6 +37,7 @@ class AppSnapshot {
     this.defaultRepCount,
     this.activeTrainingPartyId,
     this.recommendationProfile,
+    this.recommendationPreferences = const RecommendationPreferences(),
     this.communityPosts = const [],
     this.consultations = const [],
     this.businessDashboards = const {},
@@ -102,6 +103,7 @@ class AppSnapshot {
   final int? defaultRepCount;
   final String? activeTrainingPartyId;
   final RecommendationProfile? recommendationProfile;
+  final RecommendationPreferences recommendationPreferences;
   final List<CommunityPost> communityPosts;
   final List<ConsultationData> consultations;
   final Map<UserRole, BusinessDashboardData> businessDashboards;

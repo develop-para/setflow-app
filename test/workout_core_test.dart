@@ -995,7 +995,10 @@ void main() {
     expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
     expect(find.text(recommendation.template.name), findsOneWidget);
     expect(find.textContaining('중량 직접 선택'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('recommendation-details')));
+    await tester.pumpAndSettle();
     expect(find.textContaining('근거 논문'), findsOneWidget);
+    await tester.ensureVisible(find.text('추천 운동 추가'));
     await tester.tap(find.text('추천 운동 추가'));
     await tester.pumpAndSettle();
 
@@ -1021,6 +1024,7 @@ void main() {
     final second = state.firstExerciseRecommendationForDate(
       targetDate,
       excludedTemplateIds: {first.template.id},
+      alternativeTo: first.template,
     )!;
 
     await tester.pumpWidget(

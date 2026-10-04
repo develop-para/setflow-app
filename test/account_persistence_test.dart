@@ -14,6 +14,118 @@ import 'package:setflow/data/supabase_app_repository.dart';
 void main() {
   group('AppState account boundaries', () {
     test(
+      'custom recommendation metadata syncs to a fresh device and clears on account switch',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final state = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(state.dispose);
+        await state.initialize();
+        final template = state.createCustomExercise(
+          name: '내 밴드 로우',
+          muscle: '등',
+        )!;
+        final info = CustomExerciseRecommendation(
+          enabled: true,
+          primaryMuscle: TrainingMuscle.back,
+          movement: CustomExerciseMovement.rowing,
+          requiredEquipment: {TrainingEquipment.bands},
+          minimumExperience: TrainingExperienceLevel.beginner,
+          secondaryMuscles: {TrainingMuscle.biceps},
+        );
+        state.saveCustomExerciseRecommendation(template.id, info);
+        final day = DateTime(2026, 10, 4);
+        state.addExercise(day, state.customExercises.single);
+        await state.syncPersistenceToServer();
+        final secondDevice = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(secondDevice.dispose);
+        await secondDevice.initialize();
+        expect(
+          secondDevice.customExercises.single.customRecommendation!.toJson(),
+          info.toJson(),
+        );
+        expect(
+          secondDevice
+              .sessionFor(day)
+              .exercises
+              .single
+              .template
+              .customRecommendation!
+              .toJson(),
+          info.toJson(),
+        );
+        gateway.currentUserId = 'account-b';
+        await secondDevice.syncAfterAuthentication();
+        expect(secondDevice.customExercises, isEmpty);
+        expect(
+          secondDevice.exercises.any((item) => item.id == template.id),
+          isFalse,
+        );
+        gateway.currentUserId = 'account-a';
+        await secondDevice.syncAfterAuthentication();
+        expect(
+          secondDevice.customExercises.single.customRecommendation!.enabled,
+          isTrue,
+        );
+      },
+    );
+    test(
+      'advanced recommendation settings sync and clear at account boundaries',
+      () async {
+        final day = DateTime(2026, 10, 4);
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final state = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(state.dispose);
+        await state.initialize();
+        state.setWorkoutTimeBudget(day, 30);
+        state.skipRecommendedExercise(day, 'bench', equipmentUnavailable: true);
+        state.setExerciseExcludedFromRecommendations('squat', true);
+        final chestPress = state.exercises.firstWhere(
+          (exercise) => exercise.id == 'chest_press',
+        );
+        state.addExercise(day.subtract(const Duration(days: 2)), chestPress);
+        await state.syncPersistenceToServer();
+        final restored = AppState(
+          repository: SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: _MemoryOutbox(),
+          ),
+        );
+        addTearDown(restored.dispose);
+        await restored.initialize();
+        expect(restored.sessionFor(day).timeBudgetMinutes, 30);
+        expect(restored.sessionFor(day).unavailableEquipmentExerciseIds, {
+          'bench',
+        });
+        expect(restored.recommendationPreferences.excludedExerciseIds, {
+          'squat',
+        });
+        expect(
+          restored.recommendationPreferences.preferenceFor('chest_press', day),
+          1,
+        );
+        gateway.currentUserId = 'account-b';
+        await restored.syncAfterAuthentication();
+        expect(restored.sessionFor(day).timeBudgetMinutes, isNull);
+        expect(restored.recommendationPreferences.excludedExerciseIds, isEmpty);
+        expect(restored.recommendationPreferences.manualSelectionDays, isEmpty);
+      },
+    );
+    test(
       'restoring and saving a diary retains acknowledged correction versions',
       () async {
         final day = DateTime(2026, 9, 11);
@@ -872,6 +984,45 @@ void main() {
         if (await directory.exists()) await directory.delete(recursive: true);
       }
     }
+
+    test(
+      'custom recommendation opt in waits for explicit guest adoption and survives it',
+      () async {
+        await withHive((hive) async {
+          final gateway = _FakeSupabaseGateway();
+          final repository = SupabaseAppRepository.withGateway(
+            gateway,
+            migrationSource: hive,
+          );
+          final state = AppState(repository: repository);
+          addTearDown(state.dispose);
+          await state.initialize();
+          final template = state.createCustomExercise(
+            name: '게스트의 밴드 컬',
+            muscle: '팔',
+          )!;
+          final info = CustomExerciseRecommendation(
+            enabled: true,
+            primaryMuscle: TrainingMuscle.biceps,
+            movement: CustomExerciseMovement.elbowFlexion,
+            requiredEquipment: {TrainingEquipment.bands},
+            minimumExperience: TrainingExperienceLevel.beginner,
+          );
+          state.saveCustomExerciseRecommendation(template.id, info);
+          await state.flushPersistence();
+          gateway.currentUserId = 'account-a';
+          await state.syncAfterAuthentication();
+          expect(state.customExercises, isEmpty);
+          expect(gateway.rows, isEmpty);
+          expect(await repository.adoptGuestSnapshot('account-a'), isTrue);
+          final adopted = (await repository.load(
+            state.exercises,
+          ))!.customExercises.single;
+          expect(adopted.id, template.id);
+          expect(adopted.customRecommendation!.toJson(), info.toJson());
+        });
+      },
+    );
 
     test('a workout logged while signed out survives a restart', () async {
       // The app is usable without an account, so this is the common case for a

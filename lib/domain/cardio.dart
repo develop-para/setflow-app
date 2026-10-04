@@ -227,10 +227,14 @@ class CardioSessionRecord {
     this.elevationGainMeters,
     this.floors,
     this.jumpCount,
+    this.definitionExerciseId,
   });
 
   final String id;
   final String exerciseId;
+
+  /// 직접 만든 종목의 유산소 종류. 기록의 종목 ID는 그대로 둬 다른 종목과 섞지 않는다.
+  final String? definitionExerciseId;
   final DateTime occurredAt;
   final Duration duration;
   final CardioIntensity intensity;
@@ -278,7 +282,16 @@ class CardioSessionRecord {
   List<String> validate() {
     final issues = <String>[];
     if (id.trim().isEmpty) issues.add('id');
-    if (!isCardioExerciseId(exerciseId)) issues.add('exerciseId');
+    if (!isCardioExerciseId(exerciseId) &&
+        !(exerciseId.startsWith('custom_') &&
+            isCardioExerciseId(definitionExerciseId ?? ''))) {
+      issues.add('exerciseId');
+    }
+    if (isCardioExerciseId(exerciseId) &&
+        definitionExerciseId != null &&
+        definitionExerciseId != exerciseId) {
+      issues.add('definitionExerciseId');
+    }
     if (duration.inSeconds <= 0 || duration > const Duration(hours: 24)) {
       issues.add('duration');
     }
@@ -319,6 +332,8 @@ class CardioSessionRecord {
     'version': 1,
     'id': id,
     'exerciseId': exerciseId,
+    if (definitionExerciseId != null)
+      'definitionExerciseId': definitionExerciseId,
     'occurredAt': occurredAt.toUtc().toIso8601String(),
     'durationSeconds': duration.inSeconds,
     'intensity': intensity.name,

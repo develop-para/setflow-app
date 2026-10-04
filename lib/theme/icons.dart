@@ -127,6 +127,7 @@ abstract final class SetflowIcons {
   static const offlineConsultation = Icons.handshake_outlined;
   static const delete = Icons.delete_outline_rounded;
   static const settings = Icons.tune_rounded;
+  static const workoutTime = Icons.schedule_rounded;
   static const signIn = Icons.login_rounded;
   static const signOut = Icons.logout_rounded;
   static const signUp = Icons.person_add_alt_1_rounded;

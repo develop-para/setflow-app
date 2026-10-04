@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'domain/exercise_display_name.dart';
+export 'domain/recommendation_preferences.dart';
 
 enum UserRole { guest, member, trainer, gym, admin }
 
@@ -76,7 +77,10 @@ enum TrainingEquipment {
   stationaryBike,
   stairClimber,
   rowingMachine,
-  elliptical;
+  elliptical,
+  bands,
+  kettlebell,
+  smithMachine;
 
   String get label => switch (this) {
     bodyweight => '맨몸 · 운동 공간',
@@ -95,6 +99,9 @@ enum TrainingEquipment {
     stairClimber => '스텝밀 · 계단 기구',
     rowingMachine => '로잉 머신',
     elliptical => '일립티컬',
+    bands => '밴드',
+    kettlebell => '케틀벨',
+    smithMachine => '스미스 머신',
   };
 }
 
@@ -404,6 +411,7 @@ class ExerciseTemplate {
     this.sourceName,
     this.sourceId,
     this.databaseId,
+    this.customRecommendation,
     // Keep the public `name` argument while storing the original label privately.
     // ignore: prefer_initializing_formals
   }) : _name = name;
@@ -436,6 +444,29 @@ class ExerciseTemplate {
   /// UUID used by normalized backend routine tables. [id] stays the stable
   /// app/domain ID when a database row maps to an original bundled exercise.
   final String? databaseId;
+  final CustomExerciseRecommendation? customRecommendation;
+
+  ExerciseTemplate withCustomRecommendation(
+    CustomExerciseRecommendation? value,
+  ) => ExerciseTemplate(
+    id: id,
+    name: storedName,
+    muscle: muscle,
+    icon: icon,
+    measurement: measurement,
+    nameEnglish: nameEnglish,
+    equipmentKey: equipmentKey,
+    equipmentName: equipmentName,
+    aliases: aliases,
+    difficulty: difficulty,
+    category: category,
+    primaryMuscles: primaryMuscles,
+    secondaryMuscles: secondaryMuscles,
+    sourceName: sourceName,
+    sourceId: sourceId,
+    databaseId: databaseId,
+    customRecommendation: value,
+  );
 
   static final RegExp _uuidPattern = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-'
@@ -694,6 +725,203 @@ enum TrainingMuscle {
 
   const TrainingMuscle(this.label);
   final String label;
+  String get exerciseCategory => switch (this) {
+    biceps || triceps => '팔',
+    _ => label,
+  };
+}
+
+enum CustomExerciseMovement {
+  horizontalPress('가슴 밀기'),
+  inclinePress('위쪽 가슴 밀기'),
+  declinePress('아래쪽 가슴 밀기'),
+  chestFly('가슴 모으기'),
+  verticalPull('위에서 당기기'),
+  rowing('수평으로 당기기'),
+  overheadPress('머리 위로 밀기'),
+  shoulderRaise('어깨 옆으로 들기'),
+  reverseFly('어깨 뒤로 벌리기'),
+  squat('스쿼트'),
+  lunge('런지'),
+  hipHinge('힙힌지'),
+  hipExtension('엉덩이 펴기'),
+  calfRaise('발뒤꿈치 들기'),
+  elbowFlexion('팔꿈치 굽히기'),
+  elbowExtension('팔꿈치 펴기'),
+  closeGripPress('삼두 중심 밀기'),
+  kneeExtension('무릎 펴기'),
+  kneeFlexion('무릎 굽히기'),
+  hipAdduction('다리 모으기'),
+  coreHold('몸통 버티기'),
+  coreFlexionRotation('몸통 굽힘·회전'),
+  other('그 외 동작');
+
+  const CustomExerciseMovement(this.label);
+  final String label;
+
+  bool get isCompound => const {
+    horizontalPress,
+    inclinePress,
+    declinePress,
+    verticalPull,
+    rowing,
+    overheadPress,
+    squat,
+    lunge,
+    hipHinge,
+    hipExtension,
+    closeGripPress,
+  }.contains(this);
+
+  Set<TrainingMuscle> get allowedMuscles => switch (this) {
+    horizontalPress ||
+    inclinePress ||
+    declinePress ||
+    chestFly => {TrainingMuscle.chest},
+    verticalPull || rowing => {TrainingMuscle.back},
+    overheadPress || shoulderRaise => {TrainingMuscle.shoulders},
+    reverseFly => {TrainingMuscle.shoulders, TrainingMuscle.back},
+    squat ||
+    lunge ||
+    hipExtension ||
+    calfRaise ||
+    kneeExtension ||
+    kneeFlexion ||
+    hipAdduction => {TrainingMuscle.legs},
+    hipHinge => {TrainingMuscle.legs, TrainingMuscle.back},
+    elbowFlexion => {TrainingMuscle.biceps},
+    elbowExtension || closeGripPress => {TrainingMuscle.triceps},
+    coreHold || coreFlexionRotation => {TrainingMuscle.core},
+    other => TrainingMuscle.values.toSet(),
+  };
+
+  Set<TrainingMovementRestriction> get restrictions => switch (this) {
+    horizontalPress ||
+    inclinePress ||
+    declinePress ||
+    chestFly ||
+    closeGripPress => {TrainingMovementRestriction.horizontalPress},
+    verticalPull => {TrainingMovementRestriction.verticalPull},
+    rowing || reverseFly => {TrainingMovementRestriction.rowing},
+    overheadPress => {TrainingMovementRestriction.overheadPress},
+    shoulderRaise => {TrainingMovementRestriction.shoulderRaise},
+    squat || lunge || kneeExtension => {TrainingMovementRestriction.squatLunge},
+    hipHinge || hipExtension => {TrainingMovementRestriction.hipHinge},
+    coreFlexionRotation => {TrainingMovementRestriction.trunkFlexionRotation},
+    _ => const {},
+  };
+}
+
+/// 내 목록의 종목에 사용자가 명시한 추천 정보. 이름에서 추론하지 않는다.
+class CustomExerciseRecommendation {
+  CustomExerciseRecommendation({
+    required this.enabled,
+    required Iterable<TrainingEquipment> requiredEquipment,
+    required this.minimumExperience,
+    this.primaryMuscle,
+    this.movement,
+    Iterable<TrainingMuscle> secondaryMuscles = const {},
+    Iterable<TrainingMovementRestriction> additionalMovements = const {},
+    this.cardioDefinitionId,
+  }) : requiredEquipment = Set.unmodifiable(requiredEquipment),
+       secondaryMuscles = Set.unmodifiable(secondaryMuscles),
+       additionalMovements = Set.unmodifiable(additionalMovements) {
+    if (this.requiredEquipment.isEmpty) throw ArgumentError('사용 장비를 선택해주세요.');
+  }
+
+  final bool enabled;
+  final Set<TrainingEquipment> requiredEquipment;
+  final TrainingExperienceLevel minimumExperience;
+  final TrainingMuscle? primaryMuscle;
+  final CustomExerciseMovement? movement;
+  final Set<TrainingMuscle> secondaryMuscles;
+  final Set<TrainingMovementRestriction> additionalMovements;
+  final String? cardioDefinitionId;
+
+  CustomExerciseRecommendation withEnabled(bool value) =>
+      CustomExerciseRecommendation(
+        enabled: value,
+        requiredEquipment: requiredEquipment,
+        minimumExperience: minimumExperience,
+        primaryMuscle: primaryMuscle,
+        movement: movement,
+        secondaryMuscles: secondaryMuscles,
+        additionalMovements: additionalMovements,
+        cardioDefinitionId: cardioDefinitionId,
+      );
+
+  Map<String, Object?> toJson() => {
+    'version': 1,
+    'enabled': enabled,
+    'requiredEquipment': requiredEquipment.map((item) => item.name).toList()
+      ..sort(),
+    'minimumExperience': minimumExperience.name,
+    'primaryMuscle': primaryMuscle?.name,
+    'movement': movement?.name,
+    'secondaryMuscles': secondaryMuscles.map((item) => item.name).toList()
+      ..sort(),
+    'additionalMovements': additionalMovements.map((item) => item.name).toList()
+      ..sort(),
+    'cardioDefinitionId': cardioDefinitionId,
+  };
+
+  static CustomExerciseRecommendation? tryFromJson(Object? value) {
+    if (value is! Map || value['version'] != 1 || value['enabled'] is! bool) {
+      return null;
+    }
+    T? parse<T extends Enum>(List<T> options, Object? raw) =>
+        options.where((item) => item.name == raw).firstOrNull;
+    Set<T>? parseSet<T extends Enum>(List<T> options, Object? raw) {
+      if (raw is! List) return null;
+      final parsed = <T>{};
+      for (final name in raw) {
+        final item = parse(options, name);
+        if (item == null) return null;
+        parsed.add(item);
+      }
+      return parsed;
+    }
+
+    final equipment = parseSet(
+      TrainingEquipment.values,
+      value['requiredEquipment'],
+    );
+    final experience = parse(
+      TrainingExperienceLevel.values,
+      value['minimumExperience'],
+    );
+    final primary = parse(TrainingMuscle.values, value['primaryMuscle']);
+    final movement = parse(CustomExerciseMovement.values, value['movement']);
+    final secondary = parseSet(
+      TrainingMuscle.values,
+      value['secondaryMuscles'] ?? [],
+    );
+    final restrictions = parseSet(
+      TrainingMovementRestriction.values,
+      value['additionalMovements'] ?? [],
+    );
+    if (equipment == null ||
+        equipment.isEmpty ||
+        experience == null ||
+        secondary == null ||
+        restrictions == null ||
+        (value['primaryMuscle'] != null && primary == null) ||
+        (value['movement'] != null && movement == null) ||
+        (value['cardioDefinitionId'] != null &&
+            value['cardioDefinitionId'] is! String)) {
+      return null;
+    }
+    return CustomExerciseRecommendation(
+      enabled: value['enabled'],
+      requiredEquipment: equipment,
+      minimumExperience: experience,
+      primaryMuscle: primary,
+      movement: movement,
+      secondaryMuscles: secondary,
+      additionalMovements: restrictions,
+      cardioDefinitionId: value['cardioDefinitionId'],
+    );
+  }
 }
 
 class WorkoutSession {
@@ -703,8 +931,15 @@ class WorkoutSession {
     this.startedAt,
     this.endedAt,
     this.trainingFocus,
+    this.timeBudgetMinutes,
+    Set<String> skippedRecommendationIds = const {},
+    Set<String> unavailableEquipmentExerciseIds = const {},
     Map<String, String> correctionVersions = const {},
-  }) : correctionVersions = Map.of(correctionVersions);
+  }) : correctionVersions = Map.of(correctionVersions),
+       skippedRecommendationIds = Set.of(skippedRecommendationIds),
+       unavailableEquipmentExerciseIds = Set.of(
+         unavailableEquipmentExerciseIds,
+       );
 
   /// 확인한 서버 정정 버전. 오래된 기기의 일괄 저장이 정정을 되돌리지 않는다.
   final Map<String, String> correctionVersions;
@@ -715,6 +950,17 @@ class WorkoutSession {
   /// null: 아직 선택하지 않음. 빈 집합: 부위 제한 없는 완전 추천.
   /// 날짜별 선택이며 다음 날로 자동 복사하지 않는다.
   Set<TrainingMuscle>? trainingFocus;
+
+  /// 자동 추천에만 적용하는 날짜별 시간 예산. 수동 계획과 완료 기록은 보존한다.
+  int? timeBudgetMinutes;
+  final Set<String> skippedRecommendationIds;
+  final Set<String> unavailableEquipmentExerciseIds;
+
+  bool get hasRecommendationSettings =>
+      trainingFocus != null ||
+      timeBudgetMinutes != null ||
+      skippedRecommendationIds.isNotEmpty ||
+      unavailableEquipmentExerciseIds.isNotEmpty;
 
   /// 첫 세트를 완료한 순간과 마지막 세트를 완료한 순간. "몇 시간 몇 분
   /// 운동했나"는 계획이 아니라 이 두 도장 사이의 시간이다. 세트를 되돌려도

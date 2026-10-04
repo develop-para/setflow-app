@@ -113,12 +113,31 @@ abstract final class CardioPrescriptionEngine {
     bool vigorousExerciseEligible = false,
     int? measuredMaxHeartRateBpm,
     int? restingHeartRateBpm,
+    String? definitionExerciseId,
   }) {
-    final definition = cardioDefinitionForExercise(exerciseId);
-    if (definition == null) return null;
+    final reference = cardioDefinitionForExercise(
+      exerciseId.startsWith('custom_')
+          ? definitionExerciseId ?? ''
+          : exerciseId,
+    );
+    if (reference == null) return null;
+    final definition = exerciseId == reference.exerciseId
+        ? reference
+        : CardioExerciseDefinition(
+            exerciseId: exerciseId,
+            modality: reference.modality,
+            primaryMetrics: reference.primaryMetrics,
+            optionalMetrics: reference.optionalMetrics,
+          );
     final referenceTime = now ?? DateTime.now();
     final usableHistory = history
-        .where((record) => record.validate().isEmpty)
+        .where(
+          (record) =>
+              record.validate().isEmpty &&
+              (record.exerciseId != exerciseId ||
+                  record.definitionExerciseId == null ||
+                  record.definitionExerciseId == reference.exerciseId),
+        )
         .toList();
     final completedMinutes = weeklyModerateEquivalentMinutes(
       usableHistory,

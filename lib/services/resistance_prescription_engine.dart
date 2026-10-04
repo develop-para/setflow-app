@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models.dart';
+import '../domain/custom_exercise_recommendation_rules.dart';
 import 'performance_engine.dart';
 
 /// 연구 원칙을 기록에 적용하는 제품 규칙. 정확한 세트 상한·증감 폭은
@@ -58,6 +59,10 @@ abstract final class ResistancePrescriptionEngine {
 
   static Set<TrainingMuscle> primaryMuscles(ExerciseTemplate template) {
     if (template.isCardio) return const {};
+    final primary = CustomExerciseRecommendationRules.infoFor(
+      template,
+    )?.primaryMuscle;
+    if (primary != null) return {primary};
     // 팔만 세분화한다. 등의 척추기립근과 하체의 둔근 등을 이중 집계하지 않는다.
     return switch (template.muscle) {
       '가슴' => {TrainingMuscle.chest},
@@ -78,6 +83,8 @@ abstract final class ResistancePrescriptionEngine {
   }
 
   static Set<TrainingMuscle> secondaryMuscles(ExerciseTemplate template) {
+    final custom = CustomExerciseRecommendationRules.infoFor(template);
+    if (custom != null) return custom.secondaryMuscles;
     if (!compoundIds.contains(template.id)) return const {};
     return switch (template.muscle) {
       '가슴' => {TrainingMuscle.shoulders, TrainingMuscle.triceps},
@@ -88,6 +95,18 @@ abstract final class ResistancePrescriptionEngine {
       _ => const {},
     };
   }
+
+  static bool isCompound(ExerciseTemplate template) =>
+      CustomExerciseRecommendationRules.infoFor(
+        template,
+      )?.movement?.isCompound ??
+      compoundIds.contains(template.id);
+
+  static String categoryFor(ExerciseTemplate template) =>
+      CustomExerciseRecommendationRules.infoFor(
+        template,
+      )?.primaryMuscle?.exerciseCategory ??
+      template.muscle;
 
   static bool matchesFocus(
     ExerciseTemplate template,
@@ -206,7 +225,7 @@ abstract final class ResistancePrescriptionEngine {
     RecommendationProfile? profile,
   }) {
     final base = PerformanceEngine.prescriptionFor(goal);
-    final compound = compoundIds.contains(template.id);
+    final compound = isCompound(template);
     final beginner =
         profile?.experienceLevel == TrainingExperienceLevel.beginner;
     final fatigued =
@@ -238,7 +257,7 @@ abstract final class ResistancePrescriptionEngine {
 
     // 실제 같은 종목의 작업세트만 기준으로 삼는다. e1RM을 반복 곱해
     // 수행한 적 없는 무게를 만들어 내거나, 다른 기구의 kg을 옮기지 않는다.
-    final previous = <(DateTime, List<WorkoutSetEntry>)>[];
+    final previousByDay = <DateTime, List<WorkoutSetEntry>>{};
     for (final item in history) {
       if (!day(item.date).isBefore(day(session.date))) continue;
       final work = item.exercises
@@ -260,9 +279,17 @@ abstract final class ResistancePrescriptionEngine {
                     : set.reps > 0),
           )
           .toList();
-      if (work.isNotEmpty) previous.add((day(item.date), work));
+      if (work.isNotEmpty) {
+        previousByDay.putIfAbsent(day(item.date), () => []).addAll(work);
+      }
     }
+    final previous = previousByDay.entries
+        .map((entry) => (entry.key, entry.value))
+        .toList();
     previous.sort((left, right) => right.$1.compareTo(left.$1));
+    var trend = previous.length < 2
+        ? RecommendationTrend.insufficient
+        : RecommendationTrend.stable;
     var weight = 0.0;
     var loadReason = template.usesWeight
         ? '이 종목의 기록이 없어 첫 중량은 직접 정해주세요.'
@@ -280,6 +307,34 @@ abstract final class ResistancePrescriptionEngine {
           return byCount != 0 ? byCount : a.compareTo(b);
         });
       weight = weights.first;
+      final requiredSets = beginner || !compound ? 2 : base.sets;
+      // 네 날짜의 같은 중량·충분한 일반 세트만 비교한다. 부분 기록과 중량 변경은 제외.
+      final comparable = previous.take(4).toList();
+      final comparableReps = <double>[];
+      if (comparable.length == 4 &&
+          day(session.date).difference(comparable.last.$1).inDays <= 42) {
+        for (final exposure in comparable) {
+          final work = exposure.$2
+              .where((set) => set.weight == weight)
+              .toList();
+          if (work.length < requiredSets) break;
+          // 세트 추가로 평균이 달라지는 것을 피한다.
+          comparableReps.add(
+            work.take(requiredSets).fold<int>(0, (sum, set) => sum + set.reps) /
+                requiredSets,
+          );
+        }
+      }
+      final declining =
+          comparableReps.length == 4 &&
+          comparableReps[0] <= comparableReps[1] - 1 &&
+          comparableReps[1] <= comparableReps[2] - 1 &&
+          comparableReps[2] <= comparableReps[3] - 1;
+      final plateau =
+          comparableReps.length == 4 &&
+          comparableReps.every((reps) => reps >= minReps && reps < maxReps) &&
+          comparableReps.reduce(math.max) - comparableReps.reduce(math.min) <=
+              1;
       final step = PerformanceEngine.recommendedIncrement(weight);
       bool upperSuccess(List<WorkoutSetEntry> work) {
         final sameWeight = work.where((set) => set.weight == weight).toList();
@@ -300,6 +355,10 @@ abstract final class ResistancePrescriptionEngine {
           '최근 ${PerformanceEngine.formatWeight(weight)}kg 기록을 유지하며 $minReps–$maxReps회를 쌓아보세요.';
       final stale = day(session.date).difference(previous.first.$1).inDays > 28;
       if (stale || fatigued) {
+        if (stale) {
+          trend = RecommendationTrend.returning;
+          sets = math.max(1, sets - 1);
+        }
         weight = (weight * .9 * 2).floorToDouble() / 2;
         loadReason = stale
             ? '4주 넘게 쉬어 최근 중량에서 10% 낮춰 다시 시작합니다.'
@@ -310,13 +369,23 @@ abstract final class ResistancePrescriptionEngine {
           previous.first.$1.difference(previous[1].$1).inDays <= 28 &&
           step / weight <= .1) {
         weight += step;
+        trend = RecommendationTrend.progressing;
         loadReason =
             '같은 중량에서 반복 상단을 두 번 연속 달성해 ${PerformanceEngine.formatWeight(step)}kg 올립니다.';
       } else if (previous.length >= 2 &&
           missed(latest) &&
-          missed(previous[1].$2)) {
+          missed(previous[1].$2) &&
+          previous.first.$1.difference(previous[1].$1).inDays <= 28) {
         weight = (weight * .95 * 2).floorToDouble() / 2;
+        trend = RecommendationTrend.declining;
         loadReason = '두 번 연속 최소 반복에 미달해 중량을 5% 낮췄습니다.';
+      } else if (declining) {
+        trend = RecommendationTrend.declining;
+        sets = math.max(1, sets - 1);
+        loadReason = '최근 네 번 같은 중량의 반복수가 계속 줄어 중량을 유지하고 1세트를 줄여 제안합니다.';
+      } else if (plateau) {
+        trend = RecommendationTrend.plateau;
+        loadReason = '최근 네 번 같은 중량의 반복수가 비슷해 중량을 유지하고 목표 상단을 다시 시도합니다.';
       }
     }
     final muscles = primaryMuscles(template);
@@ -339,6 +408,9 @@ abstract final class ResistancePrescriptionEngine {
       reason:
           '$loadReason 최근 7일 완료량과 오늘 계획은 $volumeLabel입니다. '
           '${beginner ? '입문 단계와 ' : ''}${fatigued ? '오늘 피로와 ' : ''}남은 운동량을 반영해 $sets세트를 제안합니다.',
+      summary: loadReason,
+      historyCount: previous.length,
+      trend: trend,
       evidenceIds: {
         ...base.evidenceIds,
         'acsm-2009',

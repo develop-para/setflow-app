@@ -1,9 +1,12 @@
 import '../domain/cardio.dart';
 import '../domain/exercise_recommendation_traits.dart';
+import '../domain/exercise_substitutions.dart';
+import '../domain/custom_exercise_recommendation_rules.dart';
 import '../models.dart';
 import 'cardio_prescription_engine.dart';
 import 'performance_engine.dart';
 import 'resistance_prescription_engine.dart';
+import 'workout_time_budget.dart';
 
 class NextExerciseRecommendation {
   const NextExerciseRecommendation({
@@ -18,6 +21,10 @@ class NextExerciseRecommendation {
     this.evidenceIds = const {},
     this.evidenceNote = '',
     this.cardioPrescription,
+    this.summary = '',
+    this.historyCount = 0,
+    this.trend = RecommendationTrend.insufficient,
+    this.estimatedDurationSeconds = 0,
   });
 
   final ExerciseTemplate template;
@@ -31,6 +38,10 @@ class NextExerciseRecommendation {
   final Set<String> evidenceIds;
   final String evidenceNote;
   final CardioPrescription? cardioPrescription;
+  final String summary;
+  final int historyCount;
+  final RecommendationTrend trend;
+  final int estimatedDurationSeconds;
 
   bool get isCardio => cardioPrescription != null || template.isCardio;
 }
@@ -47,6 +58,9 @@ abstract final class ExerciseRecommendationEngine {
     Iterable<WorkoutSession> weeklyHistory = const [],
     Set<String> excludedTemplateIds = const {},
     RecommendationProfile? recommendationProfile,
+    RecommendationPreferences preferences = const RecommendationPreferences(),
+    ExerciseTemplate? alternativeTo,
+    DateTime? now,
   }) => _recommend(
     catalog: catalog,
     session: session,
@@ -55,6 +69,9 @@ abstract final class ExerciseRecommendationEngine {
     weeklyHistory: weeklyHistory,
     excludedTemplateIds: excludedTemplateIds,
     recommendationProfile: recommendationProfile,
+    preferences: preferences,
+    alternativeTo: alternativeTo,
+    now: now,
   );
 
   static NextExerciseRecommendation? recommendFirst({
@@ -64,6 +81,9 @@ abstract final class ExerciseRecommendationEngine {
     Iterable<WorkoutSession> weeklyHistory = const [],
     Set<String> excludedTemplateIds = const {},
     RecommendationProfile? recommendationProfile,
+    RecommendationPreferences preferences = const RecommendationPreferences(),
+    ExerciseTemplate? alternativeTo,
+    DateTime? now,
   }) => _recommend(
     catalog: catalog,
     session: session,
@@ -71,6 +91,9 @@ abstract final class ExerciseRecommendationEngine {
     weeklyHistory: weeklyHistory,
     excludedTemplateIds: excludedTemplateIds,
     recommendationProfile: recommendationProfile,
+    preferences: preferences,
+    alternativeTo: alternativeTo,
+    now: now,
   );
 
   static NextExerciseRecommendation? _recommend({
@@ -80,6 +103,9 @@ abstract final class ExerciseRecommendationEngine {
     required Iterable<WorkoutSession> weeklyHistory,
     required Set<String> excludedTemplateIds,
     required RecommendationProfile? recommendationProfile,
+    required RecommendationPreferences preferences,
+    required ExerciseTemplate? alternativeTo,
+    required DateTime? now,
     WorkoutExercise? completedExercise,
   }) {
     if (goals.isEmpty) return null;
@@ -140,6 +166,33 @@ abstract final class ExerciseRecommendationEngine {
         session.trainingFocus,
       ),
     );
+    candidates.removeWhere(
+      (item) =>
+          preferences.excludedExerciseIds.contains(item.id) ||
+          session.skippedRecommendationIds.contains(item.id) ||
+          (alternativeTo != null &&
+              !ExerciseSubstitutions.matches(alternativeTo, item)),
+    );
+    {
+      // 버튼에 명시한 주 장비를 오늘의 다음 추천에서도 제외한다.
+      final blocked = [
+        ?alternativeTo,
+        ...catalog.where(
+          (item) => session.unavailableEquipmentExerciseIds.contains(item.id),
+        ),
+      ];
+      final blockedEquipment = blocked
+          .map(ExerciseSubstitutions.unavailableEquipmentFor)
+          .whereType<TrainingEquipment>()
+          .toSet();
+      candidates.removeWhere(
+        (item) =>
+            recommendationTraitsFor(
+              item,
+            )?.requiredEquipment.any(blockedEquipment.contains) ??
+            false,
+      );
+    }
     if (candidates.isEmpty) return null;
 
     final referenceDay = DateTime(
@@ -178,6 +231,66 @@ abstract final class ExerciseRecommendationEngine {
                     ResistancePrescriptionEngine.plannedSessionSets(session),
               ) ==
               0,
+    );
+    if (candidates.isEmpty) return null;
+    final recoveryIsLow =
+        recommendationProfile?.hasRecoveryFor(referenceDay) == true &&
+        recommendationProfile?.recoveryStatus ==
+            TrainingRecoveryStatus.fatigued;
+    final resistanceById = <String, WorkoutRecommendation>{};
+    final cardioById = <String, CardioPrescription?>{};
+    final setsById = <String, int>{};
+    WorkoutRecommendation resistanceFor(ExerciseTemplate item) =>
+        resistanceById.putIfAbsent(
+          item.id,
+          () => ResistancePrescriptionEngine.prescribe(
+            template: item,
+            goal: trainingGoal,
+            history: history,
+            session: session,
+            profile: recommendationProfile,
+          ),
+        );
+    CardioPrescription? cardioFor(ExerciseTemplate item) =>
+        cardioById.putIfAbsent(item.id, () {
+          var cardio = CardioPrescriptionEngine.recommend(
+            exerciseId: item.id,
+            definitionExerciseId:
+                CustomExerciseRecommendationRules.cardioDefinitionIdFor(item),
+            goal: trainingGoal,
+            history: _cardioHistoryRecords(history),
+            now: referenceDay,
+            experience: _cardioExperience(
+              recommendationProfile?.experienceLevel,
+            ),
+          );
+          if (cardio == null) return null;
+          if (recoveryIsLow) cardio = _reduceCardioForLowRecovery(cardio);
+          cardio = _fitCardioToTime(cardio, session, now);
+          return cardio;
+        });
+    if (session.timeBudgetMinutes != null) {
+      for (final item in candidates.where((item) => !item.isCardio)) {
+        final prescription = resistanceFor(item);
+        setsById[item.id] = WorkoutTimeBudget.fittingSets(
+          session: session,
+          template: item,
+          sets: prescription.sets,
+          reps: prescription.minReps,
+          restSeconds: prescription.restSeconds,
+          now: now,
+        );
+      }
+    }
+    candidates.removeWhere(
+      (item) => item.isCardio
+          ? (session.timeBudgetMinutes == null
+                ? CustomExerciseRecommendationRules.cardioDefinitionIdFor(
+                        item,
+                      ) ==
+                      null
+                : cardioFor(item) == null)
+          : session.timeBudgetMinutes != null && (setsById[item.id] ?? 0) == 0,
     );
     if (candidates.isEmpty) return null;
     final weeklySets = _weeklyCompletedSetsByMuscle(history, session.date);
@@ -227,6 +340,7 @@ abstract final class ExerciseRecommendationEngine {
             referenceDay: referenceDay,
             focus: focus,
             rotateTies: completedExercise == null,
+            preferences: preferences,
           )
         : _selectResistanceCandidate(
             candidates: candidates.where((item) => !item.isCardio).toList(),
@@ -234,38 +348,25 @@ abstract final class ExerciseRecommendationEngine {
             session: session,
             completedExercise: completedExercise,
             weeklyVolume: weeklyVolume,
+            preferences: preferences,
           );
 
     final prescription = PerformanceEngine.prescriptionFor(trainingGoal);
-    final recoveryIsCurrent =
-        recommendationProfile?.hasRecoveryFor(referenceDay) ?? false;
-    final recoveryIsLow =
-        recoveryIsCurrent &&
-        recommendationProfile?.recoveryStatus ==
-            TrainingRecoveryStatus.fatigued;
-    final baseCardioPrescription = candidate.isCardio
-        ? CardioPrescriptionEngine.recommend(
-            exerciseId: candidate.id,
-            goal: trainingGoal,
-            history: _cardioHistoryRecords(history),
-            now: referenceDay,
-            experience: _cardioExperience(
-              recommendationProfile?.experienceLevel,
-            ),
-          )
-        : null;
-    final cardioPrescription = recoveryIsLow && baseCardioPrescription != null
-        ? _reduceCardioForLowRecovery(baseCardioPrescription)
-        : baseCardioPrescription;
+    final cardioPrescription = candidate.isCardio ? cardioFor(candidate) : null;
     final historicalRecommendation = candidate.isCardio
         ? null
-        : ResistancePrescriptionEngine.prescribe(
-            history: history,
-            session: session,
-            template: candidate,
-            goal: trainingGoal,
-            profile: recommendationProfile,
-          );
+        : resistanceFor(candidate);
+    final recommendedSets =
+        setsById[candidate.id] ??
+        historicalRecommendation?.sets ??
+        prescription.sets;
+    final preferredCount = preferences.preferenceFor(
+      candidate.id,
+      referenceDay,
+    );
+    final timeReason = session.timeBudgetMinutes == null
+        ? ''
+        : '오늘 ${session.timeBudgetMinutes}분 안에 준비·종목 전환·세트·휴식을 포함하도록 ${candidate.isCardio ? '${cardioPrescription!.durationMinutes}분' : '$recommendedSets세트'}를 제안합니다. 소요시간은 추정치입니다.';
     final weeklyMuscleSets = weeklySets[candidate.muscle] ?? 0;
     final remainingCardio = 150 - weeklyCardioMinutes;
     final baseReason = switch (focus) {
@@ -294,6 +395,12 @@ abstract final class ExerciseRecommendationEngine {
         '오늘 선택한 ${session.trainingFocus!.map((item) => item.label).join(' · ')} 안에서 추천합니다.',
       if (recommendationProfile != null) '입력한 장비·숙련도와 직접 지정한 제외 동작을 반영했습니다.',
       if (recoveryIsLow) '오늘 회복 상태가 낮아 운동량과 기록 기반 시작 중량을 보수적으로 낮췄습니다.',
+      if (alternativeTo != null)
+        '${alternativeTo.name}과 같은 동작의 대안입니다. 중량은 이 종목 자체의 기록만 사용합니다.',
+      if (preferredCount >= 2) '최근 90일 중 $preferredCount일 직접 선택한 운동을 우선했습니다.',
+      if (timeReason.isNotEmpty) timeReason,
+      if (candidate.customRecommendation != null)
+        '직접 작성한 종목 정보로 추천에 포함했습니다. 첫 중량은 같은 종목의 기록만 사용합니다.',
     ].join(' ');
     final startingWeight = historicalRecommendation?.weight ?? 0;
     final evidenceIds = <String>{
@@ -307,7 +414,7 @@ abstract final class ExerciseRecommendationEngine {
     };
     return NextExerciseRecommendation(
       template: candidate,
-      sets: historicalRecommendation?.sets ?? prescription.sets,
+      sets: recommendedSets,
       minReps: historicalRecommendation?.minReps ?? prescription.minReps,
       maxReps: historicalRecommendation?.maxReps ?? prescription.maxReps,
       restSeconds:
@@ -318,6 +425,45 @@ abstract final class ExerciseRecommendationEngine {
       startingWeight: startingWeight,
       goalLabel: trainingGoal.label,
       reason: personalizedReason,
+      summary: [
+        if (alternativeTo != null) '${alternativeTo.name} 대신 같은 동작을 이어갑니다.',
+        if (preferredCount >= 2) '여러 날 직접 선택한 운동입니다.',
+        historicalRecommendation?.summary ?? cardioPrescription!.reason,
+        if (historicalRecommendation != null &&
+            recommendedSets < historicalRecommendation.sets)
+          '남은 시간에 맞춰 $recommendedSets세트로 줄여 제안합니다.',
+      ].join(' '),
+      historyCount:
+          historicalRecommendation?.historyCount ??
+          history
+              .where(
+                (session) =>
+                    session.date.isBefore(referenceDay) &&
+                    session.exercises.any(
+                      (exercise) =>
+                          exercise.template.id == candidate.id &&
+                          !exercise.id.startsWith('seed_') &&
+                          exercise.sets.any(
+                            (set) => set.completed && set.durationSeconds > 0,
+                          ),
+                    ),
+              )
+              .map((session) => ResistancePrescriptionEngine.day(session.date))
+              .toSet()
+              .length,
+      trend:
+          historicalRecommendation?.trend ?? RecommendationTrend.insufficient,
+      estimatedDurationSeconds: candidate.isCardio
+          ? cardioPrescription!.durationSeconds +
+                WorkoutTimeBudget.transitionSeconds +
+                WorkoutTimeBudget.previousRestSeconds(session)
+          : WorkoutTimeBudget.addedSeconds(
+              session: session,
+              template: candidate,
+              sets: recommendedSets,
+              reps: historicalRecommendation!.minReps,
+              restSeconds: historicalRecommendation.restSeconds,
+            ),
       evidenceIds: evidenceIds,
       evidenceNote:
           cardioPrescription?.safetyNote ??
@@ -330,9 +476,55 @@ abstract final class ExerciseRecommendationEngine {
     ExerciseTemplate exercise,
     RecommendationProfile? profile,
   ) {
-    if (profile == null) return true;
-    return exerciseRecommendationTraits[exercise.id]?.isEligibleFor(profile) ??
-        false;
+    final traits = recommendationTraitsFor(exercise);
+    if (traits == null) return false;
+    if (profile == null) {
+      return !exercise.id.startsWith('custom_') ||
+          traits.minimumExperience == TrainingExperienceLevel.beginner;
+    }
+    return traits.isEligibleFor(profile);
+  }
+
+  static CardioPrescription? _fitCardioToTime(
+    CardioPrescription prescription,
+    WorkoutSession session,
+    DateTime? now,
+  ) {
+    if (session.timeBudgetMinutes == null) return prescription;
+    final seconds =
+        WorkoutTimeBudget.availableSeconds(session, now: now) -
+        WorkoutTimeBudget.transitionSeconds -
+        WorkoutTimeBudget.previousRestSeconds(session);
+    if (seconds >= prescription.durationSeconds) return prescription;
+    // 인터벌 구조는 잘라내지 않는다. 지속 운동만 분 단위로 줄인다.
+    if (seconds < 300 ||
+        prescription.structure != CardioSessionStructure.continuous) {
+      return null;
+    }
+    final duration = seconds ~/ 60 * 60;
+    return CardioPrescription(
+      definition: prescription.definition,
+      goal: prescription.goal,
+      structure: prescription.structure,
+      sessionDuration: Duration(seconds: duration),
+      intensity: prescription.intensity,
+      minimumRpe: prescription.minimumRpe,
+      maximumRpe: prescription.maximumRpe,
+      weeklyTargetModerateEquivalentMinutes:
+          prescription.weeklyTargetModerateEquivalentMinutes,
+      completedModerateEquivalentMinutes:
+          prescription.completedModerateEquivalentMinutes,
+      metrics: prescription.metrics,
+      evidenceIds: prescription.evidenceIds,
+      reason: '${prescription.reason} 남은 시간에 맞춰 ${duration ~/ 60}분을 제안합니다.',
+      safetyNote: prescription.safetyNote,
+      targetHeartRate: prescription.targetHeartRate,
+      targetDistanceKm: prescription.targetDistanceKm == null
+          ? null
+          : prescription.targetDistanceKm! *
+                duration /
+                prescription.durationSeconds,
+    );
   }
 
   static CardioExperience _cardioExperience(
@@ -594,6 +786,7 @@ abstract final class ExerciseRecommendationEngine {
     required WorkoutSession session,
     required WorkoutExercise? completedExercise,
     required Map<TrainingMuscle, double> weeklyVolume,
+    required RecommendationPreferences preferences,
   }) {
     final order = {
       for (var i = 0; i < candidates.length; i++) candidates[i].id: i,
@@ -636,15 +829,13 @@ abstract final class ExerciseRecommendationEngine {
       final priorCompounds = session.exercises
           .where(
             (exercise) =>
-                exercise.template.muscle == item.muscle &&
-                ResistancePrescriptionEngine.compoundIds.contains(
-                  exercise.template.id,
-                ),
+                ResistancePrescriptionEngine.categoryFor(exercise.template) ==
+                    ResistancePrescriptionEngine.categoryFor(item) &&
+                ResistancePrescriptionEngine.isCompound(exercise.template),
           )
           .length;
       final preferCompound = priorCompounds < 2;
-      return ResistancePrescriptionEngine.compoundIds.contains(item.id) ==
-              preferCompound
+      return ResistancePrescriptionEngine.isCompound(item) == preferCompound
           ? 0
           : 1;
     }
@@ -658,10 +849,16 @@ abstract final class ExerciseRecommendationEngine {
         left,
       ).compareTo(movementPriority(right));
       if (byMovement != 0) return byMovement;
-      if (left.muscle != right.muscle) {
+      if (ResistancePrescriptionEngine.categoryFor(left) !=
+          ResistancePrescriptionEngine.categoryFor(right)) {
         final byVolume = volumeFor(left).compareTo(volumeFor(right));
         if (byVolume != 0) return byVolume;
       }
+      final leftPreference = preferences.preferenceFor(left.id, session.date);
+      final rightPreference = preferences.preferenceFor(right.id, session.date);
+      final byPreference = (rightPreference >= 2 ? rightPreference : 0)
+          .compareTo(leftPreference >= 2 ? leftPreference : 0);
+      if (byPreference != 0) return byPreference;
       if (familiar.contains(left.id) != familiar.contains(right.id)) {
         return familiar.contains(left.id) ? -1 : 1;
       }
@@ -676,7 +873,22 @@ abstract final class ExerciseRecommendationEngine {
     required DateTime referenceDay,
     required _GoalFocus focus,
     required bool rotateTies,
+    required RecommendationPreferences preferences,
   }) {
+    final preferred =
+        candidates
+            .where(
+              (item) =>
+                  item.isCardio &&
+                  preferences.preferenceFor(item.id, referenceDay) >= 2,
+            )
+            .toList()
+          ..sort(
+            (a, b) => preferences
+                .preferenceFor(b.id, referenceDay)
+                .compareTo(preferences.preferenceFor(a.id, referenceDay)),
+          );
+    if (preferred.isNotEmpty) return preferred.first;
     final desiredPoolSize = switch (focus) {
       _GoalFocus.strength => 6,
       _GoalFocus.muscleGain => 8,
@@ -826,7 +1038,10 @@ abstract final class ExerciseRecommendationEngine {
     for (final session in sessions) {
       for (final exercise in session.exercises) {
         if (!exercise.template.isCardio ||
-            cardioDefinitionForExercise(exercise.template.id) == null) {
+            CustomExerciseRecommendationRules.cardioDefinitionIdFor(
+                  exercise.template,
+                ) ==
+                null) {
           continue;
         }
         final completed = exercise.sets
@@ -852,6 +1067,11 @@ abstract final class ExerciseRecommendationEngine {
         yield CardioSessionRecord(
           id: exercise.id,
           exerciseId: exercise.template.id,
+          definitionExerciseId: exercise.template.id.startsWith('custom_')
+              ? CustomExerciseRecommendationRules.cardioDefinitionIdFor(
+                  exercise.template,
+                )
+              : null,
           occurredAt: session.date,
           duration: Duration(seconds: durationSeconds),
           intensity: averageRpe >= 7
