@@ -25,16 +25,13 @@ class SupabaseCommunityRepository
   static const _postColumns =
       'id,user_id,author_name,content,metric,visual_key,image_url,'
       'image_color,location,routine_name,active_overlays,likes_count,created_at';
-  static const _cacheKeyPrefix = 'community-feed-v1';
+  static const _cacheKeyPrefix = 'community-feed-v2';
 
   final SupabaseClient _client;
   final DateTime Function() _now;
   final BackendDocumentCache? cache;
   int _uploadSequence = 0;
   Object? _lastReadError;
-
-  String get _cacheKey =>
-      '$_cacheKeyPrefix:${_client.auth.currentUser?.id ?? 'guest'}';
 
   @override
   bool get isUsingCachedData => _lastReadError != null;
@@ -46,34 +43,97 @@ class SupabaseCommunityRepository
   Future<List<CommunityPostRecord>> fetchPosts({
     int limit = 50,
     int offset = 0,
+  }) async => (await _readPosts(
+    order: CommunityFeedOrder.latest,
+    media: CommunityFeedMedia.all,
+    limit: limit,
+    offset: offset,
+  )).records;
+
+  @override
+  Future<CommunityFeedPage> listFeed({
+    CommunityFeedOrder order = CommunityFeedOrder.latest,
+    CommunityFeedMedia media = CommunityFeedMedia.photos,
+    int limit = 24,
+    int offset = 0,
   }) async {
+    final result = await _readPosts(
+      order: order,
+      media: media,
+      limit: limit,
+      offset: offset,
+    );
+    return CommunityFeedPage(
+      posts: result.records
+          .map((record) => record.post)
+          .toList(growable: false),
+      hasMore: result.records.length == limit.clamp(1, 100),
+      isCached: result.isCached,
+    );
+  }
+
+  Future<({List<CommunityPostRecord> records, bool isCached})> _readPosts({
+    required CommunityFeedOrder order,
+    required CommunityFeedMedia media,
+    required int limit,
+    required int offset,
+  }) async {
+    final user = _client.auth.currentUser;
+    final safeLimit = limit.clamp(1, 100);
+    final safeOffset = offset < 0 ? 0 : offset;
+    // Capture the owner before awaiting: a sign-out must not put a member's
+    // "liked by me" overlay into the guest cache. Queries have separate pages.
+    final cacheKey =
+        '$_cacheKeyPrefix:${user?.id ?? 'guest'}:'
+        '${order.name}:${media.name}:$safeLimit:$safeOffset';
     try {
-      final records = await _fetchPostsRemote(limit: limit, offset: offset);
+      final records = await _fetchPostsRemote(
+        order: order,
+        media: media,
+        limit: safeLimit,
+        offset: safeOffset,
+        user: user,
+      );
       _lastReadError = null;
-      await _storeCachedRecords(records);
-      return records;
+      await _storeCachedRecords(cacheKey, records);
+      return (records: records, isCached: false);
     } catch (error, stackTrace) {
       _lastReadError = error;
-      final cached = await _loadCachedRecords();
-      if (cached != null) return cached;
+      final cached = await _loadCachedRecords(cacheKey);
+      if (cached != null) return (records: cached, isCached: true);
       Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
   Future<List<CommunityPostRecord>> _fetchPostsRemote({
+    required CommunityFeedOrder order,
+    required CommunityFeedMedia media,
     required int limit,
     required int offset,
+    required User? user,
   }) async {
     final safeLimit = limit.clamp(1, 100);
     final safeOffset = offset < 0 ? 0 : offset;
     // Reading the feed never asks for an account. Only the "did *I* like this"
     // overlay needs a session, so a guest gets the same posts with that overlay
     // left off instead of a sign-in wall in front of the whole tab.
-    final user = _client.auth.currentUser;
-    final postRows = await _client
-        .from(_postsTable)
-        .select(_postColumns)
-        .order('created_at', ascending: false)
+    var query = _client.from(_postsTable).select(_postColumns);
+    switch (media) {
+      case CommunityFeedMedia.photos:
+        query = query.not('image_url', 'is', null).neq('image_url', '');
+      case CommunityFeedMedia.textOnly:
+        query = query.or('image_url.is.null,image_url.eq.');
+      case CommunityFeedMedia.all:
+        break;
+    }
+    var ordered = order == CommunityFeedOrder.popular
+        ? query.order('likes_count', ascending: false)
+        : query.order('created_at', ascending: false);
+    if (order == CommunityFeedOrder.popular) {
+      ordered = ordered.order('created_at', ascending: false);
+    }
+    final postRows = await ordered
+        .order('id', ascending: false)
         .range(safeOffset, safeOffset + safeLimit - 1);
 
     if (postRows.isEmpty) return const [];
@@ -165,9 +225,12 @@ class SupabaseCommunityRepository
         .toList(growable: false);
   }
 
-  Future<void> _storeCachedRecords(List<CommunityPostRecord> records) async {
+  Future<void> _storeCachedRecords(
+    String cacheKey,
+    List<CommunityPostRecord> records,
+  ) async {
     try {
-      await cache?.storeDocument(_cacheKey, {
+      await cache?.storeDocument(cacheKey, {
         'cachedAt': _now().toUtc().toIso8601String(),
         'records': records.map(_recordToJson).toList(growable: false),
       });
@@ -176,9 +239,9 @@ class SupabaseCommunityRepository
     }
   }
 
-  Future<List<CommunityPostRecord>?> _loadCachedRecords() async {
+  Future<List<CommunityPostRecord>?> _loadCachedRecords(String cacheKey) async {
     try {
-      final document = await cache?.loadDocument(_cacheKey);
+      final document = await cache?.loadDocument(cacheKey);
       final records = document?['records'];
       if (records is! List) return null;
       return records

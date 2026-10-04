@@ -18,6 +18,7 @@ abstract final class SetflowIcons {
   static const equipment = Icons.fitness_center_rounded;
   static const camera = Icons.photo_camera_outlined;
   static const gallery = Icons.photo_library_outlined;
+  static const imageUnavailable = Icons.broken_image_outlined;
   static const backup = Icons.file_upload_outlined;
   static const restore = Icons.file_download_outlined;
   // --- primary navigation ---------------------------------------------------

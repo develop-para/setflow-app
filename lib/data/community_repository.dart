@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
 import '../models.dart';
+import '../domain/community_feed.dart';
+
+export '../domain/community_feed.dart';
 
 /// A byte-based image selected for a community post.
 ///
@@ -91,6 +94,15 @@ class CommunityValidationException implements Exception {
 }
 
 abstract interface class CommunityRepository {
+  /// Filters and orders the entire public feed before selecting a page.
+  /// Popular means likes descending, with newest posts first on ties.
+  Future<CommunityFeedPage> listFeed({
+    CommunityFeedOrder order = CommunityFeedOrder.latest,
+    CommunityFeedMedia media = CommunityFeedMedia.photos,
+    int limit = 24,
+    int offset = 0,
+  });
+
   /// Loads shared posts/comments, plus the caller's own like rows when there
   /// is a session. Readable without an account — the feed is a browse surface,
   /// not an account feature, so a guest gets the posts with the "liked by me"

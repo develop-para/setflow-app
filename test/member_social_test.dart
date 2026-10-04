@@ -320,6 +320,20 @@ class _FakeCommunityRepository implements CommunityRepository {
   }
 
   @override
+  Future<CommunityFeedPage> listFeed({
+    CommunityFeedOrder order = CommunityFeedOrder.latest,
+    CommunityFeedMedia media = CommunityFeedMedia.photos,
+    int limit = 24,
+    int offset = 0,
+  }) async => CommunityFeedPage.fromAllPosts(
+    (await fetchPosts()).map((record) => record.post),
+    order: order,
+    media: media,
+    limit: limit,
+    offset: offset,
+  );
+
+  @override
   Future<List<CommunityPostRecord>> fetchPosts({
     int limit = 50,
     int offset = 0,

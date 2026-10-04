@@ -77,6 +77,107 @@ void main() {
     expect(state.communityPosts.single.id, _postId);
   });
 
+  test('photo popularity is queried globally before pagination', () async {
+    final backend = await _CommunityBackend.start();
+    addTearDown(backend.close);
+    backend.postRows = [
+      for (var i = 0; i < 60; i++)
+        {
+          'id': 'post-$i',
+          'user_id': _authorUserId,
+          'author_name': '회원',
+          'content': '기록 $i',
+          'image_url': i == 59 ? null : '$_authorUserId/$i.jpg',
+          'likes_count': i == 0 ? 500 : i,
+          'created_at': DateTime(
+            2026,
+            1,
+            1,
+          ).add(Duration(days: i)).toIso8601String(),
+        },
+    ];
+    final page = await SupabaseCommunityRepository(
+      backend.client,
+    ).listFeed(order: CommunityFeedOrder.popular, limit: 2);
+    expect(page.posts.map((post) => post.id), ['post-0', 'post-58']);
+    expect(page.hasMore, isTrue);
+    final query = backend.postRequests.single.queryParametersAll;
+    expect(query['order'], [
+      'likes_count.desc.nullslast,created_at.desc.nullslast,id.desc.nullslast',
+    ]);
+    expect(query['image_url'], containsAll(['not.is.null', 'neq.']));
+    expect(query['limit'], ['2']);
+    expect(backend.requestedResources, isNot(contains('post_likes')));
+  });
+
+  test(
+    'text feed includes null and empty media and has deterministic newest ordering',
+    () async {
+      final backend = await _CommunityBackend.start();
+      addTearDown(backend.close);
+      backend.postRows = [
+        for (final entry in {'a': null, 'b': '', 'c': 'photo.jpg'}.entries)
+          {
+            'id': entry.key,
+            'user_id': _authorUserId,
+            'image_url': entry.value,
+            'created_at': '2026-10-04T10:00:00Z',
+            'likes_count': 0,
+          },
+      ];
+      final page = await SupabaseCommunityRepository(
+        backend.client,
+      ).listFeed(media: CommunityFeedMedia.textOnly);
+      expect(page.posts.map((post) => post.id), ['b', 'a']);
+      expect(
+        backend.postRequests.single.queryParameters['or'],
+        '(image_url.is.null,image_url.eq.)',
+      );
+      expect(
+        backend.postRequests.single.queryParameters['order'],
+        'created_at.desc.nullslast,id.desc.nullslast',
+      );
+    },
+  );
+
+  test('offline cache keeps sort, media, size, and offset separate', () async {
+    final backend = await _CommunityBackend.start();
+    addTearDown(backend.close);
+    final repository = SupabaseCommunityRepository(
+      backend.client,
+      cache: _MemoryBackendCache(),
+    );
+    final fresh = await repository.listFeed(
+      order: CommunityFeedOrder.popular,
+      limit: 1,
+    );
+    backend.failDataApi = true;
+    final cached = await repository.listFeed(
+      order: CommunityFeedOrder.popular,
+      limit: 1,
+    );
+    expect(cached.posts.single.id, fresh.posts.single.id);
+    expect(cached.isCached, isTrue);
+    await Future.wait(
+      [
+        repository.listFeed(order: CommunityFeedOrder.latest, limit: 1),
+        repository.listFeed(
+          order: CommunityFeedOrder.popular,
+          media: CommunityFeedMedia.textOnly,
+          limit: 1,
+        ),
+        repository.listFeed(order: CommunityFeedOrder.popular, limit: 2),
+        repository.listFeed(
+          order: CommunityFeedOrder.popular,
+          limit: 1,
+          offset: 1,
+        ),
+      ].map(
+        (future) => expectLater(future, throwsA(isA<PostgrestException>())),
+      ),
+    );
+  });
+
   test('anon keeps read access to the feed tables', () {
     final sql = File(
       'supabase/migrations/20260821132444_public_community_feed_read.sql',
@@ -88,10 +189,52 @@ void main() {
     expect(sql, isNot(contains('insert')));
     expect(sql, isNot(contains('post_likes to anon')));
   });
+
+  test('a member cached like overlay is never used for a guest', () async {
+    final member = await _CommunityBackend.start(signedInAs: _authorUserId);
+    final guest = await _CommunityBackend.start();
+    addTearDown(member.close);
+    addTearDown(guest.close);
+    final cache = _MemoryBackendCache();
+    final memberRepository = SupabaseCommunityRepository(
+      member.client,
+      cache: cache,
+    );
+    final guestRepository = SupabaseCommunityRepository(
+      guest.client,
+      cache: cache,
+    );
+    expect((await memberRepository.listFeed()).posts.single.isLiked, isTrue);
+    guest.failDataApi = true;
+    await expectLater(
+      guestRepository.listFeed(),
+      throwsA(isA<PostgrestException>()),
+    );
+    guest.failDataApi = false;
+    expect((await guestRepository.listFeed()).posts.single.isLiked, isFalse);
+    member.failDataApi = true;
+    final cached = await memberRepository.listFeed();
+    expect(cached.isCached, isTrue);
+    expect(cached.posts.single.isLiked, isTrue);
+  });
 }
 
 class _RecordingCommunityRepository implements CommunityRepository {
   int fetchCount = 0;
+
+  @override
+  Future<CommunityFeedPage> listFeed({
+    CommunityFeedOrder order = CommunityFeedOrder.latest,
+    CommunityFeedMedia media = CommunityFeedMedia.photos,
+    int limit = 24,
+    int offset = 0,
+  }) async => CommunityFeedPage.fromAllPosts(
+    (await fetchPosts()).map((record) => record.post),
+    order: order,
+    media: media,
+    limit: limit,
+    offset: offset,
+  );
 
   @override
   Future<List<CommunityPostRecord>> fetchPosts({
@@ -137,6 +280,8 @@ class _CommunityBackend {
   final HttpServer _server;
   final SupabaseClient client;
   final List<String> requestedResources = [];
+  final List<Uri> postRequests = [];
+  List<Map<String, Object?>>? postRows;
   bool failDataApi = false;
 
   static Future<_CommunityBackend> start({String? signedInAs}) async {
@@ -193,7 +338,7 @@ class _CommunityBackend {
     final resource = request.uri.pathSegments.last;
     requestedResources.add(resource);
     final Object body = switch (resource) {
-      'posts' => [
+      'posts' => _queryPosts(request.uri, [
         {
           'id': _postId,
           'user_id': _authorUserId,
@@ -209,7 +354,7 @@ class _CommunityBackend {
           'likes_count': 4,
           'created_at': '2026-08-21T09:00:00Z',
         },
-      ],
+      ]),
       'comments' => [
         {
           'id': '33333333-3333-4333-8333-333333333333',
@@ -230,6 +375,42 @@ class _CommunityBackend {
       ..headers.contentType = ContentType.json
       ..write(jsonEncode(body));
     await request.response.close();
+  }
+
+  List<Map<String, Object?>> _queryPosts(
+    Uri uri,
+    List<Map<String, Object?>> defaults,
+  ) {
+    postRequests.add(uri);
+    var rows = List<Map<String, Object?>>.from(postRows ?? defaults);
+    final filters = uri.queryParametersAll['image_url'] ?? const [];
+    if (filters.contains('not.is.null')) {
+      rows = rows.where((row) => row['image_url'] != null).toList();
+    }
+    if (filters.contains('neq.')) {
+      rows = rows.where((row) => row['image_url'] != '').toList();
+    }
+    if (uri.queryParameters['or'] == '(image_url.is.null,image_url.eq.)') {
+      rows = rows
+          .where((row) => row['image_url'] == null || row['image_url'] == '')
+          .toList();
+    }
+    final orders = (uri.queryParameters['order'] ?? '').split(',');
+    rows.sort((a, b) {
+      for (final order in orders) {
+        final field = order.split('.').first;
+        final valueA = a[field], valueB = b[field];
+        final diff = valueA is int && valueB is int
+            ? valueB.compareTo(valueA)
+            : '$valueB'.compareTo('$valueA');
+        if (diff != 0) return diff;
+      }
+      return 0;
+    });
+    return rows
+        .skip(int.parse(uri.queryParameters['offset'] ?? '0'))
+        .take(int.parse(uri.queryParameters['limit'] ?? '50'))
+        .toList();
   }
 }
 

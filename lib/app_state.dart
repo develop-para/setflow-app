@@ -4308,6 +4308,37 @@ class AppState extends ChangeNotifier {
     return parts.isEmpty ? '오늘 운동 기록' : parts.join(' · ');
   }
 
+  /// Changes when the viewer changes, so public feed overlays are reloaded.
+  int get communityFeedAccountVersion => _accountEpoch;
+
+  Future<CommunityFeedPage> listCommunityFeed({
+    CommunityFeedOrder order = CommunityFeedOrder.latest,
+    CommunityFeedMedia media = CommunityFeedMedia.photos,
+    int limit = 24,
+    int offset = 0,
+  }) {
+    final safeLimit = limit.clamp(1, 100);
+    final safeOffset = offset < 0 ? 0 : offset;
+    final repository = communityRepository;
+    if (repository != null) {
+      return repository.listFeed(
+        order: order,
+        media: media,
+        limit: safeLimit,
+        offset: safeOffset,
+      );
+    }
+    return Future.value(
+      CommunityFeedPage.fromAllPosts(
+        communityPosts,
+        order: order,
+        media: media,
+        limit: safeLimit,
+        offset: safeOffset,
+      ),
+    );
+  }
+
   Future<void> addCommunityPost({
     required String content,
     required bool includeWorkout,
@@ -4352,11 +4383,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> togglePostLike(CommunityPost post) async {
+    final accountEpoch = _accountEpoch;
     final previousLiked = post.isLiked;
     final previousLikes = post.likes;
     post.isLiked = !post.isLiked;
     post.likes += post.isLiked ? 1 : -1;
-    notifyListeners();
+    _notifyCommunityLikeChanged(post);
     final repository = communityRepository;
     if (repository == null) {
       _schedulePersist();
@@ -4364,18 +4396,31 @@ class AppState extends ChangeNotifier {
     }
     try {
       final result = await repository.toggleLike(post.id);
+      if (!_isCurrentAccount(accountEpoch)) return;
       post.isLiked = result.isLiked;
       post.likes = result.likesCount;
-      notifyListeners();
+      _notifyCommunityLikeChanged(post);
     } catch (_) {
       post.isLiked = previousLiked;
       post.likes = previousLikes;
-      notifyListeners();
+      if (_isCurrentAccount(accountEpoch)) _notifyCommunityLikeChanged(post);
       rethrow;
     }
   }
 
+  void _notifyCommunityLikeChanged(CommunityPost changed) {
+    // A paged photo can be a different instance from the home preview.
+    for (final post in communityPosts) {
+      if (post.id == changed.id && !identical(post, changed)) {
+        post.likes = changed.likes;
+        post.isLiked = changed.isLiked;
+      }
+    }
+    notifyListeners();
+  }
+
   Future<void> addPostComment(CommunityPost post, String content) async {
+    final accountEpoch = _accountEpoch;
     final repository = communityRepository;
     final comment = repository != null
         ? await repository.addComment(postId: post.id, content: content)
@@ -4385,7 +4430,15 @@ class AppState extends ChangeNotifier {
             content: content,
             createdAt: DateTime.now(),
           );
+    if (!_isCurrentAccount(accountEpoch)) return;
     post.comments.add(comment);
+    for (final preview in communityPosts) {
+      if (preview.id == post.id &&
+          !identical(preview, post) &&
+          !preview.comments.any((existing) => existing.id == comment.id)) {
+        preview.comments.add(comment);
+      }
+    }
     _schedulePersist();
     notifyListeners();
   }
