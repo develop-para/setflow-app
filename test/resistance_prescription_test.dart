@@ -204,7 +204,7 @@ void main() {
       state.addExercise(_day, _template('bench'));
       final sets = state.sessionFor(_day).exercises.single.sets;
       expect(sets.first.weight, preview.weight);
-      expect(sets.first.reps, preview.minReps);
+      expect(sets.map((set) => set.reps), preview.targetRepsBySet);
       expect(sets.length, preview.sets);
     },
   );

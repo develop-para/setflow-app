@@ -66,10 +66,17 @@ abstract final class WorkoutTimeBudget {
     required int sets,
     required int reps,
     required int restSeconds,
+    List<int> targetRepsBySet = const [],
   }) =>
       transitionSeconds +
       previousRestSeconds(session) +
-      sets * workSeconds(template, reps) +
+      List.generate(
+        sets,
+        (index) => workSeconds(
+          template,
+          index < targetRepsBySet.length ? targetRepsBySet[index] : reps,
+        ),
+      ).fold<int>(0, (sum, seconds) => sum + seconds) +
       math.max(0, sets - 1) * restSeconds;
 
   static int availableSeconds(WorkoutSession session, {DateTime? now}) =>
@@ -86,6 +93,7 @@ abstract final class WorkoutTimeBudget {
     required int sets,
     required int reps,
     required int restSeconds,
+    List<int> targetRepsBySet = const [],
     DateTime? now,
   }) {
     if (session.timeBudgetMinutes == null) return sets;
@@ -97,6 +105,7 @@ abstract final class WorkoutTimeBudget {
             sets: count,
             reps: reps,
             restSeconds: restSeconds,
+            targetRepsBySet: targetRepsBySet,
           ) <=
           available) {
         return count;

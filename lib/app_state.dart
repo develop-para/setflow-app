@@ -21,6 +21,9 @@ import 'data/offline_exercise_catalog.dart';
 import 'data/bodyweight_exercise_catalog.dart';
 import 'data/notification_repository.dart';
 import 'data/routine_catalog_repository.dart';
+import 'data/personal_coaching_repository.dart';
+import 'domain/personal_coaching.dart';
+import 'services/personal_coaching_engine.dart';
 import 'data/together_repository.dart';
 import 'domain/cardio.dart';
 import 'domain/exercise_display_name.dart';
@@ -89,6 +92,8 @@ class AppState extends ChangeNotifier {
     this.loadBusinessWithoutAuth = false,
     Future<void> Function()? authSignOut,
     this.routineCatalogRepository,
+    this.personalCoachingRepository,
+    this.personalCoachingBetaAvailable = true,
     this.communityRepository,
     this.exerciseCatalogRepository,
     this.togetherRepository,
@@ -172,6 +177,130 @@ class AppState extends ChangeNotifier {
   final BusinessRepository? businessRepository;
   final bool loadBusinessWithoutAuth;
   final RoutineCatalogRepository? routineCatalogRepository;
+  final PersonalCoachingRepository? personalCoachingRepository;
+  final bool personalCoachingBetaAvailable;
+  PersonalCoachingAccess? _personalCoachingAccess;
+  Object? personalCoachingAccessError;
+  bool personalCoachingAccessLoading = false;
+  int _personalCoachingRequest = 0;
+
+  bool get canUsePersonalCoaching =>
+      personalCoachingBetaAvailable ||
+      (_personalCoachingAccess?.isActiveFor(
+            Auth.instance.currentUser?.id,
+            DateTime.now(),
+          ) ??
+          false);
+
+  PersonalCoachingPlan? personalCoachingPlanForDate(DateTime date) {
+    if (!canUsePersonalCoaching ||
+        !recommendationPreferences.personalCoachingEnabled) {
+      return null;
+    }
+    return personalCoachingPreviewForDate(date);
+  }
+
+  PersonalCoachingPlan? personalCoachingPreviewForDate(DateTime date) {
+    if (!canUsePersonalCoaching) return null;
+    final goal = PerformanceEngine.goalFromProfile(goals);
+    if (goal == null) return null;
+    return PersonalCoachingEngine.build(
+      date: date,
+      history: sessions.values,
+      goal: goal,
+      profile: recommendationProfile,
+      plannedTrainingDays: recommendationPreferences.plannedTrainingDays,
+    );
+  }
+
+  void setPersonalCoaching({bool? enabled, int? trainingDays}) {
+    if (enabled == true && !canUsePersonalCoaching) {
+      throw StateError('개인 코칭 이용 권한을 확인해주세요.');
+    }
+    recommendationPreferences = recommendationPreferences.withCoaching(
+      enabled: enabled,
+      trainingDays: trainingDays,
+    );
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  String? personalCoachingStopReasonForDate(DateTime date) {
+    final plan = personalCoachingPlanForDate(date);
+    final session = sessions[dateOnly(date)];
+    final focus = session?.trainingFocus;
+    if (plan == null || session == null || focus == null || focus.isEmpty) {
+      return null;
+    }
+    final weekly = ResistancePrescriptionEngine.volume(
+      history: sessions.values,
+      session: session,
+      since: plan.weekStart,
+    );
+    final today = ResistancePrescriptionEngine.volume(
+      history: sessions.values,
+      session: session,
+      todayOnly: true,
+    );
+    final targets = focus.map((muscle) => plan.targets[muscle]!).toList();
+    if (!targets.every(
+      (target) =>
+          (weekly[target.muscle] ?? 0) >= target.weeklySets ||
+          (today[target.muscle] ?? 0) >= target.dailySets,
+    )) {
+      return null;
+    }
+    final details = targets
+        .map(
+          (target) => (weekly[target.muscle] ?? 0) >= target.weeklySets
+              ? '${target.muscle.label} 이번 주 ${PerformanceEngine.formatWeight(weekly[target.muscle] ?? 0)}/${target.weeklySets}세트'
+              : '${target.muscle.label} 오늘 ${PerformanceEngine.formatWeight(today[target.muscle] ?? 0)}/${target.dailySets}세트',
+        )
+        .join(' · ');
+    return '개인 코칭의 추가 운동량 예산에 도달했어요. $details. 오늘 미완료 계획도 포함합니다. 직접 추가하거나 계획을 확인할 수 있어요.';
+  }
+
+  Future<void> refreshPersonalCoachingAccess() async {
+    final repository = personalCoachingRepository;
+    final userId = Auth.instance.currentUser?.id;
+    final epoch = _accountEpoch;
+    final request = ++_personalCoachingRequest;
+    if (repository == null || userId == null) {
+      _personalCoachingAccess = null;
+      personalCoachingAccessLoading = false;
+      personalCoachingAccessError = null;
+      if (!_disposed) notifyListeners();
+      return;
+    }
+    personalCoachingAccessLoading = true;
+    notifyListeners();
+    try {
+      final access = await repository.loadMyPersonalCoachingAccess().timeout(
+        const Duration(seconds: 15),
+      );
+      if (!_isCurrentAccount(epoch) ||
+          request != _personalCoachingRequest ||
+          Auth.instance.currentUser?.id != userId) {
+        return;
+      }
+      _personalCoachingAccess = access;
+      personalCoachingAccessError = null;
+    } catch (error) {
+      if (!_isCurrentAccount(epoch) ||
+          request != _personalCoachingRequest ||
+          Auth.instance.currentUser?.id != userId) {
+        return;
+      }
+      _personalCoachingAccess = null;
+      personalCoachingAccessError = error;
+    } finally {
+      if (_isCurrentAccount(epoch) && request == _personalCoachingRequest) {
+        personalCoachingAccessLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
   final CommunityRepository? communityRepository;
   final ExerciseCatalogRepository? exerciseCatalogRepository;
 
@@ -1778,6 +1907,7 @@ class AppState extends ChangeNotifier {
       template: template,
       goal: goal,
       profile: recommendationProfile,
+      coachingPlan: personalCoachingPlanForDate(referenceDay),
     );
   }
 
@@ -1823,6 +1953,7 @@ class AppState extends ChangeNotifier {
           weeklyHistory: sessions.values,
           recommendationProfile: recommendationProfile,
           preferences: recommendationPreferences,
+          coachingPlan: personalCoachingPlanForDate(date),
           now: DateTime.now(),
         );
         if (next != null) return _nextExerciseWorkoutRecommendation(next);
@@ -1862,6 +1993,7 @@ class AppState extends ChangeNotifier {
       session: session,
       goals: goals,
       weeklyHistory: eligibleHistory,
+      coachingPlan: personalCoachingPlanForDate(date),
       excludedTemplateIds: excludedTemplateIds,
       recommendationProfile: recommendationProfile,
       preferences: recommendationPreferences,
@@ -1928,6 +2060,7 @@ class AppState extends ChangeNotifier {
     completedExercise: completedExercise,
     goals: goals,
     weeklyHistory: sessions.values,
+    coachingPlan: personalCoachingPlanForDate(date),
     excludedTemplateIds: excludedTemplateIds,
     recommendationProfile: recommendationProfile,
     preferences: recommendationPreferences,
@@ -2002,6 +2135,9 @@ class AppState extends ChangeNotifier {
       weight: weight,
       minReps: minReps,
       maxReps: maxReps,
+      targetRepsBySet: exercise.sets.isEmpty
+          ? historical?.targetRepsBySet ?? const []
+          : exercise.sets.map((set) => set.reps).toList(),
       sets: exercise.sets.isEmpty
           ? historical?.sets ?? prescription.sets
           : exercise.sets.length,
@@ -2048,14 +2184,13 @@ class AppState extends ChangeNotifier {
     final weight = next.startingWeight;
     final increment = weight <= 0
         ? 0.0
-        : weight < 20
-        ? 1.0
-        : 2.5;
+        : PerformanceEngine.recommendedIncrement(weight);
     return WorkoutRecommendation(
       template: next.template,
       goal: PerformanceEngine.goalFromProfile(goals)!,
       weight: weight,
       minReps: next.minReps,
+      targetRepsBySet: next.targetRepsBySet,
       maxReps: next.maxReps,
       sets: next.sets,
       nextWeight: weight + increment,
@@ -2215,6 +2350,7 @@ class AppState extends ChangeNotifier {
             history: sessions.values,
             session: session,
             profile: recommendationProfile,
+            coachingPlan: personalCoachingPlanForDate(date),
           )
         : null;
     final previousPerformance = !template.isCardio
@@ -2230,7 +2366,7 @@ class AppState extends ChangeNotifier {
         0;
     final suggestedReps =
         (!hasResistanceHistory ? defaultRepCount : null) ??
-        resistanceRecommendation?.minReps ??
+        resistanceRecommendation?.repsForSet(0) ??
         previousPerformance?.latestSessionBest.set.reps ??
         defaultRepCount ??
         resistancePrescription?.minReps ??
@@ -2261,7 +2397,12 @@ class AppState extends ChangeNotifier {
                 (index) => WorkoutSetEntry(
                   number: index + 1,
                   weight: template.usesWeight ? suggestedWeight : 0,
-                  reps: template.isDurationHold ? 0 : suggestedReps,
+                  reps: template.isDurationHold
+                      ? 0
+                      : !hasResistanceHistory && defaultRepCount != null
+                      ? suggestedReps
+                      : resistanceRecommendation?.repsForSet(index) ??
+                            suggestedReps,
                   durationSeconds: template.isDurationHold ? 60 : 0,
                   restSeconds:
                       resistanceRecommendation?.restSeconds ??
@@ -2521,8 +2662,9 @@ class AppState extends ChangeNotifier {
   /// 관찰값이다. 1세트의 3을 3세트에 복사하면 없던 기록을 지어내는 것이 된다.
   int adoptActualIntoPendingSets(
     WorkoutExercise exercise,
-    WorkoutSetEntry from,
-  ) {
+    WorkoutSetEntry from, {
+    bool preserveRepetitionTargets = false,
+  }) {
     if (exercise.coachingWorkoutId != null) return 0;
     final index = exercise.sets.indexOf(from);
     if (index < 0) return 0;
@@ -2539,7 +2681,8 @@ class AppState extends ChangeNotifier {
                 set.intensityRpe != from.intensityRpe
           : hold
           ? set.durationSeconds != from.durationSeconds
-          : set.weight != from.weight || set.reps != from.reps;
+          : set.weight != from.weight ||
+                (!preserveRepetitionTargets && set.reps != from.reps);
       if (!differs) continue;
       if (cardio) {
         set.durationSeconds = from.durationSeconds;
@@ -2550,7 +2693,7 @@ class AppState extends ChangeNotifier {
         set.durationSeconds = from.durationSeconds;
       } else {
         set.weight = from.weight;
-        set.reps = from.reps;
+        if (!preserveRepetitionTargets) set.reps = from.reps;
       }
       changed++;
     }
@@ -2647,12 +2790,44 @@ class AppState extends ChangeNotifier {
       final resistancePrescription = !template.isCardio && goal != null
           ? PerformanceEngine.prescriptionFor(goal)
           : null;
+      final canPersonalizePlan =
+          recommendationPreferences.personalCoachingEnabled &&
+          canUsePersonalCoaching &&
+          routine.author == '나' &&
+          routine.sourceMarketRoutineId == null &&
+          routine.sourceCoachingRoutineId == null &&
+          routine.authorTrainerId == null &&
+          routine.authorGymId == null;
+      final personal =
+          !template.isCardio &&
+              !template.isDurationHold &&
+              goal != null &&
+              (plannedSets.isEmpty || canPersonalizePlan)
+          ? ResistancePrescriptionEngine.prescribe(
+              template: template,
+              goal: goal,
+              history: sessions.values,
+              session: session,
+              profile: recommendationProfile,
+              coachingPlan: personalCoachingPlanForDate(date),
+            )
+          : null;
+      final registeredPlan = plannedSets
+          .map((set) => set.toWorkoutSetEntry())
+          .toList();
+      if (personal != null && personal.historyCount > 0) {
+        var workIndex = 0;
+        for (final set in registeredPlan.where((set) => set.type == '일반')) {
+          set.weight = template.usesWeight ? personal.weight : 0;
+          set.reps = personal.repsForSet(workIndex++);
+        }
+      }
       session.exercises.add(
         WorkoutExercise(
           id: _newWorkoutExerciseId(template.id, label: 'routine'),
           template: template,
           sets: plannedSets.isNotEmpty
-              ? plannedSets.map((set) => set.toWorkoutSetEntry()).toList()
+              ? registeredPlan
               : template.isCardio
               ? [
                   WorkoutSetEntry(
@@ -2668,15 +2843,18 @@ class AppState extends ChangeNotifier {
                   ),
                 ]
               : List.generate(
-                  resistancePrescription?.sets ?? 3,
+                  personal?.sets ?? resistancePrescription?.sets ?? 3,
                   (index) => WorkoutSetEntry(
                     number: index + 1,
-                    weight: 0,
+                    weight: personal?.weight ?? 0,
                     reps: template.isDurationHold
                         ? 0
-                        : resistancePrescription?.minReps ?? 10,
+                        : personal?.repsForSet(index) ??
+                              resistancePrescription?.minReps ??
+                              10,
                     durationSeconds: template.isDurationHold ? 60 : 0,
                     restSeconds:
+                        personal?.restSeconds ??
                         resistancePrescription?.restSeconds ??
                         restDefaultSeconds,
                   ),
@@ -2747,7 +2925,7 @@ class AppState extends ChangeNotifier {
           (index) => WorkoutSetEntry(
             number: completed.length + index + 1,
             weight: recommendation.weight,
-            reps: recommendation.minReps,
+            reps: recommendation.repsForSet(completed.length + index),
             restSeconds: recommendation.restSeconds,
           ),
         ),
@@ -2798,7 +2976,6 @@ class AppState extends ChangeNotifier {
       return true;
     }
     final weight = recommendation.startingWeight;
-    final reps = recommendation.minReps;
     session.exercises.add(
       WorkoutExercise(
         id: _newWorkoutExerciseId(
@@ -2811,7 +2988,9 @@ class AppState extends ChangeNotifier {
           (index) => WorkoutSetEntry(
             number: index + 1,
             weight: weight,
-            reps: recommendation.template.isDurationHold ? 0 : reps,
+            reps: recommendation.template.isDurationHold
+                ? 0
+                : recommendation.repsForSet(index),
             durationSeconds: recommendation.template.isDurationHold ? 60 : 0,
             restSeconds: recommendation.restSeconds,
           ),
@@ -2824,6 +3003,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _refreshCloudData({int? expectedAccountEpoch}) async {
+    if (!personalCoachingBetaAvailable) {
+      await refreshPersonalCoachingAccess();
+    }
     final accountEpoch = expectedAccountEpoch ?? _accountEpoch;
     if (!_isCurrentAccount(accountEpoch)) return;
     Object? firstError;
@@ -7282,6 +7464,10 @@ class AppState extends ChangeNotifier {
   }
 
   void _resetForSignedOutUser() {
+    _personalCoachingAccess = null;
+    personalCoachingAccessError = null;
+    personalCoachingAccessLoading = false;
+    _personalCoachingRequest++;
     coachingWorkouts = const [];
     coachingWorkoutsLoading = false;
     coachingWorkoutsError = null;

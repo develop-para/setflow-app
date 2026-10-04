@@ -430,7 +430,8 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
           context,
           alternativeTo != null
               ? '같은 동작의 가능한 대체 운동이 없어요. 직접 선택하거나 추천 설정을 바꿔주세요.'
-              : '오늘 부위·장비·운동량·남은 시간에 맞는 추천이 없어요. 설정을 바꾸거나 직접 선택해주세요.',
+              : state.personalCoachingStopReasonForDate(date) ??
+                    '오늘 부위·장비·운동량·남은 시간에 맞는 추천이 없어요. 설정을 바꾸거나 직접 선택해주세요.',
         );
         setState(() => emptyDayRecommendationDismissed = true);
         _openLibrary();
@@ -1126,10 +1127,14 @@ class _ExerciseCard extends StatefulWidget {
 class _ExerciseCardState extends State<_ExerciseCard> {
   bool recommendationShown = false;
   late bool collapsed;
+  final _plannedReps = <WorkoutSetEntry, int>{};
 
   @override
   void initState() {
     super.initState();
+    for (final set in widget.exercise.sets) {
+      _plannedReps[set] = set.reps;
+    }
     collapsed =
         widget.exercise.sets.isNotEmpty &&
         widget.exercise.sets.every((set) => set.completed);
@@ -1139,6 +1144,9 @@ class _ExerciseCardState extends State<_ExerciseCard> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final exercise = widget.exercise;
+    for (final set in exercise.sets) {
+      _plannedReps.putIfAbsent(set, () => set.reps);
+    }
     return SetflowCard(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: Column(
@@ -1411,7 +1419,11 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     // What was actually lifted becomes the plan for the sets still ahead. The
     // snapshot is taken first so the toast can hand it straight back.
     final undo = AppState.snapshotPendingSets(widget.exercise, set);
-    final adopted = state.adoptActualIntoPendingSets(widget.exercise, set);
+    final adopted = state.adoptActualIntoPendingSets(
+      widget.exercise,
+      set,
+      preserveRepetitionTargets: _plannedReps[set] == set.reps,
+    );
     final applied = AppState.snapshotPendingSets(widget.exercise, set);
     // The undo has to survive a PR: the first set of an exercise is very often
     // a record, and that is exactly the set whose numbers get propagated.
@@ -1421,7 +1433,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     if (adopted > 0) {
       AppSnackbar.undoable(
         context,
-        '$headline · 남은 $adopted$unit도 같은 값으로 맞췄어요.',
+        '$headline · 남은 $adopted$unit 계획에 반영했어요.',
         actionLabel: '되돌리기',
         onAction: () => state.restorePendingSets(undo, expected: applied),
       );
@@ -1476,7 +1488,8 @@ class _ExerciseCardState extends State<_ExerciseCard> {
           context,
           alternativeTo != null
               ? '같은 동작의 가능한 대체 운동이 없어요. 직접 추가하거나 추천 설정을 바꿔주세요.'
-              : '오늘 부위·장비·운동량·남은 시간에 맞는 다음 추천이 없어요. 여기서 마치거나 직접 추가할 수 있어요.',
+              : state.personalCoachingStopReasonForDate(widget.date) ??
+                    '오늘 부위·장비·운동량·남은 시간에 맞는 다음 추천이 없어요. 여기서 마치거나 직접 추가할 수 있어요.',
         );
         return;
       }
@@ -3048,7 +3061,7 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
     );
     final prescriptionText = cardio == null
         ? '${template.usesWeight ? (recommendation.startingWeight > 0 ? '${PerformanceEngine.formatWeight(recommendation.startingWeight)}$unit' : '중량 직접 선택') : '맨몸'} · '
-              '${template.isDurationHold ? '60초' : '${recommendation.minReps}–${recommendation.maxReps}회'} · '
+              '${template.isDurationHold ? '60초' : '${recommendation.targetRepsLabel}회 (범위 ${recommendation.minReps}–${recommendation.maxReps}회)'} · '
               '${recommendation.sets}세트 · 휴식 ${recommendation.restSeconds}초'
         : '${cardio.durationMinutes}분'
               '${cardio.targetDistanceKm == null ? '' : ' · ${cardio.targetDistanceKm!.toStringAsFixed(1)}km'}'
@@ -3107,6 +3120,14 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  if (recommendation.personalCoachingReason.isNotEmpty) ...[
+                    const SizedBox(height: SetflowSpacing.sm),
+                    Text(
+                      '개인 코칭 · ${recommendation.personalCoachingReason}',
+                      key: const ValueKey('recommendation-personal-coaching'),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -3508,7 +3529,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                                 recommendation?.weight ??
                                 previous?.latestSessionBest.set.weight;
                             final suggestedReps =
-                                recommendation?.minReps ??
+                                recommendation?.repsForSet(0) ??
                                 previous?.latestSessionBest.set.reps;
                             final subtitleParts = <String>[
                               exercise.id.startsWith('custom_')

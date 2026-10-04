@@ -43,6 +43,24 @@ class EvidenceReference {
 
 final evidenceCatalog = List<EvidenceReference>.unmodifiable([
   EvidenceReference(
+    id: 'larsen_2021_autoregulation',
+    category: EvidenceCategory.trainingPrescription,
+    title:
+        'Effects of subjective and objective autoregulation methods for intensity and volume on enhancing maximal strength during resistance-training interventions: a systematic review',
+    authors: 'Stian Larsen, Eirik Kristiansen, Roland van den Tillaar',
+    year: 2021,
+    source: 'PeerJ, 9, e10663',
+    evidenceType: '체계적 문헌고찰',
+    doi: '10.7717/peerj.10663',
+    officialUrl: Uri.parse('https://pubmed.ncbi.nlm.nih.gov/33520457/'),
+    appRules: const [
+      '개인 코칭은 여러 날짜의 동일 종목 수행과 기록된 RIR을 참고해 새 추천을 조정합니다.',
+      '지난 3개 주의 수행량으로 주간 목표를 정하고 비교 근거가 부족하면 추가 증량을 하지 않습니다.',
+    ],
+    limitations:
+        '주로 건강한 참가자의 최대 근력 연구입니다. 이 앱의 3주·4일 기준, 주간 2세트 조정, 상한과 휴식 비교 범위를 검증한 논문은 아닙니다. 운동량 증가나 근비대의 개인별 효과를 보장하지 않습니다.',
+  ),
+  EvidenceReference(
     id: 'pelland_2026_dose_response',
     category: EvidenceCategory.trainingPrescription,
     title:

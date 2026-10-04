@@ -19,6 +19,7 @@ import 'data/supabase_coaching_workout_repository.dart';
 import 'data/offline_exercise_catalog.dart';
 import 'data/exercise_catalog_repository.dart';
 import 'data/routine_catalog_repository.dart';
+import 'data/personal_coaching_repository.dart';
 import 'data/notification_repository.dart';
 import 'data/together_repository.dart';
 import 'data/supabase_app_repository.dart';
@@ -105,6 +106,9 @@ Future<void> main() async {
         Supabase.instance.client,
         cache: backendCache,
       ),
+      personalCoachingRepository: SupabaseRoutineCatalogRepository(
+        Supabase.instance.client,
+      ),
       communityRepository: SupabaseCommunityRepository(
         Supabase.instance.client,
         cache: backendCache,
@@ -132,6 +136,7 @@ class SetflowApp extends StatefulWidget {
     this.businessRepository,
     this.coachingWorkoutRepository,
     this.routineCatalogRepository,
+    this.personalCoachingRepository,
     this.communityRepository,
     this.exerciseCatalogRepository,
     this.togetherRepository,
@@ -145,6 +150,7 @@ class SetflowApp extends StatefulWidget {
   final BusinessRepository? businessRepository;
   final CoachingWorkoutRepository? coachingWorkoutRepository;
   final RoutineCatalogRepository? routineCatalogRepository;
+  final PersonalCoachingRepository? personalCoachingRepository;
   final CommunityRepository? communityRepository;
   final ExerciseCatalogRepository? exerciseCatalogRepository;
   final TogetherRepository? togetherRepository;
@@ -193,6 +199,11 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       businessRepository: widget.businessRepository,
       coachingWorkoutRepository: widget.coachingWorkoutRepository,
       routineCatalogRepository: widget.routineCatalogRepository,
+      personalCoachingRepository: widget.personalCoachingRepository,
+      personalCoachingBetaAvailable: const bool.fromEnvironment(
+        'PERSONAL_COACHING_BETA',
+        defaultValue: true,
+      ),
       communityRepository: widget.communityRepository,
       exerciseCatalogRepository: widget.exerciseCatalogRepository,
       togetherRepository: widget.togetherRepository,
@@ -483,6 +494,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       // "배지는 있는데 앱은 모르는" 상태가 안 생긴다.
       unawaited(state.refreshUnreadNotifications().catchError((_) {}));
       unawaited(state.refreshCoachingWorkouts().catchError((_) {}));
+      if (!state.personalCoachingBetaAvailable) {
+        unawaited(state.refreshPersonalCoachingAccess());
+      }
     }
     if (lifecycleState != AppLifecycleState.resumed ||
         !state.isInitialized ||

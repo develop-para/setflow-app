@@ -3,10 +3,26 @@ class RecommendationPreferences {
   const RecommendationPreferences({
     this.excludedExerciseIds = const {},
     this.manualSelectionDays = const {},
+    this.personalCoachingEnabled = false,
+    this.plannedTrainingDays = 3,
   });
 
   final Set<String> excludedExerciseIds;
   final Map<String, List<DateTime>> manualSelectionDays;
+  final bool personalCoachingEnabled;
+  final int plannedTrainingDays;
+
+  RecommendationPreferences withCoaching({bool? enabled, int? trainingDays}) {
+    if (trainingDays != null && (trainingDays < 1 || trainingDays > 7)) {
+      throw RangeError.range(trainingDays, 1, 7, 'trainingDays');
+    }
+    return RecommendationPreferences(
+      excludedExerciseIds: excludedExerciseIds,
+      manualSelectionDays: manualSelectionDays,
+      personalCoachingEnabled: enabled ?? personalCoachingEnabled,
+      plannedTrainingDays: trainingDays ?? plannedTrainingDays,
+    );
+  }
 
   RecommendationPreferences exclude(String id, bool excluded) =>
       RecommendationPreferences(
@@ -15,6 +31,8 @@ class RecommendationPreferences {
           if (excluded) id,
         }),
         manualSelectionDays: manualSelectionDays,
+        personalCoachingEnabled: personalCoachingEnabled,
+        plannedTrainingDays: plannedTrainingDays,
       );
 
   RecommendationPreferences recordSelection(String id, DateTime date) {
@@ -22,6 +40,8 @@ class RecommendationPreferences {
     final days = <DateTime>{...?manualSelectionDays[id], day}.toList()..sort();
     return RecommendationPreferences(
       excludedExerciseIds: excludedExerciseIds,
+      personalCoachingEnabled: personalCoachingEnabled,
+      plannedTrainingDays: plannedTrainingDays,
       manualSelectionDays: Map<String, List<DateTime>>.unmodifiable({
         ...manualSelectionDays,
         id: List<DateTime>.unmodifiable(
@@ -40,6 +60,8 @@ class RecommendationPreferences {
   }
 
   Map<String, Object?> toJson() => {
+    'personalCoachingEnabled': personalCoachingEnabled,
+    'plannedTrainingDays': plannedTrainingDays,
     'excludedExerciseIds': excludedExerciseIds.toList()..sort(),
     'manualSelectionDays': {
       for (final entry in manualSelectionDays.entries)
@@ -51,6 +73,13 @@ class RecommendationPreferences {
     if (value is! Map) return const RecommendationPreferences();
     final rawDays = value['manualSelectionDays'];
     var result = RecommendationPreferences(
+      personalCoachingEnabled: value['personalCoachingEnabled'] == true,
+      plannedTrainingDays:
+          value['plannedTrainingDays'] is int &&
+              (value['plannedTrainingDays'] as int) >= 1 &&
+              (value['plannedTrainingDays'] as int) <= 7
+          ? value['plannedTrainingDays'] as int
+          : 3,
       excludedExerciseIds: Set.unmodifiable(
         value['excludedExerciseIds'] is List
             ? (value['excludedExerciseIds'] as List).whereType<String>()

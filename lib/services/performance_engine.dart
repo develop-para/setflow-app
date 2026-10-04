@@ -135,6 +135,7 @@ class WorkoutRecommendation {
     this.summary = '',
     this.historyCount = 0,
     this.trend = RecommendationTrend.insufficient,
+    this.targetRepsBySet = const [],
     this.cardioDurationSeconds,
     this.cardioDistanceKm,
     this.cardioMinimumRpe,
@@ -154,6 +155,10 @@ class WorkoutRecommendation {
   final String summary;
   final int historyCount;
   final RecommendationTrend trend;
+  final List<int> targetRepsBySet;
+  int repsForSet(int index) =>
+      index < targetRepsBySet.length ? targetRepsBySet[index] : minReps;
+  String get targetRepsLabel => List.generate(sets, repsForSet).join(' / ');
   final int restSeconds;
   final Set<String> evidenceIds;
   final String evidenceNote;
@@ -169,7 +174,7 @@ class WorkoutRecommendation {
   String prescriptionSummary(String unit) {
     if (!isCardio) {
       return '${PerformanceEngine.formatWeight(weight)}$unit · '
-          '$minReps–$maxReps회 · $sets세트';
+          '$targetRepsLabel회 · $sets세트 (범위 $minReps–$maxReps회)';
     }
     final minutes = ((cardioDurationSeconds ?? 0) / 60).round();
     final distance = cardioDistanceKm;

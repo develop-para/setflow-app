@@ -3,6 +3,7 @@ import '../domain/exercise_recommendation_traits.dart';
 import '../domain/exercise_substitutions.dart';
 import '../domain/custom_exercise_recommendation_rules.dart';
 import '../models.dart';
+import '../domain/personal_coaching.dart';
 import 'cardio_prescription_engine.dart';
 import 'performance_engine.dart';
 import 'resistance_prescription_engine.dart';
@@ -25,6 +26,8 @@ class NextExerciseRecommendation {
     this.historyCount = 0,
     this.trend = RecommendationTrend.insufficient,
     this.estimatedDurationSeconds = 0,
+    this.personalCoachingReason = '',
+    this.targetRepsBySet = const [],
   });
 
   final ExerciseTemplate template;
@@ -42,6 +45,11 @@ class NextExerciseRecommendation {
   final int historyCount;
   final RecommendationTrend trend;
   final int estimatedDurationSeconds;
+  final String personalCoachingReason;
+  final List<int> targetRepsBySet;
+  int repsForSet(int index) =>
+      index < targetRepsBySet.length ? targetRepsBySet[index] : minReps;
+  String get targetRepsLabel => List.generate(sets, repsForSet).join(' / ');
 
   bool get isCardio => cardioPrescription != null || template.isCardio;
 }
@@ -61,6 +69,7 @@ abstract final class ExerciseRecommendationEngine {
     RecommendationPreferences preferences = const RecommendationPreferences(),
     ExerciseTemplate? alternativeTo,
     DateTime? now,
+    PersonalCoachingPlan? coachingPlan,
   }) => _recommend(
     catalog: catalog,
     session: session,
@@ -72,6 +81,7 @@ abstract final class ExerciseRecommendationEngine {
     preferences: preferences,
     alternativeTo: alternativeTo,
     now: now,
+    coachingPlan: coachingPlan,
   );
 
   static NextExerciseRecommendation? recommendFirst({
@@ -84,6 +94,7 @@ abstract final class ExerciseRecommendationEngine {
     RecommendationPreferences preferences = const RecommendationPreferences(),
     ExerciseTemplate? alternativeTo,
     DateTime? now,
+    PersonalCoachingPlan? coachingPlan,
   }) => _recommend(
     catalog: catalog,
     session: session,
@@ -94,6 +105,7 @@ abstract final class ExerciseRecommendationEngine {
     preferences: preferences,
     alternativeTo: alternativeTo,
     now: now,
+    coachingPlan: coachingPlan,
   );
 
   static NextExerciseRecommendation? _recommend({
@@ -107,6 +119,7 @@ abstract final class ExerciseRecommendationEngine {
     required ExerciseTemplate? alternativeTo,
     required DateTime? now,
     WorkoutExercise? completedExercise,
+    PersonalCoachingPlan? coachingPlan,
   }) {
     if (goals.isEmpty) return null;
     if (recommendationProfile?.shouldPauseAutomaticRecommendation ?? false) {
@@ -212,6 +225,7 @@ abstract final class ExerciseRecommendationEngine {
     final weeklyVolume = ResistancePrescriptionEngine.volume(
       history: history,
       session: session,
+      since: coachingPlan?.weekStart,
     );
     final todayVolume = ResistancePrescriptionEngine.volume(
       history: history,
@@ -229,6 +243,7 @@ abstract final class ExerciseRecommendationEngine {
                 profile: recommendationProfile,
                 plannedSessionSets:
                     ResistancePrescriptionEngine.plannedSessionSets(session),
+                coachingPlan: coachingPlan,
               ) ==
               0,
     );
@@ -249,6 +264,7 @@ abstract final class ExerciseRecommendationEngine {
             history: history,
             session: session,
             profile: recommendationProfile,
+            coachingPlan: coachingPlan,
           ),
         );
     CardioPrescription? cardioFor(ExerciseTemplate item) =>
@@ -277,6 +293,7 @@ abstract final class ExerciseRecommendationEngine {
           template: item,
           sets: prescription.sets,
           reps: prescription.minReps,
+          targetRepsBySet: prescription.targetRepsBySet,
           restSeconds: prescription.restSeconds,
           now: now,
         );
@@ -413,9 +430,20 @@ abstract final class ExerciseRecommendationEngine {
       if (recoveryIsLow) 'craven_2022_sleep_loss',
     };
     return NextExerciseRecommendation(
+      personalCoachingReason: candidate.isCardio
+          ? ''
+          : coachingPlan?.reasonFor(
+                  ResistancePrescriptionEngine.primaryMuscles(candidate),
+                ) ??
+                '',
       template: candidate,
       sets: recommendedSets,
       minReps: historicalRecommendation?.minReps ?? prescription.minReps,
+      targetRepsBySet:
+          historicalRecommendation?.targetRepsBySet
+              .take(recommendedSets)
+              .toList() ??
+          const [],
       maxReps: historicalRecommendation?.maxReps ?? prescription.maxReps,
       restSeconds:
           historicalRecommendation?.restSeconds ?? prescription.restSeconds,
@@ -462,6 +490,7 @@ abstract final class ExerciseRecommendationEngine {
               template: candidate,
               sets: recommendedSets,
               reps: historicalRecommendation!.minReps,
+              targetRepsBySet: historicalRecommendation.targetRepsBySet,
               restSeconds: historicalRecommendation.restSeconds,
             ),
       evidenceIds: evidenceIds,

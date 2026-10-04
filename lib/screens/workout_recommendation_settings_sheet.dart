@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'personal_coaching_screen.dart';
 
 Future<void> showWorkoutRecommendationSettings(
   BuildContext context,
@@ -42,6 +43,25 @@ class _RecommendationSettingsSheetState
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('시간·추천 설정', style: theme.textTheme.titleLarge),
+            const SizedBox(height: SetflowSpacing.sm),
+            ListTile(
+              key: const ValueKey('personal-coaching-open'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                state.personalCoachingBetaAvailable ? '개인 코칭 (베타)' : '개인 코칭',
+              ),
+              subtitle: Text(
+                state.recommendationPreferences.personalCoachingEnabled &&
+                        state.canUsePersonalCoaching
+                    ? '내 기록으로 주간 운동량 조정 중'
+                    : '내 기록으로 주간 운동량과 진행 계획 조정',
+              ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => PersonalCoachingScreen(date: widget.date),
+                ),
+              ),
+            ),
             const SizedBox(height: SetflowSpacing.md),
             Text('오늘 운동 시간', style: theme.textTheme.titleSmall),
             const SizedBox(height: SetflowSpacing.sm),

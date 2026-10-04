@@ -3,9 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models.dart';
 import 'backend_cache.dart';
 import 'routine_catalog_repository.dart';
+import 'personal_coaching_repository.dart';
 
 class SupabaseRoutineCatalogRepository
-    implements RoutineCatalogRepository, CachedBackendReadStatus {
+    implements
+        RoutineCatalogRepository,
+        CachedBackendReadStatus,
+        PersonalCoachingRepository {
   SupabaseRoutineCatalogRepository(
     this._client, {
     this.cache,
@@ -17,6 +21,18 @@ class SupabaseRoutineCatalogRepository
   final SupabaseClient _client;
   final BackendDocumentCache? cache;
   final DateTime Function() _now;
+
+  @override
+  Future<PersonalCoachingAccess?> loadMyPersonalCoachingAccess() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+    final result = await _client.rpc('get_my_personal_coaching_access');
+    if (_client.auth.currentUser?.id != userId || result is! Map) return null;
+    final expiresAt = DateTime.tryParse(result['expires_at']?.toString() ?? '');
+    if (result['user_id'] != userId || expiresAt == null) return null;
+    return PersonalCoachingAccess(userId: userId, expiresAt: expiresAt);
+  }
+
   Object? _lastReadError;
 
   @override
