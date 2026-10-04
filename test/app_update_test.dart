@@ -7,6 +7,7 @@ import 'package:setflow/screens/business_settings_screens.dart';
 import 'package:setflow/screens/member_screens.dart';
 import 'package:setflow/services/app_update_controller.dart';
 import 'package:setflow/services/app_update_service.dart';
+import 'package:setflow/services/app_version_service.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/widgets/app_update_tile.dart';
 
@@ -38,13 +39,76 @@ const newRelease = AppRelease(
   notes: '새 기능을 추가했어요.',
 );
 
+const installedVersion = InstalledAppVersion(
+  version: '1.20.0',
+  buildNumber: '1200',
+);
+
+class FakeVersions implements AppVersionService {
+  InstalledAppVersion? result = installedVersion;
+  Object? failure;
+  Completer<InstalledAppVersion?>? pending;
+  int reads = 0;
+
+  @override
+  Future<InstalledAppVersion?> readInstalledVersion() async {
+    reads++;
+    if (failure case final Object error) throw error;
+    return pending == null ? result : pending!.future;
+  }
+}
+
 void main() {
   late FakeUpdates service;
   late AppUpdateController updates;
+  late FakeVersions versions;
   setUp(() {
     service = FakeUpdates();
-    updates = AppUpdateController(service);
+    versions = FakeVersions();
+    updates = AppUpdateController(service, versionService: versions);
     AppUpdates.instance = updates;
+  });
+
+  test('설치 버전은 업데이트 계정 연결 없이 한 번만 읽는다', () async {
+    service.isAvailable = false;
+    versions.pending = Completer<InstalledAppVersion?>();
+    final first = updates.loadInstalledVersion();
+    final second = updates.loadInstalledVersion();
+    expect(updates.versionLoading, isTrue);
+    expect(versions.reads, 1);
+    expect(service.requests, isEmpty);
+    versions.pending!.complete(installedVersion);
+    await Future.wait([first, second]);
+    await updates.loadInstalledVersion();
+    expect(versions.reads, 1);
+    expect(updates.installedVersion!.label, '1.20.0 (1200)');
+    expect(updates.versionLoading, isFalse);
+  });
+
+  test('버전 조회 실패 후 다시 읽을 수 있고 업데이트 확인은 계속 동작한다', () async {
+    versions.failure = StateError('metadata unavailable');
+    await updates.loadInstalledVersion();
+    expect(updates.installedVersion, isNull);
+    expect(updates.versionChecked, isTrue);
+    expect(updates.versionLoading, isFalse);
+    service.result = const AppUpdateCheck(release: newRelease);
+    await updates.check();
+    expect(updates.release, newRelease);
+    versions.failure = null;
+    await updates.loadInstalledVersion(force: true);
+    expect(updates.installedVersion, installedVersion);
+    expect(versions.reads, 2);
+  });
+
+  test('설치 버전 조회가 끝나기 전에 컨트롤러를 닫아도 알림을 보내지 않는다', () async {
+    final pending = Completer<InstalledAppVersion?>();
+    final reader = FakeVersions()..pending = pending;
+    final controller = AppUpdateController(service, versionService: reader);
+    final operation = controller.loadInstalledVersion();
+    controller.dispose();
+    pending.complete(installedVersion);
+    await operation;
+    expect(controller.installedVersion, isNull);
   });
   tearDown(() {
     AppUpdates.instance = AppUpdateController(const DisabledAppUpdateService());
@@ -123,10 +187,13 @@ void main() {
       const BusinessSettingsListScreen(role: UserRole.trainer),
     ]) {
       await pumpScreen(tester, screen);
+      expect(find.text('현재 버전 1.20.0 (1200)'), findsOneWidget);
       await tester.tap(find.text('앱 업데이트'));
       await tester.pumpAndSettle();
       expect(find.byType(AppUpdateScreen), findsOneWidget);
       expect(find.text('계정 연결하고 확인'), findsOneWidget);
+      expect(find.text('현재 설치 버전'), findsOneWidget);
+      expect(find.text('1.20.0 (1200)'), findsOneWidget);
       expect(service.requests.every((interactive) => !interactive), isTrue);
       await tester.pageBack();
       await tester.pumpAndSettle();
@@ -161,15 +228,36 @@ void main() {
     await tester.tap(find.text('업데이트'));
     await tester.pumpAndSettle();
     expect(service.installs, 1);
-    expect(find.text('새 버전 1.21.0'), findsOneWidget);
+    expect(find.text('새 버전 1.21.0 (1234)'), findsOneWidget);
+    expect(find.text('1.20.0 (1200)'), findsOneWidget);
   });
 
-  testWidgets('지원하지 않는 빌드는 업데이트 메뉴를 숨긴다', (tester) async {
+  testWidgets('업데이트를 지원하지 않는 빌드에서도 설치 버전은 볼 수 있다', (tester) async {
     service.isAvailable = false;
     await pumpScreen(tester, const SettingsScreen());
     expect(find.text('앱 업데이트'), findsNothing);
+    expect(find.text('앱 버전'), findsOneWidget);
+    expect(find.text('현재 버전 1.20.0 (1200)'), findsOneWidget);
+    await tester.tap(find.text('앱 버전'));
+    await tester.pumpAndSettle();
+    expect(find.text('1.20.0 (1200)'), findsOneWidget);
+    expect(find.text('이 빌드는 앱 안에서 업데이트를 지원하지 않아요.'), findsOneWidget);
+    expect(find.byType(FilledButton), findsNothing);
     await updates.check(interactive: true);
     expect(service.requests, isEmpty);
+  });
+
+  testWidgets('버전 정보를 읽지 못하면 가짜 버전을 쓰지 않고 다시 확인한다', (tester) async {
+    versions.failure = StateError('metadata unavailable');
+    await pumpScreen(tester, const AppUpdateScreen());
+    expect(find.text('확인할 수 없어요'), findsOneWidget);
+    expect(find.text('계정 연결하고 확인'), findsOneWidget);
+    versions.failure = null;
+    await tester.tap(find.text('버전 다시 확인'));
+    await tester.pumpAndSettle();
+    expect(find.text('1.20.0 (1200)'), findsOneWidget);
+    expect(find.text('버전 다시 확인'), findsNothing);
+    expect(service.requests, [false]);
   });
 
   testWidgets('작은 화면과 큰 글씨에서 오류와 재시도 버튼에 닿을 수 있다', (tester) async {
@@ -190,7 +278,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     service.failure = const AppUpdateException('인터넷 연결을 확인해주세요.');
-    await tester.ensureVisible(find.byType(FilledButton));
+    await tester.scrollUntilVisible(find.byType(FilledButton), 200);
     await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
     expect(find.text('인터넷 연결을 확인해주세요.'), findsOneWidget);

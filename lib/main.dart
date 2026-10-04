@@ -48,6 +48,7 @@ import 'services/location_service.dart';
 import 'services/push_service.dart';
 import 'services/app_update_controller.dart';
 import 'services/firebase_app_update_service.dart';
+import 'services/package_info_app_version_service.dart';
 import 'widgets/common.dart';
 import 'widgets/guest_data_prompt.dart';
 import 'widgets/portal.dart';
@@ -70,7 +71,11 @@ Future<void> main() async {
   // 구현이 돌아온다 — 알림이 없는 것과 앱이 안 켜지는 것은 등급이 다르다.
   Push.bind(await FirebasePushService.create());
   Location.bind(const GeolocatorLocationService());
-  AppUpdates.instance = AppUpdateController(const FirebaseAppUpdateService());
+  AppUpdates.instance = AppUpdateController(
+    const FirebaseAppUpdateService(),
+    versionService: const PackageInfoAppVersionService(),
+  );
+  unawaited(AppUpdates.instance.loadInstalledVersion());
 
   AppRepository? migrationSource;
   try {

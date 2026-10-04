@@ -1,11 +1,21 @@
 import 'package:flutter/foundation.dart';
 
 import 'app_update_service.dart';
+import 'app_version_service.dart';
 
 /// 조회는 조용히, 계정 연결과 설치는 사용자가 누른 뒤에만 시작한다.
 class AppUpdateController extends ChangeNotifier {
-  AppUpdateController(this.service);
+  AppUpdateController(
+    this.service, {
+    this.versionService = const UnavailableAppVersionService(),
+  });
   final AppUpdateService service;
+  final AppVersionService versionService;
+  InstalledAppVersion? installedVersion;
+  bool versionLoading = false;
+  bool versionChecked = false;
+  Future<void>? _versionRead;
+  bool _disposed = false;
   bool get isAvailable => service.isAvailable;
   bool busy = false;
   bool needsSignIn = false;
@@ -13,6 +23,36 @@ class AppUpdateController extends ChangeNotifier {
   AppRelease? release;
   String? error;
   DateTime? _lastCheck;
+
+  Future<void> loadInstalledVersion({bool force = false}) {
+    if (_disposed || (versionChecked && !force)) return Future.value();
+    final pending = _versionRead;
+    if (pending != null) return pending;
+    return _versionRead = _readInstalledVersion().whenComplete(() {
+      _versionRead = null;
+    });
+  }
+
+  Future<void> _readInstalledVersion() async {
+    versionLoading = true;
+    notifyListeners();
+    try {
+      final version = await versionService.readInstalledVersion();
+      if (!_disposed) installedVersion = version;
+    } catch (_) {
+      // Missing metadata must not block checking for or installing updates.
+    } finally {
+      versionLoading = false;
+      versionChecked = true;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   Future<void> check({bool interactive = false}) async {
     if (!isAvailable || busy) return;
