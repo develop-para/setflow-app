@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 /// is how the app ended up with a rocket, a barbell and a gavel all meaning
 /// "important".
 abstract final class SetflowIcons {
+  static const numberInput = Icons.keyboard_rounded;
   static const appUpdate = Icons.system_update_rounded;
   static const equipment = Icons.fitness_center_rounded;
   static const camera = Icons.photo_camera_outlined;

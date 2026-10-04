@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../app_state.dart';
 import '../data/business_repository.dart';
+import '../domain/weight_input_unit.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
@@ -760,7 +761,11 @@ class _NumberField extends StatelessWidget {
         step: step,
       );
       if (result == null || !context.mounted) return;
-      controller.text = result.value == null ? '' : _numberText(result.value!);
+      controller.text = result.value == null
+          ? ''
+          : suffix == 'kg'
+          ? formatWeightInput(result.value!)
+          : _numberText(result.value!);
       return;
     }
     final current = parsed ?? fallbackValue;
@@ -776,7 +781,9 @@ class _NumberField extends StatelessWidget {
     if (result == null || !context.mounted) return;
     // 다이얼 안에서 고른 값은 '적용'으로 닫혔을 때만 draft에
     // 반영한다. 취소하거나 시트를 내리면 기존 숫자가 그대로 남는다.
-    controller.text = _numberText(result);
+    controller.text = suffix == 'kg'
+        ? formatWeightInput(result)
+        : _numberText(result);
   }
 
   @override
@@ -1031,7 +1038,7 @@ class _RoutineSetDraft {
     double? distanceKm,
     double? intensityRpe,
   }) : weightController = TextEditingController(
-         text: weight == null ? '' : _numberText(weight),
+         text: weight == null ? '' : formatWeightInput(weight),
        ),
        repsController = TextEditingController(text: reps?.toString() ?? ''),
        restController = TextEditingController(

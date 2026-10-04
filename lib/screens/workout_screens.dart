@@ -9,6 +9,7 @@ import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../data/exercise_guides.dart';
 import '../domain/exercise_substitutions.dart';
+import '../domain/weight_input_unit.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../theme/muscle_illustrations.dart';
@@ -5030,28 +5031,46 @@ class _NumberDialSheet extends StatefulWidget {
 
 class _NumberDialSheetState extends State<_NumberDialSheet> {
   late final TextEditingController inputController;
-  late final FixedExtentScrollController dialController;
+  late FixedExtentScrollController dialController;
   late double selectedValue;
+  late String _canonicalInput;
+  WeightInputUnit _unit = WeightInputUnit.kg;
+  double _horizontalDrag = 0;
+  int _dialGeneration = 0;
+  bool _replacingDial = false;
 
-  int get itemCount => ((widget.max - widget.min) / widget.step).floor() + 1;
+  bool get _isWeight => widget.suffix == 'kg';
+  String get _suffix => _isWeight ? _unit.symbol : widget.suffix;
+  double _fromStored(double value) =>
+      _isWeight ? _unit.fromKilograms(value) : value;
+  double _toStored(double value) =>
+      _isWeight ? _unit.toKilograms(value) : value;
+  double get _min => _fromStored(widget.min);
+  double get _max => _fromStored(widget.max);
+
+  int get itemCount => ((_max - _min) / widget.step).floor() + 1;
 
   int _indexFor(double value) =>
-      ((value.clamp(widget.min, widget.max) - widget.min) / widget.step)
-          .round()
-          .clamp(0, itemCount - 1);
+      ((value.clamp(_min, _max) - _min) / widget.step).round().clamp(
+        0,
+        itemCount - 1,
+      );
 
-  double _valueFor(int index) => widget.min + (index * widget.step);
+  double _valueFor(int index) => _min + (index * widget.step);
 
   @override
   void initState() {
     super.initState();
     final initialIndex = _indexFor(widget.initialValue);
-    selectedValue = _valueFor(initialIndex);
+    selectedValue = _isWeight
+        ? widget.initialValue.clamp(widget.min, widget.max)
+        : _valueFor(initialIndex);
     inputController = TextEditingController(
       text: widget.allowUnset && widget.initiallyUnset
           ? ''
-          : _decimalText(selectedValue),
+          : _decimalText(_fromStored(selectedValue)),
     );
+    _canonicalInput = inputController.text;
     dialController = FixedExtentScrollController(initialItem: initialIndex);
   }
 
@@ -5062,16 +5081,66 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
     super.dispose();
   }
 
-  void _syncInputToDial() {
-    final value = double.tryParse(inputController.text.trim());
-    if (value == null || value < widget.min || value > widget.max) return;
-    final index = _indexFor(value);
-    selectedValue = _valueFor(index);
-    dialController.animateToItem(
-      index,
-      duration: SetflowMotion.standard,
-      curve: SetflowMotion.emphasisCurve,
+  double? _inputValue() {
+    final text = inputController.text.trim();
+    final typed = double.tryParse(text);
+    if (typed == null || !typed.isFinite) return null;
+    // A rounded unit label is not a new weight. Repeated unit switches must
+    // preserve the original kg value until the user actually edits it.
+    final value = text == _canonicalInput ? selectedValue : _toStored(typed);
+    if (value < widget.min || value > widget.max) return null;
+    return value;
+  }
+
+  void _replaceDial() {
+    final previous = dialController;
+    _replacingDial = true;
+    _dialGeneration++;
+    dialController = FixedExtentScrollController(
+      initialItem: _indexFor(_fromStored(selectedValue)),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      previous.dispose();
+      if (mounted) _replacingDial = false;
+    });
+  }
+
+  void _syncInputToDial() {
+    final value = _inputValue();
+    if (value == null) return;
+    setState(() {
+      selectedValue = value;
+      _canonicalInput = inputController.text.trim();
+      _replaceDial();
+    });
+  }
+
+  void _rangeError() {
+    AppSnackbar.error(
+      context,
+      '${_decimalText(_min)}~${_decimalText(_max)} 범위로 입력해주세요.',
+    );
+  }
+
+  void _changeUnit(WeightInputUnit unit) {
+    if (!_isWeight || unit == _unit) return;
+    final unset = widget.allowUnset && inputController.text.trim().isEmpty;
+    final value = _inputValue();
+    if (!unset && value == null) {
+      _rangeError();
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      if (value != null) selectedValue = value;
+      _unit = unit;
+      inputController.text = unset
+          ? ''
+          : _decimalText(_fromStored(selectedValue));
+      _canonicalInput = inputController.text;
+      _replaceDial();
+    });
+    HapticFeedback.selectionClick();
   }
 
   void _selectWholeInput() {
@@ -5092,12 +5161,9 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
       Navigator.pop(context, const OptionalNumberDialResult(null));
       return;
     }
-    final typed = double.tryParse(input);
-    if (typed == null || typed < widget.min || typed > widget.max) {
-      AppSnackbar.error(
-        context,
-        '${_decimalText(widget.min)}~${_decimalText(widget.max)} 범위로 입력해주세요.',
-      );
+    final typed = _inputValue();
+    if (typed == null) {
+      _rangeError();
       return;
     }
     Navigator.pop(context, OptionalNumberDialResult(typed));
@@ -5106,47 +5172,89 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        SetflowSpacing.gutter,
+        0,
+        SetflowSpacing.gutter,
+        SetflowSpacing.xl + bottomInset,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '${widget.title} 선택',
-            style: const TextStyle(
-              fontSize: SetflowFontSize.headline,
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: SetflowSpacing.xs),
           Text(
-            '다이얼을 드래그하거나 입력 칸을 눌러 기존 숫자를 바로 바꾸세요.',
+            _isWeight
+                ? '좌우로 밀어 kg/lb 전환 · 기록은 kg으로 저장해요.'
+                : '다이얼을 드래그하거나 입력 칸을 눌러 기존 숫자를 바로 바꾸세요.',
             style: TextStyle(
               fontSize: SetflowFontSize.small,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
+              fontWeight: SetflowWeight.medium,
             ),
           ),
-          SizedBox(
-            height: 188,
-            child: CupertinoPicker.builder(
-              scrollController: dialController,
-              itemExtent: 42,
-              useMagnifier: true,
-              magnification: 1.12,
-              onSelectedItemChanged: (index) {
-                HapticFeedback.selectionClick();
-                selectedValue = _valueFor(index);
-                inputController.text = _decimalText(selectedValue);
-              },
-              childCount: itemCount,
-              itemBuilder: (_, index) => Center(
-                child: Text(
-                  '${_decimalText(_valueFor(index))} ${widget.suffix}',
-                  style: const TextStyle(
-                    fontSize: SetflowFontSize.titleLarge,
-                    fontWeight: FontWeight.w900,
+          if (_isWeight) ...[
+            const SizedBox(height: SetflowSpacing.sm),
+            SegmentedButton<WeightInputUnit>(
+              segments: const [
+                ButtonSegment(value: WeightInputUnit.kg, label: Text('kg')),
+                ButtonSegment(value: WeightInputUnit.lb, label: Text('lb')),
+              ],
+              selected: {_unit},
+              onSelectionChanged: (units) => _changeUnit(units.first),
+            ),
+          ],
+          GestureDetector(
+            key: const Key('number-dial-swipe'),
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: _isWeight
+                ? (_) => _horizontalDrag = 0
+                : null,
+            onHorizontalDragUpdate: _isWeight
+                ? (details) => _horizontalDrag += details.delta.dx
+                : null,
+            onHorizontalDragEnd: _isWeight
+                ? (details) {
+                    if (_horizontalDrag.abs() >= 40 ||
+                        (details.primaryVelocity ?? 0).abs() >= 400) {
+                      _changeUnit(
+                        _unit == WeightInputUnit.kg
+                            ? WeightInputUnit.lb
+                            : WeightInputUnit.kg,
+                      );
+                    }
+                  }
+                : null,
+            child: SizedBox(
+              height: 188,
+              child: CupertinoPicker.builder(
+                key: ValueKey('number-dial-$_dialGeneration'),
+                scrollController: dialController,
+                itemExtent: 42,
+                useMagnifier: true,
+                magnification: 1.12,
+                onSelectedItemChanged: (index) {
+                  if (_replacingDial) return;
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    selectedValue = _toStored(_valueFor(index));
+                    inputController.text = _decimalText(_valueFor(index));
+                    _canonicalInput = inputController.text;
+                  });
+                },
+                childCount: itemCount,
+                itemBuilder: (_, index) => Center(
+                  child: Text(
+                    '${_decimalText(_valueFor(index))} $_suffix',
+                    style: const TextStyle(
+                      fontSize: SetflowFontSize.titleLarge,
+                      fontWeight: SetflowWeight.strong,
+                    ),
                   ),
                 ),
               ),
@@ -5167,19 +5275,36 @@ class _NumberDialSheetState extends State<_NumberDialSheet> {
             ],
             decoration: InputDecoration(
               labelText: '직접 입력',
-              suffixText: widget.suffix,
-              prefixIcon: const Icon(Icons.keyboard_rounded),
+              suffixText: _suffix,
+              prefixIcon: const Icon(SetflowIcons.numberInput),
             ),
+            onChanged: (text) {
+              final typed = double.tryParse(text.trim());
+              setState(() {
+                if (typed != null && typed.isFinite) {
+                  selectedValue = _toStored(typed);
+                  _canonicalInput = text.trim();
+                }
+              });
+            },
             onEditingComplete: _finishDirectInput,
             onSubmitted: (_) => _finishDirectInput(),
           ),
+          if (_isWeight && _unit == WeightInputUnit.lb && _inputValue() != null)
+            Padding(
+              padding: const EdgeInsets.only(top: SetflowSpacing.sm),
+              child: Text(
+                '기록: ${_decimalText(_inputValue()!)} kg',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           if (widget.allowUnset)
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton(
                 // This only clears the sheet draft. 적용 remains the sole
                 // point that commits the unset value to the workout draft.
-                onPressed: inputController.clear,
+                onPressed: () => setState(inputController.clear),
                 child: const Text('값 지우기'),
               ),
             ),

@@ -357,7 +357,8 @@ class AppState extends ChangeNotifier {
 
   UserRole role = UserRole.guest;
   bool isDarkMode = false;
-  String weightUnit = 'kg';
+  // Input conversion belongs to the weight dial; records always use kg.
+  String get weightUnit => 'kg';
   int restDefaultSeconds = 90;
 
   /// 운동을 추가할 때 만들 세트 수·횟수. null이면 정한 적 없음 — 이전 기록
@@ -1517,12 +1518,6 @@ class AppState extends ChangeNotifier {
 
   void toggleTheme() {
     isDarkMode = !isDarkMode;
-    _schedulePersist();
-    notifyListeners();
-  }
-
-  void setWeightUnit(String value) {
-    weightUnit = value;
     _schedulePersist();
     notifyListeners();
   }
@@ -7207,7 +7202,6 @@ class AppState extends ChangeNotifier {
       role = UserRole.guest;
     }
     isDarkMode = snapshot.isDarkMode;
-    weightUnit = snapshot.weightUnit;
     restDefaultSeconds = snapshot.restDefaultSeconds;
     defaultSetCount = snapshot.defaultSetCount;
     defaultRepCount = snapshot.defaultRepCount;
@@ -7298,7 +7292,6 @@ class AppState extends ChangeNotifier {
     persistenceSyncError = null;
     role = UserRole.guest;
     isDarkMode = false;
-    weightUnit = 'kg';
     restDefaultSeconds = 90;
     defaultSetCount = null;
     defaultRepCount = null;

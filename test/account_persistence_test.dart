@@ -7,12 +7,53 @@ import 'package:setflow/app_state.dart';
 import 'package:setflow/member_navigation.dart';
 import 'package:setflow/data/app_repository.dart';
 import 'package:setflow/data/app_snapshot_codec.dart';
+import 'package:setflow/data/exercise_catalog.dart';
 import 'package:setflow/data/hive_app_repository.dart';
 import 'package:setflow/data/routine_catalog_repository.dart';
 import 'package:setflow/data/supabase_app_repository.dart';
 
 void main() {
   group('AppState account boundaries', () {
+    test(
+      'legacy lb preference keeps numeric records unchanged and persists kg',
+      () async {
+        final date = DateTime(2026, 10, 4);
+        final repository = _SwitchingAccountRepository()
+          ..currentUserId = 'legacy'
+          ..snapshots['legacy'] = _snapshot(
+            weightUnit: 'lb',
+            sessions: {
+              date: WorkoutSession(
+                date: date,
+                exercises: [
+                  WorkoutExercise(
+                    id: 'bench',
+                    template: exerciseCatalog.first,
+                    sets: [
+                      WorkoutSetEntry(
+                        number: 1,
+                        weight: 100,
+                        reps: 10,
+                        completed: true,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            },
+          );
+        final state = AppState(repository: repository);
+        addTearDown(state.dispose);
+        await state.initialize();
+        expect(state.weightUnit, 'kg');
+        expect(state.sessions[date]!.exercises.single.sets.single.weight, 100);
+        expect(state.sessions[date]!.volume, 1000);
+        state.setRestDefaultSeconds(120);
+        await state.flushPersistence();
+        expect(repository.snapshots['legacy']!.weightUnit, 'kg');
+        expect(repository.snapshots['legacy']!.sessions[date]!.volume, 1000);
+      },
+    );
     test(
       'custom recommendation metadata syncs to a fresh device and clears on account switch',
       () async {
@@ -213,7 +254,7 @@ void main() {
       await state.initialize();
       expect(state.goals, ['근육 증가']);
       expect(state.isDarkMode, isTrue);
-      expect(state.weightUnit, 'lb');
+      expect(state.weightUnit, 'kg');
       expect(state.heightCm, 181);
       final navigation = MemberNavigation.place(
         MemberNavigation.defaults,

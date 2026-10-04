@@ -754,15 +754,11 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
           ],
           SettingSection.workout => [
             ListTile(
-              title: const Text('무게 단위'),
-              trailing: SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'kg', label: Text('kg')),
-                  ButtonSegment(value: 'lb', label: Text('lb')),
-                ],
-                selected: {state.weightUnit},
-                onSelectionChanged: (value) => state.setWeightUnit(value.first),
+              title: const Text('운동 기록 단위'),
+              subtitle: const Text(
+                '무게 다이얼을 좌우로 밀면 lb로 입력할 수 있어요. 기록은 kg으로 저장해요.',
               ),
+              trailing: const Text('kg'),
             ),
             ListTile(
               title: const Text('휴식 타이머 기본값'),

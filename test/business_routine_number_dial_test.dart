@@ -158,6 +158,28 @@ void main() {
 
     final price = routineNumberField('판매 가격 (선택)');
     expect(tester.widget<TextField>(price).readOnly, isFalse);
+
+    // A lb input stays precise when the routine draft crosses a text field.
+    await tester.ensureVisible(weightField);
+    await tester.tapAt(tester.getCenter(weightField));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const Key('number-dial-swipe')),
+      const Offset(-150, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('number-dial-direct-input')),
+      '100',
+    );
+    await tester.tap(find.text('적용'));
+    await tester.pumpAndSettle();
+    expect(weightController.text, '45.359237');
+    await tester.tapAt(tester.getCenter(weightField));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('적용'));
+    await tester.pumpAndSettle();
+    expect(weightController.text, '45.359237');
   });
 
   testWidgets('유산소 시간 거리 RPE도 같은 다이얼로 편집한다', (tester) async {

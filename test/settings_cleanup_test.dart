@@ -33,6 +33,19 @@ void main() {
     return state;
   }
 
+  testWidgets('workout settings keep records in kg and explain lb input', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const SettingDetailScreen(section: SettingSection.workout),
+    );
+    expect(find.text('운동 기록 단위'), findsOneWidget);
+    expect(find.text('kg'), findsOneWidget);
+    expect(find.textContaining('기록은 kg으로 저장해요'), findsOneWidget);
+    expect(find.byType(SegmentedButton<String>), findsNothing);
+  });
+
   group('중복 제거', () {
     testWidgets('설정 본문에는 무게 단위 컨트롤이 없다', (tester) async {
       await pump(tester, const SettingsScreen());

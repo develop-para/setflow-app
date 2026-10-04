@@ -363,7 +363,6 @@ void main() {
 
     state.chooseRole(UserRole.trainer);
     state.toggleTheme();
-    state.setWeightUnit('lb');
     state.setRestDefaultSeconds(120);
     state.createRoutine('저장 테스트', '앱 재시작 후에도 유지');
     final workoutDate = DateTime(2026, 8, 15);
@@ -378,7 +377,7 @@ void main() {
 
     expect(restored.role, UserRole.trainer);
     expect(restored.isDarkMode, isTrue);
-    expect(restored.weightUnit, 'lb');
+    expect(restored.weightUnit, 'kg');
     expect(restored.restDefaultSeconds, 120);
     expect(restored.routines.any((item) => item.name == '저장 테스트'), isTrue);
     expect(
