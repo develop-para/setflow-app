@@ -48,6 +48,10 @@ abstract final class SetflowIcons {
   /// 커뮤니티 — people talking, not a generic group.
   static const community = Icons.forum_outlined;
   static const communityActive = Icons.forum_rounded;
+  static const comment = Icons.chat_bubble_outline_rounded;
+  static const sendComment = Icons.send_rounded;
+  static const like = Icons.favorite_border_rounded;
+  static const likeActive = Icons.favorite_rounded;
 
   /// 함께 — training with someone who is somewhere else. Two figures, because
   /// the point is the second person, not the group: 커뮤니티 is the crowd you
@@ -77,6 +81,10 @@ abstract final class SetflowIcons {
 
   /// 종목 수행 방법. '설명'이 아니라 **따라 하는 순서**라 목록 글리프를 쓴다.
   static const guide = Icons.format_list_numbered_rounded;
+
+  /// 운동 동작 예시 재생·일시정지.
+  static const playMotion = Icons.play_arrow_rounded;
+  static const pauseMotion = Icons.pause_rounded;
 
   // --- 함께 -----------------------------------------------------------------
   /// 방 만들기 / 코드로 참여.

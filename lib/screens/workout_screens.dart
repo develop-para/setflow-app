@@ -7,7 +7,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../data/business_repository.dart';
-import '../data/exercise_guides.dart';
 import '../domain/exercise_substitutions.dart';
 import '../domain/weight_input_unit.dart';
 import '../theme.dart';
@@ -15,6 +14,7 @@ import '../theme/icons.dart';
 import '../theme/muscle_illustrations.dart';
 import '../widgets/common.dart';
 import '../widgets/exercise_muscle_map.dart';
+import '../widgets/exercise_guide_sheet.dart';
 import 'evidence_library_screen.dart';
 import 'coaching_workout_screens.dart';
 import 'member_goal_screen.dart';
@@ -41,7 +41,24 @@ class _CoachedExerciseCard extends StatelessWidget {
             style: theme.textTheme.labelMedium,
           ),
           const SizedBox(height: SetflowSpacing.sm),
-          Text(exercise.template.name, style: theme.textTheme.titleMedium),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  exercise.template.name,
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              if (hasExerciseGuide(exercise.template))
+                IconButton(
+                  key: ValueKey('coached-exercise-guide-${exercise.id}'),
+                  tooltip: '수행 방법',
+                  onPressed: () =>
+                      showExerciseGuide(context, exercise.template),
+                  icon: const Icon(SetflowIcons.guide),
+                ),
+            ],
+          ),
           const SizedBox(height: SetflowSpacing.sm),
           for (final set in exercise.sets)
             Padding(
@@ -1221,7 +1238,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                         tooltip: '운동 메뉴',
                         onSelected: (value) {
                           if (value == 'guide') {
-                            _showExerciseGuide(context, exercise.template);
+                            showExerciseGuide(context, exercise.template);
                           } else if (value == 'delete') {
                             _confirmDeleteExercise(context, state);
                           } else if (value == 'equipment') {
@@ -1248,7 +1265,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                               value: 'equipment',
                               child: Text('기구 사진·설정'),
                             ),
-                          if (exerciseGuides.containsKey(exercise.template.id))
+                          if (hasExerciseGuide(exercise.template))
                             const PopupMenuItem(
                               value: 'guide',
                               child: Row(
@@ -3574,6 +3591,16 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                  if (hasExerciseGuide(exercise))
+                                    TextButton.icon(
+                                      key: ValueKey(
+                                        'exercise-guide-${exercise.id}',
+                                      ),
+                                      onPressed: () =>
+                                          showExerciseGuide(context, exercise),
+                                      icon: const Icon(SetflowIcons.guide),
+                                      label: const Text('수행 방법'),
+                                    ),
                                   if (exercise.id.startsWith('custom_'))
                                     TextButton(
                                       key: ValueKey(
@@ -4023,6 +4050,13 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
       appBar: AppBar(
         title: Text(exercise.template.name),
         actions: [
+          if (hasExerciseGuide(exercise.template))
+            IconButton(
+              key: const ValueKey('exercise-guide'),
+              tooltip: '수행 방법',
+              onPressed: () => showExerciseGuide(context, exercise.template),
+              icon: const Icon(SetflowIcons.guide),
+            ),
           IconButton(
             key: const ValueKey('exercise-history'),
             tooltip: '지난 기록',
@@ -4453,7 +4487,18 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
     WorkoutExercise exercise,
   ) {
     return Scaffold(
-      appBar: AppBar(title: Text(exercise.template.name)),
+      appBar: AppBar(
+        title: Text(exercise.template.name),
+        actions: [
+          if (hasExerciseGuide(exercise.template))
+            IconButton(
+              key: const ValueKey('exercise-guide'),
+              tooltip: '수행 방법',
+              onPressed: () => showExerciseGuide(context, exercise.template),
+              icon: const Icon(SetflowIcons.guide),
+            ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           SetflowSpacing.gutter,
@@ -4887,63 +4932,6 @@ class _DefaultStepperRow extends StatelessWidget {
       ),
     );
   }
-}
-
-void _showExerciseGuide(BuildContext context, ExerciseTemplate template) {
-  final steps = exerciseGuides[template.id];
-  if (steps == null) return;
-  showSetflowSheet<void>(
-    context,
-    isScrollControlled: true,
-    builder: (sheetContext) {
-      final theme = Theme.of(sheetContext);
-      return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          SetflowSpacing.gutter,
-          0,
-          SetflowSpacing.gutter,
-          SetflowSpacing.xxl,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(template.name, style: theme.textTheme.titleLarge),
-            const SizedBox(height: SetflowSpacing.xxs),
-            Text(
-              '${template.muscle} · ${steps.length}단계',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: SetflowSpacing.xl),
-            for (var i = 0; i < steps.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: SetflowSpacing.lg),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 번호는 순서가 정보라서 붙인다 — 이 문장들은 따라 하는 차례다.
-                    SizedBox(
-                      width: 22,
-                      child: Text(
-                        '${i + 1}',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(steps[i], style: theme.textTheme.bodyMedium),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      );
-    },
-  );
 }
 
 /// 숫자를 고치는 유일한 길(AGENTS.md 5). 기록 화면과 함께 방이 같은 시트를

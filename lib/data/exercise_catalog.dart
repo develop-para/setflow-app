@@ -23,6 +23,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '스쿼트',
     muscle: '하체',
     icon: Icons.accessibility_new,
+    equipmentKey: 'barbell',
   ),
   ExerciseTemplate(
     id: 'legpress',
@@ -32,6 +33,7 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'latpull',
+    equipmentKey: 'machine',
     name: '렛 풀 다운',
     muscle: '등',
     icon: Icons.vertical_align_bottom,
@@ -42,6 +44,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '오버헤드 프레스',
     muscle: '어깨',
     icon: Icons.upload,
+    equipmentKey: 'barbell',
   ),
   ExerciseTemplate(
     id: 'lateral',
@@ -81,9 +84,11 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '인클라인 바벨 벤치 프레스',
     muscle: '가슴',
     icon: Icons.fitness_center,
+    equipmentKey: 'barbell',
   ),
   ExerciseTemplate(
     id: 'decline_bench',
+    equipmentKey: 'barbell',
     name: '디클라인 벤치 프레스',
     muscle: '가슴',
     icon: Icons.fitness_center,
@@ -104,6 +109,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     id: 'pec_deck',
     name: '펙덱 플라이',
     muscle: '가슴',
+    equipmentKey: 'machine',
     icon: Icons.open_with,
   ),
   ExerciseTemplate(
@@ -131,6 +137,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     id: 'assisted_pullup',
     name: '어시스트 풀업',
     muscle: '등',
+    equipmentKey: 'machine',
     icon: Icons.vertical_align_top,
   ),
   ExerciseTemplate(
@@ -147,12 +154,14 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'tbar_row',
+    equipmentKey: 'barbell',
     name: '티바 로우',
     muscle: '등',
     icon: Icons.rowing,
   ),
   ExerciseTemplate(
     id: 'chest_supported_row',
+    equipmentKey: 'dumbbell',
     name: '체스트 서포티드 로우',
     muscle: '등',
     icon: Icons.rowing,
@@ -177,12 +186,14 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'rack_pull',
+    equipmentKey: 'barbell',
     name: '랙 풀',
     muscle: '등',
     icon: Icons.fitness_center,
   ),
   ExerciseTemplate(
     id: 'back_extension',
+    equipmentKey: 'machine',
     name: '백 익스텐션',
     muscle: '등',
     icon: Icons.accessibility_new,
@@ -203,12 +214,14 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'front_raise',
+    equipmentKey: 'dumbbell',
     name: '프론트 레이즈',
     muscle: '어깨',
     icon: Icons.trending_up,
   ),
   ExerciseTemplate(
     id: 'rear_delt_raise',
+    equipmentKey: 'dumbbell',
     name: '벤트오버 레터럴 레이즈',
     muscle: '어깨',
     icon: Icons.open_with,
@@ -217,10 +230,12 @@ const exerciseCatalog = <ExerciseTemplate>[
     id: 'reverse_pec_deck',
     name: '리버스 펙덱 플라이',
     muscle: '어깨',
+    equipmentKey: 'machine',
     icon: Icons.open_with,
   ),
   ExerciseTemplate(
     id: 'upright_row',
+    equipmentKey: 'barbell',
     name: '업라이트 로우',
     muscle: '어깨',
     icon: Icons.vertical_align_top,
@@ -247,6 +262,7 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'hack_squat',
+    equipmentKey: 'machine',
     name: '핵 스쿼트',
     muscle: '하체',
     icon: Icons.accessibility_new,
@@ -256,21 +272,25 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '프론트 스쿼트',
     muscle: '하체',
     icon: Icons.accessibility_new,
+    equipmentKey: 'barbell',
   ),
   ExerciseTemplate(
     id: 'goblet_squat',
     name: '고블릿 스쿼트',
     muscle: '하체',
     icon: Icons.accessibility_new,
+    equipmentKey: 'kettlebell',
   ),
   ExerciseTemplate(
     id: 'bulgarian_split_squat',
+    equipmentKey: 'dumbbell',
     name: '불가리안 스플릿 스쿼트',
     muscle: '하체',
     icon: Icons.accessibility_new,
   ),
   ExerciseTemplate(
     id: 'walking_lunge',
+    equipmentKey: 'dumbbell',
     name: '워킹 런지',
     muscle: '하체',
     icon: Icons.directions_walk,
@@ -292,18 +312,21 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '힙 쓰러스트',
     muscle: '하체',
     icon: Icons.airline_seat_recline_extra,
+    equipmentKey: 'barbell',
   ),
   ExerciseTemplate(
     id: 'glute_bridge',
     name: '글루트 브리지',
     muscle: '하체',
     icon: Icons.airline_seat_recline_extra,
+    equipmentKey: 'barbell',
   ),
   ExerciseTemplate(
     id: 'calf_raise',
     name: '스탠딩 카프 레이즈',
     muscle: '하체',
     icon: Icons.height,
+    equipmentKey: 'machine',
   ),
   ExerciseTemplate(
     id: 'seated_calf_raise',
@@ -333,6 +356,7 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'preacher_curl',
+    equipmentKey: 'ez_curl_bar',
     name: '프리처 컬',
     muscle: '팔',
     icon: Icons.fitness_center,
@@ -351,12 +375,14 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'skull_crusher',
+    equipmentKey: 'ez_curl_bar',
     name: '라잉 트라이셉스 익스텐션',
     muscle: '팔',
     icon: Icons.fitness_center,
   ),
   ExerciseTemplate(
     id: 'overhead_triceps_extension',
+    equipmentKey: 'dumbbell',
     name: '오버헤드 트라이셉스 익스텐션',
     muscle: '팔',
     icon: Icons.upload,
@@ -372,9 +398,11 @@ const exerciseCatalog = <ExerciseTemplate>[
     name: '벤치 딥스',
     muscle: '팔',
     icon: Icons.sports_gymnastics,
+    equipmentKey: 'bench',
   ),
   ExerciseTemplate(
     id: 'reverse_curl',
+    equipmentKey: 'barbell',
     name: '리버스 컬',
     muscle: '팔',
     icon: Icons.fitness_center,
@@ -400,6 +428,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     muscle: '복근',
     icon: Icons.vertical_align_top,
     measurement: ExerciseMeasurement.repsOnly,
+    equipmentKey: 'pullup_bar',
   ),
   ExerciseTemplate(
     id: 'leg_raise',
@@ -407,6 +436,7 @@ const exerciseCatalog = <ExerciseTemplate>[
     muscle: '복근',
     icon: Icons.self_improvement,
     measurement: ExerciseMeasurement.repsOnly,
+    equipmentKey: 'bench',
   ),
   ExerciseTemplate(
     id: 'ab_wheel',
@@ -429,6 +459,7 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'bird_dog',
+    equipmentKey: 'body_only',
     name: '버드 독',
     muscle: '복근',
     icon: Icons.accessibility_new,
@@ -461,6 +492,7 @@ const exerciseCatalog = <ExerciseTemplate>[
   ),
   ExerciseTemplate(
     id: 'brisk_walk',
+    equipmentKey: 'body_only',
     name: '빠르게 걷기',
     muscle: '유산소',
     icon: Icons.directions_walk,

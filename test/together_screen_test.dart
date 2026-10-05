@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
+import 'package:setflow/data/app_snapshot_codec.dart';
+import 'package:setflow/data/exercise_guides.dart';
+import 'package:setflow/data/exercise_visuals.dart';
 import 'package:setflow/data/together_repository.dart';
 import 'package:setflow/main.dart';
 import 'package:setflow/screens/member_screens.dart';
@@ -11,8 +14,10 @@ import 'package:setflow/services/auth_service.dart';
 import 'package:setflow/services/location_service.dart';
 import 'package:setflow/services/setflow_web.dart';
 import 'package:setflow/theme.dart';
+import 'package:setflow/theme/icons.dart';
 import 'package:setflow/widgets/bottom_bar.dart';
 import 'package:setflow/widgets/common.dart';
+import 'package:setflow/widgets/exercise_visual_viewer.dart';
 
 void main() {
   late MemoryTogetherBackend backend;
@@ -605,6 +610,106 @@ void main() {
       await client('u-friend', '친구').joinParty(party.code);
       return backend.partyById(party.id)!;
     }
+
+    testWidgets(
+      'current exercise guidance leaves the set and party unchanged',
+      (tester) async {
+        final state = await pumpTogether(
+          tester,
+          repository: client('u-me', '나'),
+        );
+        final today = state.dateOnly(DateTime.now());
+        final template = state.exercises.singleWhere(
+          (item) => item.id == 'bench',
+        );
+        state.addExercise(today, template);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('together-create')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+        await tester.pumpAndSettle();
+        await tester.binding.setSurfaceSize(const Size(320, 900));
+        await tester.pumpAndSettle();
+
+        final exercise = state.sessions[today]!.exercises.single;
+        final beforeSession = AppSnapshotCodec.sessionToJson(
+          state.sessions[today]!,
+        );
+        final party = backend.partyById(state.activeTrainingPartyId!)!;
+        final guide = find.byKey(
+          ValueKey('together-exercise-guide-${exercise.id}'),
+        );
+        expect(guide, findsOneWidget);
+        expect(tester.widget<IconButton>(guide).tooltip, '수행 방법');
+        expect(find.byType(ExerciseVisualViewer), findsNothing);
+        expect(tester.takeException(), isNull);
+
+        await tester.ensureVisible(guide);
+        await tester.tap(guide);
+        await tester.pumpAndSettle();
+        final viewer = tester.widget<ExerciseVisualViewer>(
+          find.byType(ExerciseVisualViewer),
+        );
+        expect(viewer.visual, same(exerciseVisuals['bench']));
+        expect(viewer.exerciseName, template.name);
+        expect(find.text(exerciseGuides['bench']!.first), findsOneWidget);
+        expect(find.text('동작 예시 (데모)'), findsOneWidget);
+        expect(
+          AppSnapshotCodec.sessionToJson(state.sessions[today]!),
+          beforeSession,
+        );
+        expect(state.sessions[today]!.completedSets, 0);
+        expect(backend.partyById(party.id), same(party));
+        expect(party.memberOf('u-me')!.completedSets, 0);
+        expect(state.restRemaining, 0);
+        expect(tester.takeException(), isNull);
+
+        Navigator.of(tester.element(find.byType(ExerciseVisualViewer))).pop();
+        await tester.pumpAndSettle();
+        expect(find.byType(ExerciseVisualViewer), findsNothing);
+        expect(find.byKey(const ValueKey('together-live-set')), findsOneWidget);
+        expect(
+          AppSnapshotCodec.sessionToJson(state.sessions[today]!),
+          beforeSession,
+        );
+        expect(backend.partyById(party.id), same(party));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 400));
+      },
+    );
+
+    testWidgets('the room does not alias guidance by an exercise name', (
+      tester,
+    ) async {
+      final state = await pumpTogether(tester, repository: client('u-me', '나'));
+      final today = state.dateOnly(DateTime.now());
+      state.addExercise(
+        today,
+        const ExerciseTemplate(
+          id: 'unsupported-bench-variant',
+          name: '바벨 벤치 프레스',
+          muscle: '가슴',
+          icon: SetflowIcons.record,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+      await tester.pumpAndSettle();
+      final exercise = state.sessions[today]!.exercises.single;
+      expect(find.byKey(const ValueKey('together-live-set')), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('together-exercise-guide-${exercise.id}')),
+        findsNothing,
+      );
+      expect(find.byTooltip('수행 방법'), findsNothing);
+      expect(find.byType(ExerciseVisualViewer), findsNothing);
+      expect(state.sessions[today]!.completedSets, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 400));
+    });
 
     testWidgets('a partner finishing a set starts my rest', (tester) async {
       final room = await seatTwo(PartyMode.together);

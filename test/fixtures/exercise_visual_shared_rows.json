@@ -1,0 +1,274 @@
+{
+  "schemaVersion": 1,
+  "sourceSnapshot": "output/exercise_visuals/production/shared_catalog_snapshot.json",
+  "sourceSnapshotSha256": "64e2d08291a7b63ff5ddc58022716f95686e2b5bf6a4b2b91d2c94cad6327521",
+  "mediaIncluded": false,
+  "rows": [
+    {
+      "id": "bff7dff4-2b99-5357-b365-f10e1187cbb3",
+      "source_id": "Dumbbell_Lunges",
+      "name": "덤벨 런지",
+      "name_ko": "덤벨 런지",
+      "name_en": "Dumbbell Lunges",
+      "target_muscle": "하체",
+      "equipment": "덤벨",
+      "equipment_key": "dumbbell",
+      "input_type": "weight_reps",
+      "aliases": [
+        "근력",
+        "대퇴사두근",
+        "덤벨",
+        "덤벨 런지",
+        "런지",
+        "앞",
+        "웨이트",
+        "하체",
+        "허벅지"
+      ],
+      "primary_muscles": [
+        "quadriceps"
+      ],
+      "secondary_muscles": [
+        "calves",
+        "glutes",
+        "hamstrings"
+      ],
+      "difficulty": "beginner",
+      "category": "strength",
+      "source_name": "free-exercise-db"
+    },
+    {
+      "id": "d1ecb818-0235-5e2f-9113-39be506aa98a",
+      "source_id": "Dumbbell_Rear_Lunge",
+      "name": "덤벨 리어 런지",
+      "name_ko": "덤벨 리어 런지",
+      "name_en": "Dumbbell Rear Lunge",
+      "target_muscle": "하체",
+      "equipment": "덤벨",
+      "equipment_key": "dumbbell",
+      "input_type": "weight_reps",
+      "aliases": [
+        "근력",
+        "대퇴사두근",
+        "덤벨",
+        "덤벨 리어 런지",
+        "런지",
+        "리어",
+        "앞",
+        "웨이트",
+        "하체",
+        "허벅지"
+      ],
+      "primary_muscles": [
+        "quadriceps"
+      ],
+      "secondary_muscles": [
+        "calves",
+        "glutes",
+        "hamstrings"
+      ],
+      "difficulty": "intermediate",
+      "category": "strength",
+      "source_name": "free-exercise-db"
+    },
+    {
+      "id": "823846f5-2414-58b7-911e-2d9397a28f49",
+      "source_id": "Dumbbell_Step_Ups",
+      "name": "덤벨 스텝업",
+      "name_ko": "덤벨 스텝업",
+      "name_en": "Dumbbell Step Ups",
+      "target_muscle": "하체",
+      "equipment": "덤벨",
+      "equipment_key": "dumbbell",
+      "input_type": "weight_reps",
+      "aliases": [
+        "근력",
+        "대퇴사두근",
+        "덤벨",
+        "덤벨 스텝업",
+        "스텝업",
+        "앞",
+        "웨이트",
+        "하체",
+        "허벅지"
+      ],
+      "primary_muscles": [
+        "quadriceps"
+      ],
+      "secondary_muscles": [
+        "calves",
+        "glutes",
+        "hamstrings"
+      ],
+      "difficulty": "intermediate",
+      "category": "strength",
+      "source_name": "free-exercise-db"
+    },
+    {
+      "id": "0f177240-029b-543a-be27-2e8ed0526bca",
+      "source_id": "Split_Squat_with_Dumbbells",
+      "name": "덤벨 스플릿 스쿼트",
+      "name_ko": "덤벨 스플릿 스쿼트",
+      "name_en": "Split Squat with Dumbbells",
+      "target_muscle": "하체",
+      "equipment": "덤벨",
+      "equipment_key": "dumbbell",
+      "input_type": "weight_reps",
+      "aliases": [
+        "근력",
+        "대퇴사두근",
+        "덤벨",
+        "덤벨 스플릿 스쿼트",
+        "스쿼트",
+        "스플릿",
+        "앞",
+        "웨이트",
+        "하체",
+        "허벅지"
+      ],
+      "primary_muscles": [
+        "quadriceps"
+      ],
+      "secondary_muscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "difficulty": "beginner",
+      "category": "strength",
+      "source_name": "free-exercise-db"
+    },
+    {
+      "id": "896189fc-30d9-51df-aa19-fd5ea7fa76eb",
+      "source_id": "Sumo_Deadlift",
+      "name": "바벨 스모 데드리프트",
+      "name_ko": "바벨 스모 데드리프트",
+      "name_en": "Sumo Deadlift",
+      "target_muscle": "하체",
+      "equipment": "바벨",
+      "equipment_key": "barbell",
+      "input_type": "weight_reps",
+      "aliases": [
+        "데드리프트",
+        "뒤",
+        "바벨",
+        "바벨 스모 데드리프트",
+        "스모",
+        "파워리프팅",
+        "하체",
+        "햄스트링",
+        "허벅지"
+      ],
+      "primary_muscles": [
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "adductors",
+        "forearms",
+        "glutes",
+        "lower back",
+        "middle back",
+        "quadriceps",
+        "traps"
+      ],
+      "difficulty": "intermediate",
+      "category": "powerlifting",
+      "source_name": "free-exercise-db"
+    },
+    {
+      "id": "58acf002-4e6d-5e95-b252-cae16252cef8",
+      "source_id": "Stiff-Legged_Barbell_Deadlift",
+      "name": "바벨 스티프 레그 데드리프트",
+      "name_ko": "바벨 스티프 레그 데드리프트",
+      "name_en": "Stiff-Legged Barbell Deadlift",
+      "target_muscle": "하체",
+      "equipment": "바벨",
+      "equipment_key": "barbell",
+      "input_type": "weight_reps",
+      "aliases": [
+        "근력",
+        "데드리프트",
+        "뒤",
+        "레그",
+        "바벨",
+        "바벨 스티프 레그 데드리프트",
+        "스티프",
+        "웨이트",
+        "하체",
+        "햄스트링",
+        "허벅지"
+      ],
+      "primary_muscles": [
+        "hamstrings"
+      ],
+      "secondary_muscles": [
+        "glutes",
+        "lower back"
+      ],
+      "difficulty": "intermediate",
+      "category": "strength",
+      "source_name": "free-exercise-db"
+    },
+    {
+      "id": "3c358477-aeb3-5d78-a6aa-91c9fb6c81db",
+      "source_id": "Chin-Up",
+      "name": "친업",
+      "name_ko": "친업",
+      "name_en": "Chin-Up",
+      "target_muscle": "등",
+      "equipment": "맨몸",
+      "equipment_key": "body_only",
+      "input_type": "reps_only",
+      "aliases": [
+        "광배근",
+        "근력",
+        "등",
+        "랫",
+        "맨몸",
+        "웨이트",
+        "친업"
+      ],
+      "primary_muscles": [
+        "lats"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "forearms",
+        "middle back"
+      ],
+      "difficulty": "beginner",
+      "category": "strength",
+      "source_name": "free-exercise-db"
+    },
+    {
+      "id": "dd9ea4cf-1bc9-56f6-b8e0-06b6ef5f7ebe",
+      "source_id": "Dips_-_Triceps_Version",
+      "name": "트라이셉스 딥스",
+      "name_ko": "트라이셉스 딥스",
+      "name_en": "Dips - Triceps Version",
+      "target_muscle": "팔",
+      "equipment": "맨몸",
+      "equipment_key": "body_only",
+      "input_type": "reps_only",
+      "aliases": [
+        "근력",
+        "딥스",
+        "맨몸",
+        "삼두",
+        "웨이트",
+        "트라이셉스",
+        "트라이셉스 딥스",
+        "팔"
+      ],
+      "primary_muscles": [
+        "triceps"
+      ],
+      "secondary_muscles": [
+        "chest",
+        "shoulders"
+      ],
+      "difficulty": "beginner",
+      "category": "strength",
+      "source_name": "free-exercise-db"
+    }
+  ]
+}

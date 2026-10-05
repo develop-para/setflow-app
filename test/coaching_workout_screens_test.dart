@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
+import 'package:setflow/data/app_snapshot_codec.dart';
 import 'package:setflow/data/business_repository.dart';
 import 'package:setflow/data/coaching_workout_repository.dart';
+import 'package:setflow/data/exercise_guides.dart';
+import 'package:setflow/data/exercise_visuals.dart';
 import 'package:setflow/screens/coaching_workout_screens.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/theme/icons.dart';
+import 'package:setflow/widgets/exercise_visual_viewer.dart';
 
 const _exercise = ExerciseTemplate(
   id: 'squat',
@@ -17,6 +21,97 @@ const _exercise = ExerciseTemplate(
 );
 
 void main() {
+  for (final small in [false, true]) {
+    testWidgets(
+      'coaching opens exact guidance on request without saving ($small)',
+      (tester) async {
+        final repository = _Repository();
+        final before = AppSnapshotCodec.sessionToJson(
+          repository.current.session,
+        );
+        final state = _state(repository);
+        await _mount(
+          tester,
+          state,
+          const CoachingWorkoutScreen(scheduleId: 'lesson'),
+          small: small,
+        );
+        final guide = find.byKey(
+          const ValueKey('coaching-exercise-guide-squat-1'),
+        );
+        expect(guide, findsOneWidget);
+        expect(tester.widget<IconButton>(guide).tooltip, '수행 방법');
+        expect(find.byType(ExerciseVisualViewer), findsNothing);
+        expect(repository.saveRequests, isEmpty);
+
+        await tester.ensureVisible(guide);
+        await tester.tap(guide);
+        await tester.pumpAndSettle();
+        final viewer = tester.widget<ExerciseVisualViewer>(
+          find.byType(ExerciseVisualViewer),
+        );
+        expect(viewer.visual, same(exerciseVisuals['squat']));
+        expect(viewer.exerciseName, _exercise.name);
+        expect(find.text(exerciseGuides['squat']!.first), findsOneWidget);
+        expect(find.text('동작 예시 (데모)'), findsOneWidget);
+        expect(
+          AppSnapshotCodec.sessionToJson(repository.current.session),
+          before,
+        );
+        expect(repository.current.session.completedSets, 0);
+        expect(repository.current.version, 1);
+        expect(repository.saveRequests, isEmpty);
+        expect(state.restRemaining, 0);
+        expect(tester.takeException(), isNull);
+
+        Navigator.of(tester.element(find.byType(ExerciseVisualViewer))).pop();
+        await tester.pumpAndSettle();
+        expect(find.byType(ExerciseVisualViewer), findsNothing);
+        expect(
+          AppSnapshotCodec.sessionToJson(repository.current.session),
+          before,
+        );
+        expect(repository.saveRequests, isEmpty);
+        expect(tester.takeException(), isNull);
+        await _unmount(tester, state);
+      },
+    );
+  }
+
+  testWidgets('coaching does not alias guidance by an exercise name', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    repository.current = repository.copy(
+      session: WorkoutSession(
+        date: repository.current.date,
+        exercises: [
+          WorkoutExercise(
+            id: 'unsupported-1',
+            template: const ExerciseTemplate(
+              id: 'unsupported-squat-variant',
+              name: '스쿼트',
+              muscle: '하체',
+              icon: SetflowIcons.record,
+            ),
+            sets: [WorkoutSetEntry(number: 1, weight: 50, reps: 10)],
+          ),
+        ],
+      ),
+    );
+    final state = _state(repository);
+    await _mount(
+      tester,
+      state,
+      const CoachingWorkoutScreen(scheduleId: 'lesson'),
+    );
+    expect(find.text('스쿼트'), findsOneWidget);
+    expect(find.byTooltip('수행 방법'), findsNothing);
+    expect(find.byType(ExerciseVisualViewer), findsNothing);
+    expect(repository.saveRequests, isEmpty);
+    await _unmount(tester, state);
+  });
+
   testWidgets(
     'account change removes visible records and dismisses their number dial',
     (tester) async {

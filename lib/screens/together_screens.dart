@@ -14,6 +14,7 @@ import '../widgets/auth_gate.dart';
 import '../widgets/coach_marks.dart';
 import '../widgets/common.dart';
 import '../widgets/dot_matrix.dart';
+import '../widgets/exercise_guide_sheet.dart';
 import '../widgets/exercise_muscle_map.dart';
 import 'workout_screens.dart';
 
@@ -2557,6 +2558,14 @@ class _LiveSetCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: SetflowWeight.strong),
                 ),
               ),
+              if (hasExerciseGuide(exercise.template))
+                IconButton(
+                  key: ValueKey('together-exercise-guide-${exercise.id}'),
+                  tooltip: '수행 방법',
+                  onPressed: () =>
+                      showExerciseGuide(context, exercise.template),
+                  icon: const Icon(SetflowIcons.guide),
+                ),
               Text(
                 '${set.number}세트 / $total세트',
                 style: theme.textTheme.bodySmall?.copyWith(

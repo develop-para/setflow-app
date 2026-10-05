@@ -48,6 +48,10 @@ app.*.map.json
 /android/app/release
 /artifacts/
 
+# Exercise authoring originals and local review exports stay on the workstation.
+# Runtime GIFs live in assets/exercise_visuals and are committed with the app.
+/output/
+
 # Local agent and MCP runtime state
 .fry/
 .omc/

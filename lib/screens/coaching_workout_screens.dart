@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/exercise_guide_sheet.dart';
 import 'workout_screens.dart' show showNumberDial;
 
 String _requestId() {
@@ -707,9 +708,23 @@ class _CoachingWorkoutScreenState extends State<_CoachingWorkoutPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            exercise.template.name,
-            style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  exercise.template.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (hasExerciseGuide(exercise.template))
+                IconButton(
+                  key: ValueKey('coaching-exercise-guide-${exercise.id}'),
+                  tooltip: '수행 방법',
+                  onPressed: () =>
+                      showExerciseGuide(context, exercise.template),
+                  icon: const Icon(SetflowIcons.guide),
+                ),
+            ],
           ),
           const SizedBox(height: SetflowSpacing.sm),
           for (var index = 0; index < exercise.sets.length; index++) ...[
