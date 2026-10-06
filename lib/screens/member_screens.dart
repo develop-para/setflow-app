@@ -9,6 +9,7 @@ import '../member_navigation.dart';
 import '../services/push_service.dart';
 import '../korean_holidays.dart';
 import '../data/business_repository.dart';
+import '../domain/gym_directory.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
@@ -29,6 +30,7 @@ import 'member_menu_screen.dart';
 import 'notification_screen.dart';
 import 'member_mypage_screen.dart';
 import 'member_membership_screen.dart';
+import 'gym_directory_screen.dart';
 import 'member_social_detail_screens.dart';
 import 'routine_editor_screen.dart';
 import 'together_screens.dart';
@@ -56,76 +58,120 @@ class _WorkoutLocationHeaderButton extends StatelessWidget {
   const _WorkoutLocationHeaderButton();
 
   Future<void> _open(BuildContext context) async {
-    if (!await requireSignIn(context, reason: AuthReason.membership)) return;
-    if (!context.mounted) return;
     final state = AppScope.of(context);
+    if (state.gymPlaceLibrary.gyms.isEmpty && state.workoutLocations.isEmpty) {
+      await Navigator.of(context).push<GymPlace>(
+        MaterialPageRoute(builder: (_) => const GymDirectoryScreen()),
+      );
+      return;
+    }
     final result = await showSetflowSheet<String>(
       context,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-          SetflowSpacing.gutter,
-          0,
-          SetflowSpacing.gutter,
-          SetflowSpacing.lg,
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(sheetContext).height * .72,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '현재 운동 장소',
-              style: Theme.of(sheetContext).textTheme.titleLarge,
-            ),
-            const SizedBox(height: SetflowSpacing.xs),
-            Text(
-              '선택한 장소는 홈과 오프라인 상담의 기본 헬스장으로 사용됩니다.',
-              style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.gutter,
+            0,
+            SetflowSpacing.gutter,
+            SetflowSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '현재 운동 장소',
+                style: Theme.of(sheetContext).textTheme.titleLarge,
               ),
-            ),
-            const SizedBox(height: SetflowSpacing.md),
-            if (state.workoutLocations.isEmpty)
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(SetflowIcons.location),
-                title: Text('등록한 운동 장소가 없어요'),
-              )
-            else
-              for (final location in state.workoutLocations)
+              const SizedBox(height: SetflowSpacing.xs),
+              Text(
+                '저장한 헬스장의 주소를 운동 장소로 사용해요. 센터 연결은 별도로 관리해요.',
+                style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+              for (final gym in state.gymPlaceLibrary.gyms)
                 ListTile(
-                  key: ValueKey('header-workout-location-${location.id}'),
+                  key: ValueKey('header-public-gym-${gym.id}'),
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(
-                    location.isActive
+                    state.currentPublicGym?.id == gym.id
                         ? SetflowIcons.locationActive
                         : SetflowIcons.location,
                   ),
-                  title: Text(location.gymName),
-                  subtitle: location.gymAddress == null
-                      ? null
-                      : Text(
-                          location.gymAddress!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                  trailing: location.isActive
+                  title: Text(gym.name),
+                  subtitle: Text(
+                    gym.address,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: state.currentPublicGym?.id == gym.id
                       ? const Icon(SetflowIcons.success)
                       : null,
-                  onTap: () => Navigator.pop(sheetContext, location.id),
+                  onTap: () => Navigator.pop(sheetContext, 'public:${gym.id}'),
                 ),
-            const SizedBox(height: SetflowSpacing.sm),
-            AppButton(
-              key: const ValueKey('manage-workout-locations'),
-              label: '운동 장소 관리',
-              icon: SetflowIcons.settings,
-              variant: AppButtonVariant.outlined,
-              onPressed: () => Navigator.pop(sheetContext, 'manage'),
-            ),
-          ],
+              if (state.workoutLocations.isEmpty &&
+                  state.gymPlaceLibrary.gyms.isEmpty)
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(SetflowIcons.location),
+                  title: Text('등록한 운동 장소가 없어요'),
+                )
+              else
+                for (final location in state.workoutLocations)
+                  ListTile(
+                    key: ValueKey('header-workout-location-${location.id}'),
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      location.isActive && state.currentPublicGym == null
+                          ? SetflowIcons.locationActive
+                          : SetflowIcons.location,
+                    ),
+                    title: Text(location.gymName),
+                    subtitle: location.gymAddress == null
+                        ? null
+                        : Text(
+                            location.gymAddress!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                    trailing:
+                        location.isActive && state.currentPublicGym == null
+                        ? const Icon(SetflowIcons.success)
+                        : null,
+                    onTap: () => Navigator.pop(sheetContext, location.id),
+                  ),
+              const SizedBox(height: SetflowSpacing.sm),
+              AppButton(
+                key: const ValueKey('find-workout-place'),
+                label: '헬스장 찾기',
+                icon: SetflowIcons.exerciseSearch,
+                onPressed: () => Navigator.pop(sheetContext, 'find'),
+              ),
+              const SizedBox(height: SetflowSpacing.sm),
+              AppButton(
+                key: const ValueKey('manage-workout-locations'),
+                label: '운동 장소 관리',
+                icon: SetflowIcons.settings,
+                variant: AppButtonVariant.outlined,
+                onPressed: () => Navigator.pop(sheetContext, 'manage'),
+              ),
+            ],
+          ),
         ),
       ),
     );
     if (!context.mounted || result == null) return;
+    if (result == 'find') {
+      await Navigator.of(context).push<GymPlace>(
+        MaterialPageRoute(builder: (_) => const GymDirectoryScreen()),
+      );
+      return;
+    }
     if (result == 'manage') {
       await Navigator.of(context).push<void>(
         MaterialPageRoute(builder: (_) => const MemberMembershipScreen()),
@@ -133,7 +179,15 @@ class _WorkoutLocationHeaderButton extends StatelessWidget {
       return;
     }
     try {
-      await state.selectWorkoutLocation(result);
+      if (result.startsWith('public:')) {
+        await state.selectPublicGymPlace(result.substring('public:'.length));
+      } else {
+        if (!await requireSignIn(context, reason: AuthReason.membership)) {
+          return;
+        }
+        if (!context.mounted) return;
+        await state.selectWorkoutLocation(result);
+      }
     } catch (_) {
       if (context.mounted) {
         AppSnackbar.error(context, '운동 장소를 변경하지 못했어요.');
@@ -143,7 +197,7 @@ class _WorkoutLocationHeaderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final location = AppScope.of(context).currentWorkoutLocation;
+    final placeName = AppScope.of(context).currentWorkoutPlaceName;
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 108),
       child: Material(
@@ -164,7 +218,7 @@ class _WorkoutLocationHeaderButton extends StatelessWidget {
                 const SizedBox(width: SetflowSpacing.xxs),
                 Flexible(
                   child: Text(
-                    location?.gymName ?? '운동 장소',
+                    placeName ?? '운동 장소',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium,
@@ -286,10 +340,6 @@ class _MemberShellState extends State<MemberShell> {
   });
 
   Future<void> _openDestination(MemberDestination destination) async {
-    if (destination == MemberDestination.membership &&
-        !await requireSignIn(context, reason: AuthReason.membership)) {
-      return;
-    }
     if (!mounted) return;
     if (destination == MemberDestination.record) {
       _handleRecordTap();

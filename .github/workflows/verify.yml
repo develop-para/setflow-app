@@ -65,7 +65,11 @@ jobs:
           node tool/test_account_profiles.mjs
           node tool/test_coaching_management.mjs
           node tool/test_consultation_chat.mjs
+          node test/gym_directory_requests_security.mjs
           node --experimental-strip-types tool/test_push_message.mjs
+
+      - name: Gym directory import checks
+        run: python3 tool/test_import_gym_directory.py
 
       # The app also ships as a web bundle on Vercel. Dart that compiles for
       # mobile can still fail here (dart:io, platform channels), and Vercel

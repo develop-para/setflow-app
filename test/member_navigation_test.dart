@@ -227,7 +227,7 @@ void main() {
     expect(state.memberNavigation, MemberNavigation.defaults);
   });
 
-  testWidgets('a custom server-backed menu still requires sign-in', (
+  testWidgets('guests open workout places and centre actions require sign-in', (
     tester,
   ) async {
     await launch(
@@ -240,11 +240,16 @@ void main() {
     );
     await tester.tap(keyed('bottom-bar-center-action'));
     await tester.pumpAndSettle();
+    expect(find.byType(MemberMembershipScreen), findsOneWidget);
+    expect(keyed('auth-gate-sign-in'), findsNothing);
+    expect(find.text('헬스장 찾기'), findsOneWidget);
+    await tester.ensureVisible(find.text('추가'));
+    await tester.tap(find.text('추가'));
+    await tester.pumpAndSettle();
     expect(keyed('auth-gate-sign-in'), findsOneWidget);
-    expect(find.byType(MemberMembershipScreen), findsNothing);
     await tester.tap(keyed('auth-gate-dismiss'));
     await tester.pumpAndSettle();
-    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(MemberMembershipScreen), findsOneWidget);
   });
 
   testWidgets(

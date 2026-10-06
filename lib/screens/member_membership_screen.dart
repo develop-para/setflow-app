@@ -2,15 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../app_state.dart';
 import '../data/business_repository.dart';
+import '../domain/gym_directory.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
+import '../widgets/auth_gate.dart';
 import 'coaching_management_screen.dart';
+import 'gym_directory_screen.dart';
 
 class MemberMembershipScreen extends StatelessWidget {
   const MemberMembershipScreen({super.key});
 
   Future<void> _addLocation(BuildContext context) async {
+    if (!await requireSignIn(context, reason: AuthReason.membership)) return;
+    if (!context.mounted) return;
     final state = AppScope.of(context);
     List<GymDirectoryEntry> gyms;
     try {
@@ -50,7 +56,11 @@ class MemberMembershipScreen extends StatelessWidget {
     BuildContext context,
     MemberWorkoutLocation location,
   ) async {
-    if (location.isActive) return;
+    if (location.isActive && AppScope.of(context).currentPublicGym == null) {
+      return;
+    }
+    if (!await requireSignIn(context, reason: AuthReason.membership)) return;
+    if (!context.mounted) return;
     try {
       await AppScope.of(context).selectWorkoutLocation(location.id);
     } catch (_) {
@@ -64,6 +74,8 @@ class MemberMembershipScreen extends StatelessWidget {
     BuildContext context,
     MemberWorkoutLocation location,
   ) async {
+    if (!await requireSignIn(context, reason: AuthReason.membership)) return;
+    if (!context.mounted) return;
     final confirmed =
         await showDialog<bool>(
           context: context,
@@ -96,6 +108,34 @@ class MemberMembershipScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _refresh(BuildContext context) async {
+    final state = AppScope.of(context);
+    try {
+      await state.loadGymPlaces();
+      if (Auth.instance.hasAuthenticatedUser) {
+        await state.refreshWorkoutLocations();
+      }
+    } catch (_) {
+      if (context.mounted) AppSnackbar.error(context, '장소 정보를 다시 불러오지 못했어요.');
+    }
+  }
+
+  Future<void> _changePublicPlace(BuildContext context, GymPlace gym) async {
+    try {
+      await AppScope.of(context).selectPublicGymPlace(gym.id);
+    } catch (_) {
+      if (context.mounted) AppSnackbar.error(context, '운동 장소를 변경하지 못했어요.');
+    }
+  }
+
+  Future<void> _removePublicPlace(BuildContext context, GymPlace gym) async {
+    try {
+      await AppScope.of(context).removePublicGymPlace(gym.id);
+    } catch (_) {
+      if (context.mounted) AppSnackbar.error(context, '저장한 장소를 삭제하지 못했어요.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -104,10 +144,127 @@ class MemberMembershipScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('운동 장소 및 센터')),
       body: RefreshIndicator(
-        onRefresh: state.refreshWorkoutLocations,
+        onRefresh: () => _refresh(context),
         child: ListView(
           padding: SetflowInsets.pageList,
           children: [
+            SectionTitle(
+              '나의 운동 장소',
+              action: '헬스장 찾기',
+              onAction: () => Navigator.of(context).push<GymPlace>(
+                MaterialPageRoute(builder: (_) => const GymDirectoryScreen()),
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xs),
+            Text(
+              '헬스장을 검색해 이 기기에 저장하면 홈의 운동 장소가 유지돼요.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            if (state.gymPlacesError != null)
+              ErrorState(
+                message: '저장한 헬스장을 불러오지 못했어요.',
+                onRetry: state.loadGymPlaces,
+              )
+            else if (state.gymPlaceLibrary.gyms.isEmpty)
+              SetflowCard(
+                key: const ValueKey('public-workout-places-empty'),
+                onTap: () => Navigator.of(context).push<GymPlace>(
+                  MaterialPageRoute(builder: (_) => const GymDirectoryScreen()),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(SetflowIcons.location),
+                    SizedBox(width: SetflowSpacing.md),
+                    Expanded(child: Text('다니는 헬스장을 찾아 저장해보세요.')),
+                    Icon(SetflowIcons.forward),
+                  ],
+                ),
+              )
+            else
+              for (final gym in state.gymPlaceLibrary.gyms) ...[
+                SetflowCard(
+                  key: ValueKey('public-workout-place-${gym.id}'),
+                  onTap: () => _changePublicPlace(context, gym),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            state.currentPublicGym?.id == gym.id
+                                ? SetflowIcons.locationActive
+                                : SetflowIcons.location,
+                          ),
+                          const SizedBox(width: SetflowSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  gym.name,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: SetflowSpacing.xxs),
+                                Text(
+                                  gym.address,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                if (state.currentPublicGym?.id == gym.id) ...[
+                                  const SizedBox(height: SetflowSpacing.xs),
+                                  Text(
+                                    '현재 운동 장소',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.secondary,
+                                        ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '저장한 헬스장 삭제',
+                            onPressed: () => _removePublicPlace(context, gym),
+                            icon: const Icon(SetflowIcons.delete),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: SetflowSpacing.xs),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => GymPlaceDetailScreen(gym: gym),
+                          ),
+                        ),
+                        child: const Text('헬스장 정보 · 정정 제안'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+              ],
+            ListTile(
+              key: const ValueKey('saved-gym-directory-requests'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('내 헬스장 제안'),
+              subtitle: const Text('목록 추가 · 정보 정정 · 사업주 확인'),
+              trailing: const Icon(SetflowIcons.forward),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => const GymDirectoryRequestsScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: SetflowSpacing.xl),
             if (managementRepository(context) != null) ...[
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -119,7 +276,7 @@ class MemberMembershipScreen extends StatelessWidget {
               const SizedBox(height: SetflowSpacing.md),
             ],
             SectionTitle(
-              '나의 운동 장소',
+              '인증 센터 운동 장소',
               action: '추가',
               onAction: () => _addLocation(context),
             ),
@@ -184,7 +341,8 @@ class MemberMembershipScreen extends StatelessWidget {
                                     ),
                               ),
                             ],
-                            if (location.isActive) ...[
+                            if (location.isActive &&
+                                state.currentPublicGym == null) ...[
                               const SizedBox(height: SetflowSpacing.xs),
                               Text(
                                 '현재 운동 장소',

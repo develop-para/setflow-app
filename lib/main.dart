@@ -13,6 +13,9 @@ import 'data/business_repository.dart';
 import 'data/hive_app_repository.dart';
 import 'data/hive_local_equipment_repository.dart';
 import 'data/local_equipment_repository.dart';
+import 'data/gym_directory_repository.dart';
+import 'data/hive_gym_place_repository.dart';
+import 'data/supabase_gym_directory_request_repository.dart';
 import 'data/community_repository.dart';
 import 'data/coaching_workout_repository.dart';
 import 'data/supabase_coaching_workout_repository.dart';
@@ -94,6 +97,10 @@ Future<void> main() async {
   runApp(
     SetflowApp(
       localEquipmentRepository: HiveLocalEquipmentRepository(),
+      gymPlaceRepository: HiveGymPlaceRepository(),
+      gymDirectoryRequestRepository: SupabaseGymDirectoryRequestRepository(
+        Supabase.instance.client,
+      ),
       repository: repository,
       accountProfileRepository: SupabaseAccountProfileRepository(
         Supabase.instance.client,
@@ -131,6 +138,9 @@ Future<void> main() async {
 class SetflowApp extends StatefulWidget {
   const SetflowApp({
     this.localEquipmentRepository,
+    this.gymDirectoryRepository,
+    this.gymPlaceRepository,
+    this.gymDirectoryRequestRepository,
     this.repository,
     this.accountProfileRepository,
     this.businessRepository,
@@ -147,6 +157,9 @@ class SetflowApp extends StatefulWidget {
   final AppRepository? repository;
   final AccountProfileRepository? accountProfileRepository;
   final LocalEquipmentRepository? localEquipmentRepository;
+  final GymDirectoryRepository? gymDirectoryRepository;
+  final GymPlaceRepository? gymPlaceRepository;
+  final GymDirectoryRequestRepository? gymDirectoryRequestRepository;
   final BusinessRepository? businessRepository;
   final CoachingWorkoutRepository? coachingWorkoutRepository;
   final RoutineCatalogRepository? routineCatalogRepository;
@@ -194,6 +207,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     unawaited(AppUpdates.instance.check());
     state = AppState(
       localEquipmentRepository: widget.localEquipmentRepository,
+      gymDirectoryRepository: widget.gymDirectoryRepository,
+      gymPlaceRepository: widget.gymPlaceRepository,
+      gymDirectoryRequestRepository: widget.gymDirectoryRequestRepository,
       repository: widget.repository,
       accountProfileRepository: widget.accountProfileRepository,
       businessRepository: widget.businessRepository,

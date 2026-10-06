@@ -49,6 +49,8 @@ final architectureRules = <ArchitectureRule>[
       // Private account data crosses only AccountProfileRepository domain types.
       'lib/data/supabase_account_profile_repository.dart',
       'lib/data/supabase_business_repository.dart',
+      // Public-place suggestions use their own domain port; SDK stays here.
+      'lib/data/supabase_gym_directory_request_repository.dart',
       'lib/data/supabase_coaching_workout_repository.dart',
       'lib/data/supabase_community_repository.dart',
       'lib/data/supabase_exercise_catalog_repository.dart',

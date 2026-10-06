@@ -17,6 +17,9 @@ import 'data/community_repository.dart';
 import 'data/exercise_catalog.dart';
 import 'data/exercise_catalog_repository.dart';
 import 'data/local_equipment_repository.dart';
+import 'data/gym_directory_repository.dart';
+import 'data/asset_gym_directory_repository.dart';
+import 'domain/gym_directory.dart';
 import 'data/offline_exercise_catalog.dart';
 import 'data/bodyweight_exercise_catalog.dart';
 import 'data/notification_repository.dart';
@@ -100,9 +103,15 @@ class AppState extends ChangeNotifier {
     this.notificationRepository,
     this.coachingWorkoutRepository,
     LocalEquipmentRepository? localEquipmentRepository,
+    GymDirectoryRepository? gymDirectoryRepository,
+    GymPlaceRepository? gymPlaceRepository,
+    this.gymDirectoryRequestRepository,
   }) : _repository = repository ?? MemoryAppRepository(),
        localEquipmentRepository =
            localEquipmentRepository ?? MemoryLocalEquipmentRepository(),
+       gymDirectoryRepository =
+           gymDirectoryRepository ?? AssetGymDirectoryRepository(),
+       gymPlaceRepository = gymPlaceRepository ?? MemoryGymPlaceRepository(),
        _authSignOut = authSignOut ?? Auth.instance.signOut {
     if (routineCatalogRepository == null) {
       _seedMarketRoutines();
@@ -121,6 +130,231 @@ class AppState extends ChangeNotifier {
 
   final AppRepository _repository;
   final LocalEquipmentRepository localEquipmentRepository;
+  final GymDirectoryRepository gymDirectoryRepository;
+  final GymPlaceRepository gymPlaceRepository;
+  final GymDirectoryRequestRepository? gymDirectoryRequestRepository;
+  GymPlaceLibrary gymPlaceLibrary = GymPlaceLibrary();
+  Object? gymPlacesError;
+  bool _gymPlacesLoaded = false;
+  Future<void>? _gymPlaceLoad;
+  Future<void> _gymPlaceWrites = Future<void>.value();
+  int _publicGymSelectionRevision = 0;
+  final Set<String> _sendingGymRequests = {};
+
+  GymPlace? get currentPublicGym => gymPlaceLibrary.selectedGym;
+  String? get currentWorkoutPlaceName =>
+      currentPublicGym?.name ?? currentWorkoutLocation?.gymName;
+
+  /// Saving a public address never grants a centre access to workout records.
+  List<GymDirectoryRequest> get gymDirectoryRequests {
+    final userId = Auth.instance.currentUser?.id;
+    return List.unmodifiable(
+      gymPlaceLibrary.requests.where(
+        (request) =>
+            request.ownerUserId == null || request.ownerUserId == userId,
+      ),
+    );
+  }
+
+  Future<GymDirectoryCatalog> loadGymDirectory() =>
+      gymDirectoryRepository.loadCatalog();
+
+  Future<void> loadGymPlaces() async {
+    await _gymPlaceWrites;
+    _gymPlacesLoaded = false;
+    await _ensureGymPlacesLoaded();
+  }
+
+  Future<void> _ensureGymPlacesLoaded() {
+    if (_gymPlacesLoaded) return Future<void>.value();
+    return _gymPlaceLoad ??= _readGymPlaces();
+  }
+
+  Future<void> _readGymPlaces() async {
+    try {
+      final library = await gymPlaceRepository.load();
+      if (_disposed) return;
+      gymPlaceLibrary = library;
+      _gymPlacesLoaded = true;
+      gymPlacesError = null;
+    } catch (error) {
+      if (!_disposed) gymPlacesError = error;
+      rethrow;
+    } finally {
+      _gymPlaceLoad = null;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> _writeGymPlaces(GymPlaceLibrary Function(GymPlaceLibrary) edit) {
+    final operation = _gymPlaceWrites.then((_) async {
+      await _ensureGymPlacesLoaded();
+      if (_disposed) return;
+      final next = edit(gymPlaceLibrary);
+      if (identical(next, gymPlaceLibrary)) return;
+      try {
+        await gymPlaceRepository.save(next);
+        if (_disposed) return;
+        gymPlaceLibrary = next;
+        gymPlacesError = null;
+        notifyListeners();
+      } catch (error) {
+        if (!_disposed) {
+          gymPlacesError = error;
+          notifyListeners();
+        }
+        rethrow;
+      }
+    });
+    // A failed save must stay visible to its caller without blocking retries.
+    _gymPlaceWrites = operation.then<void>((_) {}, onError: (Object error) {});
+    return operation;
+  }
+
+  Future<void> savePublicGymPlace(GymPlace gym) {
+    _publicGymSelectionRevision++;
+    return _writeGymPlaces(
+      (library) => library.copyWith(
+        gyms: [...library.gyms.where((item) => item.id != gym.id), gym],
+        selectedId: gym.id,
+      ),
+    );
+  }
+
+  Future<void> selectPublicGymPlace(String? gymId) {
+    _publicGymSelectionRevision++;
+    return _writeGymPlaces((library) {
+      if (gymId != null && !library.gyms.any((gym) => gym.id == gymId)) {
+        throw const FormatException('저장된 운동 장소를 선택해주세요.');
+      }
+      return library.copyWith(selectedId: gymId, clearSelection: gymId == null);
+    });
+  }
+
+  Future<void> removePublicGymPlace(String gymId) {
+    _publicGymSelectionRevision++;
+    return _writeGymPlaces((library) {
+      final remaining = library.gyms.where((gym) => gym.id != gymId).toList();
+      return library.copyWith(
+        gyms: remaining,
+        selectedId: library.selectedId == gymId
+            ? remaining.firstOrNull?.id
+            : library.selectedId,
+        clearSelection: library.selectedId == gymId && remaining.isEmpty,
+      );
+    });
+  }
+
+  Future<void> _clearPublicGymSelectionIfUnchanged(
+    int revision,
+    int accountEpoch,
+  ) => _writeGymPlaces((library) {
+    // A late centre response must preserve a newer device-place choice.
+    if (!_isCurrentAccount(accountEpoch) ||
+        revision != _publicGymSelectionRevision ||
+        library.selectedId == null) {
+      return library;
+    }
+    _publicGymSelectionRevision++;
+    return library.copyWith(clearSelection: true);
+  });
+
+  Future<bool> canSendGymDirectoryRequests() async {
+    try {
+      return await gymDirectoryRequestRepository?.isAvailable().timeout(
+            const Duration(seconds: 5),
+          ) ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<GymDirectoryRequest> saveGymDirectorySuggestion({
+    required GymDirectoryRequestKind kind,
+    required String gymName,
+    required String address,
+    required String note,
+    String? facilityId,
+  }) async {
+    final request = GymDirectoryRequest(
+      id: _newUuidV4(),
+      kind: kind,
+      facilityId: facilityId,
+      gymName: gymName.trim(),
+      address: address.trim(),
+      note: note.trim(),
+      createdAt: DateTime.now().toUtc(),
+      ownerUserId: Auth.instance.currentUser?.id,
+    );
+    request.validate();
+    await _writeGymPlaces(
+      (library) => library.copyWith(requests: [...library.requests, request]),
+    );
+    return request;
+  }
+
+  Future<void> submitSavedGymDirectoryRequest(String requestId) async {
+    final repository = gymDirectoryRequestRepository;
+    final userId = Auth.instance.currentUser?.id;
+    if (repository == null ||
+        !Auth.instance.hasAuthenticatedUser ||
+        userId == null) {
+      throw const AuthFailure('제안을 보내려면 로그인해주세요.');
+    }
+    if (!_sendingGymRequests.add(requestId)) {
+      throw StateError('이미 제안을 보내고 있어요.');
+    }
+    final epoch = _accountEpoch;
+    try {
+      await _writeGymPlaces((library) {
+        final request = library.requests
+            .where((item) => item.id == requestId)
+            .firstOrNull;
+        if (request == null ||
+            (request.ownerUserId != null && request.ownerUserId != userId)) {
+          throw const AuthFailure('이 계정의 제안만 보낼 수 있어요.');
+        }
+        return library.copyWith(
+          requests: library.requests
+              .map(
+                (item) => item.id == requestId
+                    ? item.copyWith(ownerUserId: userId)
+                    : item,
+              )
+              .toList(),
+        );
+      });
+      if (!_isCurrentAccount(epoch) ||
+          Auth.instance.currentUser?.id != userId) {
+        throw const AuthFailure('계정이 변경됐어요. 다시 확인해주세요.');
+      }
+      final request = gymPlaceLibrary.requests.firstWhere(
+        (item) => item.id == requestId,
+      );
+      if (request.isSubmitted) return;
+      final receivedAt = await repository.submitRequest(request);
+      // Persist the receipt for its original owner even if sign-out happened
+      // during the request. Another account never sees or resends that draft.
+      await _writeGymPlaces(
+        (library) => library.copyWith(
+          requests: library.requests
+              .map(
+                (item) => item.id == requestId
+                    ? item.copyWith(
+                        submittedAt: receivedAt,
+                        ownerUserId: userId,
+                      )
+                    : item,
+              )
+              .toList(),
+        ),
+      );
+    } finally {
+      _sendingGymRequests.remove(requestId);
+    }
+  }
+
   List<LocalEquipment> localEquipment = const [];
   Object? localEquipmentError;
   bool _equipmentWriting = false;
@@ -989,6 +1223,11 @@ class AppState extends ChangeNotifier {
     try {
       await _loadCachedExerciseCatalog();
       await loadLocalEquipment();
+      try {
+        await loadGymPlaces();
+      } catch (_) {
+        // A device library read failure stays recoverable on its own screen.
+      }
       if (exerciseCatalogRepository != null) {
         // Catalog refresh owns no account data, so begin it before the account
         // snapshot/network path. Snapshot retries must not delay exercise
@@ -6099,6 +6338,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> saveWorkoutLocation(String gymId) async {
+    final publicSelectionRevision = _publicGymSelectionRevision;
     final repository = businessRepository;
     if (repository is! WorkoutLocationRepository) {
       throw StateError('운동 장소 저장을 지원하지 않습니다.');
@@ -6116,11 +6356,17 @@ class AppState extends ChangeNotifier {
       );
       if (!_isCurrentAccount(accountEpoch)) return;
       workoutLocationsError = null;
+      await _clearPublicGymSelectionIfUnchanged(
+        publicSelectionRevision,
+        accountEpoch,
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
       notifyListeners();
     });
   }
 
   Future<void> selectWorkoutLocation(String locationId) async {
+    final publicSelectionRevision = _publicGymSelectionRevision;
     final repository = businessRepository;
     if (repository is! WorkoutLocationRepository) {
       throw StateError('운동 장소 선택을 지원하지 않습니다.');
@@ -6138,6 +6384,11 @@ class AppState extends ChangeNotifier {
       );
       if (!_isCurrentAccount(accountEpoch)) return;
       workoutLocationsError = null;
+      await _clearPublicGymSelectionIfUnchanged(
+        publicSelectionRevision,
+        accountEpoch,
+      );
+      if (!_isCurrentAccount(accountEpoch)) return;
       notifyListeners();
     });
   }

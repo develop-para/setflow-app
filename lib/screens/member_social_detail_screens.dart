@@ -1431,7 +1431,9 @@ class _ConsultationCreateScreenState extends State<ConsultationCreateScreen> {
     final state = AppScope.of(context);
     if (!locationSelectionInitialized) {
       locationSelectionInitialized = true;
-      selectedWorkoutLocationId = state.currentWorkoutLocation?.id;
+      selectedWorkoutLocationId = state.currentPublicGym == null
+          ? state.currentWorkoutLocation?.id
+          : null;
       if (selectedWorkoutLocationId != null) {
         offlineLocationSource = _OfflineLocationSource.gym;
       }

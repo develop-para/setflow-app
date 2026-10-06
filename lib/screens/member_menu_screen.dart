@@ -5,7 +5,6 @@ import '../member_navigation.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
-import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
 import '../widgets/member_navigation_editor.dart';
 import '../widgets/member_navigation_items.dart';
@@ -289,7 +288,6 @@ class _MemberMenuScreenState extends State<MemberMenuScreen> {
                     destination: MemberDestination.membership,
                     icon: SetflowIcons.membership,
                     label: '운동 장소',
-                    reason: AuthReason.membership,
                     builder: (_) => const MemberMembershipScreen(),
                   ),
                 ],
@@ -340,7 +338,6 @@ class _MenuItem {
     required this.keyValue,
     required this.icon,
     required this.label,
-    this.reason,
     this.builder,
     this.onTap,
     this.destination,
@@ -351,8 +348,6 @@ class _MenuItem {
   final String label;
   final MemberDestination? destination;
 
-  /// Set when the destination cannot work for a guest.
-  final AuthReason? reason;
   final WidgetBuilder? builder;
   final Future<void> Function(BuildContext context)? onTap;
 }
@@ -461,8 +456,6 @@ class _MenuGridItem extends StatelessWidget {
       await custom(context);
       return;
     }
-    final gate = item.reason;
-    if (gate != null && !await requireSignIn(context, reason: gate)) return;
     if (!context.mounted) return;
     if (item.builder == null && item.destination != null) {
       Navigator.of(context).pop(item.destination);

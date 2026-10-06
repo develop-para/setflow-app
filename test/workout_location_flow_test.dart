@@ -4,6 +4,7 @@ import 'package:setflow/app_state.dart';
 import 'package:setflow/data/business_repository.dart';
 import 'package:setflow/screens/member_membership_screen.dart';
 import 'package:setflow/theme.dart';
+import 'package:setflow/services/auth_service.dart';
 
 void main() {
   testWidgets('member switches and adds multiple workout locations', (
@@ -11,6 +12,9 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(432, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    final previousAuth = Auth.instance;
+    Auth.use(_LocationAuth());
+    addTearDown(() => Auth.use(previousAuth));
     final repository = _WorkoutLocationRepository();
     final state = AppState(businessRepository: repository)
       ..workoutLocations = List.unmodifiable(repository.locations);
@@ -30,11 +34,13 @@ void main() {
     expect(find.text('첫 번째 헬스장'), findsOneWidget);
     expect(find.text('두 번째 헬스장'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('두 번째 헬스장'));
     await tester.tap(find.text('두 번째 헬스장'));
     await tester.pumpAndSettle();
     expect(state.currentWorkoutLocation?.gymName, '두 번째 헬스장');
     expect(repository.selectedLocationId, 'location-2');
 
+    await tester.ensureVisible(find.text('추가'));
     await tester.tap(find.text('추가'));
     await tester.pumpAndSettle();
     expect(find.text('새 헬스장'), findsOneWidget);
@@ -45,6 +51,24 @@ void main() {
     expect(state.currentWorkoutLocation?.gymName, '새 헬스장');
     expect(repository.savedGymId, 'gym-3');
   });
+}
+
+class _LocationAuth implements AuthService {
+  @override
+  AuthUser get currentUser =>
+      const AuthUser(id: 'user-1', displayName: '운동 회원');
+
+  @override
+  bool get hasAuthenticatedUser => true;
+
+  @override
+  String get currentDisplayName => currentUser.displayName;
+
+  @override
+  Stream<AuthChange> get authChanges => const Stream.empty();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _WorkoutLocationRepository

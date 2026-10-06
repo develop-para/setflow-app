@@ -32,6 +32,10 @@
       ]
     },
     {
+      "source": "/assets/assets/gym_directory/gyms.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
       "source": "/canvaskit/(.*)",
       "headers": [
         {

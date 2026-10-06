@@ -4,7 +4,6 @@ import '../app_state.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
-import '../widgets/auth_gate.dart';
 import '../widgets/common.dart';
 import 'member_membership_screen.dart';
 import 'account_profile_screen.dart';
@@ -55,9 +54,8 @@ class MyPageScreen extends StatelessWidget {
             icon: SetflowIcons.membership,
             title: '운동 장소 및 센터',
             subtitle: '여러 헬스장과 센터 연결 관리',
-            // A membership belongs to a person, so it cannot resolve for a
-            // guest — gate it instead of showing a permanently empty screen.
-            reason: AuthReason.membership,
+            // Public workout places are saved on the device. Centre actions
+            // ask for an account when a guest actually tries to connect.
             builder: (_) => const MemberMembershipScreen(),
           ),
           const Divider(height: SetflowSpacing.section),
@@ -235,7 +233,6 @@ class _MyPageEntry extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.builder,
-    this.reason,
     this.onResult,
     super.key,
   });
@@ -244,9 +241,6 @@ class _MyPageEntry extends StatelessWidget {
   final String title;
   final String subtitle;
   final WidgetBuilder builder;
-
-  /// Set when the destination cannot work for a guest.
-  final AuthReason? reason;
 
   /// Runs with whatever the pushed route popped, for destinations that report
   /// back (a password change confirming it took effect).
@@ -265,8 +259,6 @@ class _MyPageEntry extends StatelessWidget {
   }
 
   Future<void> _open(BuildContext context) async {
-    final gate = reason;
-    if (gate != null && !await requireSignIn(context, reason: gate)) return;
     if (!context.mounted) return;
     final result = await Navigator.of(
       context,
