@@ -14,6 +14,7 @@ CommunityPost _post(
   int likes = 0,
   int day = 1,
   bool photo = true,
+  bool own = false,
 }) => CommunityPost(
   id: id,
   author: '작성자 $id',
@@ -23,6 +24,7 @@ CommunityPost _post(
   visualKey: 'strength',
   color: SetflowColors.teal,
   likes: likes,
+  isMine: own,
   imageUrl: photo ? 'https://example.com/$id.jpg' : null,
 );
 
@@ -165,6 +167,29 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
       expect(_photo('photo'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'deleting an owned post removes it from the loaded feed on return',
+    (tester) async {
+      final repository = _FeedRepository([
+        _post('mine', own: true),
+        _post('other'),
+      ]);
+      await pumpFeed(tester, repository);
+      final requestCount = repository.calls.length;
+      await tester.tap(_photo('mine'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('게시물 메뉴'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('글 삭제'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('삭제'));
+      await tester.pumpAndSettle();
+      expect(_photo('mine'), findsNothing);
+      expect(_photo('other'), findsOneWidget);
+      expect(repository.calls, hasLength(requestCount));
     },
   );
 
@@ -481,8 +506,21 @@ class _FeedRepository implements CommunityRepository {
   }
 
   @override
+  Future<void> updatePostContent({
+    required String postId,
+    required String content,
+  }) async =>
+      throw UnsupportedError('Post editing is not configured for this test.');
+
+  @override
+  Future<void> deletePost(String postId) async {
+    posts.removeWhere((post) => post.id == postId);
+  }
+
+  @override
   Future<PostComment> addComment({
     required String postId,
     required String content,
+    String? parentCommentId,
   }) async => commentResult ?? (throw const CommunityAuthenticationRequired());
 }

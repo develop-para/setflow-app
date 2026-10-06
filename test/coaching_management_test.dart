@@ -19,6 +19,11 @@ const _template = ExerciseTemplate(
 final _day = DateTime(2026, 9, 11);
 
 void main() {
+  Future<void> confirmSharing(WidgetTester tester) async {
+    await tester.tap(find.byKey(const ValueKey('confirm-management-sharing')));
+    await tester.pumpAndSettle();
+  }
+
   Future<_State> mount(
     WidgetTester tester,
     _Repository repository, {
@@ -90,20 +95,163 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('받은 요청과 보낸 요청을 공유 중인 상대보다 먼저 보여주고 종료 이력은 접는다', (tester) async {
+    final repository = _Repository()
+      ..extraLinks = const [
+        CoachingManagementLink(
+          id: 'ended',
+          memberName: '민지',
+          trainerName: '종료 트레이너',
+          status: 'ended',
+          viewerRole: 'member',
+          canRespond: false,
+        ),
+        CoachingManagementLink(
+          id: 'sent',
+          memberName: '민지',
+          trainerName: '대기 트레이너',
+          status: 'pending',
+          viewerRole: 'member',
+          canRespond: false,
+        ),
+        CoachingManagementLink(
+          id: 'received',
+          memberName: '민지',
+          trainerName: '요청 트레이너',
+          status: 'pending',
+          viewerRole: 'member',
+          canRespond: true,
+        ),
+      ];
+    await mount(tester, repository);
+    final received = find.byKey(const ValueKey('management-link-received'));
+    final sent = find.byKey(const ValueKey('management-link-sent'));
+    final active = find.byKey(const ValueKey('management-link-link'));
+    expect(
+      tester.getTopLeft(received).dy,
+      lessThan(tester.getTopLeft(sent).dy),
+    );
+    expect(tester.getTopLeft(sent).dy, lessThan(tester.getTopLeft(active).dy));
+    expect(find.text('요청 트레이너 트레이너'), findsOneWidget);
+    expect(find.text('상대 수락 대기'), findsOneWidget);
+    expect(find.byKey(const ValueKey('accept-link-sent')), findsNothing);
+    expect(find.byKey(const ValueKey('management-link-ended')), findsNothing);
+    final history = find.byKey(const ValueKey('management-link-history'));
+    await tester.ensureVisible(history);
+    await tester.tap(history);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('management-link-ended')), findsOneWidget);
+    expect(find.text('공유 해제됨'), findsOneWidget);
+    expect(
+      DefaultTextStyle.of(tester.element(find.text('종료된 공유 · 1'))).style.color,
+      SetflowColors.brandDeep,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('요청과 수락은 공유 범위를 확인하고 동의하기 전에는 전송하지 않는다', (tester) async {
+    final repository = _Repository()..status = 'pending';
+    await mount(tester, repository, consultationId: 'consultation');
+    await tester.tap(find.byKey(const ValueKey('request-management-link')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    expect(repository.requestCalls, 0);
+    final accept = find.byKey(const ValueKey('accept-link-link'));
+    await tester.ensureVisible(accept);
+    final acceptAction = tester.widget<FilledButton>(accept).onPressed!;
+    acceptAction();
+    acceptAction();
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('지훈 트레이너와 운동 기록 공유를 시작해요.'), findsOneWidget);
+    expect(repository.accepted, isNull);
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    expect(repository.accepted, isNull);
+    expect(tester.widget<FilledButton>(accept).onPressed, isNotNull);
+  });
+
+  testWidgets('공유 동의 중에 계정이 바뀌면 팝업과 요청 권한을 닫는다', (tester) async {
+    final repository = _Repository()..status = 'pending';
+    final state = await mount(tester, repository);
+    await tester.tap(find.byKey(const ValueKey('accept-link-link')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('confirm-management-sharing')),
+      findsOneWidget,
+    );
+    state.changeAccount('other-member');
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(repository.accepted, isNull);
+    expect(
+      find.byKey(const ValueKey('coaching-account-expired')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('작은 화면과 큰 글자에서도 공유 범위 전체를 확인하고 수락할 수 있다', (tester) async {
+    final repository = _Repository()..status = 'pending';
+    await mount(tester, repository, scale: 2);
+    final accept = find.byKey(const ValueKey('accept-link-link'));
+    await tester.ensureVisible(accept);
+    await tester.tap(accept);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('이전 기록을 포함한 모든 운동 기록'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await confirmSharing(tester);
+    expect(repository.accepted, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('운동 기록 공유 해제는 수업별 공유와 구분해 안내하고 확인한 뒤에만 요청한다', (tester) async {
+    final repository = _Repository();
+    await mount(tester, repository);
+    await tester.tap(find.text('기록 공유 해제'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('수업별로 따로 허용한 공유는 해당 수업에서 관리해요.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('전체 연결 해제'), findsNothing);
+    await tester.tap(find.text('취소'));
+    await tester.pumpAndSettle();
+    expect(repository.endedLinks, isEmpty);
+    await tester.tap(find.text('기록 공유 해제'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('해제'));
+    await tester.pumpAndSettle();
+    expect(repository.endedLinks, ['link']);
+    expect(find.byKey(const ValueKey('management-history-link')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('management-link-history')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'consultation requests explicit consent and receiver accepts the connection',
     (tester) async {
       final repository = _Repository()..status = 'pending';
       await mount(tester, repository, consultationId: 'consultation');
-      expect(find.textContaining('수업·개인 운동 모두 종료 후 48시간'), findsWidgets);
+      expect(find.textContaining('수업·개인 운동 모두 종료 후 48시간'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('request-management-link')));
       await tester.pumpAndSettle();
+      expect(repository.requestedConsultation, isNull);
+      expect(find.textContaining('수업·개인 운동 모두 종료 후 48시간'), findsOneWidget);
+      expect(find.textContaining('이전 기록을 포함한 모든 운동 기록'), findsOneWidget);
+      expect(find.textContaining('종료 시각이 없는 기록도 승인을 받아요.'), findsOneWidget);
+      await confirmSharing(tester);
       expect(repository.requestedConsultation, 'consultation');
       await tester.ensureVisible(
         find.byKey(const ValueKey('accept-link-link')),
       );
       await tester.tap(find.byKey(const ValueKey('accept-link-link')));
       await tester.pumpAndSettle();
+      expect(repository.accepted, isNull);
+      await confirmSharing(tester);
       expect(repository.accepted, isTrue);
       expect(find.text('전체 운동 기록'), findsOneWidget);
     },
@@ -125,6 +273,13 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(repository.correctionAccepted, isTrue);
+      expect(find.text('수정 반영됨'), findsNothing);
+      final correctionHistory = find.byKey(
+        const ValueKey('management-correction-history'),
+      );
+      await tester.ensureVisible(correctionHistory);
+      await tester.tap(correctionHistory);
+      await tester.pumpAndSettle();
       expect(find.text('수정 반영됨'), findsOneWidget);
       expect(state.sessions[_day]!.exercises.first.sets.first.weight, 45);
       // The same inbox entry must not overwrite a subsequent intentional member edit.
@@ -148,6 +303,7 @@ void main() {
         final request = find.byKey(const ValueKey('request-management-link'));
         await tester.tap(request);
         await tester.pumpAndSettle();
+        await confirmSharing(tester);
         expect(
           find.text('본인 계정과는 연결할 수 없어요. 다른 회원 또는 트레이너와 상담해주세요.'),
           findsOneWidget,
@@ -172,6 +328,7 @@ void main() {
       final request = find.byKey(const ValueKey('request-management-link'));
       await tester.tap(request);
       await tester.pumpAndSettle();
+      await confirmSharing(tester);
       expect(
         find.text('현재 이 상담의 연결을 요청할 권한이 없어요. 상담 목록과 담당 트레이너를 다시 확인해주세요.'),
         findsOneWidget,
@@ -190,6 +347,7 @@ void main() {
       final request = find.byKey(const ValueKey('request-management-link'));
       await tester.tap(request);
       await tester.pumpAndSettle();
+      await confirmSharing(tester);
       expect(find.text('처리하지 못했어요. 연결 상태와 최신 기록을 다시 확인해주세요.'), findsOneWidget);
       expect(tester.widget<FilledButton>(request).onPressed, isNotNull);
       expect(find.text('연결 목록에서 상태를 확인해주세요'), findsNothing);
@@ -197,6 +355,7 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
       await tester.tap(request);
       await tester.pumpAndSettle();
+      await confirmSharing(tester);
       expect(repository.requestCalls, 2);
       expect(repository.requestedConsultation, 'retry-consultation');
       expect(find.text('연결 목록에서 상태를 확인해주세요'), findsOneWidget);
@@ -369,6 +528,7 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
   Completer<void>? historyGate;
   bool hasOlderPage = false;
   final historyCursors = <String?>[];
+  final endedLinks = <String>[];
 
   @override
   Future<List<CoachingManagementLink>> listManagementLinks() async => [
@@ -396,6 +556,12 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
   }) async {
     accepted = accept;
     status = accept ? 'active' : 'rejected';
+  }
+
+  @override
+  Future<void> endManagementLink(String linkId) async {
+    endedLinks.add(linkId);
+    status = 'ended';
   }
 
   @override

@@ -105,7 +105,12 @@ class _ManagementPageState extends State<_ManagementPage>
   bool _busy = false;
   bool _failed = false;
   bool _sent = false;
+  bool _confirming = false;
+  bool _showLinkHistory = false;
+  bool _showCorrectionHistory = false;
   int _generation = 0;
+
+  bool get _blocked => _busy || _loading || _confirming;
 
   @override
   void initState() {
@@ -122,7 +127,7 @@ class _ManagementPageState extends State<_ManagementPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_busy) _load();
+    if (state == AppLifecycleState.resumed && !_blocked) _load();
   }
 
   Future<void> _load() async {
@@ -195,6 +200,63 @@ class _ManagementPageState extends State<_ManagementPage>
     }
   }
 
+  Future<bool> _confirmSharing({CoachingManagementLink? link}) async {
+    if (_blocked) return false;
+    setState(() => _confirming = true);
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('운동 기록 공유'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  link == null
+                      ? '상대가 수락하면 운동 기록 공유가 시작돼요.'
+                      : '${_counterpart(link)}와 운동 기록 공유를 시작해요.',
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                const Text(_consentDescription),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              key: const ValueKey('confirm-management-sharing'),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(link == null ? '동의하고 요청' : '동의하고 수락'),
+            ),
+          ],
+        ),
+      );
+      return mounted && confirmed == true;
+    } finally {
+      if (mounted) setState(() => _confirming = false);
+    }
+  }
+
+  Future<void> _requestSharing() async {
+    if (_sent || !await _confirmSharing() || !mounted) return;
+    await _run((repository) async {
+      await repository.requestManagementLink(widget.consultationId!);
+      if (mounted) setState(() => _sent = true);
+    });
+  }
+
+  Future<void> _acceptSharing(CoachingManagementLink link) async {
+    if (!await _confirmSharing(link: link) || !mounted) return;
+    await _run(
+      (repository) => repository.respondManagementLink(link.id, accept: true),
+    );
+  }
+
   Future<void> _shareGym(CoachingManagementLink link) async {
     final memberships = AppScope.of(
       context,
@@ -241,10 +303,18 @@ class _ManagementPageState extends State<_ManagementPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(link.viewerRole == 'gym' ? '업장 공유를 끝낼까요?' : '기록 관리 해제'),
+        title: Text(
+          link.viewerRole == 'gym'
+              ? '업장 공유를 끝낼까요?'
+              : link.status == 'pending'
+              ? '요청을 취소할까요?'
+              : '기록 공유 해제',
+        ),
         content: Text(
           link.viewerRole == 'gym'
               ? '업장에서 이 연결의 기록을 더 이상 볼 수 없어요.'
+              : link.status == 'pending'
+              ? '이 운동 기록 공유 요청을 취소해요. 수업별로 따로 허용한 공유는 해당 수업에서 관리해요.'
               : '이 연결의 전체 기록 조회·수정 권한을 종료하고 대기 중인 수정 요청을 취소해요. 수업별로 따로 허용한 공유는 해당 수업에서 관리해요.',
         ),
         actions: [
@@ -303,14 +373,360 @@ class _ManagementPageState extends State<_ManagementPage>
     }
   }
 
+  String _counterpart(CoachingManagementLink link) => switch (link.viewerRole) {
+    'member' => '${link.trainerName} 트레이너',
+    'trainer' => '${link.memberName} 회원',
+    _ => '${link.memberName} 회원 · ${link.trainerName} 트레이너',
+  };
+
+  String _linkStatus(CoachingManagementLink link) => switch (link.status) {
+    'pending' => link.canRespond ? '응답 필요' : '상대 수락 대기',
+    'active' => '공유 중',
+    'suspended' => '공유 일시 중지',
+    'ended' => '공유 해제됨',
+    'rejected' => '요청 거절됨',
+    _ => _status(link.status),
+  };
+
+  Color _linkStatusColor(CoachingManagementLink link) => switch (link.status) {
+    'active' => context.setflowColors.success,
+    'pending' when link.canRespond => context.setflowColors.warning,
+    'pending' => context.setflowColors.info,
+    _ => Theme.of(context).colorScheme.onSurfaceVariant,
+  };
+
+  Widget _linkCard(CoachingManagementLink link) => SetflowCard(
+    key: ValueKey('management-link-${link.id}'),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          _counterpart(link),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: SetflowSpacing.xs),
+        Text(
+          _linkStatus(link),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: _linkStatusColor(link)),
+        ),
+        if (link.status == 'pending') ...[
+          const SizedBox(height: SetflowSpacing.sm),
+          Text(
+            link.canRespond
+                ? '기록 공유 범위를 확인하고 수락해주세요.'
+                : link.viewerRole == 'gym'
+                ? '회원과 트레이너가 모두 수락하면 기록을 볼 수 있어요.'
+                : '상대가 수락하면 운동 기록 공유가 시작돼요.',
+          ),
+        ],
+        if (link.status == 'suspended') ...[
+          const SizedBox(height: SetflowSpacing.sm),
+          const Text('현재는 운동 기록을 조회하거나 수정할 수 없어요.'),
+        ],
+        if (link.gymName != null) ...[
+          const SizedBox(height: SetflowSpacing.sm),
+          Text('기록을 볼 수 있는 업장 · ${link.gymName}'),
+        ],
+        if (link.canRespond) ...[
+          const SizedBox(height: SetflowSpacing.md),
+          Wrap(
+            spacing: SetflowSpacing.sm,
+            runSpacing: SetflowSpacing.xs,
+            children: [
+              FilledButton(
+                key: ValueKey('accept-link-${link.id}'),
+                onPressed: _blocked ? null : () => _acceptSharing(link),
+                child: const Text('공유 범위 확인'),
+              ),
+              TextButton(
+                onPressed: _blocked
+                    ? null
+                    : () => _run(
+                        (repository) => repository.respondManagementLink(
+                          link.id,
+                          accept: false,
+                        ),
+                      ),
+                child: const Text('거절'),
+              ),
+            ],
+          ),
+        ],
+        if (link.isActive) ...[
+          const SizedBox(height: SetflowSpacing.md),
+          OutlinedButton(
+            key: ValueKey('management-history-${link.id}'),
+            onPressed: _blocked
+                ? null
+                : () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CoachingAccountBoundary(
+                          child: _ManagedHistoryPage(link: link),
+                        ),
+                      ),
+                    );
+                    if (mounted) _load();
+                  },
+            child: const Text('전체 운동 기록'),
+          ),
+        ],
+        if (link.isActive ||
+            link.status == 'suspended' ||
+            (link.status == 'pending' && !link.canRespond))
+          Wrap(
+            spacing: SetflowSpacing.sm,
+            runSpacing: SetflowSpacing.xs,
+            children: [
+              if (link.isActive && link.viewerRole == 'member')
+                TextButton(
+                  onPressed: _blocked ? null : () => _shareGym(link),
+                  child: const Text('업장 공유 설정'),
+                ),
+              if (link.isActive && link.viewerRole == 'gym')
+                TextButton(
+                  onPressed: _blocked ? null : () => _changeTrainer(link),
+                  child: const Text('담당 트레이너 변경 요청'),
+                ),
+              TextButton(
+                onPressed: _blocked ? null : () => _end(link),
+                child: Text(
+                  link.viewerRole == 'gym'
+                      ? '업장 공유 종료'
+                      : link.status == 'pending'
+                      ? '요청 취소'
+                      : '기록 공유 해제',
+                ),
+              ),
+            ],
+          ),
+      ],
+    ),
+  );
+
+  List<Widget> _linkSection(
+    String title,
+    String key,
+    List<CoachingManagementLink> links,
+  ) => links.isEmpty
+      ? []
+      : [
+          Text(
+            '$title · ${links.length}',
+            key: ValueKey(key),
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          for (final link in links) ...[
+            _linkCard(link),
+            const SizedBox(height: SetflowSpacing.md),
+          ],
+          const SizedBox(height: SetflowSpacing.sm),
+        ];
+
+  Widget _correctionCard(WorkoutCorrection correction) => SetflowCard(
+    key: ValueKey('management-correction-${correction.id}'),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          correction.viewerRole == 'member'
+              ? '${correction.trainerName} 트레이너'
+              : correction.viewerRole == 'trainer'
+              ? '${correction.memberName} 회원'
+              : '${correction.memberName} 회원 · ${correction.trainerName} 트레이너',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: SetflowSpacing.xs),
+        Text('${_date(correction.date)} · ${correction.workoutTitle}'),
+        const SizedBox(height: SetflowSpacing.sm),
+        Text('${correction.exerciseName} ${correction.setNumber}세트'),
+        Text(
+          '${correction.metric.label}: ${_number(correction.before)} → ${_number(correction.after)} ${correction.metric.unit}',
+        ),
+        Text('수정 이유: ${correction.reason}'),
+        const SizedBox(height: SetflowSpacing.sm),
+        Text(
+          correction.status == 'pending'
+              ? correction.canRespond
+                    ? '회원 승인 필요'
+                    : correction.viewerRole == 'member'
+                    ? '공유 상태를 확인해야 승인할 수 있어요.'
+                    : '회원 승인 대기'
+              : _status(correction.status),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: correction.canRespond
+                ? context.setflowColors.warning
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (correction.canRespond) ...[
+          const SizedBox(height: SetflowSpacing.md),
+          Wrap(
+            spacing: SetflowSpacing.sm,
+            runSpacing: SetflowSpacing.xs,
+            children: [
+              FilledButton(
+                key: ValueKey('approve-correction-${correction.id}'),
+                onPressed: _blocked
+                    ? null
+                    : () => _run(
+                        (repository) => repository.respondWorkoutCorrection(
+                          correction.id,
+                          accept: true,
+                        ),
+                      ),
+                child: const Text('이 수정 승인'),
+              ),
+              TextButton(
+                onPressed: _blocked
+                    ? null
+                    : () => _run(
+                        (repository) => repository.respondWorkoutCorrection(
+                          correction.id,
+                          accept: false,
+                        ),
+                      ),
+                child: const Text('거절'),
+              ),
+            ],
+          ),
+        ],
+      ],
+    ),
+  );
+
+  List<Widget> _content() {
+    final received = _links
+        .where((link) => link.status == 'pending' && link.canRespond)
+        .toList();
+    final sent = _links
+        .where((link) => link.status == 'pending' && !link.canRespond)
+        .toList();
+    final active = _links.where((link) => link.isActive).toList();
+    final suspended = _links
+        .where((link) => link.status == 'suspended')
+        .toList();
+    final history = _links
+        .where(
+          (link) =>
+              link.status != 'pending' &&
+              !link.isActive &&
+              link.status != 'suspended',
+        )
+        .toList();
+    final pendingCorrections = [
+      ..._corrections.where(
+        (correction) => correction.status == 'pending' && correction.canRespond,
+      ),
+      ..._corrections.where(
+        (correction) =>
+            correction.status == 'pending' && !correction.canRespond,
+      ),
+    ];
+    final correctionHistory = _corrections
+        .where((correction) => correction.status != 'pending')
+        .toList();
+    return [
+      if (_failed) ...[
+        const Text('연결 정보를 불러오지 못했어요.'),
+        OutlinedButton(onPressed: _load, child: const Text('다시 시도')),
+      ] else ...[
+        const Text('함께 운동하는 상대와 기록을 공유하고, 수정 요청을 확인해요.'),
+        const SizedBox(height: SetflowSpacing.lg),
+        if (widget.consultationId != null) ...[
+          SetflowCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '상담한 상대와 기록 공유',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: SetflowSpacing.sm),
+                const Text('공유 범위를 확인해 요청하면 상대에게 수락 요청이 전달돼요.'),
+                const SizedBox(height: SetflowSpacing.md),
+                FilledButton(
+                  key: const ValueKey('request-management-link'),
+                  onPressed: _blocked || _sent ? null : _requestSharing,
+                  child: Text(_sent ? '연결 목록에서 상태를 확인해주세요' : '기록 공유 요청'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+        ],
+        if (_links.isEmpty) ...[
+          const Text('아직 운동 기록을 공유하는 상대가 없어요. 연결한 상대의 상세 화면에서 기록 공유를 요청해주세요.'),
+          const SizedBox(height: SetflowSpacing.lg),
+        ],
+        ..._linkSection('받은 요청', 'management-received-section', received),
+        ..._linkSection('보낸 요청', 'management-sent-section', sent),
+        ..._linkSection('공유 중', 'management-active-section', active),
+        ..._linkSection('공유 일시 중지', 'management-suspended-section', suspended),
+        if (history.isNotEmpty) ...[
+          ExpansionTile(
+            key: const ValueKey('management-link-history'),
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            textColor: context.setflowColors.brandDeep,
+            iconColor: context.setflowColors.brandDeep,
+            initiallyExpanded: _showLinkHistory,
+            onExpansionChanged: (expanded) => _showLinkHistory = expanded,
+            title: Text('종료된 공유 · ${history.length}'),
+            children: [
+              for (final link in history) ...[
+                _linkCard(link),
+                const SizedBox(height: SetflowSpacing.md),
+              ],
+            ],
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+        ],
+        Text(
+          '기록 수정 요청',
+          key: const ValueKey('management-correction-section'),
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: SetflowSpacing.md),
+        if (pendingCorrections.isEmpty) const Text('대기 중인 기록 수정 요청이 없어요.'),
+        for (final correction in pendingCorrections) ...[
+          _correctionCard(correction),
+          const SizedBox(height: SetflowSpacing.md),
+        ],
+        if (correctionHistory.isNotEmpty) ...[
+          const SizedBox(height: SetflowSpacing.sm),
+          ExpansionTile(
+            key: const ValueKey('management-correction-history'),
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            textColor: context.setflowColors.brandDeep,
+            iconColor: context.setflowColors.brandDeep,
+            initiallyExpanded: _showCorrectionHistory,
+            onExpansionChanged: (expanded) => _showCorrectionHistory = expanded,
+            title: Text('수정 이력 · ${correctionHistory.length}'),
+            children: [
+              for (final correction in correctionHistory) ...[
+                _correctionCard(correction),
+                const SizedBox(height: SetflowSpacing.md),
+              ],
+            ],
+          ),
+        ],
+      ],
+    ];
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('운동 관리 연결'),
+      title: const Text('운동 기록 공유'),
       actions: [
         IconButton(
           tooltip: '연결과 승인 요청 새로고침',
-          onPressed: _busy || _loading ? null : _load,
+          onPressed: _blocked ? null : _load,
           icon: const Icon(SetflowIcons.undo),
         ),
       ],
@@ -322,201 +738,7 @@ class _ManagementPageState extends State<_ManagementPage>
             child: ListView(
               padding: SetflowInsets.pageList,
               physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                if (_failed) ...[
-                  const Text('연결 정보를 불러오지 못했어요.'),
-                  OutlinedButton(onPressed: _load, child: const Text('다시 시도')),
-                ] else ...[
-                  if (widget.consultationId != null) ...[
-                    const Text(_consentDescription),
-                    const SizedBox(height: SetflowSpacing.md),
-                    FilledButton(
-                      key: const ValueKey('request-management-link'),
-                      onPressed: _busy || _sent
-                          ? null
-                          : () => _run((repository) async {
-                              await repository.requestManagementLink(
-                                widget.consultationId!,
-                              );
-                              if (mounted) setState(() => _sent = true);
-                            }),
-                      child: Text(_sent ? '연결 목록에서 상태를 확인해주세요' : '동의하고 연결 요청'),
-                    ),
-                    const SizedBox(height: SetflowSpacing.lg),
-                  ],
-                  if (_links.isEmpty)
-                    const Text('아직 운동 관리 연결이 없어요. 상담 상세에서 상대에게 연결을 요청할 수 있어요.'),
-                  for (final link in _links) ...[
-                    SetflowCard(
-                      key: ValueKey('management-link-${link.id}'),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${link.memberName} · ${link.trainerName}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(_status(link.status)),
-                          if (link.status == 'pending')
-                            Text(
-                              link.canRespond
-                                  ? '동의하고 수락하면 운동 기록 관리가 시작돼요.'
-                                  : link.viewerRole == 'gym'
-                                  ? '회원과 트레이너의 수락을 기다리고 있어요.'
-                                  : '상대의 수락을 기다리고 있어요.',
-                            ),
-                          if (link.gymName != null)
-                            Text('공유 업장 · ${link.gymName}'),
-                          if (link.canRespond) ...[
-                            const SizedBox(height: SetflowSpacing.md),
-                            const Text(_consentDescription),
-                            Wrap(
-                              spacing: SetflowSpacing.sm,
-                              children: [
-                                FilledButton(
-                                  key: ValueKey('accept-link-${link.id}'),
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _run(
-                                          (repository) =>
-                                              repository.respondManagementLink(
-                                                link.id,
-                                                accept: true,
-                                              ),
-                                        ),
-                                  child: const Text('동의하고 수락'),
-                                ),
-                                TextButton(
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _run(
-                                          (repository) =>
-                                              repository.respondManagementLink(
-                                                link.id,
-                                                accept: false,
-                                              ),
-                                        ),
-                                  child: const Text('거절'),
-                                ),
-                              ],
-                            ),
-                          ],
-                          if (link.isActive) ...[
-                            OutlinedButton(
-                              key: ValueKey('management-history-${link.id}'),
-                              onPressed: _busy
-                                  ? null
-                                  : () async {
-                                      await Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                          builder: (_) =>
-                                              CoachingAccountBoundary(
-                                                child: _ManagedHistoryPage(
-                                                  link: link,
-                                                ),
-                                              ),
-                                        ),
-                                      );
-                                      if (mounted) _load();
-                                    },
-                              child: const Text('전체 운동 기록'),
-                            ),
-                            if (link.viewerRole == 'member')
-                              TextButton(
-                                onPressed: _busy ? null : () => _shareGym(link),
-                                child: const Text('업장 공유 설정'),
-                              ),
-                            if (link.viewerRole == 'gym')
-                              TextButton(
-                                onPressed: _busy
-                                    ? null
-                                    : () => _changeTrainer(link),
-                                child: const Text('담당 트레이너 변경 요청'),
-                              ),
-                          ],
-                          if (link.status == 'active' ||
-                              link.status == 'pending' ||
-                              link.status == 'suspended')
-                            TextButton(
-                              onPressed: _busy ? null : () => _end(link),
-                              child: Text(
-                                link.viewerRole == 'gym'
-                                    ? '업장 공유 종료'
-                                    : '기록 관리 해제',
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: SetflowSpacing.md),
-                  ],
-                  const SizedBox(height: SetflowSpacing.lg),
-                  Text(
-                    '기록 수정 요청과 이력',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: SetflowSpacing.md),
-                  if (_corrections.isEmpty) const Text('기록 수정 요청이 없어요.'),
-                  for (final correction in _corrections) ...[
-                    SetflowCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${correction.memberName} · ${correction.trainerName}',
-                          ),
-                          Text(
-                            '${_date(correction.date)} · ${correction.workoutTitle}',
-                          ),
-                          Text(
-                            '${correction.exerciseName} ${correction.setNumber}세트',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            '${correction.metric.label}: ${_number(correction.before)} → ${_number(correction.after)} ${correction.metric.unit}',
-                          ),
-                          Text('수정 이유: ${correction.reason}'),
-                          Text(_status(correction.status)),
-                          if (correction.canRespond)
-                            Wrap(
-                              spacing: SetflowSpacing.sm,
-                              children: [
-                                FilledButton(
-                                  key: ValueKey(
-                                    'approve-correction-${correction.id}',
-                                  ),
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _run(
-                                          (repository) => repository
-                                              .respondWorkoutCorrection(
-                                                correction.id,
-                                                accept: true,
-                                              ),
-                                        ),
-                                  child: const Text('이 수정 승인'),
-                                ),
-                                TextButton(
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _run(
-                                          (repository) => repository
-                                              .respondWorkoutCorrection(
-                                                correction.id,
-                                                accept: false,
-                                              ),
-                                        ),
-                                  child: const Text('거절'),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: SetflowSpacing.md),
-                  ],
-                ],
-              ],
+              children: _content(),
             ),
           ),
   );

@@ -63,7 +63,7 @@ class CommunityPostRecord {
   final String? imageUrl;
 
   /// Present for a newly uploaded image (and when a public URL can be decoded).
-  /// The database stores the public URL; this path is retained for cleanup.
+  /// The database stores the path; URLs are resolved when reading.
   final String? imageStoragePath;
   final String? location;
   final String? routineName;
@@ -86,6 +86,16 @@ class CommunityAuthenticationRequired implements Exception {
 
 class CommunityValidationException implements Exception {
   const CommunityValidationException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// A backend refusal or server failure, separate from a connection failure.
+class CommunityOperationException implements Exception {
+  const CommunityOperationException(this.message);
 
   final String message;
 
@@ -116,11 +126,21 @@ abstract interface class CommunityRepository {
   /// post. An uploaded object is removed if the database insert fails.
   Future<CommunityPostRecord> createPost(CreateCommunityPostInput input);
 
+  /// Changes the text of the caller's own post, keeping its photo and record.
+  Future<void> updatePostContent({
+    required String postId,
+    required String content,
+  });
+
+  /// Deletes the caller's own post and its associated reactions.
+  Future<void> deletePost(String postId);
+
   /// Toggles only the authenticated user's like for [postId].
   Future<CommunityLikeResult> toggleLike(String postId);
 
   Future<PostComment> addComment({
     required String postId,
     required String content,
+    String? parentCommentId,
   });
 }

@@ -672,6 +672,7 @@ class AppState extends ChangeNotifier {
   int _memberConsultationRequestSequence = 0;
   int _scheduleRequestSequence = 0;
   int _memberFeedbackRequestSequence = 0;
+  int _memberCoachingRequestSequence = 0;
   int _memberDetailGeneration = 0;
   int _workoutExerciseSequence = 0;
   final Map<String, Future<dynamic>> _businessMutations = {};
@@ -856,6 +857,17 @@ class AppState extends ChangeNotifier {
   List<BusinessConsultation> memberConsultations = const [];
   bool memberConsultationsLoading = false;
   Object? memberConsultationsError;
+  List<CoachingConnection> _memberCoachingConnections = const [];
+  String? _memberCoachingOwnerId;
+  bool memberCoachingConnectionsLoading = false;
+  Object? memberCoachingConnectionsError;
+  List<CoachingConnection> get memberCoachingConnections =>
+      role == UserRole.member &&
+          businessAccess?.userId == _memberCoachingOwnerId &&
+          (loadBusinessWithoutAuth ||
+              Auth.instance.currentUser?.id == _memberCoachingOwnerId)
+      ? _memberCoachingConnections
+      : const [];
   MemberSharingPreferences? _memberSharingPreferences;
   List<RoutineShareRecord> incomingRoutineShares = const [];
   List<RoutineShareRecord> outgoingRoutineShares = const [];
@@ -964,8 +976,11 @@ class AppState extends ChangeNotifier {
       _businessMemberDetailErrors[memberId];
   List<BusinessMember> get businessMembers =>
       businessWorkspace?.members ?? const [];
-  List<CoachingConnection> get coachingConnections =>
-      businessWorkspace?.coachingConnections ?? const [];
+  List<CoachingConnection> get coachingConnections => switch (role) {
+    UserRole.guest => const [],
+    UserRole.member => memberCoachingConnections,
+    _ => businessWorkspace?.coachingConnections ?? const [],
+  };
   List<CoachingSessionRecord> get coachingSessionRecords =>
       businessWorkspace?.sessionRecords ?? const [];
   List<GymTrainerRecord> get businessTrainers =>
@@ -1340,6 +1355,10 @@ class AppState extends ChangeNotifier {
       (businessAccess == null || availableWorkspaceRoles.length > 1);
 
   void _acceptBusinessAccess(BusinessAccess access) {
+    if (_memberCoachingOwnerId != null &&
+        _memberCoachingOwnerId != access.userId) {
+      _clearMemberCoachingConnections();
+    }
     businessAccess = access;
     if (!_workspaceChosen && availableWorkspaceRoles.length == 1) {
       // A later approval must not interrupt a workout with a launch prompt.
@@ -1401,6 +1420,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _clearRejectedBusinessAccess(BusinessAccessDenied error) {
+    _clearMemberCoachingConnections();
     businessAccess = null;
     _verifiedAdmin = false;
     businessWorkspace = null;
@@ -1461,6 +1481,7 @@ class AppState extends ChangeNotifier {
     }
     final accountEpoch = _accountEpoch;
     final requestToken = ++_businessRequestSequence;
+    if (role != value) _clearMemberCoachingConnections();
     role = value;
     _schedulePersist();
     final repository = businessRepository;
@@ -1691,6 +1712,59 @@ class AppState extends ChangeNotifier {
     });
     _authenticationSyncInFlight = operation;
     return operation;
+  }
+
+  Future<void>? _authenticationTransition;
+  String? _authenticationTransitionUserId;
+  int _coachingInviteAcceptanceCount = 0;
+  bool get coachingInviteAcceptanceInProgress =>
+      _coachingInviteAcceptanceCount > 0;
+
+  /// The app owns guest import and account loading. An invite can wait for
+  /// that work without starting a second sync or adopting guest records.
+  void trackAuthenticationTransition(String userId, Future<void> operation) {
+    _authenticationTransition = operation;
+    _authenticationTransitionUserId = userId;
+    void clear() {
+      if (identical(_authenticationTransition, operation)) {
+        _authenticationTransition = null;
+        _authenticationTransitionUserId = null;
+      }
+    }
+
+    unawaited(
+      operation.then<void>(
+        (_) => clear(),
+        onError: (Object _, StackTrace _) => clear(),
+      ),
+    );
+  }
+
+  Future<bool> waitForAuthenticationReady() async {
+    final userId = Auth.instance.currentUser?.id;
+    if (userId == null) return false;
+    final transition = _authenticationTransition;
+    if (transition != null) {
+      if (_authenticationTransitionUserId != userId) return false;
+      await transition;
+    } else {
+      final sync = _authenticationSyncInFlight;
+      if (sync != null) await sync;
+    }
+    return Auth.instance.currentUser?.id == userId;
+  }
+
+  /// Keep the consent sheet open while sign-in restores the account. Workspace
+  /// selection resumes after the action, including cancellation or failure.
+  VoidCallback beginCoachingInviteAcceptance() {
+    _coachingInviteAcceptanceCount++;
+    var released = false;
+    return () {
+      if (released) return;
+      released = true;
+      _coachingInviteAcceptanceCount--;
+      if (!_disposed) notifyListeners();
+    };
   }
 
   Future<void> _syncAfterAuthenticationOnce() async {
@@ -3489,6 +3563,7 @@ class AppState extends ChangeNotifier {
       _acceptBusinessAccess(access);
       final resolvedRole = _resolveRefreshedBusinessRole(access);
       if (resolvedRole != role) {
+        _clearMemberCoachingConnections();
         businessWorkspace = null;
         _resetLiveBusinessDashboards();
       }
@@ -3506,6 +3581,20 @@ class AppState extends ChangeNotifier {
       businessWorkspace = refreshedWorkspace;
       if (refreshedWorkspace != null) {
         _applyLiveBusinessDashboard(refreshedWorkspace);
+      }
+
+      // 회원 포털은 전체 사업장 workspace를 불러오지 않는다. 연결 조회는
+      // 상담·수업 조회 실패와 분리하고 이 목록의 오류와 재시도만 제공한다.
+      if (resolvedRole == UserRole.member &&
+          repository is MobileCoachingRepository) {
+        try {
+          await refreshMemberCoachingConnections();
+        } catch (_) {
+          // 연결 카드가 조회 실패를 직접 표시한다. 개인 기록은 계속 쓴다.
+        }
+        if (!_isCurrentBusinessRequest(accountEpoch, requestToken)) return;
+      } else {
+        _clearMemberCoachingConnections();
       }
 
       try {
@@ -3730,6 +3819,78 @@ class AppState extends ChangeNotifier {
   bool _isCurrentMemberFeedbackRequest(int accountEpoch, int requestToken) =>
       _isCurrentAccount(accountEpoch) &&
       requestToken == _memberFeedbackRequestSequence;
+
+  void _clearMemberCoachingConnections() {
+    _memberCoachingRequestSequence++;
+    _memberCoachingConnections = const [];
+    _memberCoachingOwnerId = null;
+    memberCoachingConnectionsLoading = false;
+    memberCoachingConnectionsError = null;
+  }
+
+  /// 회원의 수업 연결만 조회한다. 트레이너 포털의 회원 workspace와
+  /// 전체 운동 기록 공유 동의는 별도의 상태로 유지한다.
+  Future<void> refreshMemberCoachingConnections() async {
+    if (role != UserRole.member) {
+      _clearMemberCoachingConnections();
+      return;
+    }
+    final ownerId = businessAccess?.userId;
+    final authenticatedId = Auth.instance.currentUser?.id;
+    if (!loadBusinessWithoutAuth && authenticatedId == null) {
+      _clearMemberCoachingConnections();
+      notifyListeners();
+      return;
+    }
+    if (ownerId == null ||
+        (!loadBusinessWithoutAuth && ownerId != authenticatedId)) {
+      _clearMemberCoachingConnections();
+      memberCoachingConnectionsError = StateError(
+        '계정 정보를 다시 확인한 뒤 연결을 불러와주세요.',
+      );
+      notifyListeners();
+      throw memberCoachingConnectionsError!;
+    }
+    if (_memberCoachingOwnerId != ownerId) {
+      _clearMemberCoachingConnections();
+    }
+    _memberCoachingOwnerId = ownerId;
+    final repository = businessRepository;
+    if (repository is! MobileCoachingRepository) {
+      memberCoachingConnectionsError = StateError('트레이너 연결 조회를 사용할 수 없어요.');
+      notifyListeners();
+      throw memberCoachingConnectionsError!;
+    }
+    final accountEpoch = _accountEpoch;
+    final requestToken = ++_memberCoachingRequestSequence;
+    bool isCurrent() =>
+        _isCurrentAccount(accountEpoch) &&
+        requestToken == _memberCoachingRequestSequence &&
+        role == UserRole.member &&
+        businessAccess?.userId == ownerId &&
+        (loadBusinessWithoutAuth || Auth.instance.currentUser?.id == ownerId);
+    memberCoachingConnectionsLoading = true;
+    memberCoachingConnectionsError = null;
+    notifyListeners();
+    try {
+      final connections = await (repository as MobileCoachingRepository)
+          .listCoachingConnections()
+          .timeout(const Duration(seconds: 15));
+      if (!isCurrent()) return;
+      _memberCoachingConnections = List.unmodifiable(
+        connections.where((connection) => connection.memberUserId == ownerId),
+      );
+    } catch (error) {
+      if (!isCurrent()) return;
+      memberCoachingConnectionsError = error;
+      rethrow;
+    } finally {
+      if (isCurrent()) {
+        memberCoachingConnectionsLoading = false;
+        notifyListeners();
+      }
+    }
+  }
 
   Future<void> refreshMemberSessionFeedback({
     DateTime? from,
@@ -4835,16 +4996,60 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addPostComment(CommunityPost post, String content) async {
+  Future<void> updateCommunityPost(CommunityPost post, String content) async {
+    if (!post.isMine || post.isDeleted) {
+      throw const CommunityOperationException('수정할 수 있는 글이 아니에요.');
+    }
+    final text = content.trim();
+    if (text.isEmpty || text.runes.length > 500) {
+      throw const CommunityValidationException('글은 1~500자로 입력해 주세요.');
+    }
+    final epoch = _accountEpoch;
+    await communityRepository?.updatePostContent(
+      postId: post.id,
+      content: text,
+    );
+    if (!_isCurrentAccount(epoch)) return;
+    post.content = text;
+    for (final preview in communityPosts) {
+      if (preview.id == post.id) preview.content = text;
+    }
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  Future<void> deleteCommunityPost(CommunityPost post) async {
+    if (!post.isMine || post.isDeleted) {
+      throw const CommunityOperationException('삭제할 수 있는 글이 아니에요.');
+    }
+    final epoch = _accountEpoch;
+    await communityRepository?.deletePost(post.id);
+    if (!_isCurrentAccount(epoch)) return;
+    post.isDeleted = true;
+    communityPosts.removeWhere((preview) => preview.id == post.id);
+    _schedulePersist();
+    notifyListeners();
+  }
+
+  Future<void> addPostComment(
+    CommunityPost post,
+    String content, {
+    String? parentCommentId,
+  }) async {
     final accountEpoch = _accountEpoch;
     final repository = communityRepository;
     final comment = repository != null
-        ? await repository.addComment(postId: post.id, content: content)
+        ? await repository.addComment(
+            postId: post.id,
+            content: content,
+            parentCommentId: parentCommentId,
+          )
         : PostComment(
             id: 'comment_${DateTime.now().microsecondsSinceEpoch}',
             author: memberDisplayName,
             content: content,
             createdAt: DateTime.now(),
+            parentCommentId: parentCommentId,
           );
     if (!_isCurrentAccount(accountEpoch)) return;
     post.comments.add(comment);
@@ -6104,7 +6309,9 @@ class AppState extends ChangeNotifier {
           requestId: requestId,
         );
         if (!_isCurrentAccount(accountEpoch)) return result;
-        pendingCoachingInviteToken = null;
+        if (pendingCoachingInviteToken == normalizedToken) {
+          pendingCoachingInviteToken = null;
+        }
         _coachingInviteAcceptRequestIds.remove(normalizedToken);
         try {
           await _refreshBusinessData(
@@ -7715,6 +7922,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _resetForSignedOutUser() {
+    _clearMemberCoachingConnections();
     _personalCoachingAccess = null;
     personalCoachingAccessError = null;
     personalCoachingAccessLoading = false;

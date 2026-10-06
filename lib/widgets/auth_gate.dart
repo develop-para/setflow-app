@@ -27,6 +27,7 @@ enum AuthReason {
   community('커뮤니티에 흔적을 남기려면', '남긴 글·댓글·좋아요가 계정에 연결돼요.'),
   together('친구와 같이 운동하려면', '누구 차례인지 서로 알려면 계정이 필요해요.'),
   coaching('트레이너 상담을 신청하려면', '상담 내용과 답변을 계정으로 주고받아요.'),
+  trainerConnection('트레이너와 연결하려면', '수업 일정과 연결 상태를 내 계정으로 확인해요.'),
   share('루틴을 공유하려면', '공유 링크는 내 계정으로 발급돼요.'),
   membership('이용권을 확인하려면', '센터가 발급한 회원권은 계정에 연결돼요.'),
   gymDirectoryRequest('헬스장 정보 제안을 보내려면', '제안을 내 계정으로 보내고 접수 여부를 확인해요.'),
@@ -140,10 +141,16 @@ class _SignInPrompt extends StatelessWidget {
 
   Future<void> _open(BuildContext context, EmailAuthMode mode) async {
     final navigator = Navigator.of(context);
+    final route = ModalRoute.of(context);
     final authenticated = await navigator.push<bool>(
       MaterialPageRoute(builder: (_) => EmailAuthScreen(initialMode: mode)),
     );
-    if (!context.mounted) return;
-    navigator.pop(authenticated == true);
+    if (!context.mounted || route == null) return;
+    if (route.isCurrent) {
+      navigator.pop(authenticated == true);
+    } else {
+      // Keep an import or another consent sheet above the login prompt open.
+      navigator.removeRoute(route, authenticated == true);
+    }
   }
 }

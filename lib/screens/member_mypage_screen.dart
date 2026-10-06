@@ -47,7 +47,7 @@ class MyPageScreen extends StatelessWidget {
             key: const ValueKey('mypage-coaching'),
             icon: SetflowIcons.coaching,
             title: '코칭',
-            subtitle: '트레이너 상담 신청과 진행 상황',
+            subtitle: '내 트레이너 연결·수업·상담',
             builder: (_) => const CoachingScreen(),
           ),
           _MyPageEntry(

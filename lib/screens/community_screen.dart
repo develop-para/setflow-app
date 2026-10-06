@@ -144,7 +144,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
     // Reactions already update this post. Keep the loaded pages and browsing
     // position on return; pull-to-refresh reloads the whole server ranking.
-    if (mounted) setState(() => _posts.sort(_order.compare));
+    if (mounted) {
+      setState(() {
+        _posts.removeWhere((post) => post.isDeleted);
+        _posts.sort(_order.compare);
+      });
+    }
   }
 
   Future<void> _openTextPosts() async {

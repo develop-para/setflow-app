@@ -325,7 +325,16 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
         );
         if (!mounted) return;
       }
-      Navigator.of(context).pop(true);
+      final route = ModalRoute.of(context);
+      if (route == null) return;
+      final navigator = Navigator.of(context);
+      if (route.isCurrent) {
+        navigator.pop(true);
+      } else {
+        // A sign-in event may show the guest-import choice above this page.
+        // Complete only this page, preserving the user's unanswered choice.
+        navigator.removeRoute(route, true);
+      }
     } catch (error) {
       if (mounted) setState(() => _error = _auth.messageFor(error));
     } finally {

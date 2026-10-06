@@ -64,6 +64,7 @@ void main() {
         [_connectionId],
       );
       final state = AppState(businessRepository: repository)
+        ..role = UserRole.trainer
         ..businessAccess = workspace.access
         ..businessWorkspace = workspace;
       addTearDown(state.dispose);

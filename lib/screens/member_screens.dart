@@ -17,6 +17,7 @@ import '../theme/muscle_illustrations.dart';
 import '../third_party_licenses.dart';
 import '../widgets/common.dart';
 import '../widgets/app_update_tile.dart';
+import '../widgets/coaching_connection_panel.dart';
 import '../widgets/exercise_muscle_map.dart';
 import '../widgets/auth_gate.dart';
 import '../widgets/bottom_bar.dart';
@@ -4314,49 +4315,23 @@ class CoachingScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('코칭')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+        padding: SetflowInsets.pageList,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: SetflowColors.primary.withValues(alpha: .18),
-              borderRadius: BorderRadius.circular(SetflowRadii.xl),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.support_agent_rounded, color: SetflowColors.ink),
-                SizedBox(width: SetflowSpacing.md2),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '내 기록을 전문가와 연결하세요',
-                        style: TextStyle(
-                          fontSize: SetflowFontSize.titleLarge,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      SizedBox(height: SetflowSpacing.xs2),
-                      Text(
-                        '상담 답변을 확인하고 1:1 코칭까지 이어갈 수 있어요.',
-                        style: TextStyle(
-                          fontSize: SetflowFontSize.caption,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          CoachingConnectionPanel(
+            onOpenSchedule: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(builder: (_) => const CalendarScreen()),
             ),
           ),
-          const SizedBox(height: SetflowSpacing.lg),
+          const Divider(height: SetflowSpacing.section),
+          const SectionTitle('새 트레이너 찾기'),
+          const SizedBox(height: SetflowSpacing.sm),
+          const Text('새로운 트레이너를 찾고 싶다면 상담을 신청하세요.'),
+          const SizedBox(height: SetflowSpacing.md),
           AppButton(
             key: const ValueKey('coaching-new-consultation-primary'),
             label: '새 상담 신청',
-            icon: Icons.edit_note_rounded,
+            variant: AppButtonVariant.outlined,
+            icon: SetflowIcons.coaching,
             onPressed: () => _newConsult(context),
           ),
           const SizedBox(height: SetflowSpacing.xxl),

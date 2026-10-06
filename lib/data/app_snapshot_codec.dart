@@ -707,6 +707,7 @@ abstract final class AppSnapshotCodec {
               'author': comment.author,
               'content': comment.content,
               'createdAt': comment.createdAt.toIso8601String(),
+              'parentCommentId': comment.parentCommentId,
             },
           )
           .toList(),
@@ -735,6 +736,7 @@ abstract final class AppSnapshotCodec {
           author: comment['author'] as String? ?? '회원',
           content: commentContent,
           createdAt: commentDate,
+          parentCommentId: comment['parentCommentId'] as String?,
         ),
       );
     }

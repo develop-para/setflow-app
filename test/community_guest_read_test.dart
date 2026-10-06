@@ -13,6 +13,158 @@ const _authorUserId = '11111111-1111-4111-8111-111111111111';
 const _postId = '22222222-2222-4222-8222-222222222222';
 
 void main() {
+  test(
+    'a first server comment updates an empty feed post without throwing',
+    () async {
+      final backend = await _CommunityBackend.start(signedInAs: _authorUserId);
+      backend.commentRows = [];
+      addTearDown(backend.close);
+      final repository = SupabaseCommunityRepository(backend.client);
+      final state = AppState(communityRepository: repository);
+      addTearDown(state.dispose);
+      await state.initialize();
+      final post = state.communityPosts.single;
+      expect(post.comments, isEmpty);
+
+      await state.addPostComment(post, '첫 댓글이에요.');
+
+      expect(post.comments.single.content, '첫 댓글이에요.');
+      expect(backend.commentWrites, hasLength(1));
+      expect(
+        backend.commentWrites.single,
+        isNot(contains('parent_comment_id')),
+      );
+      expect(
+        (await repository.fetchPosts()).single.post.comments.single.content,
+        '첫 댓글이에요.',
+      );
+    },
+  );
+
+  test(
+    'replies retain their parent through server reads and cached reads',
+    () async {
+      final backend = await _CommunityBackend.start(signedInAs: _authorUserId);
+      addTearDown(backend.close);
+      final repository = SupabaseCommunityRepository(
+        backend.client,
+        cache: _MemoryBackendCache(),
+      );
+      final root = (await repository.fetchPosts()).single.post.comments.single;
+      final reply = await repository.addComment(
+        postId: _postId,
+        content: '함께 응원해요.',
+        parentCommentId: root.id,
+      );
+      expect(reply.parentCommentId, root.id);
+      expect(backend.commentWrites.single['parent_comment_id'], root.id);
+      final fresh = await repository.fetchPosts();
+      expect(fresh.single.post.comments.last.parentCommentId, root.id);
+      backend.failDataApi = true;
+      final cached = await repository.fetchPosts();
+      expect(cached.single.post.comments.last.parentCommentId, root.id);
+    },
+  );
+
+  test(
+    'comment authorization and schema failures cross the port as domain errors',
+    () async {
+      final backend = await _CommunityBackend.start(signedInAs: _authorUserId);
+      addTearDown(backend.close);
+      final repository = SupabaseCommunityRepository(backend.client);
+      for (final entry in {
+        '42501': '권한',
+        'PGRST204': '서버 업데이트',
+        '23503': '삭제',
+      }.entries) {
+        backend.writeErrorCode = entry.key;
+        await expectLater(
+          repository.addComment(postId: _postId, content: '응원합니다.'),
+          throwsA(
+            isA<CommunityOperationException>().having(
+              (error) => error.message,
+              'message',
+              contains(entry.value),
+            ),
+          ),
+        );
+      }
+    },
+  );
+
+  test(
+    'post mutations restrict requests to the current author and detect empty results',
+    () async {
+      final backend = await _CommunityBackend.start(signedInAs: _authorUserId);
+      addTearDown(backend.close);
+      final repository = SupabaseCommunityRepository(backend.client);
+      await repository.updatePostContent(postId: _postId, content: '수정된 운동 기록');
+      expect(
+        backend.postWrites.single.uri.queryParameters['user_id'],
+        'eq.$_authorUserId',
+      );
+      expect(backend.postWrites.single.body['content'], '수정된 운동 기록');
+      await repository.deletePost(_postId);
+      expect(backend.postWrites.last.method, 'DELETE');
+      expect(
+        backend.postWrites.last.uri.queryParameters['user_id'],
+        'eq.$_authorUserId',
+      );
+      backend.emptyMutationResult = true;
+      await expectLater(
+        repository.updatePostContent(postId: _postId, content: '거부될 수정'),
+        throwsA(isA<CommunityOperationException>()),
+      );
+      await expectLater(
+        repository.deletePost(_postId),
+        throwsA(isA<CommunityOperationException>()),
+      );
+    },
+  );
+
+  test(
+    'successful post writes invalidate old cached pages even for a new adapter',
+    () async {
+      final backend = await _CommunityBackend.start(signedInAs: _authorUserId);
+      addTearDown(backend.close);
+      final cache = _MemoryBackendCache();
+      final repository = SupabaseCommunityRepository(
+        backend.client,
+        cache: cache,
+      );
+      await repository.fetchPosts();
+      await repository.deletePost(_postId);
+      backend.failDataApi = true;
+      final reopened = SupabaseCommunityRepository(
+        backend.client,
+        cache: cache,
+      );
+      await expectLater(
+        reopened.fetchPosts(),
+        throwsA(isA<PostgrestException>()),
+      );
+    },
+  );
+
+  test(
+    'post deletion cleans up only its own media and tolerates cleanup failure',
+    () async {
+      final backend = await _CommunityBackend.start(signedInAs: _authorUserId);
+      addTearDown(backend.close);
+      final repository = SupabaseCommunityRepository(backend.client);
+      backend.deletedImagePath = '$_authorUserId/workout.jpg';
+      await repository.deletePost(_postId);
+      expect(backend.removedImagePaths, ['$_authorUserId/workout.jpg']);
+      backend.deletedImagePath = 'another-user/workout.jpg';
+      await repository.deletePost(_postId);
+      expect(backend.removedImagePaths, hasLength(1));
+      backend.deletedImagePath = '$_authorUserId/other.jpg';
+      backend.failStorageDelete = true;
+      await repository.deletePost(_postId);
+      expect(backend.removedImagePaths.last, '$_authorUserId/other.jpg');
+    },
+  );
+
   test('a guest reads the feed without a session', () async {
     final backend = await _CommunityBackend.start();
     addTearDown(backend.close);
@@ -268,9 +420,21 @@ class _RecordingCommunityRepository implements CommunityRepository {
       throw const CommunityAuthenticationRequired();
 
   @override
+  Future<void> updatePostContent({
+    required String postId,
+    required String content,
+  }) async =>
+      throw UnsupportedError('Post editing is not configured for this test.');
+
+  @override
+  Future<void> deletePost(String postId) async =>
+      throw UnsupportedError('Post deletion is not configured for this test.');
+
+  @override
   Future<PostComment> addComment({
     required String postId,
     required String content,
+    String? parentCommentId,
   }) async => throw const CommunityAuthenticationRequired();
 }
 
@@ -282,6 +446,15 @@ class _CommunityBackend {
   final List<String> requestedResources = [];
   final List<Uri> postRequests = [];
   List<Map<String, Object?>>? postRows;
+  List<Map<String, Object?>>? commentRows;
+  final List<Map<String, dynamic>> commentWrites = [];
+  final List<({String method, Uri uri, Map<String, dynamic> body})> postWrites =
+      [];
+  String? writeErrorCode;
+  bool emptyMutationResult = false;
+  String? deletedImagePath;
+  final List<String> removedImagePaths = [];
+  bool failStorageDelete = false;
   bool failDataApi = false;
 
   static Future<_CommunityBackend> start({String? signedInAs}) async {
@@ -321,7 +494,10 @@ class _CommunityBackend {
   }
 
   Future<void> _handle(HttpRequest request) async {
-    await request.drain<void>();
+    final payload = await utf8.decoder.bind(request).join();
+    final input = payload.isEmpty
+        ? <String, dynamic>{}
+        : Map<String, dynamic>.from(jsonDecode(payload) as Map);
     if (failDataApi) {
       request.response
         ..statusCode = HttpStatus.serviceUnavailable
@@ -337,7 +513,28 @@ class _CommunityBackend {
     }
     final resource = request.uri.pathSegments.last;
     requestedResources.add(resource);
-    final Object body = switch (resource) {
+    if (resource == 'post-images' && request.method == 'DELETE') {
+      removedImagePaths.addAll((input['prefixes'] as List).cast<String>());
+      request.response
+        ..statusCode = failStorageDelete ? HttpStatus.forbidden : HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode(failStorageDelete ? {'message': 'Storage refusal'} : []),
+        );
+      await request.response.close();
+      return;
+    }
+    if (request.method != 'GET' && writeErrorCode != null) {
+      request.response
+        ..statusCode = HttpStatus.badRequest
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({'code': writeErrorCode, 'message': 'Test write refusal'}),
+        );
+      await request.response.close();
+      return;
+    }
+    Object body = switch (resource) {
       'posts' => _queryPosts(request.uri, [
         {
           'id': _postId,
@@ -355,21 +552,43 @@ class _CommunityBackend {
           'created_at': '2026-08-21T09:00:00Z',
         },
       ]),
-      'comments' => [
-        {
-          'id': '33333333-3333-4333-8333-333333333333',
-          'post_id': _postId,
-          'user_id': '44444444-4444-4444-8444-444444444444',
-          'author_name': '응원하는 회원',
-          'text': '멋져요!',
-          'created_at': '2026-08-21T10:00:00Z',
-        },
-      ],
+      'comments' =>
+        commentRows ??
+            [
+              {
+                'id': '33333333-3333-4333-8333-333333333333',
+                'post_id': _postId,
+                'user_id': '44444444-4444-4444-8444-444444444444',
+                'author_name': '응원하는 회원',
+                'text': '멋져요!',
+                'created_at': '2026-08-21T10:00:00Z',
+              },
+            ],
       'post_likes' => [
         {'post_id': _postId},
       ],
+      'users' => {'nickname': '회원'},
       _ => throw StateError('Unexpected test request: ${request.uri}'),
     };
+    if (resource == 'comments' && request.method == 'POST') {
+      commentWrites.add(input);
+      final row = <String, Object?>{
+        ...input,
+        'id': 'new-comment-${commentWrites.length}',
+        'created_at': '2026-10-05T00:00:00Z',
+      };
+      commentRows = [...(body as List).cast<Map<String, Object?>>(), row];
+      body = row;
+    }
+    if (resource == 'posts' &&
+        (request.method == 'PATCH' || request.method == 'DELETE')) {
+      postWrites.add((method: request.method, uri: request.uri, body: input));
+      body = emptyMutationResult
+          ? <Object>[]
+          : [
+              {'id': _postId, 'image_url': deletedImagePath},
+            ];
+    }
     request.response
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType.json

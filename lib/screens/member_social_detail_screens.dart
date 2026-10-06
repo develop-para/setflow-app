@@ -404,10 +404,11 @@ String _mediaErrorMessage(Object error) {
   return '사진을 불러오지 못했어요. 잠시 후 다시 시도해주세요.';
 }
 
-String _communityErrorMessage(Object error) {
+String _communityErrorMessage(Object error, {String action = '게시물을 등록'}) {
   if (error is CommunityValidationException) return error.message;
   if (error is CommunityAuthenticationRequired) return error.toString();
-  return '게시물을 등록하지 못했어요. 네트워크를 확인한 뒤 다시 시도해주세요.';
+  if (error is CommunityOperationException) return error.message;
+  return '$action하지 못했어요. 연결을 확인하고 다시 시도해 주세요.';
 }
 
 class _WorkoutVisualPreview extends StatelessWidget {
@@ -1104,6 +1105,21 @@ class CommunityPostDetailScreen extends StatefulWidget {
 
 class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
   final commentController = TextEditingController();
+  PostComment? _replyTo;
+  bool _sending = false;
+  bool _liking = false;
+  bool _deleting = false;
+  bool _commentsExpanded = true;
+  int? _accountVersion;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _accountVersion ??= AppScope.of(context).communityFeedAccountVersion;
+  }
+
+  bool _sameAccount(AppState state) =>
+      _accountVersion == state.communityFeedAccountVersion;
 
   @override
   void dispose() {
@@ -1112,6 +1128,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
   }
 
   Future<void> _addComment() async {
+    if (_sending) return;
     final value = commentController.text.trim();
     if (value.isEmpty) {
       AppSnackbar.error(context, '댓글 내용을 입력해주세요.');
@@ -1120,35 +1137,74 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
     // Reading the post needed no account; leaving something on it does.
     if (!await requireSignIn(context, reason: AuthReason.community)) return;
     if (!mounted) return;
+    final state = AppScope.of(context);
+    final account = state.communityFeedAccountVersion;
+    setState(() => _sending = true);
     try {
-      await AppScope.of(context).addPostComment(widget.post, value);
-      if (!mounted) return;
+      await state.addPostComment(
+        widget.post,
+        value,
+        parentCommentId: _replyTo?.parentCommentId ?? _replyTo?.id,
+      );
+      if (!mounted || account != state.communityFeedAccountVersion) return;
       commentController.clear();
+      setState(() {
+        _replyTo = null;
+        _commentsExpanded = true;
+      });
       HapticFeedback.selectionClick();
       AppSnackbar.success(context, '댓글을 등록했어요.');
     } catch (error) {
-      if (mounted) AppSnackbar.error(context, _communityErrorMessage(error));
+      if (mounted) {
+        AppSnackbar.error(
+          context,
+          _communityErrorMessage(error, action: '댓글을 등록'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
   Future<void> _toggleLike(AppState state, CommunityPost post) async {
+    if (_liking) return;
     if (!await requireSignIn(context, reason: AuthReason.community)) return;
     if (!mounted) return;
+    setState(() => _liking = true);
     try {
       await state.togglePostLike(post);
       HapticFeedback.selectionClick();
     } catch (error) {
-      if (mounted) AppSnackbar.error(context, _communityErrorMessage(error));
+      if (mounted) {
+        AppSnackbar.error(
+          context,
+          _communityErrorMessage(error, action: '좋아요를 변경'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _liking = false);
     }
   }
 
-  Future<void> _reportPost() async {
+  Future<void> _editPost() async {
+    final state = AppScope.of(context);
+    if (!_sameAccount(state) || !widget.post.isMine || _deleting) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => CommunityPostEditScreen(post: widget.post),
+      ),
+    );
+  }
+
+  Future<void> _deletePost() async {
+    final state = AppScope.of(context);
+    if (!_sameAccount(state) || !widget.post.isMine || _deleting) return;
     final confirmed =
         await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Text('게시물을 신고할까요?'),
-            content: const Text('운영자가 게시물 내용을 확인합니다. 허위 신고는 제한될 수 있습니다.'),
+            title: const Text('글을 삭제할까요?'),
+            content: const Text('글과 댓글이 함께 삭제됩니다. 삭제한 글은 되돌릴 수 없어요.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
@@ -1156,14 +1212,27 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('신고'),
+                child: const Text('삭제'),
               ),
             ],
           ),
         ) ??
         false;
-    if (confirmed && mounted) {
-      AppSnackbar.success(context, '신고가 접수되었습니다.');
+    if (!confirmed || !mounted || !_sameAccount(state)) return;
+    setState(() => _deleting = true);
+    try {
+      await state.deleteCommunityPost(widget.post);
+      if (!mounted || !_sameAccount(state)) return;
+      Navigator.pop(context);
+    } catch (error) {
+      if (mounted) {
+        AppSnackbar.error(
+          context,
+          _communityErrorMessage(error, action: '글을 삭제'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -1175,15 +1244,19 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
       appBar: AppBar(
         title: const Text('게시물'),
         actions: [
-          PopupMenuButton<String>(
-            tooltip: '게시물 메뉴',
-            onSelected: (value) {
-              if (value == 'report') _reportPost();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'report', child: Text('신고하기')),
-            ],
-          ),
+          if (post.isMine && _sameAccount(state))
+            PopupMenuButton<String>(
+              tooltip: '게시물 메뉴',
+              enabled: !_deleting,
+              onSelected: (value) {
+                if (value == 'edit') _editPost();
+                if (value == 'delete') _deletePost();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'edit', child: Text('글 수정')),
+                PopupMenuItem(value: 'delete', child: Text('글 삭제')),
+              ],
+            ),
         ],
       ),
       body: Column(
@@ -1193,19 +1266,12 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
               padding: const EdgeInsets.only(bottom: SetflowSpacing.lg),
               children: [
                 ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: post.color.withValues(alpha: .2),
-                    child: Text(
-                      post.author.characters.first,
-                      style: TextStyle(
-                        color: post.color,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: SetflowSpacing.gutter,
                   ),
                   title: Text(
                     post.author,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   subtitle: Text(_relativeTime(post.createdAt)),
                 ),
@@ -1238,7 +1304,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                             color: post.color.withValues(alpha: .16),
                             child: Center(
                               child: Icon(
-                                Icons.broken_image_outlined,
+                                SetflowIcons.imageUnavailable,
                                 size: 64,
                                 color: post.color,
                               ),
@@ -1247,7 +1313,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                         ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(SetflowSpacing.lg),
+                  padding: const EdgeInsets.all(SetflowSpacing.gutter),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1272,11 +1338,13 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                         children: [
                           IconButton(
                             tooltip: post.isLiked ? '좋아요 취소' : '좋아요',
-                            onPressed: () => _toggleLike(state, post),
+                            onPressed: _liking
+                                ? null
+                                : () => _toggleLike(state, post),
                             icon: Icon(
                               post.isLiked
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
+                                  ? SetflowIcons.likeActive
+                                  : SetflowIcons.like,
                               color: post.isLiked
                                   ? context.setflowColors.error
                                   : null,
@@ -1284,40 +1352,62 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                           ),
                           Text('${post.likes}'),
                           const SizedBox(width: SetflowSpacing.md),
-                          const Icon(Icons.chat_bubble_outline_rounded),
+                          const Icon(SetflowIcons.comment),
                           const SizedBox(width: SetflowSpacing.xs2),
                           Text('${post.comments.length}'),
                           const Spacer(),
                         ],
                       ),
                       const Divider(height: SetflowSpacing.xl),
-                      SectionTitle('댓글 ${post.comments.length}'),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SectionTitle('댓글 ${post.comments.length}'),
+                          ),
+                          TextButton.icon(
+                            key: const ValueKey('community-comments-toggle'),
+                            onPressed: () => setState(
+                              () => _commentsExpanded = !_commentsExpanded,
+                            ),
+                            icon: Icon(
+                              _commentsExpanded
+                                  ? SetflowIcons.collapse
+                                  : SetflowIcons.expand,
+                            ),
+                            label: Text(_commentsExpanded ? '댓글 접기' : '댓글 펼치기'),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: SetflowSpacing.sm),
-                      if (post.comments.isEmpty)
+                      if (_commentsExpanded && post.comments.isEmpty)
                         const EmptyState(
-                          icon: Icons.chat_bubble_outline_rounded,
+                          icon: SetflowIcons.comment,
                           title: '첫 댓글을 남겨보세요',
                           message: '응원과 경험을 나누면 운동을 이어가는 데 도움이 됩니다.',
                         )
-                      else
-                        for (final comment in post.comments)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(
-                              radius: 18,
-                              child: Text(comment.author.characters.first),
+                      else if (_commentsExpanded)
+                        for (final comment in _threadedComments(post.comments))
+                          Padding(
+                            padding: EdgeInsets.only(
+                              left: comment.parentCommentId == null
+                                  ? 0
+                                  : SetflowSpacing.xl,
                             ),
-                            title: Text(
-                              comment.author,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                comment.author,
+                                style: Theme.of(context).textTheme.titleSmall,
                               ),
-                            ),
-                            subtitle: Text(comment.content),
-                            trailing: Text(
-                              _relativeTime(comment.createdAt),
-                              style: const TextStyle(
-                                fontSize: SetflowFontSize.tiny,
+                              subtitle: Text(comment.content),
+                              trailing: TextButton(
+                                key: ValueKey('reply-${comment.id}'),
+                                onPressed: _sending
+                                    ? null
+                                    : () {
+                                        setState(() => _replyTo = comment);
+                                      },
+                                child: const Text('답글'),
                               ),
                             ),
                           ),
@@ -1331,32 +1421,177 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
-                SetflowSpacing.lg,
+                SetflowSpacing.gutter,
                 SetflowSpacing.sm,
-                SetflowSpacing.sm,
+                SetflowSpacing.gutter,
                 SetflowSpacing.sm,
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: AppTextField(
-                      controller: commentController,
-                      hint: '댓글을 입력하세요',
-                      maxLines: 3,
-                      inputFormatters: [LengthLimitingTextInputFormatter(100)],
-                      onSubmitted: (_) => _addComment(),
+                  if (_replyTo != null)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_replyTo!.author}님에게 답글',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '답글 취소',
+                          onPressed: _sending
+                              ? null
+                              : () => setState(() => _replyTo = null),
+                          icon: const Icon(SetflowIcons.close),
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    tooltip: '댓글 등록',
-                    onPressed: _addComment,
-                    icon: const Icon(Icons.send_rounded),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          controller: commentController,
+                          enabled: !_sending,
+                          hint: _replyTo == null ? '댓글을 입력하세요' : '답글을 입력하세요',
+                          maxLines: 3,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(100),
+                          ],
+                          onSubmitted: (_) => _addComment(),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: '댓글 등록',
+                        onPressed: _sending ? null : _addComment,
+                        icon: const Icon(SetflowIcons.sendComment),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+List<PostComment> _threadedComments(List<PostComment> comments) {
+  final ids = comments.map((comment) => comment.id).toSet();
+  final roots = comments.where(
+    (comment) =>
+        comment.parentCommentId == null ||
+        !ids.contains(comment.parentCommentId),
+  );
+  final result = <PostComment>[];
+  final visited = <String>{};
+  void append(PostComment comment) {
+    if (!visited.add(comment.id)) return;
+    result.add(comment);
+    for (final reply in comments.where(
+      (reply) => reply.parentCommentId == comment.id,
+    )) {
+      append(reply);
+    }
+  }
+
+  for (final root in roots) {
+    append(root);
+  }
+  return result;
+}
+
+class CommunityPostEditScreen extends StatefulWidget {
+  const CommunityPostEditScreen({required this.post, super.key});
+
+  final CommunityPost post;
+
+  @override
+  State<CommunityPostEditScreen> createState() =>
+      _CommunityPostEditScreenState();
+}
+
+class _CommunityPostEditScreenState extends State<CommunityPostEditScreen> {
+  final _form = GlobalKey<FormState>();
+  late final _content = TextEditingController(text: widget.post.content);
+  bool _saving = false;
+  int? _accountVersion;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _accountVersion ??= AppScope.of(context).communityFeedAccountVersion;
+  }
+
+  @override
+  void dispose() {
+    _content.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving || !(_form.currentState?.validate() ?? false)) return;
+    final state = AppScope.of(context);
+    if (_accountVersion != state.communityFeedAccountVersion) return;
+    setState(() => _saving = true);
+    try {
+      await state.updateCommunityPost(widget.post, _content.text);
+      if (!mounted || _accountVersion != state.communityFeedAccountVersion) {
+        return;
+      }
+      Navigator.pop(context);
+    } catch (error) {
+      if (mounted) {
+        AppSnackbar.error(
+          context,
+          _communityErrorMessage(error, action: '글을 수정'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sameAccount =
+        _accountVersion == AppScope.of(context).communityFeedAccountVersion;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('글 수정'),
+        actions: [
+          TextButton(
+            onPressed: _saving || !sameAccount ? null : _save,
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: Form(
+          key: _form,
+          child: ListView(
+            padding: SetflowInsets.pageList,
+            children: [
+              if (!sameAccount) const Text('계정이 변경되었어요. 글을 다시 열어 주세요.'),
+              AppTextField(
+                controller: _content,
+                enabled: !_saving && sameAccount,
+                label: '글 내용',
+                minLines: 6,
+                maxLines: 12,
+                validator: (value) =>
+                    value == null ||
+                        value.trim().isEmpty ||
+                        value.trim().runes.length > 500
+                    ? '글은 1~500자로 입력해 주세요.'
+                    : null,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

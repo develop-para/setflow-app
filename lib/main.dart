@@ -54,6 +54,7 @@ import 'services/app_update_controller.dart';
 import 'services/firebase_app_update_service.dart';
 import 'services/package_info_app_version_service.dart';
 import 'widgets/common.dart';
+import 'widgets/coaching_invite_accept_sheet.dart';
 import 'widgets/guest_data_prompt.dart';
 import 'widgets/portal.dart';
 
@@ -272,6 +273,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   void _revealWorkspaceSelection() {
     if (_workspaceNavigationScheduled ||
         _passwordRecoveryOpen ||
+        state.coachingInviteAcceptanceInProgress ||
         !state.isInitialized ||
         state.businessAccess == null ||
         !state.needsWorkspaceSelection) {
@@ -280,7 +282,10 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     _workspaceNavigationScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _workspaceNavigationScheduled = false;
-      if (mounted && !_passwordRecoveryOpen && state.needsWorkspaceSelection) {
+      if (mounted &&
+          !_passwordRecoveryOpen &&
+          !state.coachingInviteAcceptanceInProgress &&
+          state.needsWorkspaceSelection) {
         _navigatorKey.currentState?.popUntil((route) => route.isFirst);
       }
     });
@@ -416,7 +421,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         userId != null &&
         userId != _observedAuthUserId) {
       _observedAuthUserId = userId;
-      unawaited(_adoptGuestDataThenSync(userId));
+      final operation = _adoptGuestDataThenSync(userId);
+      state.trackAuthenticationTransition(userId, operation);
+      unawaited(operation);
     }
   }
 
@@ -429,12 +436,16 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     } catch (_) {
       // Never block sign-in on the offer; the records stay on the device.
     }
+    if (Auth.instance.currentUser?.id != userId) return;
     try {
       await state.syncAfterAuthentication();
     } catch (_) {
       // AppState surfaces the failure through persistenceError.
     }
-    if (mounted && state.needsWorkspaceSelection && !_passwordRecoveryOpen) {
+    if (mounted &&
+        state.needsWorkspaceSelection &&
+        !state.coachingInviteAcceptanceInProgress &&
+        !_passwordRecoveryOpen) {
       _navigatorKey.currentState?.popUntil((route) => route.isFirst);
     }
     // 계정이 정해진 뒤에 등록해야 토큰이 맞는 사람에게 붙는다. 실패해도
@@ -449,7 +460,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     final repository = source as GuestDataAdoption;
 
     final guest = await repository.peekGuestSnapshot(state.exercises);
-    if (guest == null) return;
+    if (guest == null || Auth.instance.currentUser?.id != userId) return;
     // Settings-only leftovers are not worth a question. Only actual work is.
     final workoutDays = guest.sessions.length;
     final routineCount = guest.routines.length;
@@ -465,7 +476,9 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       workoutDays: workoutDays,
       routineCount: routineCount,
     );
-    if (adopt) await repository.adoptGuestSnapshot(userId);
+    if (adopt && Auth.instance.currentUser?.id == userId) {
+      await repository.adoptGuestSnapshot(userId);
+    }
   }
 
   /// A reset link puts the user in a session that can do exactly one useful
@@ -811,7 +824,7 @@ class _CoachingInviteBannerState extends State<_CoachingInviteBanner> {
             Text(
               signedIn
                   ? '수락하면 트레이너가 일정을 만들 수 있고, 수업한 헬스장에는 해당 수업 기록만 공유됩니다.'
-                  : '로그인한 뒤 같은 초대 링크를 다시 열어주세요.',
+                  : '로그인 후 이 초대를 이어서 수락할 수 있어요.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -821,14 +834,20 @@ class _CoachingInviteBannerState extends State<_CoachingInviteBanner> {
               width: double.infinity,
               child: FilledButton.icon(
                 key: const Key('coaching-invite-accept'),
-                onPressed: !signedIn || _accepting ? null : _accept,
+                onPressed: _accepting ? null : _accept,
                 icon: _accepting
                     ? const SizedBox.square(
                         dimension: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.check_circle_outline_rounded),
-                label: Text(_accepting ? '연결 중...' : '동의하고 연결'),
+                label: Text(
+                  _accepting
+                      ? '초대 확인 중…'
+                      : signedIn
+                      ? '초대 확인하고 연결'
+                      : '로그인하고 연결',
+                ),
               ),
             ),
           ],
@@ -840,17 +859,10 @@ class _CoachingInviteBannerState extends State<_CoachingInviteBanner> {
   Future<void> _accept() async {
     setState(() => _accepting = true);
     try {
-      final result = await widget.state.acceptCoachingConnectionInviteToken();
-      if (!mounted) return;
-      if (result.accepted) {
-        AppSnackbar.success(context, '트레이너와 개인 코칭이 연결됐어요.');
-      } else {
-        AppSnackbar.error(context, '만료된 초대예요.');
-      }
-    } catch (_) {
-      if (mounted) {
-        AppSnackbar.error(context, '초대를 수락하지 못했어요. 링크를 확인해주세요.');
-      }
+      await showCoachingInviteAcceptance(
+        context,
+        initialInput: widget.state.pendingCoachingInviteToken,
+      );
     } finally {
       if (mounted) setState(() => _accepting = false);
     }

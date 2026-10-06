@@ -2387,9 +2387,21 @@ class _FailingCommunityRepository implements CommunityRepository {
   final Object error;
 
   @override
+  Future<void> updatePostContent({
+    required String postId,
+    required String content,
+  }) async =>
+      throw UnsupportedError('Post editing is not configured for this test.');
+
+  @override
+  Future<void> deletePost(String postId) async =>
+      throw UnsupportedError('Post deletion is not configured for this test.');
+
+  @override
   Future<PostComment> addComment({
     required String postId,
     required String content,
+    String? parentCommentId,
   }) async => throw error;
 
   @override

@@ -113,11 +113,13 @@ void main() {
       expect(state.coachingConnections, isEmpty);
       await tester.tap(find.byTooltip('운동 관리 연결과 수정 요청'));
       await tester.pumpAndSettle();
-      expect(find.text('동의하고 수락하면 운동 기록 관리가 시작돼요.'), findsNWidgets(2));
+      expect(find.text('기록 공유 범위를 확인하고 수락해주세요.'), findsNWidgets(2));
       for (final id in _members.keys) {
         final accept = find.byKey(ValueKey('accept-link-$id'));
         await tester.ensureVisible(accept);
         await tester.tap(accept);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('confirm-management-sharing')));
         await tester.pumpAndSettle();
       }
       expect(repository.acceptedLinks, ['thread-a', 'thread-b']);
@@ -186,8 +188,10 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('request-management-link')));
         await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('confirm-management-sharing')));
+        await tester.pumpAndSettle();
         expect(repository.requestedLinks.last, entry.key);
-        expect(find.text('상대의 수락을 기다리고 있어요.'), findsWidgets);
+        expect(find.text('상대가 수락하면 운동 기록 공유가 시작돼요.'), findsWidgets);
         await tester.pageBack();
         await tester.pumpAndSettle();
         await tester.binding

@@ -81,11 +81,22 @@ class SupabaseCommunityRepository
     final user = _client.auth.currentUser;
     final safeLimit = limit.clamp(1, 100);
     final safeOffset = offset < 0 ? 0 : offset;
+    String revision = '';
+    if (user != null) {
+      try {
+        final document = await cache?.loadDocument(
+          'community-feed-revision:${user.id}',
+        );
+        revision = document?['revision']?.toString() ?? '';
+      } catch (_) {
+        // An optional cache must not prevent a fresh server read.
+      }
+    }
     // Capture the owner before awaiting: a sign-out must not put a member's
     // "liked by me" overlay into the guest cache. Queries have separate pages.
     final cacheKey =
         '$_cacheKeyPrefix:${user?.id ?? 'guest'}:'
-        '${order.name}:${media.name}:$safeLimit:$safeOffset';
+        '${order.name}:${media.name}:$safeLimit:$safeOffset:$revision';
     try {
       final records = await _fetchPostsRemote(
         order: order,
@@ -145,7 +156,7 @@ class SupabaseCommunityRepository
 
     final commentRows = await _client
         .from(_commentsTable)
-        .select('id,post_id,user_id,author_name,text,created_at')
+        .select()
         .inFilter('post_id', postIds)
         .order('created_at', ascending: true);
 
@@ -179,6 +190,7 @@ class SupabaseCommunityRepository
               author: authorName,
               content: row['text']?.toString() ?? '',
               createdAt: _dateTime(row['created_at']),
+              parentCommentId: _nullableText(row['parent_comment_id']),
             ),
           );
     }
@@ -276,6 +288,7 @@ class SupabaseCommunityRepository
               'author': comment.author,
               'content': comment.content,
               'createdAt': comment.createdAt.toUtc().toIso8601String(),
+              'parentCommentId': comment.parentCommentId,
             },
           )
           .toList(growable: false),
@@ -320,6 +333,9 @@ class SupabaseCommunityRepository
                       author: comment['author']?.toString() ?? '회원',
                       content: comment['content']?.toString() ?? '',
                       createdAt: _dateTime(comment['createdAt']),
+                      parentCommentId: _nullableText(
+                        comment['parentCommentId'],
+                      ),
                     );
                   })
                   .toList(growable: false),
@@ -436,9 +452,64 @@ class SupabaseCommunityRepository
   }
 
   @override
+  Future<void> updatePostContent({
+    required String postId,
+    required String content,
+  }) async {
+    final user = _requireUser();
+    final text = content.trim();
+    if (text.isEmpty || text.runes.length > 500) {
+      throw const CommunityValidationException('글은 1~500자로 입력해 주세요.');
+    }
+    await _write('글을 수정', () async {
+      final rows = await _client
+          .from(_postsTable)
+          .update({'content': text})
+          .eq('id', postId)
+          .eq('user_id', user.id)
+          .select('id');
+      if (rows.isEmpty) {
+        throw const CommunityOperationException('글이 삭제되었거나 수정 권한이 없어요.');
+      }
+    });
+  }
+
+  @override
+  Future<void> deletePost(String postId) async {
+    final user = _requireUser();
+    await _write('글을 삭제', () async {
+      final rows = await _client
+          .from(_postsTable)
+          .delete()
+          .eq('id', postId)
+          .eq('user_id', user.id)
+          .select('id,image_url');
+      if (rows.isEmpty) {
+        throw const CommunityOperationException('글이 삭제되었거나 삭제 권한이 없어요.');
+      }
+      final storedImage = _nullableText(rows.single['image_url']);
+      final imagePath =
+          storedImage != null &&
+              (storedImage.startsWith('https://') ||
+                  storedImage.startsWith('http://'))
+          ? _storagePathFromPublicUrl(storedImage)
+          : storedImage;
+      if (imagePath != null && imagePath.startsWith('${user.id}/')) {
+        try {
+          await _client.storage.from(_imageBucket).remove([imagePath]);
+        } catch (_) {
+          // The post is already deleted. A media cleanup failure must not make
+          // the user retry a deletion that succeeded.
+        }
+      }
+    });
+  }
+
+  @override
   Future<PostComment> addComment({
     required String postId,
     required String content,
+    String? parentCommentId,
   }) async {
     final user = _requireUser();
     final normalizedPostId = postId.trim();
@@ -446,24 +517,63 @@ class SupabaseCommunityRepository
     if (normalizedPostId.isEmpty || normalizedContent.isEmpty) {
       throw const CommunityValidationException('댓글 내용을 입력해 주세요.');
     }
+    if (normalizedContent.runes.length > 100) {
+      throw const CommunityValidationException('댓글은 100자 이내로 입력해 주세요.');
+    }
 
-    final row = await _client
-        .from(_commentsTable)
-        .insert({
-          'post_id': normalizedPostId,
-          'user_id': user.id,
-          'author_name': await _currentAuthorName(user),
-          'text': normalizedContent,
-        })
-        .select('id,author_name,text,created_at')
-        .single();
+    final authorName = await _currentAuthorName(user);
+    final row = await _write(
+      '댓글을 등록',
+      () => _client
+          .from(_commentsTable)
+          .insert({
+            'post_id': normalizedPostId,
+            'user_id': user.id,
+            'author_name': authorName,
+            'text': normalizedContent,
+            'parent_comment_id': ?parentCommentId,
+          })
+          .select()
+          .single(),
+    );
 
     return PostComment(
       id: row['id']?.toString() ?? '',
       author: _displayName(row['author_name'], isMine: true, currentUser: user),
       content: row['text']?.toString() ?? normalizedContent,
       createdAt: _dateTime(row['created_at']),
+      parentCommentId: _nullableText(row['parent_comment_id']),
     );
+  }
+
+  Future<T> _write<T>(String action, Future<T> Function() operation) async {
+    final ownerId = _client.auth.currentUser?.id;
+    try {
+      final result = await operation();
+      if (ownerId != null) {
+        try {
+          await cache?.storeDocument('community-feed-revision:$ownerId', {
+            'revision':
+                '${_now().toUtc().microsecondsSinceEpoch}:${_uploadSequence++}',
+          });
+        } catch (_) {
+          // Cache maintenance must never turn a saved write into a failure.
+        }
+      }
+      return result;
+    } on PostgrestException catch (error) {
+      debugPrint('Community write failed: ${error.code}: ${error.message}');
+      final message = switch (error.code) {
+        '42501' => '이 작업의 권한을 확인하지 못했어요. 다시 로그인한 뒤 시도해 주세요.',
+        'PGRST301' || 'PGRST302' || 'PGRST303' => '로그인이 만료되었어요. 다시 로그인해 주세요.',
+        '23503' => '글 또는 댓글이 삭제되었어요. 목록을 새로고침해 주세요.',
+        '23514' || '22001' => '입력 내용이 저장 기준에 맞지 않아요. 글 길이를 확인해 주세요.',
+        '42703' || 'PGRST204' => '서버 업데이트가 필요해요. 잠시 후 다시 시도해 주세요.',
+        _ =>
+          '$action하지 못했어요. 잠시 후 다시 시도해 주세요. (오류 코드: ${error.code ?? 'unknown'})',
+      };
+      throw CommunityOperationException(message);
+    }
   }
 
   Future<UploadedPostImage> _uploadPostImage(

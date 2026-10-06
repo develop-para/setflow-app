@@ -1060,12 +1060,14 @@ class PostComment {
     required this.author,
     required this.content,
     required this.createdAt,
+    this.parentCommentId,
   });
 
   final String id;
   final String author;
   final String content;
   final DateTime createdAt;
+  final String? parentCommentId;
 }
 
 class CommunityPost {
@@ -1085,11 +1087,11 @@ class CommunityPost {
     this.routineName,
     this.activeOverlays = const [],
     List<PostComment>? comments,
-  }) : comments = comments ?? [];
+  }) : comments = List<PostComment>.of(comments ?? const []);
 
   final String id;
   final String author;
-  final String content;
+  String content;
   final String metric;
   final DateTime createdAt;
   final String visualKey;
@@ -1097,6 +1099,7 @@ class CommunityPost {
   int likes;
   bool isLiked;
   final bool isMine;
+  bool isDeleted = false;
   final String? imageUrl;
   final String? location;
   final String? routineName;
