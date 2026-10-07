@@ -13,11 +13,33 @@ import '../widgets/pro_access_gate.dart';
 import 'coaching_workout_screens.dart' show CoachingAccountBoundary;
 import 'workout_screens.dart' show showNumberDial;
 
-Future<void> openCoachingManagement(
+Future<void> openMemberRecordSharing(
   BuildContext context, {
   String? consultationId,
+}) => _openCoachingManagement(
+  context,
+  role: CoachingManagementRole.member,
+  consultationId: consultationId,
+);
+
+Future<void> openTrainerMemberRecords(
+  BuildContext context, {
+  String? consultationId,
+}) => _openCoachingManagement(
+  context,
+  role: CoachingManagementRole.trainer,
+  consultationId: consultationId,
+);
+
+Future<void> openGymSharedRecords(BuildContext context) =>
+    _openCoachingManagement(context, role: CoachingManagementRole.gym);
+
+Future<void> _openCoachingManagement(
+  BuildContext context, {
+  required CoachingManagementRole role,
+  String? consultationId,
 }) async {
-  if (AppScope.of(context).role == UserRole.trainer) {
+  if (role == CoachingManagementRole.trainer) {
     if (!await requireProAccess(context)) return;
   } else if (!await requireSignIn(context, reason: AuthReason.coaching)) {
     return;
@@ -25,21 +47,34 @@ Future<void> openCoachingManagement(
   if (!context.mounted) return;
   final state = AppScope.of(context);
   final accountId = state.businessAccess?.userId;
-  final role = state.role;
+  final activeRole = state.role == UserRole.guest
+      ? UserRole.member
+      : state.role;
+  if (activeRole.name != role.name) return;
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => CoachingManagementScreen(consultationId: consultationId),
+      builder: (_) => switch (role) {
+        CoachingManagementRole.member => MemberRecordSharingScreen(
+          consultationId: consultationId,
+        ),
+        CoachingManagementRole.trainer => TrainerMemberRecordsScreen(
+          consultationId: consultationId,
+        ),
+        CoachingManagementRole.gym => GymSharedRecordsScreen(
+          consultationId: consultationId,
+        ),
+      },
     ),
   );
   if (!context.mounted ||
       state.businessAccess?.userId != accountId ||
-      state.role != role) {
+      state.role != activeRole) {
     return;
   }
   if (state.usesLiveBusinessData &&
-      (role == UserRole.trainer || role == UserRole.gym)) {
+      (activeRole == UserRole.trainer || activeRole == UserRole.gym)) {
     try {
-      await state.refreshBusinessDashboard(role);
+      await state.refreshBusinessDashboard(activeRole);
     } catch (_) {
       if (context.mounted) {
         AppSnackbar.error(context, '회원 목록을 새로고침하지 못했어요. 다시 확인해주세요.');
@@ -85,12 +120,91 @@ class CoachingManagementScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => CoachingAccountBoundary(
-    child: _ManagementPage(consultationId: consultationId, linkId: linkId),
+    child: _ManagementRouter(consultationId: consultationId, linkId: linkId),
+  );
+}
+
+class _ManagementRouter extends StatelessWidget {
+  const _ManagementRouter({this.consultationId, this.linkId});
+  final String? consultationId;
+  final String? linkId;
+
+  @override
+  Widget build(BuildContext context) => switch (AppScope.of(context).role) {
+    UserRole.trainer => TrainerMemberRecordsScreen(
+      consultationId: consultationId,
+      linkId: linkId,
+    ),
+    UserRole.gym => GymSharedRecordsScreen(
+      consultationId: consultationId,
+      linkId: linkId,
+    ),
+    _ => MemberRecordSharingScreen(
+      consultationId: consultationId,
+      linkId: linkId,
+    ),
+  };
+}
+
+class MemberRecordSharingScreen extends StatelessWidget {
+  const MemberRecordSharingScreen({
+    this.consultationId,
+    this.linkId,
+    super.key,
+  });
+  final String? consultationId;
+  final String? linkId;
+
+  @override
+  Widget build(BuildContext context) => CoachingAccountBoundary(
+    requiredRole: UserRole.member,
+    child: _ManagementPage(
+      role: CoachingManagementRole.member,
+      consultationId: consultationId,
+      linkId: linkId,
+    ),
+  );
+}
+
+class TrainerMemberRecordsScreen extends StatelessWidget {
+  const TrainerMemberRecordsScreen({
+    this.consultationId,
+    this.linkId,
+    super.key,
+  });
+  final String? consultationId;
+  final String? linkId;
+
+  @override
+  Widget build(BuildContext context) => CoachingAccountBoundary(
+    requiredRole: UserRole.trainer,
+    child: _ManagementPage(
+      role: CoachingManagementRole.trainer,
+      consultationId: consultationId,
+      linkId: linkId,
+    ),
+  );
+}
+
+class GymSharedRecordsScreen extends StatelessWidget {
+  const GymSharedRecordsScreen({this.consultationId, this.linkId, super.key});
+  final String? consultationId;
+  final String? linkId;
+
+  @override
+  Widget build(BuildContext context) => CoachingAccountBoundary(
+    requiredRole: UserRole.gym,
+    child: _ManagementPage(
+      role: CoachingManagementRole.gym,
+      consultationId: consultationId,
+      linkId: linkId,
+    ),
   );
 }
 
 class _ManagementPage extends StatefulWidget {
-  const _ManagementPage({this.consultationId, this.linkId});
+  const _ManagementPage({required this.role, this.consultationId, this.linkId});
+  final CoachingManagementRole role;
   final String? consultationId;
   final String? linkId;
   @override
@@ -141,19 +255,25 @@ class _ManagementPageState extends State<_ManagementPage>
       final repository = managementRepository(context);
       if (repository == null) throw StateError('연결 관리를 사용할 수 없어요.');
       final results = await Future.wait<Object>([
-        repository.listManagementLinks(),
-        repository.listWorkoutCorrections(),
+        repository.listManagementLinks(role: widget.role),
+        repository.listWorkoutCorrections(role: widget.role),
       ]);
       if (!mounted || generation != _generation) return;
       setState(() {
-        final links = results[0] as List<CoachingManagementLink>;
+        final links = (results[0] as List<CoachingManagementLink>).where(
+          (link) => link.viewerRole == widget.role.name,
+        );
         _links = [
           ...links.where((link) => link.id == widget.linkId),
           ...links.where((link) => link.id != widget.linkId),
         ];
-        _corrections = results[1] as List<WorkoutCorrection>;
+        _corrections = (results[1] as List<WorkoutCorrection>)
+            .where((correction) => correction.viewerRole == widget.role.name)
+            .toList();
       });
-      AppScope.of(context).applyConfirmedWorkoutCorrections(_corrections);
+      if (widget.role == CoachingManagementRole.member) {
+        AppScope.of(context).applyConfirmedWorkoutCorrections(_corrections);
+      }
     } catch (_) {
       if (!mounted || generation != _generation) return;
       setState(() {
@@ -429,7 +549,7 @@ class _ManagementPageState extends State<_ManagementPage>
           const SizedBox(height: SetflowSpacing.sm),
           Text('기록을 볼 수 있는 업장 · ${link.gymName}'),
         ],
-        if (link.canRespond) ...[
+        if (link.canRespond && widget.role != CoachingManagementRole.gym) ...[
           const SizedBox(height: SetflowSpacing.md),
           Wrap(
             spacing: SetflowSpacing.sm,
@@ -464,13 +584,23 @@ class _ManagementPageState extends State<_ManagementPage>
                     await Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => CoachingAccountBoundary(
-                          child: _ManagedHistoryPage(link: link),
+                          requiredRole: UserRole.values.byName(
+                            widget.role.name,
+                          ),
+                          child: _ManagedHistoryPage(
+                            link: link,
+                            role: widget.role,
+                          ),
                         ),
                       ),
                     );
                     if (mounted) _load();
                   },
-            child: const Text('전체 운동 기록'),
+            child: Text(switch (widget.role) {
+              CoachingManagementRole.member => '공유된 내 기록',
+              CoachingManagementRole.trainer => '회원 운동 기록',
+              CoachingManagementRole.gym => '공유받은 회원 기록',
+            }),
           ),
         ],
         if (link.isActive ||
@@ -562,7 +692,8 @@ class _ManagementPageState extends State<_ManagementPage>
                 : Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
-        if (correction.canRespond) ...[
+        if (correction.canRespond &&
+            widget.role == CoachingManagementRole.member) ...[
           const SizedBox(height: SetflowSpacing.md),
           Wrap(
             spacing: SetflowSpacing.sm,
@@ -634,7 +765,13 @@ class _ManagementPageState extends State<_ManagementPage>
         const Text('연결 정보를 불러오지 못했어요.'),
         OutlinedButton(onPressed: _load, child: const Text('다시 시도')),
       ] else ...[
-        const Text('함께 운동하는 상대와 기록을 공유하고, 수정 요청을 확인해요.'),
+        Text(switch (widget.role) {
+          CoachingManagementRole.member =>
+            '내 기록을 공유할 트레이너와 공유 범위를 관리하고, 받은 수정 요청을 승인해요.',
+          CoachingManagementRole.trainer =>
+            '동의받은 회원의 기록을 확인하고 수정을 요청해요. 내 운동 기록은 회원 구역에서 관리해요.',
+          CoachingManagementRole.gym => '회원이 업장에 공유한 기록과 담당 트레이너를 관리해요.',
+        }),
         const SizedBox(height: SetflowSpacing.lg),
         if (widget.consultationId != null) ...[
           SetflowCard(
@@ -642,7 +779,9 @@ class _ManagementPageState extends State<_ManagementPage>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '상담한 상대와 기록 공유',
+                  widget.role == CoachingManagementRole.member
+                      ? '내 트레이너에게 기록 공유'
+                      : '회원에게 기록 공유 요청',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: SetflowSpacing.sm),
@@ -659,7 +798,11 @@ class _ManagementPageState extends State<_ManagementPage>
           const SizedBox(height: SetflowSpacing.lg),
         ],
         if (_links.isEmpty) ...[
-          const Text('아직 운동 기록을 공유하는 상대가 없어요. 연결한 상대의 상세 화면에서 기록 공유를 요청해주세요.'),
+          Text(
+            widget.role == CoachingManagementRole.member
+                ? '아직 기록을 공유하는 트레이너가 없어요. 내 상담 상세에서 기록 공유를 요청할 수 있어요.'
+                : '아직 공유받은 회원 기록이 없어요. 담당 회원의 상담 상세에서 기록 공유를 요청할 수 있어요.',
+          ),
           const SizedBox(height: SetflowSpacing.lg),
         ],
         ..._linkSection('받은 요청', 'management-received-section', received),
@@ -686,7 +829,11 @@ class _ManagementPageState extends State<_ManagementPage>
           const SizedBox(height: SetflowSpacing.lg),
         ],
         Text(
-          '기록 수정 요청',
+          widget.role == CoachingManagementRole.trainer
+              ? '회원에게 보낸 수정 요청'
+              : widget.role == CoachingManagementRole.member
+              ? '내 기록 수정 승인'
+              : '회원 기록 수정 이력',
           key: const ValueKey('management-correction-section'),
           style: Theme.of(context).textTheme.titleLarge,
         ),
@@ -722,7 +869,11 @@ class _ManagementPageState extends State<_ManagementPage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('운동 기록 공유'),
+      title: Text(switch (widget.role) {
+        CoachingManagementRole.member => '내 기록 공유',
+        CoachingManagementRole.trainer => '회원 기록 관리',
+        CoachingManagementRole.gym => '회원 공유 기록',
+      }),
       actions: [
         IconButton(
           tooltip: '연결과 승인 요청 새로고침',
@@ -745,14 +896,17 @@ class _ManagementPageState extends State<_ManagementPage>
 }
 
 class _ManagedHistoryPage extends StatefulWidget {
-  const _ManagedHistoryPage({required this.link});
+  const _ManagedHistoryPage({required this.link, required this.role});
   final CoachingManagementLink link;
+  final CoachingManagementRole role;
   @override
   State<_ManagedHistoryPage> createState() => _ManagedHistoryPageState();
 }
 
 class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
     with WidgetsBindingObserver {
+  bool _canCorrect(ManagedWorkout workout) =>
+      widget.role == CoachingManagementRole.trainer && workout.canPropose;
   final List<ManagedWorkout> _workouts = [];
   String? _next;
   DateTime? _selectedHistoryDate;
@@ -899,7 +1053,11 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text('${widget.link.memberName} 운동 기록'),
+      title: Text(
+        widget.role == CoachingManagementRole.member
+            ? '공유된 내 기록'
+            : '${widget.link.memberName} 운동 기록',
+      ),
       actions: [
         IconButton(
           tooltip: '운동 기록 새로고침',
@@ -941,7 +1099,7 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
                           '${_date(workout.session.date)} · ${workout.title}',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
-                        if (workout.canPropose)
+                        if (_canCorrect(workout))
                           Text(
                             workout.requiresApproval
                                 ? '수정 시 회원 승인이 필요해요.'
@@ -976,7 +1134,7 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
                                   if (!exercise.template.isCardio)
                                     WorkoutMetric.rir,
                                 ])
-                                  workout.canPropose
+                                  _canCorrect(workout)
                                       ? OutlinedButton(
                                           key: ValueKey(
                                             '${workout.key}-${exercise.id}-${set.number}-${metric.name}',

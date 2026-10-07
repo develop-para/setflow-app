@@ -4304,6 +4304,12 @@ class CoachingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    if (state.role != UserRole.member && state.role != UserRole.guest) {
+      return const CoachingAccountBoundary(
+        requiredRole: UserRole.member,
+        child: SizedBox.shrink(),
+      );
+    }
     final activeConsultations = _activeMemberConsultations(state);
     final unknownStatusCount = state.usesLiveBusinessData
         ? state.memberConsultations

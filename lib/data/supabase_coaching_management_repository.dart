@@ -10,21 +10,26 @@ mixin SupabaseCoachingManagement on Object
       Map<String, dynamic>.from(value as Map);
 
   @override
-  Future<List<CoachingManagementLink>> listManagementLinks() async {
+  Future<List<CoachingManagementLink>> listManagementLinks({
+    required CoachingManagementRole role,
+  }) async {
     final rows = await managementRpc('list_management_links') as List;
-    return rows.map((value) {
-      final row = _object(value);
-      return CoachingManagementLink(
-        id: row['id'] as String,
-        memberName: row['member_name'] as String,
-        trainerName: row['trainer_name'] as String,
-        status: row['status'] as String,
-        viewerRole: row['viewer_role'] as String,
-        canRespond: row['can_respond'] == true,
-        gymId: row['gym_id'] as String?,
-        gymName: row['gym_name'] as String?,
-      );
-    }).toList();
+    return rows
+        .map((value) {
+          final row = _object(value);
+          return CoachingManagementLink(
+            id: row['id'] as String,
+            memberName: row['member_name'] as String,
+            trainerName: row['trainer_name'] as String,
+            status: row['status'] as String,
+            viewerRole: row['viewer_role'] as String,
+            canRespond: row['can_respond'] == true,
+            gymId: row['gym_id'] as String?,
+            gymName: row['gym_name'] as String?,
+          );
+        })
+        .where((link) => link.viewerRole == role.name)
+        .toList();
   }
 
   @override
@@ -104,30 +109,35 @@ mixin SupabaseCoachingManagement on Object
   }
 
   @override
-  Future<List<WorkoutCorrection>> listWorkoutCorrections() async {
+  Future<List<WorkoutCorrection>> listWorkoutCorrections({
+    required CoachingManagementRole role,
+  }) async {
     final rows = await managementRpc('list_workout_corrections') as List;
-    return rows.map((value) {
-      final row = _object(value);
-      return WorkoutCorrection(
-        id: row['id'] as String,
-        memberName: row['member_name'] as String,
-        viewerRole: row['viewer_role'] as String,
-        recordKey: row['record_key'] as String,
-        exerciseId: row['exercise_id'] as String,
-        correctionKey: row['correction_key'] as String,
-        trainerName: row['trainer_name'] as String,
-        workoutTitle: row['workout_title'] as String,
-        date: DateTime.parse(row['workout_date'] as String),
-        exerciseName: row['exercise_name'] as String,
-        setNumber: (row['set_number'] as num).toInt(),
-        metric: WorkoutMetric.values.byName(row['metric'] as String),
-        before: (row['before_value'] as num?)?.toDouble(),
-        after: (row['after_value'] as num).toDouble(),
-        reason: row['reason'] as String,
-        status: row['status'] as String,
-        canRespond: row['can_respond'] == true,
-      );
-    }).toList();
+    return rows
+        .map((value) {
+          final row = _object(value);
+          return WorkoutCorrection(
+            id: row['id'] as String,
+            memberName: row['member_name'] as String,
+            viewerRole: row['viewer_role'] as String,
+            recordKey: row['record_key'] as String,
+            exerciseId: row['exercise_id'] as String,
+            correctionKey: row['correction_key'] as String,
+            trainerName: row['trainer_name'] as String,
+            workoutTitle: row['workout_title'] as String,
+            date: DateTime.parse(row['workout_date'] as String),
+            exerciseName: row['exercise_name'] as String,
+            setNumber: (row['set_number'] as num).toInt(),
+            metric: WorkoutMetric.values.byName(row['metric'] as String),
+            before: (row['before_value'] as num?)?.toDouble(),
+            after: (row['after_value'] as num).toDouble(),
+            reason: row['reason'] as String,
+            status: row['status'] as String,
+            canRespond: row['can_respond'] == true,
+          );
+        })
+        .where((correction) => correction.viewerRole == role.name)
+        .toList();
   }
 
   @override

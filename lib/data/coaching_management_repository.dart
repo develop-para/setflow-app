@@ -3,6 +3,9 @@ import '../models.dart';
 
 enum CoachingManagementFailureReason { selfConnection, accessDenied }
 
+/// 한 계정이 여러 역할을 갖더라도 현재 이용 구역의 기록 공유만 다룬다.
+enum CoachingManagementRole { member, trainer, gym }
+
 /// 서버가 확인한 연결 요청의 거절 사유. 연결 권한은 계속 서버에서 판단한다.
 class CoachingManagementFailure implements Exception {
   const CoachingManagementFailure(this.reason);
@@ -15,7 +18,9 @@ class CoachingManagementFailure implements Exception {
 
 /// 상담과 기록 관리 동의는 별개다. 양쪽이 수락한 연결에만 권한을 준다.
 abstract interface class CoachingManagementRepository {
-  Future<List<CoachingManagementLink>> listManagementLinks();
+  Future<List<CoachingManagementLink>> listManagementLinks({
+    required CoachingManagementRole role,
+  });
   Future<void> requestManagementLink(String consultationId);
   Future<void> respondManagementLink(String linkId, {required bool accept});
   Future<void> endManagementLink(String linkId);
@@ -25,7 +30,9 @@ abstract interface class CoachingManagementRepository {
     String linkId, {
     String? before,
   });
-  Future<List<WorkoutCorrection>> listWorkoutCorrections();
+  Future<List<WorkoutCorrection>> listWorkoutCorrections({
+    required CoachingManagementRole role,
+  });
   Future<void> proposeWorkoutCorrection({
     required String linkId,
     required ManagedWorkout workout,

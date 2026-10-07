@@ -268,10 +268,10 @@ class MemberMembershipScreen extends StatelessWidget {
             if (managementRepository(context) != null) ...[
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('트레이너 연결과 기록 승인'),
+                title: const Text('내 기록 공유·수정 승인'),
                 subtitle: const Text('담당 트레이너 · 기록 수정 요청 · 업장 공유'),
                 trailing: const Icon(SetflowIcons.forward),
-                onTap: () => openCoachingManagement(context),
+                onTap: () => openMemberRecordSharing(context),
               ),
               const SizedBox(height: SetflowSpacing.md),
             ],

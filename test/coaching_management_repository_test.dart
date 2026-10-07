@@ -6,6 +6,52 @@ import 'package:setflow/data/supabase_coaching_management_repository.dart';
 import 'package:setflow/models.dart';
 
 void main() {
+  for (final role in CoachingManagementRole.values) {
+    test(
+      '$role lists only relationships and corrections for that workspace',
+      () async {
+        final adapter = _Adapter();
+        adapter.response = [
+          for (final viewer in CoachingManagementRole.values)
+            {
+              'id': viewer.name,
+              'member_name': '회원',
+              'trainer_name': '트레이너',
+              'status': 'active',
+              'viewer_role': viewer.name,
+              'can_respond': false,
+            },
+        ];
+        final links = await adapter.listManagementLinks(role: role);
+        expect(links.map((link) => link.id), [role.name]);
+        adapter.response = [
+          for (final viewer in CoachingManagementRole.values)
+            {
+              'id': viewer.name,
+              'member_name': '회원',
+              'trainer_name': '트레이너',
+              'viewer_role': viewer.name,
+              'record_key': 'personal:2026-09-11',
+              'exercise_id': 'squat',
+              'correction_key': '["squat",1,"weight"]',
+              'workout_title': '개인 운동',
+              'workout_date': '2026-09-11',
+              'exercise_name': '스쿼트',
+              'set_number': 1,
+              'metric': 'weight',
+              'before_value': 40,
+              'after_value': 45,
+              'reason': '중량 확인',
+              'status': 'pending',
+              'can_respond': viewer == CoachingManagementRole.member,
+            },
+        ];
+        final corrections = await adapter.listWorkoutCorrections(role: role);
+        expect(corrections.map((correction) => correction.id), [role.name]);
+      },
+    );
+  }
+
   test(
     'history preserves server permission, original revision, and cursor',
     () async {

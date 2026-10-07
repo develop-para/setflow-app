@@ -55,8 +55,13 @@ String? _actorId(AppState state) =>
 
 /// 계정 변경 시 내부 State도 제거해 이전 초안과 늦은 응답을 차단한다.
 class CoachingAccountBoundary extends StatefulWidget {
-  const CoachingAccountBoundary({required this.child, super.key});
+  const CoachingAccountBoundary({
+    required this.child,
+    this.requiredRole,
+    super.key,
+  });
   final Widget child;
+  final UserRole? requiredRole;
 
   @override
   State<CoachingAccountBoundary> createState() =>
@@ -68,18 +73,25 @@ class _CoachingAccountBoundaryState extends State<CoachingAccountBoundary> {
   bool _expired = false;
   String? _initialActor;
   bool _initialSignedIn = false;
+  UserRole? _initialRole;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final actor = _actorId(AppScope.of(context));
+    final state = AppScope.of(context);
+    final role = state.role == UserRole.guest ? UserRole.member : state.role;
+    final actor = _actorId(state);
     final signedIn = Auth.instance.hasAuthenticatedUser;
     if (!_bound) {
       _bound = true;
       _initialActor = actor;
       _initialSignedIn = signedIn;
+      _initialRole = role;
+      _expired = widget.requiredRole != null && role != widget.requiredRole;
     } else if (!_expired &&
-        (actor != _initialActor || signedIn != _initialSignedIn)) {
+        (actor != _initialActor ||
+            signedIn != _initialSignedIn ||
+            role != _initialRole)) {
       _expired = true;
       // 다이얼·비교 팝업 역시 이전 계정의 입력을 담는다.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -100,7 +112,7 @@ class _CoachingAccountBoundaryState extends State<CoachingAccountBoundary> {
             child: ListView(
               padding: SetflowInsets.pageForm,
               children: [
-                const Text('계정이 바뀌어 이 화면을 닫았어요. 현재 계정의 코칭에서 다시 열어주세요.'),
+                const Text('계정 또는 이용 구역이 바뀌었어요. 현재 구역의 코칭에서 다시 열어주세요.'),
                 const SizedBox(height: SetflowSpacing.lg),
                 OutlinedButton(
                   onPressed: () => Navigator.maybePop(context),
@@ -217,7 +229,23 @@ class _CoachingWorkoutScreenState extends State<_CoachingWorkoutPage>
         now.isBefore(workout.endsAt!);
   }
 
+  bool get _workspaceCanEdit {
+    final workout = _workout;
+    if (workout == null) return false;
+    final state = AppScope.of(context);
+    return switch (state.role) {
+      UserRole.member =>
+        workout.kind == CoachingWorkoutKind.assignment &&
+            workout.memberUserId == _actorId(state),
+      UserRole.trainer =>
+        workout.kind == CoachingWorkoutKind.lesson &&
+            workout.memberUserId != _actorId(state),
+      _ => false,
+    };
+  }
+
   bool get _editable =>
+      _workspaceCanEdit &&
       _workout?.canEdit == true &&
       _inWindow &&
       !_saving &&
@@ -247,6 +275,13 @@ class _CoachingWorkoutScreenState extends State<_CoachingWorkoutPage>
                 .firstOrNull;
       if (workout == null) throw StateError('Workout unavailable');
       if (!mounted || generation != _loadGeneration) return;
+      final role = AppScope.of(context).role;
+      if ((role == UserRole.member && workout.memberUserId != actor) ||
+          (role == UserRole.trainer && workout.memberUserId == actor) ||
+          role == UserRole.guest ||
+          role == UserRole.admin) {
+        throw StateError('Workout belongs to another workspace');
+      }
       if (silent && (_dirty || _saving || version != _workout?.version)) return;
       if (actor != _actorId(AppScope.of(context))) return;
       setState(() {
@@ -1032,25 +1067,28 @@ class _SetValues extends StatelessWidget {
     double max,
     double step,
     void Function(WorkoutSetEntry, double) apply,
-  ) => OutlinedButton(
-    key: ValueKey('coaching-value-${template.id}-${set.number}-$title'),
-    onPressed: !enabled
-        ? null
-        : () async {
-            final result = await showNumberDial(
-              context,
-              title: title,
-              suffix: suffix,
-              initialValue: value,
-              min: min,
-              max: max,
-              step: step,
-            );
-            if (result == null || !context.mounted) return;
-            await onEdit((set) => apply(set, result));
-          },
-    child: Text('$title ${_number(value)}$suffix'),
-  );
+  ) {
+    final key = ValueKey('coaching-value-${template.id}-${set.number}-$title');
+    final label = '$title ${_number(value)}$suffix';
+    if (!enabled) return Text(label, key: key);
+    return OutlinedButton(
+      key: key,
+      onPressed: () async {
+        final result = await showNumberDial(
+          context,
+          title: title,
+          suffix: suffix,
+          initialValue: value,
+          min: min,
+          max: max,
+          step: step,
+        );
+        if (result == null || !context.mounted) return;
+        await onEdit((set) => apply(set, result));
+      },
+      child: Text(label),
+    );
+  }
 }
 
 WorkoutSetEntry _defaultSet(ExerciseTemplate template) => WorkoutSetEntry(
@@ -1137,6 +1175,7 @@ class CoachingAssignmentsScreen extends StatelessWidget {
   final String? memberUserId;
   @override
   Widget build(BuildContext context) => CoachingAccountBoundary(
+    requiredRole: memberUserId == null ? UserRole.member : UserRole.trainer,
     child: _CoachingAssignmentsPage(memberUserId: memberUserId),
   );
 }
@@ -1157,6 +1196,7 @@ class _CoachingAssignmentsScreenState extends State<_CoachingAssignmentsPage> {
   String? _cancelling;
   final Map<String, String> _cancelRequests = {};
   bool get _trainer =>
+      AppScope.of(context).role == UserRole.trainer &&
       widget.memberUserId != null &&
       AppScope.of(
             context,
@@ -1182,13 +1222,22 @@ class _CoachingAssignmentsScreenState extends State<_CoachingAssignmentsPage> {
       final repository = AppScope.of(context).coachingWorkoutRepository;
       if (repository == null) throw StateError('Coaching unavailable');
       final items = await repository.listCoachingWorkouts(
-        memberUserId: widget.memberUserId,
+        memberUserId: _trainer
+            ? widget.memberUserId
+            : _actorId(AppScope.of(context)),
       );
       if (!mounted) return;
       setState(() {
         _items =
             items
-                .where((w) => w.kind == CoachingWorkoutKind.assignment)
+                .where(
+                  (w) =>
+                      w.kind == CoachingWorkoutKind.assignment &&
+                      w.memberUserId ==
+                          (_trainer
+                              ? widget.memberUserId
+                              : _actorId(AppScope.of(context))),
+                )
                 .toList()
               ..sort((a, b) => b.date.compareTo(a.date));
         _loading = false;
@@ -1376,6 +1425,7 @@ class CoachingAssignmentComposerScreen extends StatelessWidget {
   final String memberUserId;
   @override
   Widget build(BuildContext context) => CoachingAccountBoundary(
+    requiredRole: UserRole.trainer,
     child: _CoachingAssignmentComposerPage(memberUserId: memberUserId),
   );
 }

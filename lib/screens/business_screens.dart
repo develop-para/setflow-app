@@ -1923,9 +1923,9 @@ class _PeoplePageState extends State<PeoplePage> {
         actions: [
           if (gym && managementRepository(context) != null)
             IconButton(
-              tooltip: '운동 관리 연결과 수정 요청',
+              tooltip: '회원 공유 기록과 담당 트레이너 관리',
               icon: const Icon(SetflowIcons.coaching),
-              onPressed: () => openCoachingManagement(context),
+              onPressed: () => openGymSharedRecords(context),
             ),
         ],
       ),
@@ -1955,12 +1955,13 @@ class _PeoplePageState extends State<PeoplePage> {
                         ),
                         if (managementRepository(context) != null)
                           Tooltip(
-                            message: '운동 관리 연결과 수정 요청',
+                            message: '회원 기록 관리와 수정 요청',
                             child: OutlinedButton.icon(
                               key: const Key('trainer-connection-requests'),
-                              onPressed: () => openCoachingManagement(context),
+                              onPressed: () =>
+                                  openTrainerMemberRecords(context),
                               icon: const Icon(SetflowIcons.coaching),
-                              label: const Text('연결 요청'),
+                              label: const Text('회원 기록 관리'),
                             ),
                           ),
                       ],
@@ -4997,11 +4998,11 @@ class _ConsultationQueuePageState extends State<ConsultationQueuePage> {
                           key: const ValueKey(
                             'trainer-consultation-management',
                           ),
-                          onPressed: () => openCoachingManagement(
+                          onPressed: () => openTrainerMemberRecords(
                             sheetContext,
                             consultationId: consultation.id,
                           ),
-                          child: const Text('운동 관리 연결 요청'),
+                          child: const Text('회원 기록 공유 요청'),
                         ),
                       if (consultation.sharedRecommendationProfile != null &&
                           consultation.recommendationProfileShareRevokedAt ==

@@ -30,10 +30,13 @@ void main() {
     double scale = 1,
     String? consultationId,
     String? linkId,
+    UserRole? role,
+    Widget? screen,
   }) async {
     await tester.binding.setSurfaceSize(Size(scale > 1 ? 320 : 432, 900));
     final state = _State(businessRepository: repository)
       ..changeAccount('member');
+    state.role = role ?? UserRole.values.byName(repository.viewer);
     await tester.pumpWidget(
       AppScope(
         notifier: state,
@@ -45,10 +48,12 @@ void main() {
             ).copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: CoachingManagementScreen(
-            consultationId: consultationId,
-            linkId: linkId,
-          ),
+          home:
+              screen ??
+              CoachingManagementScreen(
+                consultationId: consultationId,
+                linkId: linkId,
+              ),
         ),
       ),
     );
@@ -61,6 +66,121 @@ void main() {
     });
     return state;
   }
+
+  for (final viewer in ['member', 'trainer']) {
+    testWidgets(
+      '$viewer workspace filters the other role links and corrections',
+      (tester) async {
+        final other = viewer == 'member' ? 'trainer' : 'member';
+        final repository = _Repository()
+          ..viewer = viewer
+          ..hasCorrection = true
+          ..extraLinks = [
+            CoachingManagementLink(
+              id: 'other-role-link',
+              memberName: '다른 구역 회원',
+              trainerName: '다른 구역 트레이너',
+              status: 'pending',
+              viewerRole: other,
+              canRespond: true,
+            ),
+          ]
+          ..extraCorrections = [_correctionFor(other)];
+        await mount(tester, repository, linkId: 'other-role-link');
+        expect(
+          find.byKey(const ValueKey('management-link-link')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('management-link-other-role-link')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(
+            const ValueKey('management-correction-other-role-correction'),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('management-correction-correction')),
+          findsOneWidget,
+        );
+        expect(repository.linksRole?.name, viewer);
+        expect(repository.correctionsRole?.name, viewer);
+        if (viewer == 'member') {
+          expect(find.byType(MemberRecordSharingScreen), findsOneWidget);
+          expect(find.text('내 기록 공유'), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('approve-correction-correction')),
+            findsOneWidget,
+          );
+          expect(find.text('회원 운동 기록'), findsNothing);
+        } else {
+          expect(find.byType(TrainerMemberRecordsScreen), findsOneWidget);
+          expect(find.text('회원 기록 관리'), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('approve-correction-correction')),
+            findsNothing,
+          );
+          expect(find.text('업장 공유 설정'), findsNothing);
+        }
+      },
+    );
+  }
+
+  testWidgets(
+    'member shared history stays read only even if server permits proposing',
+    (tester) async {
+      final repository = _Repository()..allowProposing = true;
+      await mount(tester, repository);
+      await tester.tap(find.text('공유된 내 기록'));
+      await tester.pumpAndSettle();
+      expect(find.text('무게 40 kg'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('personal:2026-09-11-squat-1-weight')),
+        findsNothing,
+      );
+      expect(find.text('수정 시 회원 승인이 필요해요.'), findsNothing);
+      expect(repository.proposedValue, isNull);
+    },
+  );
+
+  testWidgets(
+    'switching workspace on the same account removes history and late responses',
+    (tester) async {
+      final repository = _Repository();
+      final state = await mount(tester, repository);
+      repository.historyGate = Completer<void>();
+      await tester.tap(find.text('공유된 내 기록'));
+      await tester.pump();
+      state.changeRole(UserRole.trainer);
+      await tester.pumpAndSettle();
+      repository.historyGate!.complete();
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('coaching-account-expired')),
+        findsOneWidget,
+      );
+      expect(find.byType(WorkoutHistoryCalendar), findsNothing);
+      expect(find.text('스쿼트'), findsNothing);
+      expect(repository.proposedValue, isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('member sharing route cannot load inside the trainer workspace', (
+    tester,
+  ) async {
+    final repository = _Repository()..viewer = 'trainer';
+    await mount(tester, repository, screen: const MemberRecordSharingScreen());
+    expect(
+      find.byKey(const ValueKey('coaching-account-expired')),
+      findsOneWidget,
+    );
+    expect(repository.linksRole, isNull);
+    expect(repository.correctionsRole, isNull);
+    expect(find.text('공유된 내 기록'), findsNothing);
+  });
 
   testWidgets('알림으로 받은 연결 요청을 목록 맨 위에 표시한다', (tester) async {
     final repository = _Repository()
@@ -253,7 +373,7 @@ void main() {
       expect(repository.accepted, isNull);
       await confirmSharing(tester);
       expect(repository.accepted, isTrue);
-      expect(find.text('전체 운동 기록'), findsOneWidget);
+      expect(find.text('공유된 내 기록'), findsOneWidget);
     },
   );
 
@@ -372,7 +492,7 @@ void main() {
       await mount(tester, repository, scale: 2);
       expect(find.text('담당 트레이너 변경 요청'), findsOneWidget);
       expect(find.text('이 수정 승인'), findsNothing);
-      await tester.tap(find.text('전체 운동 기록'));
+      await tester.tap(find.text('공유받은 회원 기록'));
       await tester.pumpAndSettle();
       expect(find.text('스쿼트'), findsOneWidget);
       expect(
@@ -389,7 +509,7 @@ void main() {
     (tester) async {
       final repository = _Repository()..viewer = 'trainer';
       await mount(tester, repository);
-      await tester.tap(find.text('전체 운동 기록'));
+      await tester.tap(find.text('회원 운동 기록'));
       await tester.pumpAndSettle();
       await tester.tap(
         find.byKey(const ValueKey('personal:2026-09-11-squat-1-weight')),
@@ -421,7 +541,7 @@ void main() {
   testWidgets('revoked read clears already visible records', (tester) async {
     final repository = _Repository();
     await mount(tester, repository);
-    await tester.tap(find.text('전체 운동 기록'));
+    await tester.tap(find.text('공유된 내 기록'));
     await tester.pumpAndSettle();
     expect(find.text('스쿼트'), findsOneWidget);
     repository.failHistory = true;
@@ -436,7 +556,7 @@ void main() {
   ) async {
     final repository = _Repository()..hasOlderPage = true;
     await mount(tester, repository);
-    await tester.tap(find.text('전체 운동 기록'));
+    await tester.tap(find.text('공유된 내 기록'));
     await tester.pumpAndSettle();
     expect(find.byType(WorkoutHistoryCalendar), findsOneWidget);
     expect(find.text('2026.09'), findsOneWidget);
@@ -472,7 +592,7 @@ void main() {
     final repository = _Repository();
     final state = await mount(tester, repository);
     repository.historyGate = Completer<void>();
-    await tester.tap(find.text('전체 운동 기록'));
+    await tester.tap(find.text('공유된 내 기록'));
     await tester.pump(const Duration(milliseconds: 400));
     state.changeAccount('someone-else');
     await tester.pumpAndSettle();
@@ -497,8 +617,33 @@ WorkoutSession _session() => WorkoutSession(
   ],
 );
 
+WorkoutCorrection _correctionFor(String viewer) => WorkoutCorrection(
+  id: 'other-role-correction',
+  memberName: '다른 구역 회원',
+  trainerName: '다른 구역 트레이너',
+  viewerRole: viewer,
+  recordKey: 'personal:2026-09-11',
+  exerciseId: 'squat',
+  correctionKey: '["squat",1,"weight"]',
+  workoutTitle: '다른 구역 운동',
+  date: _day,
+  exerciseName: '스쿼트',
+  setNumber: 1,
+  metric: WorkoutMetric.weight,
+  before: 40,
+  after: 45,
+  reason: '중량 확인',
+  status: 'pending',
+  canRespond: true,
+);
+
 class _State extends AppState {
   _State({super.businessRepository});
+  void changeRole(UserRole next) {
+    role = next;
+    notifyListeners();
+  }
+
   void changeAccount(String id) {
     businessAccess = BusinessAccess(
       userId: id,
@@ -513,6 +658,10 @@ class _State extends AppState {
 class _Repository implements BusinessRepository, CoachingManagementRepository {
   String status = 'active';
   List<CoachingManagementLink> extraLinks = [];
+  List<WorkoutCorrection> extraCorrections = [];
+  CoachingManagementRole? linksRole;
+  CoachingManagementRole? correctionsRole;
+  bool? allowProposing;
   String viewer = 'member';
   bool hasCorrection = false;
   bool failHistory = false;
@@ -531,17 +680,23 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
   final endedLinks = <String>[];
 
   @override
-  Future<List<CoachingManagementLink>> listManagementLinks() async => [
-    CoachingManagementLink(
-      id: 'link',
-      memberName: '민지',
-      trainerName: '지훈',
-      status: status,
-      viewerRole: viewer,
-      canRespond: status == 'pending',
-    ),
-    ...extraLinks,
-  ];
+  Future<List<CoachingManagementLink>> listManagementLinks({
+    required CoachingManagementRole role,
+  }) async {
+    linksRole = role;
+    return [
+      CoachingManagementLink(
+        id: 'link',
+        memberName: '민지',
+        trainerName: '지훈',
+        status: status,
+        viewerRole: viewer,
+        canRespond: status == 'pending',
+      ),
+      ...extraLinks,
+    ];
+  }
+
   @override
   Future<void> requestManagementLink(String consultationId) async {
     requestedConsultation = consultationId;
@@ -599,7 +754,7 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
           title: '개인 운동',
           kind: 'personal',
           session: _session(),
-          canPropose: viewer == 'trainer',
+          canPropose: allowProposing ?? viewer == 'trainer',
           requiresApproval: true,
         ),
       ],
@@ -607,34 +762,42 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
   }
 
   @override
-  Future<List<WorkoutCorrection>> listWorkoutCorrections() async =>
-      hasCorrection
-      ? [
-          WorkoutCorrection(
-            id: 'correction',
-            memberName: '민지',
-            trainerName: '지훈',
-            viewerRole: viewer,
-            recordKey: 'personal:2026-09-11',
-            exerciseId: 'squat',
-            correctionKey: '["squat", 1, "weight"]',
-            workoutTitle: '개인 운동',
-            date: _day,
-            exerciseName: '스쿼트',
-            setNumber: 1,
-            metric: WorkoutMetric.weight,
-            before: 40,
-            after: 45,
-            reason: '함께 확인한 중량',
-            status: correctionAccepted == null
-                ? 'pending'
-                : correctionAccepted!
-                ? 'applied'
-                : 'rejected',
-            canRespond: viewer == 'member' && correctionAccepted == null,
-          ),
-        ]
-      : [];
+  Future<List<WorkoutCorrection>> listWorkoutCorrections({
+    required CoachingManagementRole role,
+  }) async {
+    correctionsRole = role;
+    return [
+      ...(hasCorrection
+          ? [
+              WorkoutCorrection(
+                id: 'correction',
+                memberName: '민지',
+                trainerName: '지훈',
+                viewerRole: viewer,
+                recordKey: 'personal:2026-09-11',
+                exerciseId: 'squat',
+                correctionKey: '["squat", 1, "weight"]',
+                workoutTitle: '개인 운동',
+                date: _day,
+                exerciseName: '스쿼트',
+                setNumber: 1,
+                metric: WorkoutMetric.weight,
+                before: 40,
+                after: 45,
+                reason: '함께 확인한 중량',
+                status: correctionAccepted == null
+                    ? 'pending'
+                    : correctionAccepted!
+                    ? 'applied'
+                    : 'rejected',
+                canRespond: viewer == 'member' && correctionAccepted == null,
+              ),
+            ]
+          : []),
+      ...extraCorrections,
+    ];
+  }
+
   @override
   Future<void> respondWorkoutCorrection(
     String correctionId, {

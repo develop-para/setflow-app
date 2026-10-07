@@ -111,7 +111,7 @@ void main() {
         const PeoplePage(role: UserRole.trainer),
       );
       expect(state.coachingConnections, isEmpty);
-      await tester.tap(find.byTooltip('운동 관리 연결과 수정 요청'));
+      await tester.tap(find.byTooltip('회원 기록 관리와 수정 요청'));
       await tester.pumpAndSettle();
       expect(find.text('기록 공유 범위를 확인하고 수락해주세요.'), findsNWidgets(2));
       for (final id in _members.keys) {
@@ -372,7 +372,9 @@ class _Repository extends Fake
   }
 
   @override
-  Future<List<CoachingManagementLink>> listManagementLinks() async => [
+  Future<List<CoachingManagementLink>> listManagementLinks({
+    required CoachingManagementRole role,
+  }) async => [
     for (final link in links.entries)
       CoachingManagementLink(
         id: link.key,
@@ -385,7 +387,9 @@ class _Repository extends Fake
       ),
   ];
   @override
-  Future<List<WorkoutCorrection>> listWorkoutCorrections() async => [];
+  Future<List<WorkoutCorrection>> listWorkoutCorrections({
+    required CoachingManagementRole role,
+  }) async => [];
   @override
   Future<void> requestManagementLink(String consultationId) async {
     requestedLinks.add(consultationId);

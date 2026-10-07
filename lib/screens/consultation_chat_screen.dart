@@ -30,8 +30,10 @@ class ConsultationChatScreen extends StatelessWidget {
   final String? viewerUserId;
 
   @override
-  Widget build(BuildContext context) =>
-      CoachingAccountBoundary(child: _ChatPage(screen: this));
+  Widget build(BuildContext context) => CoachingAccountBoundary(
+    requiredRole: role,
+    child: _ChatPage(screen: this),
+  );
 }
 
 class _ChatPage extends StatefulWidget {

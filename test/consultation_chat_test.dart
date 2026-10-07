@@ -16,13 +16,16 @@ void main() {
     WidgetTester tester,
     _Repository repository, {
     UserRole role = UserRole.member,
+    UserRole? workspaceRole,
     double scale = 1,
     Size size = const Size(360, 700),
     BusinessConsultation? initialConsultation,
     VoidCallback? onShowDetails,
   }) async {
     await tester.binding.setSurfaceSize(size);
-    final state = _State()..changeAccount(repository.senderId);
+    final state = _State()
+      ..changeAccount(repository.senderId)
+      ..role = workspaceRole ?? role;
     await tester.pumpWidget(
       AppScope(
         notifier: state,
@@ -63,6 +66,24 @@ void main() {
     await tester.tap(find.byKey(_sendKey));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('member workspace cannot open a trainer conversation', (
+    tester,
+  ) async {
+    final repository = _Repository()..senderId = 'trainer';
+    await mount(
+      tester,
+      repository,
+      role: UserRole.trainer,
+      workspaceRole: UserRole.member,
+    );
+    expect(
+      find.byKey(const ValueKey('coaching-account-expired')),
+      findsOneWidget,
+    );
+    expect(find.byKey(_draftKey), findsNothing);
+    expect(find.text('허리 통증이 있는데 운동해도 될까요?'), findsNothing);
+  });
 
   testWidgets('initial request and messages align by authenticated sender', (
     tester,
@@ -202,7 +223,7 @@ void main() {
       await tester.pumpAndSettle();
       repository.sendGate!.complete(_consultation([_message('late', '늦은 응답')]));
       await tester.pumpAndSettle();
-      expect(find.textContaining('계정이 바뀌어'), findsOneWidget);
+      expect(find.textContaining('계정 또는 이용 구역이 바뀌었어요'), findsOneWidget);
       expect(find.byKey(_draftKey), findsNothing);
       expect(find.text('늦은 응답'), findsNothing);
       expect(tester.takeException(), isNull);

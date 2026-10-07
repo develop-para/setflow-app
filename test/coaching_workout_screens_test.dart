@@ -21,6 +21,106 @@ const _exercise = ExerciseTemplate(
 );
 
 void main() {
+  testWidgets(
+    'approved trainer using member workspace only consents to their lesson',
+    (tester) async {
+      final repository = _Repository();
+      final state = _state(repository, member: true);
+      state.businessAccess = const BusinessAccess(
+        userId: 'member',
+        accountRole: UserRole.trainer,
+        resolvedRole: UserRole.member,
+        availableRoles: {UserRole.member, UserRole.trainer},
+      );
+      await _mount(
+        tester,
+        state,
+        const CoachingWorkoutScreen(scheduleId: 'lesson'),
+      );
+      expect(
+        find.byKey(const ValueKey('lesson-recording-consent')),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(OutlinedButton, '무게 50kg'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, '횟수 10회'), findsNothing);
+      for (final row in tester.widgetList<Dismissible>(
+        find.byType(Dismissible),
+      )) {
+        expect(row.direction, DismissDirection.none);
+      }
+      expect(repository.saveRequests, isEmpty);
+      await _unmount(tester, state);
+    },
+  );
+
+  testWidgets(
+    'member task inbox excludes another member even on a dual role account',
+    (tester) async {
+      final repository = _Repository();
+      repository.current = repository.copy(
+        kind: CoachingWorkoutKind.assignment,
+      );
+      repository.extraWorkouts = [
+        repository.copy(id: 'other-task', memberUserId: 'other-member'),
+      ];
+      final state = _state(repository, member: true);
+      state.businessAccess = const BusinessAccess(
+        userId: 'member',
+        accountRole: UserRole.trainer,
+        resolvedRole: UserRole.member,
+        availableRoles: {UserRole.member, UserRole.trainer},
+      );
+      await _mount(tester, state, const CoachingAssignmentsScreen());
+      expect(find.text('오늘 하체 수업'), findsOneWidget);
+      expect(find.byTooltip('과제 알림 설정'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('coaching-create-assignment')),
+        findsNothing,
+      );
+      expect(repository.requestedMembers, ['member']);
+      await _unmount(tester, state);
+    },
+  );
+
+  testWidgets('member workspace cannot open the trainer assignment composer', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final state = _state(repository, member: true);
+    await _mount(
+      tester,
+      state,
+      const CoachingAssignmentComposerScreen(memberUserId: 'other-member'),
+    );
+    expect(
+      find.byKey(const ValueKey('coaching-account-expired')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('assignment-send')), findsNothing);
+    expect(repository.createdSession, isNull);
+    await _unmount(tester, state);
+  });
+
+  testWidgets('trainer workspace does not show the account own member lesson', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    repository.current = repository.copy(memberUserId: 'trainer-user');
+    final state = _state(repository);
+    await _mount(
+      tester,
+      state,
+      const CoachingWorkoutScreen(scheduleId: 'lesson'),
+    );
+    expect(find.text('오늘 하체 수업'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('lesson-recording-consent')),
+      findsNothing,
+    );
+    expect(find.byType(Dismissible), findsNothing);
+    expect(repository.saveRequests, isEmpty);
+    await _unmount(tester, state);
+  });
   for (final small in [false, true]) {
     testWidgets(
       'coaching opens exact guidance on request without saving ($small)',
@@ -175,19 +275,22 @@ void main() {
     },
   );
 
-  testWidgets(
-    'trainers opening their own task inbox retain member reminder settings',
-    (tester) async {
-      final state = _state(_Repository());
-      await _mount(tester, state, const CoachingAssignmentsScreen());
-      expect(find.byTooltip('과제 알림 설정'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('coaching-create-assignment')),
-        findsNothing,
-      );
-      await _unmount(tester, state);
-    },
-  );
+  testWidgets('trainer workspace cannot open the member task inbox', (
+    tester,
+  ) async {
+    final state = _state(_Repository());
+    await _mount(tester, state, const CoachingAssignmentsScreen());
+    expect(find.byTooltip('과제 알림 설정'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('coaching-account-expired')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('coaching-create-assignment')),
+      findsNothing,
+    );
+    await _unmount(tester, state);
+  });
   testWidgets(
     'numeric Apply retries the same request and retains failed draft',
     (tester) async {
@@ -580,7 +683,7 @@ void main() {
     tester,
   ) async {
     final repository = _Repository();
-    final state = _state(repository, member: true);
+    final state = _state(repository);
     await _mount(
       tester,
       state,
@@ -614,6 +717,7 @@ _TestAppState _state(_Repository repository, {bool member = false}) {
     resolvedRole: member ? UserRole.member : UserRole.trainer,
     availableRoles: {UserRole.member, if (!member) UserRole.trainer},
   );
+  state.role = member ? UserRole.member : UserRole.trainer;
   return state;
 }
 
@@ -730,6 +834,8 @@ class _Repository implements CoachingWorkoutRepository {
     );
   }
   late CoachingWorkout current;
+  List<CoachingWorkout> extraWorkouts = [];
+  final requestedMembers = <String?>[];
   bool failSave = false;
   Completer<void>? saveGate;
   final saveRequests = <String>[];
@@ -741,6 +847,8 @@ class _Repository implements CoachingWorkoutRepository {
   String? createdMember;
 
   CoachingWorkout copy({
+    String? id,
+    String? memberUserId,
     WorkoutSession? session,
     int? version,
     DateTime? startsAt,
@@ -749,13 +857,13 @@ class _Repository implements CoachingWorkoutRepository {
     bool? canEdit,
     CoachingWorkoutKind? kind,
   }) => CoachingWorkout(
-    id: current.id,
+    id: id ?? current.id,
     kind: kind ?? current.kind,
     status: (session ?? current.session).isComplete
         ? CoachingWorkoutStatus.completed
         : CoachingWorkoutStatus.inProgress,
     trainerId: current.trainerId,
-    memberUserId: current.memberUserId,
+    memberUserId: memberUserId ?? current.memberUserId,
     trainerName: current.trainerName,
     memberName: current.memberName,
     title: current.title,
@@ -776,7 +884,11 @@ class _Repository implements CoachingWorkoutRepository {
   @override
   Future<List<CoachingWorkout>> listCoachingWorkouts({
     String? memberUserId,
-  }) async => [current];
+  }) async {
+    requestedMembers.add(memberUserId);
+    return [current, ...extraWorkouts];
+  }
+
   @override
   Future<CoachingWorkout> saveCoachingWorkout({
     required String workoutId,

@@ -2860,11 +2860,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
           if (managementRepository(context) != null) ...[
             OutlinedButton(
               key: const ValueKey('consultation-management'),
-              onPressed: () => openCoachingManagement(
+              onPressed: () => openMemberRecordSharing(
                 context,
                 consultationId: consultation.id,
               ),
-              child: const Text('트레이너 연결 및 기록 관리'),
+              child: const Text('내 기록 공유·수정 승인'),
             ),
             const SizedBox(height: SetflowSpacing.md),
           ],

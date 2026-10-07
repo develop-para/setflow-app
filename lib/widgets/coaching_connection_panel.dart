@@ -79,7 +79,7 @@ class _CoachingConnectionPanelState extends State<CoachingConnectionPanel>
         if (repository is! CoachingManagementRepository) return;
         try {
           final links = await (repository as CoachingManagementRepository)
-              .listManagementLinks()
+              .listManagementLinks(role: CoachingManagementRole.member)
               .timeout(const Duration(seconds: 15));
           if (!mounted ||
               generation != _generation ||
@@ -89,7 +89,12 @@ class _CoachingConnectionPanelState extends State<CoachingConnectionPanel>
           }
           setState(() {
             _receivedRequests = links
-                .where((link) => link.status == 'pending' && link.canRespond)
+                .where(
+                  (link) =>
+                      link.viewerRole == 'member' &&
+                      link.status == 'pending' &&
+                      link.canRespond,
+                )
                 .length;
             _requestsFailed = false;
           });
@@ -111,7 +116,7 @@ class _CoachingConnectionPanelState extends State<CoachingConnectionPanel>
   }
 
   Future<void> _manage() async {
-    await openCoachingManagement(context);
+    await openMemberRecordSharing(context);
     if (mounted) await _refresh();
   }
 
@@ -220,7 +225,7 @@ class _CoachingConnectionPanelState extends State<CoachingConnectionPanel>
         ListTile(
           key: const ValueKey('coaching-record-sharing'),
           contentPadding: EdgeInsets.zero,
-          title: const Text('운동 기록 공유·요청 확인'),
+          title: const Text('내 기록 공유·수정 승인'),
           subtitle: Text(
             _requestsFailed
                 ? '요청을 확인하지 못했어요. 눌러서 다시 확인하세요.'

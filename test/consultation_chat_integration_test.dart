@@ -93,6 +93,7 @@ void main() {
       final state = AppState(businessRepository: repository);
       addTearDown(state.dispose);
       await state.initialize();
+      state.role = role;
       state.businessWorkspace = await repository.loadWorkspace(role);
       await _pump(tester, state, ConsultationQueuePage(role: role));
       await tester.tap(find.text('채팅 회원'));
