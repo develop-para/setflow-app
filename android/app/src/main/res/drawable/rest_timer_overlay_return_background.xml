@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/rest_overlay_muted_text">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rest_overlay_brand" />
+            <corners android:radius="@dimen/rest_overlay_button_radius" />
+        </shape>
+    </item>
+</ripple>

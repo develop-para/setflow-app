@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:app_links/app_links.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -40,8 +42,11 @@ import 'screens/member_screens.dart';
 import 'screens/member_social_detail_screens.dart';
 import 'screens/password_screens.dart';
 import 'screens/splash_screen.dart';
+import 'screens/workout_screens.dart';
 import 'screens/workspace_selection_screen.dart';
 import 'services/auth_service.dart';
+import 'services/app_background_service.dart';
+import 'services/rest_timer_platform.dart';
 import 'services/supabase_config.dart';
 import 'services/supabase_auth_service.dart';
 import 'theme.dart';
@@ -191,6 +196,20 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   /// The recovery link arrives on a stream, not from a widget, so there is no
   /// BuildContext to navigate from.
   final _navigatorKey = GlobalKey<NavigatorState>();
+  late final _backNavigationObserver = _BackNavigationObserver(_resetBackPress);
+  Timer? _backPressTimer;
+  bool _handlingSystemBack = false;
+  int _observedRestSessionId = 0;
+  Route<dynamic>? _restWorkoutSourceRoute;
+  RestWorkoutOpen? _restWorkoutSource;
+  RestWorkoutOpen? _pendingRestWorkoutOpen;
+  bool _consumingRestWorkoutOpen = false;
+  bool _restWorkoutNavigationScheduled = false;
+  bool _rootReady = false;
+  int _todayWorkoutOpenSerial = 0;
+
+  bool get _handlesAndroidBack =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   /// Guards against stacking a second reset screen — the recovery event can
   /// repeat (initial link plus the session restore that follows it).
@@ -230,6 +249,8 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     // 통로가 각자 상세 화면을 열면 목적지 표가 두 벌이 된다.
     state.addListener(_openPendingPushDetail);
     state.addListener(_revealWorkspaceSelection);
+    state.addListener(_observeRestWorkout);
+    unawaited(_consumeRestWorkoutOpen());
     _persistenceSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       unawaited(state.syncPersistenceToServer().catchError((_) {}));
     });
@@ -405,6 +426,114 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     unawaited(state.syncPushRegistration());
   }
 
+  /// Retain the source route while its timer runs so returning also preserves
+  /// its scroll position and any expanded sets. Shared rests have no record.
+  void _observeRestWorkout() {
+    if (state.restSessionId != _observedRestSessionId) {
+      _observedRestSessionId = state.restSessionId;
+      final focus = state.restFocus;
+      _restWorkoutSource = focus == null
+          ? null
+          : RestWorkoutOpen(
+              workoutDate: focus.workoutDate,
+              coachingWorkoutId: focus.coachingWorkoutId,
+            );
+      _restWorkoutSourceRoute = _backNavigationObserver.currentPageRoute;
+    }
+    _openPendingRestWorkout();
+  }
+
+  Future<void> _consumeRestWorkoutOpen() async {
+    if (_consumingRestWorkoutOpen) return;
+    _consumingRestWorkoutOpen = true;
+    try {
+      final open = await RestTimerPlatform.consumePendingWorkoutOpen();
+      if (!mounted || open == null) return;
+      _pendingRestWorkoutOpen = open;
+      _openPendingRestWorkout();
+    } finally {
+      _consumingRestWorkoutOpen = false;
+    }
+  }
+
+  bool get _canOpenRestWorkout =>
+      mounted &&
+      _rootReady &&
+      state.isInitialized &&
+      !state.needsWorkspaceSelection &&
+      !_passwordRecoveryOpen;
+
+  void _handleRootReady(bool ready) {
+    _rootReady = ready;
+    if (ready) _openPendingRestWorkout();
+  }
+
+  bool _sameRestWorkout(RestWorkoutOpen left, RestWorkoutOpen? right) {
+    if (right == null) return false;
+    if (left.coachingWorkoutId != null || right.coachingWorkoutId != null) {
+      return left.coachingWorkoutId != null &&
+          left.coachingWorkoutId == right.coachingWorkoutId;
+    }
+    return left.workoutDate != null &&
+        right.workoutDate != null &&
+        DateUtils.isSameDay(left.workoutDate, right.workoutDate);
+  }
+
+  void _openPendingRestWorkout() {
+    if (_pendingRestWorkoutOpen == null ||
+        _restWorkoutNavigationScheduled ||
+        !_canOpenRestWorkout) {
+      return;
+    }
+    _restWorkoutNavigationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restWorkoutNavigationScheduled = false;
+      if (!_canOpenRestWorkout) return;
+      final open = _pendingRestWorkoutOpen;
+      final navigator = _navigatorKey.currentState;
+      if (open == null || navigator == null) return;
+      _pendingRestWorkoutOpen = null;
+      final date = open.workoutDate;
+      final coachingWorkoutId = open.coachingWorkoutId;
+      // A shared timer only brings the Android task forward. It must not
+      // redirect the user into an unrelated personal workout.
+      if (date == null && coachingWorkoutId == null) return;
+
+      final sourceRoute = _restWorkoutSourceRoute;
+      if (_sameRestWorkout(open, _restWorkoutSource) &&
+          sourceRoute != null &&
+          !sourceRoute.isFirst &&
+          _backNavigationObserver.contains(sourceRoute)) {
+        navigator.popUntil((route) => identical(route, sourceRoute));
+        return;
+      }
+
+      final memberShell =
+          state.role == UserRole.member || state.role == UserRole.guest;
+      if (coachingWorkoutId == null &&
+          memberShell &&
+          DateUtils.isSameDay(date, DateTime.now())) {
+        navigator.popUntil((route) => route.isFirst);
+        _restWorkoutSourceRoute = _backNavigationObserver.currentPageRoute;
+        _restWorkoutSource = open;
+        // Today belongs to the record tab. Open it there so Back does not
+        // reveal a second copy of the same workout below a pushed screen.
+        setState(() => _todayWorkoutOpenSerial++);
+        return;
+      }
+
+      final route = MaterialPageRoute<void>(
+        builder: (_) => coachingWorkoutId != null
+            ? CoachingWorkoutScreen(workoutId: coachingWorkoutId)
+            : DailyWorkoutScreen(date: date!),
+      );
+      _restWorkoutSourceRoute = route;
+      _restWorkoutSource = open;
+      unawaited(navigator.push(route));
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   void _handleAuthState(AuthChange change) {
     final userId = change.user?.id;
     if (change.event == AuthEvent.passwordRecovery) {
@@ -500,14 +629,57 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         MaterialPageRoute(builder: (_) => const NewPasswordScreen()),
       );
       _passwordRecoveryOpen = false;
+      _openPendingRestWorkout();
       // Backing out leaves a half-authenticated session behind; ending it is
       // the honest state, and the user can sign in with the new password.
       if (changed != true) unawaited(Auth.instance.signOut());
     });
   }
 
+  void _resetBackPress() {
+    _backPressTimer?.cancel();
+    _backPressTimer = null;
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (!_handlesAndroidBack) return false;
+    if (_handlingSystemBack) return true;
+    _handlingSystemBack = true;
+    try {
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) return true;
+      // maybePop also consumes backs handled by a screen's PopScope: closing
+      // the record sheet or folding a room must never count as leaving the app.
+      if (await navigator.maybePop()) {
+        _resetBackPress();
+        return true;
+      }
+      if (!mounted) return true;
+      if (_backPressTimer?.isActive ?? false) {
+        _resetBackPress();
+        AppSnackbar.dismiss();
+        // Finish the local save before backgrounding. Cloud uploads already
+        // retry on lifecycle changes and must not delay leaving the screen.
+        await _commitEditsThenPersist(syncToServer: false);
+        if (mounted) await AppBackgroundService.moveToBackground();
+      } else {
+        _backPressTimer = Timer(const Duration(seconds: 2), _resetBackPress);
+        AppSnackbar.info(
+          navigator.context,
+          '한 번 더 누르면 백그라운드로 이동해요',
+          overlay: navigator.overlay,
+        );
+      }
+      return true;
+    } finally {
+      _handlingSystemBack = false;
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
+    _resetBackPress();
     if (lifecycleState == AppLifecycleState.inactive ||
         lifecycleState == AppLifecycleState.paused ||
         lifecycleState == AppLifecycleState.hidden ||
@@ -516,6 +688,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       return;
     }
     if (lifecycleState == AppLifecycleState.resumed) {
+      unawaited(_consumeRestWorkoutOpen());
       unawaited(AppUpdates.instance.check());
       unawaited(state.syncRestTimerFromPlatform());
       unawaited(state.syncPersistenceToServer().catchError((_) {}));
@@ -550,14 +723,18 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   ///
   /// Verified on an emulator: typing 82.5, pressing back, then force-stopping
   /// the app used to come back as 0.
-  Future<void> _commitEditsThenPersist() async {
+  Future<void> _commitEditsThenPersist({bool syncToServer = true}) async {
     FocusManager.instance.primaryFocus?.unfocus();
     // FocusManager applies the change in a microtask, and the field's blur
     // listener runs with it. Yielding to the event loop lets that finish, so
     // the snapshot taken below already contains the typed value.
     await Future<void>.delayed(Duration.zero);
     try {
-      await state.syncPersistenceToServer();
+      if (syncToServer) {
+        await state.syncPersistenceToServer();
+      } else {
+        await state.flushPersistence();
+      }
     } catch (_) {
       // The account-scoped outbox is durable; the retry paths finish the
       // upload when the network returns.
@@ -576,8 +753,10 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _resetBackPress();
     state.removeListener(_openPendingPushDetail);
     state.removeListener(_revealWorkspaceSelection);
+    state.removeListener(_observeRestWorkout);
     unawaited(_authSubscription?.cancel());
     unawaited(_appLinkSubscription?.cancel());
     unawaited(_pushOpenSubscription?.cancel());
@@ -596,6 +775,15 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
         builder: (context, _) => MaterialApp(
           title: 'Setflow',
           navigatorKey: _navigatorKey,
+          navigatorObservers: [_backNavigationObserver],
+          // Keep root back gestures in Flutter too. Otherwise Android's
+          // predictive back can background the task before didPopRoute runs.
+          onNavigationNotification: _handlesAndroidBack
+              ? (_) {
+                  unawaited(SystemNavigator.setFrameworkHandlesBack(true));
+                  return true;
+                }
+              : null,
           debugShowCheckedModeBanner: false,
           theme: SetflowTheme.light,
           darkTheme: SetflowTheme.dark,
@@ -607,65 +795,117 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
           // narrows the shell -- pushed routes render above it and would
           // stretch to the full browser width, which is the width jump this
           // fixes.
-          builder: (context, child) => _AppFrame(
-            child: Stack(
-              children: [
-                child ?? const SizedBox.shrink(),
-                if (state.pendingBusinessInviteToken != null)
-                  Positioned(
-                    left: SetflowSpacing.md,
-                    right: SetflowSpacing.md,
-                    top: SetflowSpacing.sm,
-                    child: SafeArea(
-                      bottom: false,
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 400),
-                          child: _BusinessInviteBanner(state: state),
+          builder: (context, child) => Listener(
+            // Android cancels the pointer stream when an edge gesture becomes
+            // system back, so only completed in-app touches break the sequence.
+            onPointerUp: (_) => _resetBackPress(),
+            child: _AppFrame(
+              child: Stack(
+                children: [
+                  child ?? const SizedBox.shrink(),
+                  if (state.pendingBusinessInviteToken != null)
+                    Positioned(
+                      left: SetflowSpacing.md,
+                      right: SetflowSpacing.md,
+                      top: SetflowSpacing.sm,
+                      child: SafeArea(
+                        bottom: false,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 400),
+                            child: _BusinessInviteBanner(state: state),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                if (state.pendingBusinessInviteToken == null &&
-                    state.pendingCoachingInviteToken != null)
-                  Positioned(
-                    left: SetflowSpacing.md,
-                    right: SetflowSpacing.md,
-                    top: SetflowSpacing.sm,
-                    child: SafeArea(
-                      bottom: false,
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 400),
-                          child: _CoachingInviteBanner(state: state),
+                  if (state.pendingBusinessInviteToken == null &&
+                      state.pendingCoachingInviteToken != null)
+                    Positioned(
+                      left: SetflowSpacing.md,
+                      right: SetflowSpacing.md,
+                      top: SetflowSpacing.sm,
+                      child: SafeArea(
+                        bottom: false,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 400),
+                            child: _CoachingInviteBanner(state: state),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                if (state.restRemaining > 0)
-                  Positioned.fill(
-                    child: FloatingRestTimer(
-                      sessionId: state.restSessionId,
-                      seconds: state.restRemaining,
-                      totalSeconds: state.restDefaultSeconds,
-                      exerciseName: state.restFocus?.exerciseName,
-                      setsLeft: state.restFocus?.setsLeft ?? 0,
-                      nextExercise: state.restFocus?.nextExercise,
-                      onAddTime: state.extendRestTimer,
-                      onCancel: state.cancelRestTimer,
+                  if (state.restRemaining > 0)
+                    Positioned.fill(
+                      child: FloatingRestTimer(
+                        sessionId: state.restSessionId,
+                        seconds: state.restRemaining,
+                        totalSeconds: state.restDefaultSeconds,
+                        exerciseName: state.restFocus?.exerciseName,
+                        setsLeft: state.restFocus?.setsLeft ?? 0,
+                        nextExercise: state.restFocus?.nextExercise,
+                        onAddTime: state.extendRestTimer,
+                        onCancel: state.cancelRestTimer,
+                      ),
                     ),
-                  ),
-                // Last child: the portal hold must cover the shell, the nav bar
-                // and any pushed route while the swap happens underneath.
-                if (state.isPortalSwitching)
-                  const Positioned.fill(child: PortalTransitionOverlay()),
-              ],
+                  // Last child: the portal hold must cover the shell, the nav bar
+                  // and any pushed route while the swap happens underneath.
+                  if (state.isPortalSwitching)
+                    const Positioned.fill(child: PortalTransitionOverlay()),
+                ],
+              ),
             ),
           ),
-          home: const RootScreen(),
+          home: RootScreen(
+            todayWorkoutOpenSerial: _todayWorkoutOpenSerial,
+            onReadyChanged: _handleRootReady,
+          ),
         ),
       ),
     );
+  }
+}
+
+/// Navigation between the two presses starts a fresh leave-app sequence.
+class _BackNavigationObserver extends NavigatorObserver {
+  _BackNavigationObserver(this.onNavigation);
+
+  final VoidCallback onNavigation;
+  final _routes = <Route<dynamic>>[];
+
+  Route<dynamic>? get currentPageRoute =>
+      _routes.whereType<PageRoute<dynamic>>().lastOrNull;
+
+  bool contains(Route<dynamic> route) => _routes.contains(route);
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _routes.add(route);
+    onNavigation();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _routes.remove(route);
+    onNavigation();
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _routes.remove(route);
+    onNavigation();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    final index = oldRoute == null ? -1 : _routes.indexOf(oldRoute);
+    if (index >= 0) {
+      if (newRoute == null) {
+        _routes.removeAt(index);
+      } else {
+        _routes[index] = newRoute;
+      }
+    }
+    onNavigation();
   }
 }
 
@@ -870,7 +1110,14 @@ class _CoachingInviteBannerState extends State<_CoachingInviteBanner> {
 }
 
 class RootScreen extends StatefulWidget {
-  const RootScreen({super.key});
+  const RootScreen({
+    this.todayWorkoutOpenSerial = 0,
+    this.onReadyChanged,
+    super.key,
+  });
+
+  final int todayWorkoutOpenSerial;
+  final ValueChanged<bool>? onReadyChanged;
 
   @override
   State<RootScreen> createState() => _RootScreenState();
@@ -878,17 +1125,28 @@ class RootScreen extends StatefulWidget {
 
 class _RootScreenState extends State<RootScreen> {
   bool _showSplash = true;
+  bool? _reportedReady;
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final ready =
+        !_showSplash && state.isInitialized && !state.needsWorkspaceSelection;
+    if (_reportedReady != ready) {
+      _reportedReady = ready;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onReadyChanged?.call(ready);
+      });
+    }
     // Guests and member-only accounts go straight to their records. A restored
     // multi-role account chooses its workspace before a business shell opens.
     final shellRole = state.role == UserRole.guest
         ? UserRole.member
         : state.role;
     final Widget page = switch (shellRole) {
-      UserRole.member || UserRole.guest => const MemberShell(),
+      UserRole.member || UserRole.guest => MemberShell(
+        todayWorkoutOpenSerial: widget.todayWorkoutOpenSerial,
+      ),
       UserRole.trainer => const BusinessShell(role: UserRole.trainer),
       UserRole.gym => const BusinessShell(role: UserRole.gym),
       UserRole.admin => const BusinessShell(role: UserRole.admin),

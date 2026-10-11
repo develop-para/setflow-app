@@ -75,13 +75,23 @@ int? businessPageForPush(UserRole role, PushOpen open) {
 
 class _BusinessShellState extends State<BusinessShell> {
   int index = 0;
+  final _pageHistory = <int>[];
   int _handledPushSerial = 0;
+
+  void _show(int page) {
+    if (page == index) return;
+    setState(() {
+      _pageHistory.add(index);
+      index = page;
+    });
+  }
 
   @override
   void didUpdateWidget(covariant BusinessShell oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.role != widget.role) {
       index = 0;
+      _pageHistory.clear();
       _handledPushSerial = 0;
     }
   }
@@ -95,7 +105,7 @@ class _BusinessShellState extends State<BusinessShell> {
     final page = businessPageForPush(widget.role, open);
     if (page == null || page == index) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => index = page);
+      if (mounted) _show(page);
     });
   }
 
@@ -126,90 +136,97 @@ class _BusinessShellState extends State<BusinessShell> {
       _ => const [SizedBox(), SizedBox(), SizedBox(), SizedBox()],
     };
 
-    return Scaffold(
-      body: Column(
-        children: [
-          // 헤더 세그먼트는 걷어냈지만(전환은 회원 쪽 전체 메뉴의 한 줄),
-          // pro 셸에 서 있는 사람의 **돌아가는 문**은 사라지면 안 된다 —
-          // 트레이너도 자기 운동은 회원 화면에서 기록한다. 이 방향은 게이트가 없다.
-          // 트레이너에게도 알림이 온다(상담·배정·루틴 심사). 회원 셸과 같은
-          // 문이어야 "알림은 회원 화면에만 있다"가 되지 않는다.
-          const PortalHeaderBar(
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                NotificationHeaderButton(),
-                _ClientPortalReturnButton(),
-              ],
+    return PopScope(
+      canPop: _pageHistory.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _pageHistory.isNotEmpty) {
+          setState(() => index = _pageHistory.removeLast());
+        }
+      },
+      child: Scaffold(
+        body: Column(
+          children: [
+            // 헤더 세그먼트는 걷어냈지만(전환은 회원 쪽 전체 메뉴의 한 줄),
+            // pro 셸에 서 있는 사람의 **돌아가는 문**은 사라지면 안 된다 —
+            // 트레이너도 자기 운동은 회원 화면에서 기록한다. 이 방향은 게이트가 없다.
+            // 트레이너에게도 알림이 온다(상담·배정·루틴 심사). 회원 셸과 같은
+            // 문이어야 "알림은 회원 화면에만 있다"가 되지 않는다.
+            const PortalHeaderBar(
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NotificationHeaderButton(),
+                  _ClientPortalReturnButton(),
+                ],
+              ),
             ),
-          ),
-          // The header already ate the status-bar inset, so the per-page
-          // SafeArea below must not add it a second time.
-          Expanded(
-            child: MediaQuery(
-              data: MediaQuery.of(context)
-                  .removePadding(
-                    removeTop: true,
-                    removeBottom: widget.role == UserRole.trainer,
-                  )
-                  .removeViewInsets(removeBottom: true),
-              child: IndexedStack(index: index, children: pages),
+            // The header already ate the status-bar inset, so the per-page
+            // SafeArea below must not add it a second time.
+            Expanded(
+              child: MediaQuery(
+                data: MediaQuery.of(context)
+                    .removePadding(
+                      removeTop: true,
+                      removeBottom: widget.role == UserRole.trainer,
+                    )
+                    .removeViewInsets(removeBottom: true),
+                child: IndexedStack(index: index, children: pages),
+              ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: widget.role == UserRole.trainer
-          ? SetflowActionNavBar(
-              items: const [
-                SetflowNavItem(
-                  icon: SetflowIcons.home,
-                  selectedIcon: SetflowIcons.homeActive,
-                  label: '홈',
-                ),
-                SetflowNavItem(
-                  icon: SetflowIcons.together,
-                  selectedIcon: SetflowIcons.togetherActive,
-                  label: '회원',
-                ),
-                SetflowNavItem(
-                  icon: SetflowIcons.community,
-                  selectedIcon: SetflowIcons.communityActive,
-                  label: '상담',
-                ),
-                SetflowNavItem(
-                  icon: SetflowIcons.settings,
-                  selectedIcon: SetflowIcons.settings,
-                  label: '설정',
-                ),
-              ],
-              selectedIndex: index == 2
-                  ? null
-                  : (index < 2 ? index : index - 1),
-              onSelected: (slot) =>
-                  setState(() => index = const [0, 1, 3, 4][slot]),
-              centerLabel: '루틴',
-              centerIcon: SetflowIcons.record,
-              centerSelected: index == 2,
-              onCenterTap: () => setState(() => index = 2),
-            )
-          : NavigationBar(
-              height: 64,
-              selectedIndex: index,
-              // 인디케이터는 테마가 정한다(잉크 바 + 라임). 역할색 14%는 검은 바
-              // 위에서 사실상 보이지 않았다 — 어느 탭인지 라벨 굵기로만 읽혔다.
-              onDestinationSelected: (value) {
-                HapticFeedback.selectionClick();
-                setState(() => index = value);
-              },
-              destinations: [
-                for (final item in config.nav)
-                  NavigationDestination(
-                    icon: Icon(item.$1),
-                    selectedIcon: Icon(_selectedBusinessIcon(item.$1)),
-                    label: item.$2,
+          ],
+        ),
+        bottomNavigationBar: widget.role == UserRole.trainer
+            ? SetflowActionNavBar(
+                items: const [
+                  SetflowNavItem(
+                    icon: SetflowIcons.home,
+                    selectedIcon: SetflowIcons.homeActive,
+                    label: '홈',
                   ),
-              ],
-            ),
+                  SetflowNavItem(
+                    icon: SetflowIcons.together,
+                    selectedIcon: SetflowIcons.togetherActive,
+                    label: '회원',
+                  ),
+                  SetflowNavItem(
+                    icon: SetflowIcons.community,
+                    selectedIcon: SetflowIcons.communityActive,
+                    label: '상담',
+                  ),
+                  SetflowNavItem(
+                    icon: SetflowIcons.settings,
+                    selectedIcon: SetflowIcons.settings,
+                    label: '설정',
+                  ),
+                ],
+                selectedIndex: index == 2
+                    ? null
+                    : (index < 2 ? index : index - 1),
+                onSelected: (slot) => _show(const [0, 1, 3, 4][slot]),
+                centerLabel: '루틴',
+                centerIcon: SetflowIcons.record,
+                centerSelected: index == 2,
+                onCenterTap: () => _show(2),
+              )
+            : NavigationBar(
+                height: 64,
+                selectedIndex: index,
+                // 인디케이터는 테마가 정한다(잉크 바 + 라임). 역할색 14%는 검은 바
+                // 위에서 사실상 보이지 않았다 — 어느 탭인지 라벨 굵기로만 읽혔다.
+                onDestinationSelected: (value) {
+                  HapticFeedback.selectionClick();
+                  _show(value);
+                },
+                destinations: [
+                  for (final item in config.nav)
+                    NavigationDestination(
+                      icon: Icon(item.$1),
+                      selectedIcon: Icon(_selectedBusinessIcon(item.$1)),
+                      label: item.$2,
+                    ),
+                ],
+              ),
+      ),
     );
   }
 }

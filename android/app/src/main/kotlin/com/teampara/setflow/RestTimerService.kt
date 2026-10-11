@@ -8,12 +8,16 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.Vibrator
+import android.provider.Settings
+import java.lang.ref.WeakReference
 import kotlin.math.ceil
 
 class RestTimerService : Service() {
@@ -21,10 +25,13 @@ class RestTimerService : Service() {
     private var finishRunnable: Runnable? = null
     private val beepRunnables = mutableListOf<Runnable>()
     private var toneGenerator: ToneGenerator? = null
+    private lateinit var overlay: RestTimerOverlay
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
+        liveService = WeakReference(this)
+        overlay = RestTimerOverlay(this, ::cancelTimer, ::openWorkout)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -54,6 +61,8 @@ class RestTimerService : Service() {
                         intent.getIntExtra(EXTRA_COUNTDOWN_SECONDS, 30).coerceIn(0, 120),
                     )
                     .putString(KEY_DETAIL, intent.getStringExtra(EXTRA_DETAIL))
+                    .putString(KEY_WORKOUT_DATE, intent.getStringExtra(EXTRA_WORKOUT_DATE))
+                    .putString(KEY_SESSION_ID, intent.getStringExtra(EXTRA_SESSION_ID))
                     .apply()
                 runTimer(endsAt)
             }
@@ -74,6 +83,8 @@ class RestTimerService : Service() {
     }
 
     override fun onDestroy() {
+        overlay.hide()
+        if (liveService?.get() === this) liveService = null
         finishRunnable?.let(handler::removeCallbacks)
         finishRunnable = null
         clearBeeps()
@@ -82,12 +93,23 @@ class RestTimerService : Service() {
         super.onDestroy()
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Reinflate text at the new font scale and clamp to the rotated display.
+        overlay.hide()
+        refreshOverlayVisibility()
+    }
+
     private val preferences
         get() = getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     private fun restoreTimer() {
         val endsAt = preferences.getLong(KEY_ENDS_AT, 0L)
-        if (!preferences.getBoolean(KEY_ACTIVE, false) || endsAt <= System.currentTimeMillis()) {
+        if (!preferences.getBoolean(KEY_ACTIVE, false)) {
+            cancelTimer()
+            return
+        }
+        if (endsAt <= System.currentTimeMillis()) {
             finishTimer()
             return
         }
@@ -103,6 +125,50 @@ class RestTimerService : Service() {
             handler.postDelayed(it, remaining)
         }
         scheduleBeeps(endsAt)
+        refreshOverlayVisibility()
+    }
+
+    private fun refreshOverlayVisibility() {
+        val endsAt = preferences.getLong(KEY_ENDS_AT, 0L)
+        if (!appInForeground && preferences.getBoolean(KEY_ACTIVE, false) &&
+            endsAt > System.currentTimeMillis() &&
+            overlayPreferences(this).getBoolean(KEY_OVERLAY_ENABLED, false) &&
+            Settings.canDrawOverlays(this)
+        ) {
+            val detail = preferences.getString(KEY_DETAIL, null)
+                ?.takeIf { it.isNotBlank() }
+                ?: getString(R.string.rest_timer_background_message)
+            try {
+                overlay.show(endsAt, detail)
+            } catch (_: RuntimeException) {
+                // A floating window is optional; timer/audio keep running even
+                // if a vendor display implementation rejects its window context.
+                overlay.hide()
+            }
+        } else {
+            overlay.hide()
+        }
+    }
+
+    private fun openWorkout() {
+        val pending = overlayPreferences(this)
+        pending.edit()
+            .putBoolean(KEY_PENDING_WORKOUT_OPEN, true)
+            .putString(KEY_WORKOUT_DATE, preferences.getString(KEY_WORKOUT_DATE, null))
+            .putString(KEY_SESSION_ID, preferences.getString(KEY_SESSION_ID, null))
+            .apply()
+        try {
+            // A direct user tap on the visible overlay opens the existing task.
+            // Keep that window attached until Android has accepted the launch.
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            })
+            overlay.hide()
+        } catch (_: RuntimeException) {
+            // Keep the timer controls available if this device rejects the launch.
+            pending.edit().remove(KEY_PENDING_WORKOUT_OPEN).apply()
+        }
     }
 
     // Lets the lifter hear the rest ending without watching the screen: one
@@ -161,9 +227,13 @@ class RestTimerService : Service() {
     }
 
     private fun cancelTimer() {
+        overlay.hide()
         finishRunnable?.let(handler::removeCallbacks)
         finishRunnable = null
         clearBeeps()
+        toneGenerator?.stopTone()
+        getSystemService(Vibrator::class.java)?.cancel()
+        clearCompletion(this)
         preferences.edit().clear().apply()
         RestTimerWidgetProvider.updateAll(this)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -171,6 +241,8 @@ class RestTimerService : Service() {
     }
 
     private fun finishTimer() {
+        overlay.hide()
+        if (!preferences.getBoolean(KEY_ACTIVE, false)) return
         finishRunnable?.let(handler::removeCallbacks)
         finishRunnable = null
         clearBeeps()
@@ -219,14 +291,17 @@ class RestTimerService : Service() {
         val detail = preferences.getString(KEY_DETAIL, null)
             ?.takeIf { it.isNotBlank() }
             ?: getString(R.string.rest_timer_background_message)
-        val builder = Notification.Builder(this, ONGOING_CHANNEL_ID)
+        val builder = notificationBuilder(ONGOING_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_rest_timer)
             .setContentTitle(getString(R.string.rest_timer_running))
             .setContentText(detail)
             .setContentIntent(openIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setCategory(Notification.CATEGORY_STOPWATCH)
+            .setCategory(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Notification.CATEGORY_STOPWATCH
+                else Notification.CATEGORY_PROGRESS,
+            )
             .setWhen(endsAt)
             .setUsesChronometer(true)
             .addAction(
@@ -243,9 +318,7 @@ class RestTimerService : Service() {
                     stopIntent,
                 ).build(),
             )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            builder.setChronometerCountDown(true)
-        }
+        builder.setChronometerCountDown(true)
         return builder.build()
     }
 
@@ -258,8 +331,7 @@ class RestTimerService : Service() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        return Notification.Builder(
-            this,
+        return notificationBuilder(
             if (vibrate) COMPLETE_CHANNEL_ID else COMPLETE_SILENT_CHANNEL_ID,
         )
             .setSmallIcon(R.drawable.ic_stat_rest_timer)
@@ -267,6 +339,11 @@ class RestTimerService : Service() {
             .setContentText(getString(R.string.rest_timer_complete_message))
             .setContentIntent(openIntent)
             .setAutoCancel(true)
+            .apply {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O && vibrate) {
+                    setDefaults(Notification.DEFAULT_VIBRATE)
+                }
+            }
             .setCategory(Notification.CATEGORY_ALARM)
             .build()
     }
@@ -308,11 +385,27 @@ class RestTimerService : Service() {
         )
     }
 
+    @Suppress("DEPRECATION")
+    private fun notificationBuilder(channelId: String): Notification.Builder {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, channelId)
+        } else {
+            Notification.Builder(this)
+        }
+    }
+
     companion object {
         const val CHANNEL_NAME = "com.teampara.setflow/rest_timer"
         const val PREFERENCES_NAME = "setflow_rest_timer"
         const val KEY_ENDS_AT = "ends_at"
         const val KEY_ACTIVE = "active"
+        private const val KEY_WORKOUT_DATE = "workout_date"
+        private const val KEY_SESSION_ID = "session_id"
+        private const val OVERLAY_PREFERENCES_NAME = "setflow_rest_timer_overlay"
+        private const val KEY_OVERLAY_ENABLED = "enabled"
+        private const val KEY_PENDING_WORKOUT_OPEN = "pending_workout_open"
+        private var appInForeground = false
+        private var liveService: WeakReference<RestTimerService>? = null
         private const val KEY_SHOW_COMPLETION = "show_completion"
         private const val KEY_VIBRATE = "vibrate"
         private const val KEY_SOUND = "sound"
@@ -323,6 +416,8 @@ class RestTimerService : Service() {
         private const val ACTION_EXTEND = "com.teampara.setflow.action.EXTEND_REST_TIMER"
         private const val EXTEND_MILLIS = 30_000L
         private const val EXTRA_DETAIL = "detail"
+        private const val EXTRA_WORKOUT_DATE = "workoutDate"
+        private const val EXTRA_SESSION_ID = "sessionId"
         private const val EXTRA_SECONDS = "seconds"
         private const val EXTRA_SHOW_COMPLETION = "show_completion"
         private const val EXTRA_VIBRATE = "vibrate"
@@ -342,6 +437,8 @@ class RestTimerService : Service() {
             sound: Boolean = true,
             countdownSeconds: Int = 30,
             detail: String? = null,
+            workoutDate: String? = null,
+            sessionId: String? = null,
         ) {
             // 새 휴식이 시작됐으면 지난 휴식의 "끝났어요"는 지나간 말이다.
             clearCompletion(context)
@@ -353,6 +450,8 @@ class RestTimerService : Service() {
                 .putExtra(EXTRA_SOUND, sound)
                 .putExtra(EXTRA_COUNTDOWN_SECONDS, countdownSeconds.coerceIn(0, 120))
                 .putExtra(EXTRA_DETAIL, detail)
+                .putExtra(EXTRA_WORKOUT_DATE, workoutDate)
+                .putExtra(EXTRA_SESSION_ID, sessionId)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -373,6 +472,11 @@ class RestTimerService : Service() {
         }
 
         fun cancel(context: Context) {
+            liveService?.get()?.let {
+                it.cancelTimer()
+                return
+            }
+            clearCompletion(context)
             val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             if (!prefs.getBoolean(KEY_ACTIVE, false)) {
                 prefs.edit().clear().apply()
@@ -392,14 +496,45 @@ class RestTimerService : Service() {
             } else {
                 0
             }
-            if (remaining <= 0 && prefs.getBoolean(KEY_ACTIVE, false)) {
-                prefs.edit().putBoolean(KEY_ACTIVE, false).putLong(KEY_ENDS_AT, 0L).apply()
-                RestTimerWidgetProvider.updateAll(context)
-            }
+            // Only the timer service finishes a timer. A simultaneous status read
+            // must not consume its completion alert or revive a cancelled timer.
             return mapOf(
                 "remainingSeconds" to remaining,
                 "endsAtMillis" to if (remaining > 0) endsAt else 0L,
             )
         }
+
+        fun onAppVisibilityChanged(inForeground: Boolean) {
+            appInForeground = inForeground
+            liveService?.get()?.refreshOverlayVisibility()
+        }
+
+        fun overlayStatus(context: Context): Map<String, Boolean> = mapOf(
+            "enabled" to overlayPreferences(context).getBoolean(KEY_OVERLAY_ENABLED, false),
+            "permissionGranted" to Settings.canDrawOverlays(context),
+        )
+
+        fun setOverlayEnabled(context: Context, enabled: Boolean) {
+            overlayPreferences(context).edit().putBoolean(KEY_OVERLAY_ENABLED, enabled).apply()
+            liveService?.get()?.refreshOverlayVisibility()
+        }
+
+        fun consumePendingWorkoutOpen(context: Context): Map<String, String?>? {
+            val pending = overlayPreferences(context)
+            if (!pending.getBoolean(KEY_PENDING_WORKOUT_OPEN, false)) return null
+            val payload = mapOf(
+                "workoutDate" to pending.getString(KEY_WORKOUT_DATE, null),
+                "sessionId" to pending.getString(KEY_SESSION_ID, null),
+            )
+            pending.edit()
+                .remove(KEY_PENDING_WORKOUT_OPEN)
+                .remove(KEY_WORKOUT_DATE)
+                .remove(KEY_SESSION_ID)
+                .apply()
+            return payload
+        }
+
+        private fun overlayPreferences(context: Context) =
+            context.getSharedPreferences(OVERLAY_PREFERENCES_NAME, Context.MODE_PRIVATE)
     }
 }

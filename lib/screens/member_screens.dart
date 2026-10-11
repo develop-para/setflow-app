@@ -49,7 +49,10 @@ String _formatMinuteValue(double minutes) {
 }
 
 class MemberShell extends StatefulWidget {
-  const MemberShell({super.key});
+  const MemberShell({this.todayWorkoutOpenSerial = 0, super.key});
+
+  /// A new background-timer request selects today's retained recording tab.
+  final int todayWorkoutOpenSerial;
 
   @override
   State<MemberShell> createState() => _MemberShellState();
@@ -317,8 +320,18 @@ class RecordScreen extends StatelessWidget {
 class _MemberShellState extends State<MemberShell> {
   /// Stable page index, independent of the configured bottom-bar position.
   int index = 0;
+  final _pageHistory = <({int page, bool? showToday})>[];
   final _visitedCustomPages = <int>{};
   bool _recordSheetOpen = false;
+
+  @override
+  void didUpdateWidget(covariant MemberShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.todayWorkoutOpenSerial != oldWidget.todayWorkoutOpenSerial) {
+      _closeRecordSheet();
+      _showRecordToday();
+    }
+  }
 
   /// 함께 방에 들어가 있는가. 방은 운동 중 전용 화면이라 셸의 헤더와 바텀바를
   /// 접는다 — 전광판과 하단 액션이 화면을 다 쓰게 하려는 것이다.
@@ -334,11 +347,44 @@ class _MemberShellState extends State<MemberShell> {
   /// 기록 탭을 떠나면 지운다 — 한 번의 의도가 다음 방문까지 남으면 안 된다.
   bool? _recordShowToday;
 
-  void _show(int page) => setState(() {
-    if (page != _recordPage) _recordShowToday = null;
-    _visitedCustomPages.add(page);
-    index = page;
-  });
+  bool get _defaultRecordShowsToday {
+    final state = AppScope.of(context);
+    final today = state.dateOnly(DateTime.now());
+    return state.sessions[today]?.exercises.isNotEmpty ?? false;
+  }
+
+  ({int page, bool? showToday}) get _currentPage => (
+    page: index,
+    showToday: index == _recordPage
+        ? _recordShowToday ?? _defaultRecordShowsToday
+        : null,
+  );
+
+  void _show(int page, {bool? showToday}) {
+    final current = _currentPage;
+    final next = (
+      page: page,
+      showToday: page == _recordPage
+          ? showToday ?? _defaultRecordShowsToday
+          : null,
+    );
+    if (current == next) return;
+    setState(() {
+      _pageHistory.add(current);
+      _visitedCustomPages.add(page);
+      index = page;
+      _recordShowToday = page == _recordPage ? showToday : null;
+    });
+  }
+
+  void _restorePreviousPage() {
+    if (_pageHistory.isEmpty) return;
+    setState(() {
+      final previous = _pageHistory.removeLast();
+      index = previous.page;
+      _recordShowToday = previous.showToday;
+    });
+  }
 
   Future<void> _openDestination(MemberDestination destination) async {
     if (!mounted) return;
@@ -352,10 +398,7 @@ class _MemberShellState extends State<MemberShell> {
 
   /// "오늘 기록으로" — 어느 탭에서 왔든 캘린더를 거치지 않고 오늘 세트 화면에
   /// 내린다. 운동 중인 사람의 경로라 탭 하나도 아깝다(AGENTS.md 5절).
-  void _showRecordToday() => setState(() {
-    _recordShowToday = true;
-    index = _recordPage;
-  });
+  void _showRecordToday() => _show(_recordPage, showToday: true);
 
   String? _handledRoutineShareToken;
   int _handledPushSerial = 0;
@@ -451,8 +494,8 @@ class _MemberShellState extends State<MemberShell> {
       ),
       RecordScreen(
         showToday: _recordShowToday,
-        onShowToday: () => setState(() => _recordShowToday = true),
-        onShowCalendar: () => setState(() => _recordShowToday = false),
+        onShowToday: _showRecordToday,
+        onShowCalendar: () => _show(_recordPage, showToday: false),
       ),
       const CommunityScreen(),
       const MyPageScreen(),
@@ -466,10 +509,16 @@ class _MemberShellState extends State<MemberShell> {
     ];
 
     return PopScope(
-      // Back closes the sheet before it ever reaches "leave the app".
-      canPop: !_recordSheetOpen,
+      // 탭은 라우트가 아니므로, 셸 안에서 지나온 화면을 먼저 되돌린다.
+      canPop: !_recordSheetOpen && _pageHistory.isEmpty,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _closeRecordSheet();
+        if (didPop) return;
+        if (_recordSheetOpen) {
+          _closeRecordSheet();
+        } else if (!_inTogetherSession) {
+          // 방의 뒤로가기는 TogetherScreen이 로비로 접는다.
+          _restorePreviousPage();
+        }
       },
       child: Scaffold(
         body: Stack(
@@ -579,13 +628,11 @@ class _MemberShellState extends State<MemberShell> {
       _closeRecordSheet();
       return;
     }
-    setState(() {
-      if (index != _recordPage) {
-        index = _recordPage;
-      } else {
-        _recordSheetOpen = true;
-      }
-    });
+    if (index != _recordPage) {
+      _show(_recordPage);
+    } else {
+      setState(() => _recordSheetOpen = true);
+    }
   }
 
   void _closeRecordSheet() {
@@ -609,7 +656,7 @@ class _MemberShellState extends State<MemberShell> {
         );
       case _RecordAction.pastDays:
         // 캘린더는 이제 기록 탭 안에 있다 — 오늘 화면이 떠 있어도 캘린더로.
-        setState(() => _recordShowToday = false);
+        _show(_recordPage, showToday: false);
     }
   }
 }

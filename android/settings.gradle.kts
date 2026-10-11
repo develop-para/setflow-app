@@ -1,8 +1,14 @@
 pluginManagement {
     val flutterSdkPath =
         run {
+            val localPropertiesFile = file("local.properties")
             val properties = java.util.Properties()
-            file("local.properties").inputStream().use { properties.load(it) }
+            localPropertiesFile.inputStream().use { properties.load(it) }
+            // Flutter가 다시 만든 Windows 경로도 lint 전에 올바른 properties 표기로 저장한다.
+            val unescapedDrive = Regex("""(?m)^(?:sdk\.dir|flutter\.sdk)\s*=\s*[A-Za-z]:""")
+            if (unescapedDrive.containsMatchIn(localPropertiesFile.readText())) {
+                localPropertiesFile.outputStream().use { properties.store(it, null) }
+            }
             val flutterSdkPath = properties.getProperty("flutter.sdk")
             require(flutterSdkPath != null) { "flutter.sdk not set in local.properties" }
             flutterSdkPath

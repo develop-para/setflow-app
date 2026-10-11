@@ -903,8 +903,18 @@ abstract final class AppSnackbar {
     );
   }
 
-  static void info(BuildContext context, String message) {
-    _show(context, message, Icons.info_rounded, context.setflowColors.info);
+  static void info(
+    BuildContext context,
+    String message, {
+    OverlayState? overlay,
+  }) {
+    _show(
+      context,
+      message,
+      Icons.info_rounded,
+      context.setflowColors.info,
+      overlay: overlay,
+    );
   }
 
   /// A message the user can take back on the spot.

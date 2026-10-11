@@ -227,6 +227,86 @@ void main() {
     expect(state.memberNavigation, MemberNavigation.defaults);
   });
 
+  testWidgets('system back returns through visited tabs after pushed screens', (
+    tester,
+  ) async {
+    await launch(tester);
+    for (final label in ['함께', '커뮤니티', '마이', '마이']) {
+      await tester.tap(navLabel(label));
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(keyed('home-app-menu'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MemberMenuScreen), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(MemberMenuScreen), findsNothing);
+    expect(
+      tester
+          .widget<SetflowActionNavBar>(find.byType(SetflowActionNavBar))
+          .selectedIndex,
+      3,
+    );
+
+    for (final expectedSlot in [2, 1, 0]) {
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<SetflowActionNavBar>(find.byType(SetflowActionNavBar))
+            .selectedIndex,
+        expectedSlot,
+      );
+    }
+    expect(
+      await tester.state<NavigatorState>(find.byType(Navigator)).maybePop(),
+      isFalse,
+      reason: '같은 탭을 다시 누른 것은 뒤로가기 기록에 넣지 않는다',
+    );
+  });
+
+  testWidgets('system back restores today and calendar before leaving record', (
+    tester,
+  ) async {
+    await launch(tester);
+    await tester.tap(keyed('bottom-bar-center-action'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarScreen), findsOneWidget);
+
+    final today = DateTime.now();
+    await tester.tap(
+      keyed('calendar-tint-${today.year}${today.month}${today.day}'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+    await tester.tap(keyed('record-open-calendar'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarScreen), findsOneWidget);
+
+    // 시트를 닫는 입력은 앞서 본 화면까지 함께 되돌리면 안 된다.
+    await tester.tap(keyed('bottom-bar-center-action'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('무엇으로 기록할까요?'), findsNothing);
+    expect(find.byType(CalendarScreen), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarScreen), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(
+      await tester.state<NavigatorState>(find.byType(Navigator)).maybePop(),
+      isFalse,
+    );
+  });
+
   testWidgets('guests open workout places and centre actions require sign-in', (
     tester,
   ) async {
@@ -251,6 +331,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(MemberMembershipScreen), findsOneWidget);
   });
+
+  testWidgets(
+    'record action sheet adding first exercise reveals today automatically',
+    (tester) async {
+      final state = await launch(tester);
+      final today = state.dateOnly(DateTime.now());
+      expect(state.sessions[today]?.exercises.isNotEmpty ?? false, isFalse);
+      await tester.tap(keyed('bottom-bar-center-action'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CalendarScreen), findsOneWidget);
+      await tester.tap(keyed('bottom-bar-center-action'));
+      await tester.pumpAndSettle();
+      await tester.tap(keyed('record-action-library'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ExerciseLibraryScreen), findsOneWidget);
+
+      final exercise = state.exercises.first;
+      await tester.enterText(find.byType(TextField), exercise.name);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(exercise.name).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('1개 추가'));
+      await tester.pumpAndSettle();
+
+      expect(state.sessions[today]!.exercises.single.template.id, exercise.id);
+      expect(find.byType(ExerciseLibraryScreen), findsNothing);
+      expect(find.byType(CalendarScreen), findsNothing);
+      expect(find.byType(DailyWorkoutScreen), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'exercise library tab adds an exercise without popping the shell',
@@ -328,7 +441,46 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(RoutineManagerPage), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await tester.tap(keyed('bottom-bar-center-action'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(BusinessSettingsListScreen), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(TrainerHome), findsOneWidget);
+    expect(
+      await tester.state<NavigatorState>(find.byType(Navigator)).maybePop(),
+      isFalse,
+      reason: '이미 열린 루틴 탭을 다시 눌러도 기록이 중복되지 않는다',
+    );
   });
+
+  for (final role in [UserRole.gym, UserRole.admin]) {
+    testWidgets('$role shell returns through its visited tabs', (tester) async {
+      await launch(tester, home: BusinessShell(role: role));
+      final destinations = find.byType(NavigationDestination);
+      for (final page in [1, 2, 2]) {
+        await tester.tap(destinations.at(page));
+        await tester.pumpAndSettle();
+      }
+      for (final page in [1, 0]) {
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<NavigationBar>(find.byType(NavigationBar))
+              .selectedIndex,
+          page,
+        );
+      }
+      expect(
+        await tester.state<NavigatorState>(find.byType(Navigator)).maybePop(),
+        isFalse,
+      );
+    });
+  }
 }
 
 class _FailingRepository extends MemoryAppRepository {

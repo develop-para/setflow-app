@@ -167,6 +167,26 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('together-resume')));
       await tester.pumpAndSettle();
 
+      // 운동 추가로 다른 탭에 간 동안 숨겨진 방은 뒤로가기를 가로채지 않는다.
+      // 한 번이면 방으로 돌아오고, 그 다음 입력에서만 로비로 접힌다.
+      final activePartyId = state.activeTrainingPartyId;
+      await tester.tap(find.byKey(const ValueKey('together-add-workout')));
+      await tester.pumpAndSettle();
+      expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 2);
+      expect(find.byType(SetflowActionNavBar), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 1);
+      expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
+      expect(find.byType(SetflowActionNavBar), findsNothing);
+      expect(state.activeTrainingPartyId, activePartyId);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 1);
+      expect(find.byKey(const ValueKey('together-resume')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('together-resume')));
+      await tester.pumpAndSettle();
+
       // 헤더는 ← / 제목 / ⋮ — 나가기는 메뉴 맨 아래, 확인 한 번.
       await tester.tap(find.byKey(const ValueKey('together-room-menu')));
       await tester.pumpAndSettle();

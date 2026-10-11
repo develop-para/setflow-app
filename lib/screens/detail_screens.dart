@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../services/push_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/rest_timer_overlay_setting.dart';
 import 'account_deletion_screen.dart';
 import 'member_goal_screen.dart';
 import 'recommendation_profile_screen.dart';
@@ -801,6 +802,7 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             ),
           ],
           SettingSection.notifications => [
+            const RestTimerOverlaySetting(),
             SwitchListTile(
               title: const Text('휴식 타이머 종료 알림'),
               value: _restTimerNotifications,

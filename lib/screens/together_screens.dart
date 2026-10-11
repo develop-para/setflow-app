@@ -479,7 +479,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
     }
     // 시스템 뒤로가기도 앱바의 ←와 같다: 방은 그대로 두고 로비로 접는다. 안
     // 잡으면 셸 루트라 앱이 통째로 내려간다 — "뒤로가기도 없어 보이는데".
-    final canGoBack = inRoom;
+    final canGoBack = widget.isActive && inRoom;
     return PopScope(
       canPop: !canGoBack,
       onPopInvokedWithResult: (didPop, _) {

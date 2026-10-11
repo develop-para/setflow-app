@@ -7,6 +7,25 @@ class RestTimerStatus {
   final int? endsAtMillis;
 }
 
+/// Device-local preference and Android's current overlay permission.
+class RestTimerOverlayStatus {
+  const RestTimerOverlayStatus({
+    required this.enabled,
+    required this.permissionGranted,
+  });
+
+  final bool enabled;
+  final bool permissionGranted;
+}
+
+/// The recording screen requested by the background timer's return button.
+class RestWorkoutOpen {
+  const RestWorkoutOpen({this.workoutDate, this.coachingWorkoutId});
+
+  final DateTime? workoutDate;
+  final String? coachingWorkoutId;
+}
+
 /// Bridges the in-app timer to Android's foreground timer and home widget.
 /// Calls are best-effort so non-Android platforms keep using the Dart timer.
 abstract final class RestTimerPlatform {
@@ -19,6 +38,8 @@ abstract final class RestTimerPlatform {
     bool sound = true,
     int countdownSeconds = 30,
     String? detail,
+    DateTime? workoutDate,
+    String? coachingWorkoutId,
   }) async {
     try {
       await _channel.invokeMethod<void>('start', {
@@ -30,6 +51,8 @@ abstract final class RestTimerPlatform {
         // 알림 창의 둘째 줄 — "다음: 스쿼트" 같은 지금 위치. 없으면 네이티브가
         // 기본 문구를 쓴다.
         'detail': ?detail,
+        'workoutDate': ?workoutDate?.toIso8601String().split('T').first,
+        'sessionId': ?coachingWorkoutId,
       });
     } on MissingPluginException {
       // Supported only by the Android host.
@@ -37,6 +60,80 @@ abstract final class RestTimerPlatform {
       // The foreground service is an enhancement; the in-app timer continues.
     } catch (_) {
       // Pure Dart/unit-test contexts have no ServicesBinding.
+    }
+  }
+
+  /// Null means that this host does not support a floating background timer.
+  static Future<RestTimerOverlayStatus?> overlayStatus() async {
+    try {
+      final raw = await _channel.invokeMapMethod<String, Object?>(
+        'overlayStatus',
+      );
+      if (raw == null) return null;
+      return RestTimerOverlayStatus(
+        enabled: raw['enabled'] == true,
+        permissionGranted: raw['permissionGranted'] == true,
+      );
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  /// A device preference; changing it never requests a permission or stops rest.
+  static Future<bool> setOverlayEnabled(bool enabled) async {
+    try {
+      await _channel.invokeMethod<void>('setOverlayEnabled', {
+        'enabled': enabled,
+      });
+      return true;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Called only after the user chooses the permission action in settings.
+  static Future<bool> openOverlaySettings() async {
+    try {
+      return await _channel.invokeMethod<bool>('openOverlaySettings') ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// The native host retains a return request across Activity/process restarts.
+  static Future<RestWorkoutOpen?> consumePendingWorkoutOpen() async {
+    try {
+      final raw = await _channel.invokeMapMethod<String, Object?>(
+        'consumePendingWorkoutOpen',
+      );
+      if (raw == null) return null;
+      DateTime? date;
+      final encodedDate = raw['workoutDate'];
+      if (encodedDate is String &&
+          RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(encodedDate)) {
+        final parsed = DateTime.tryParse(encodedDate);
+        if (parsed != null &&
+            parsed.toIso8601String().split('T').first == encodedDate) {
+          date = parsed;
+        }
+      }
+      final encodedId = raw['sessionId'];
+      return RestWorkoutOpen(
+        workoutDate: date,
+        coachingWorkoutId: encodedId is String && encodedId.trim().isNotEmpty
+            ? encodedId.trim()
+            : null,
+      );
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
     }
   }
 

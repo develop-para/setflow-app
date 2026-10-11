@@ -76,6 +76,8 @@ class RestFocus {
     required this.exerciseName,
     required this.setsLeft,
     this.nextExercise,
+    this.workoutDate,
+    this.coachingWorkoutId,
   });
 
   final String exerciseName;
@@ -85,6 +87,10 @@ class RestFocus {
 
   /// 이 종목을 다 했을 때 이어지는 종목. 마지막이면 null.
   final String? nextExercise;
+
+  /// The source record, retained when the rest timer moves outside the app.
+  final DateTime? workoutDate;
+  final String? coachingWorkoutId;
 }
 
 class AppState extends ChangeNotifier {
@@ -1915,6 +1921,7 @@ class AppState extends ChangeNotifier {
       exerciseName: exercise.template.name,
       setsLeft: remaining,
       nextExercise: next?.template.name,
+      workoutDate: session.date,
     );
   }
 
@@ -7764,6 +7771,8 @@ class AppState extends ChangeNotifier {
         sound: timerSound,
         countdownSeconds: timerCountdownSeconds,
         detail: restTimerDetail,
+        workoutDate: restFocus?.workoutDate,
+        coachingWorkoutId: restFocus?.coachingWorkoutId,
       ),
     );
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {

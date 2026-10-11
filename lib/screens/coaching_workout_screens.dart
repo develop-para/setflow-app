@@ -550,6 +550,8 @@ class _CoachingWorkoutScreenState extends State<_CoachingWorkoutPage>
           exerciseName: exercise.template.name,
           setsLeft: exercise.sets.where((set) => !set.completed).length,
           nextExercise: following?.template.name,
+          workoutDate: next.date,
+          coachingWorkoutId: _workout!.id,
         ),
       );
     }
