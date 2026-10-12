@@ -275,7 +275,8 @@ class _RecommendationProfileScreenState
           ),
           _SurveySection(
             title: '2. 사용할 수 있는 장비',
-            subtitle: '자동 추천에서 사용할 수 있는 장비를 모두 선택하세요. 설정에서 언제든 바꿀 수 있습니다.',
+            subtitle:
+                '선택한 장비만 추천에 사용해요. 헬스장에서 실제 사용할 수 있는 장비를 모두 선택해주세요. 맨몸만 선택하면 일부 부위는 추천이 없을 수 있어요.',
             trailing: TextButton(
               onPressed: isSaving
                   ? null

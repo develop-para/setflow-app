@@ -54,6 +54,28 @@ class NextExerciseRecommendation {
   bool get isCardio => cardioPrescription != null || template.isCardio;
 }
 
+enum ExerciseRecommendationStopReason {
+  missingGoal,
+  severePain,
+  catalogExhausted,
+  trainingFocus,
+  profileConstraints,
+  excludedExercises,
+  noAlternative,
+  volumeReached,
+  timeBudget,
+}
+
+/// The first constraint that leaves no candidate in the recommendation pass.
+/// A stopped result keeps the same safety filters as a successful result.
+class ExerciseRecommendationResult {
+  const ExerciseRecommendationResult({this.recommendation, this.stopReason})
+    : assert((recommendation == null) != (stopReason == null));
+
+  final NextExerciseRecommendation? recommendation;
+  final ExerciseRecommendationStopReason? stopReason;
+}
+
 /// A conservative, deterministic exercise-order rule set. It uses the member's
 /// selected goal and only recommends catalog exercises that are not already in
 /// the current session.
@@ -70,7 +92,33 @@ abstract final class ExerciseRecommendationEngine {
     ExerciseTemplate? alternativeTo,
     DateTime? now,
     PersonalCoachingPlan? coachingPlan,
-  }) => _recommend(
+  }) => evaluateNext(
+    catalog: catalog,
+    session: session,
+    completedExercise: completedExercise,
+    goals: goals,
+    weeklyHistory: weeklyHistory,
+    excludedTemplateIds: excludedTemplateIds,
+    recommendationProfile: recommendationProfile,
+    preferences: preferences,
+    alternativeTo: alternativeTo,
+    now: now,
+    coachingPlan: coachingPlan,
+  ).recommendation;
+
+  static ExerciseRecommendationResult evaluateNext({
+    required List<ExerciseTemplate> catalog,
+    required WorkoutSession session,
+    required WorkoutExercise completedExercise,
+    required List<String> goals,
+    Iterable<WorkoutSession> weeklyHistory = const [],
+    Set<String> excludedTemplateIds = const {},
+    RecommendationProfile? recommendationProfile,
+    RecommendationPreferences preferences = const RecommendationPreferences(),
+    ExerciseTemplate? alternativeTo,
+    DateTime? now,
+    PersonalCoachingPlan? coachingPlan,
+  }) => _evaluate(
     catalog: catalog,
     session: session,
     completedExercise: completedExercise,
@@ -95,7 +143,31 @@ abstract final class ExerciseRecommendationEngine {
     ExerciseTemplate? alternativeTo,
     DateTime? now,
     PersonalCoachingPlan? coachingPlan,
-  }) => _recommend(
+  }) => evaluateFirst(
+    catalog: catalog,
+    session: session,
+    goals: goals,
+    weeklyHistory: weeklyHistory,
+    excludedTemplateIds: excludedTemplateIds,
+    recommendationProfile: recommendationProfile,
+    preferences: preferences,
+    alternativeTo: alternativeTo,
+    now: now,
+    coachingPlan: coachingPlan,
+  ).recommendation;
+
+  static ExerciseRecommendationResult evaluateFirst({
+    required List<ExerciseTemplate> catalog,
+    required WorkoutSession session,
+    required List<String> goals,
+    Iterable<WorkoutSession> weeklyHistory = const [],
+    Set<String> excludedTemplateIds = const {},
+    RecommendationProfile? recommendationProfile,
+    RecommendationPreferences preferences = const RecommendationPreferences(),
+    ExerciseTemplate? alternativeTo,
+    DateTime? now,
+    PersonalCoachingPlan? coachingPlan,
+  }) => _evaluate(
     catalog: catalog,
     session: session,
     goals: goals,
@@ -108,7 +180,7 @@ abstract final class ExerciseRecommendationEngine {
     coachingPlan: coachingPlan,
   );
 
-  static NextExerciseRecommendation? _recommend({
+  static ExerciseRecommendationResult _evaluate({
     required List<ExerciseTemplate> catalog,
     required WorkoutSession session,
     required List<String> goals,
@@ -121,15 +193,25 @@ abstract final class ExerciseRecommendationEngine {
     WorkoutExercise? completedExercise,
     PersonalCoachingPlan? coachingPlan,
   }) {
-    if (goals.isEmpty) return null;
+    if (goals.isEmpty) {
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.missingGoal,
+      );
+    }
     if (recommendationProfile?.shouldPauseAutomaticRecommendation ?? false) {
-      return null;
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.severePain,
+      );
     }
     final existing = session.exercises
         .map((exercise) => exercise.template.id)
         .toSet();
     final trainingGoal = PerformanceEngine.goalFromProfile(goals);
-    if (trainingGoal == null) return null;
+    if (trainingGoal == null) {
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.missingGoal,
+      );
+    }
     final focus = _focus(trainingGoal);
     final orderedIds = _candidateIds(
       focus: focus,
@@ -140,9 +222,7 @@ abstract final class ExerciseRecommendationEngine {
     for (final id in orderedIds) {
       final item = templateById[id];
       if (item != null &&
-          _isEligibleForProfile(item, recommendationProfile) &&
           !existing.contains(item.id) &&
-          !excludedTemplateIds.contains(item.id) &&
           !candidates.any((candidate) => candidate.id == item.id)) {
         candidates.add(item);
       }
@@ -154,18 +234,14 @@ abstract final class ExerciseRecommendationEngine {
     for (final muscle in preferredMuscles) {
       for (final item in catalog) {
         if (item.muscle == muscle &&
-            _isEligibleForProfile(item, recommendationProfile) &&
             !existing.contains(item.id) &&
-            !excludedTemplateIds.contains(item.id) &&
             !candidates.any((candidate) => candidate.id == item.id)) {
           candidates.add(item);
         }
       }
     }
     for (final item in catalog) {
-      if (_isEligibleForProfile(item, recommendationProfile) &&
-          !existing.contains(item.id) &&
-          !excludedTemplateIds.contains(item.id) &&
+      if (!existing.contains(item.id) &&
           !candidates.any((candidate) => candidate.id == item.id)) {
         candidates.add(item);
       }
@@ -173,18 +249,45 @@ abstract final class ExerciseRecommendationEngine {
     if (focus == _GoalFocus.strength || focus == _GoalFocus.muscleGain) {
       candidates.removeWhere((item) => item.isCardio);
     }
+    if (candidates.isEmpty) {
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.catalogExhausted,
+      );
+    }
     candidates.removeWhere(
       (item) => !ResistancePrescriptionEngine.matchesFocus(
         item,
         session.trainingFocus,
       ),
     );
+    if (candidates.isEmpty) {
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.trainingFocus,
+      );
+    }
+    candidates.removeWhere(
+      (item) => !_isEligibleForProfile(item, recommendationProfile),
+    );
+    if (candidates.isEmpty) {
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.profileConstraints,
+      );
+    }
+    if (alternativeTo != null) {
+      candidates.removeWhere(
+        (item) => !ExerciseSubstitutions.matches(alternativeTo, item),
+      );
+      if (candidates.isEmpty) {
+        return const ExerciseRecommendationResult(
+          stopReason: ExerciseRecommendationStopReason.noAlternative,
+        );
+      }
+    }
     candidates.removeWhere(
       (item) =>
+          excludedTemplateIds.contains(item.id) ||
           preferences.excludedExerciseIds.contains(item.id) ||
-          session.skippedRecommendationIds.contains(item.id) ||
-          (alternativeTo != null &&
-              !ExerciseSubstitutions.matches(alternativeTo, item)),
+          session.skippedRecommendationIds.contains(item.id),
     );
     {
       // 버튼에 명시한 주 장비를 오늘의 다음 추천에서도 제외한다.
@@ -206,7 +309,11 @@ abstract final class ExerciseRecommendationEngine {
             false,
       );
     }
-    if (candidates.isEmpty) return null;
+    if (candidates.isEmpty) {
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.excludedExercises,
+      );
+    }
 
     final referenceDay = DateTime(
       session.date.year,
@@ -247,7 +354,11 @@ abstract final class ExerciseRecommendationEngine {
               ) ==
               0,
     );
-    if (candidates.isEmpty) return null;
+    if (candidates.isEmpty) {
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.volumeReached,
+      );
+    }
     final recoveryIsLow =
         recommendationProfile?.hasRecoveryFor(referenceDay) == true &&
         recommendationProfile?.recoveryStatus ==
@@ -309,7 +420,13 @@ abstract final class ExerciseRecommendationEngine {
                 : cardioFor(item) == null)
           : session.timeBudgetMinutes != null && (setsById[item.id] ?? 0) == 0,
     );
-    if (candidates.isEmpty) return null;
+    if (candidates.isEmpty) {
+      return ExerciseRecommendationResult(
+        stopReason: session.timeBudgetMinutes == null
+            ? ExerciseRecommendationStopReason.catalogExhausted
+            : ExerciseRecommendationStopReason.timeBudget,
+      );
+    }
     final weeklySets = _weeklyCompletedSetsByMuscle(history, session.date);
     final weeklyCardioMinutes = _weeklyCardioMinutes(history, session.date);
     final originalOrder = {
@@ -429,75 +546,79 @@ abstract final class ExerciseRecommendationEngine {
           }),
       if (recoveryIsLow) 'craven_2022_sleep_loss',
     };
-    return NextExerciseRecommendation(
-      personalCoachingReason: candidate.isCardio
-          ? ''
-          : coachingPlan?.reasonFor(
-                  ResistancePrescriptionEngine.primaryMuscles(candidate),
-                ) ??
-                '',
-      template: candidate,
-      sets: recommendedSets,
-      minReps: historicalRecommendation?.minReps ?? prescription.minReps,
-      targetRepsBySet:
-          historicalRecommendation?.targetRepsBySet
-              .take(recommendedSets)
-              .toList() ??
-          const [],
-      maxReps: historicalRecommendation?.maxReps ?? prescription.maxReps,
-      restSeconds:
-          historicalRecommendation?.restSeconds ?? prescription.restSeconds,
-      // A population-level paper cannot determine a safe kilogram value for
-      // someone with no history on this exact exercise. Reuse only the
-      // member's own eligible records; otherwise leave weight for direct input.
-      startingWeight: startingWeight,
-      goalLabel: trainingGoal.label,
-      reason: personalizedReason,
-      summary: [
-        if (alternativeTo != null) '${alternativeTo.name} 대신 같은 동작을 이어갑니다.',
-        if (preferredCount >= 2) '여러 날 직접 선택한 운동입니다.',
-        historicalRecommendation?.summary ?? cardioPrescription!.reason,
-        if (historicalRecommendation != null &&
-            recommendedSets < historicalRecommendation.sets)
-          '남은 시간에 맞춰 $recommendedSets세트로 줄여 제안합니다.',
-      ].join(' '),
-      historyCount:
-          historicalRecommendation?.historyCount ??
-          history
-              .where(
-                (session) =>
-                    session.date.isBefore(referenceDay) &&
-                    session.exercises.any(
-                      (exercise) =>
-                          exercise.template.id == candidate.id &&
-                          !exercise.id.startsWith('seed_') &&
-                          exercise.sets.any(
-                            (set) => set.completed && set.durationSeconds > 0,
-                          ),
-                    ),
-              )
-              .map((session) => ResistancePrescriptionEngine.day(session.date))
-              .toSet()
-              .length,
-      trend:
-          historicalRecommendation?.trend ?? RecommendationTrend.insufficient,
-      estimatedDurationSeconds: candidate.isCardio
-          ? cardioPrescription!.durationSeconds +
-                WorkoutTimeBudget.transitionSeconds +
-                WorkoutTimeBudget.previousRestSeconds(session)
-          : WorkoutTimeBudget.addedSeconds(
-              session: session,
-              template: candidate,
-              sets: recommendedSets,
-              reps: historicalRecommendation!.minReps,
-              targetRepsBySet: historicalRecommendation.targetRepsBySet,
-              restSeconds: historicalRecommendation.restSeconds,
-            ),
-      evidenceIds: evidenceIds,
-      evidenceNote:
-          cardioPrescription?.safetyNote ??
-          historicalRecommendation!.evidenceNote,
-      cardioPrescription: cardioPrescription,
+    return ExerciseRecommendationResult(
+      recommendation: NextExerciseRecommendation(
+        personalCoachingReason: candidate.isCardio
+            ? ''
+            : coachingPlan?.reasonFor(
+                    ResistancePrescriptionEngine.primaryMuscles(candidate),
+                  ) ??
+                  '',
+        template: candidate,
+        sets: recommendedSets,
+        minReps: historicalRecommendation?.minReps ?? prescription.minReps,
+        targetRepsBySet:
+            historicalRecommendation?.targetRepsBySet
+                .take(recommendedSets)
+                .toList() ??
+            const [],
+        maxReps: historicalRecommendation?.maxReps ?? prescription.maxReps,
+        restSeconds:
+            historicalRecommendation?.restSeconds ?? prescription.restSeconds,
+        // A population-level paper cannot determine a safe kilogram value for
+        // someone with no history on this exact exercise. Reuse only the
+        // member's own eligible records; otherwise leave weight for direct input.
+        startingWeight: startingWeight,
+        goalLabel: trainingGoal.label,
+        reason: personalizedReason,
+        summary: [
+          if (alternativeTo != null) '${alternativeTo.name} 대신 같은 동작을 이어갑니다.',
+          if (preferredCount >= 2) '여러 날 직접 선택한 운동입니다.',
+          historicalRecommendation?.summary ?? cardioPrescription!.reason,
+          if (historicalRecommendation != null &&
+              recommendedSets < historicalRecommendation.sets)
+            '남은 시간에 맞춰 $recommendedSets세트로 줄여 제안합니다.',
+        ].join(' '),
+        historyCount:
+            historicalRecommendation?.historyCount ??
+            history
+                .where(
+                  (session) =>
+                      session.date.isBefore(referenceDay) &&
+                      session.exercises.any(
+                        (exercise) =>
+                            exercise.template.id == candidate.id &&
+                            !exercise.id.startsWith('seed_') &&
+                            exercise.sets.any(
+                              (set) => set.completed && set.durationSeconds > 0,
+                            ),
+                      ),
+                )
+                .map(
+                  (session) => ResistancePrescriptionEngine.day(session.date),
+                )
+                .toSet()
+                .length,
+        trend:
+            historicalRecommendation?.trend ?? RecommendationTrend.insufficient,
+        estimatedDurationSeconds: candidate.isCardio
+            ? cardioPrescription!.durationSeconds +
+                  WorkoutTimeBudget.transitionSeconds +
+                  WorkoutTimeBudget.previousRestSeconds(session)
+            : WorkoutTimeBudget.addedSeconds(
+                session: session,
+                template: candidate,
+                sets: recommendedSets,
+                reps: historicalRecommendation!.minReps,
+                targetRepsBySet: historicalRecommendation.targetRepsBySet,
+                restSeconds: historicalRecommendation.restSeconds,
+              ),
+        evidenceIds: evidenceIds,
+        evidenceNote:
+            cardioPrescription?.safetyNote ??
+            historicalRecommendation!.evidenceNote,
+        cardioPrescription: cardioPrescription,
+      ),
     );
   }
 

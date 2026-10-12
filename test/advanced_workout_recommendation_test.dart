@@ -187,6 +187,144 @@ void main() {
   );
 
   test(
+    'removing the last exercise restores the first and following recommendation time budgets',
+    () async {
+      final state = AppState();
+      addTearDown(state.dispose);
+      await state.initialize();
+      final session = _history(0, 10, count: 1);
+      final startedAt = _day.add(const Duration(hours: 10));
+      final endedAt = startedAt.add(const Duration(minutes: 5));
+      final now = _day.add(const Duration(hours: 13));
+      session.startedAt = startedAt;
+      session.endedAt = endedAt;
+      session.timeBudgetMinutes = 30;
+      state.sessions[_day] = session;
+      expect(WorkoutTimeBudget.availableSeconds(session, now: now), 25 * 60);
+
+      state.removeExercise(session, session.exercises.single);
+
+      expect(session.exercises, isEmpty);
+      expect(session.startedAt, isNull);
+      expect(session.endedAt, isNull);
+      expect(WorkoutTimeBudget.availableSeconds(session, now: now), 30 * 60);
+      final recommendation = ExerciseRecommendationEngine.recommendFirst(
+        catalog: [_exercise('bench')],
+        session: session,
+        goals: const ['근육 증가'],
+        now: now,
+      );
+      expect(recommendation, isNotNull);
+      expect(
+        recommendation!.estimatedDurationSeconds,
+        lessThanOrEqualTo(30 * 60),
+      );
+      state.addRecommendedExercise(_day, recommendation);
+      final added = session.exercises.single;
+      for (final set in added.sets) {
+        set.completed = true;
+      }
+      final next = ExerciseRecommendationEngine.recommendNext(
+        catalog: [_exercise('bench'), _exercise('chest_press')],
+        session: session,
+        completedExercise: added,
+        goals: const ['근육 증가'],
+        now: now,
+      );
+      expect(next, isNotNull);
+      expect(session.startedAt, isNull);
+    },
+  );
+
+  final addPaths = <String, void Function(AppState, ExerciseTemplate)>{
+    'manual': (state, template) => state.addExercise(_day, template),
+    'recommended': (state, template) {
+      final recommendation = _first(catalog: [template])!;
+      state.addRecommendedExercise(_day, recommendation);
+    },
+    'prescription': (state, template) =>
+        state.applyRecommendation(_day, state.recommendationFor(template)!),
+    'routine': (state, template) {
+      state.applyRoutine(
+        RoutineData(
+          id: 'time-budget-routine',
+          name: '시간 예산 루틴',
+          description: '',
+          color: RoutineData.defaultColor,
+          exercises: [template],
+        ),
+        _day,
+      );
+    },
+    'copy': (state, template) {
+      final sourceDay = _day.subtract(const Duration(days: 1));
+      state.sessions[sourceDay] = WorkoutSession(
+        date: sourceDay,
+        exercises: [
+          WorkoutExercise(
+            id: 'copy-source',
+            template: template,
+            sets: [WorkoutSetEntry(number: 1, weight: 60, reps: 10)],
+          ),
+        ],
+      );
+      state.copySession(sourceDay, _day);
+    },
+  };
+  for (final path in addPaths.entries) {
+    test(
+      '${path.key} additions clear legacy empty timing and preserve existing workout timing',
+      () async {
+        final state = AppState();
+        addTearDown(state.dispose);
+        await state.initialize();
+        state.sessions.clear();
+        state.setMemberProfile(goals: ['근육 증가']);
+        final oldStart = _day.add(const Duration(hours: 10));
+        final oldEnd = oldStart.add(const Duration(minutes: 5));
+        final session = WorkoutSession(
+          date: _day,
+          exercises: [],
+          startedAt: oldStart,
+          endedAt: oldEnd,
+          timeBudgetMinutes: 30,
+        );
+        state.sessions[_day] = session;
+
+        path.value(state, _exercise('bench'));
+
+        expect(session.exercises, hasLength(1));
+        expect(session.startedAt, isNull);
+        expect(session.endedAt, isNull);
+        expect(
+          WorkoutTimeBudget.availableSeconds(
+            session,
+            now: _day.add(const Duration(hours: 13)),
+          ),
+          greaterThan(0),
+        );
+        final firstSet = session.exercises.single.sets.first;
+        await state.toggleSet(firstSet, startRest: false);
+        final newStart = session.startedAt;
+        final newEnd = session.endedAt;
+        expect(newStart, isNotNull);
+        expect(newStart, isNot(oldStart));
+        expect(newEnd, isNotNull);
+
+        path.value(state, _exercise('chest_press'));
+
+        expect(session.exercises, hasLength(2));
+        expect(session.startedAt, newStart);
+        expect(session.endedAt, newEnd);
+        state.removeExercise(session, session.exercises.last);
+        expect(session.exercises, hasLength(1));
+        expect(session.startedAt, newStart);
+        expect(session.endedAt, newEnd);
+      },
+    );
+  }
+
+  test(
     'continuous cardio fits remaining time and keeps an unknown distance unknown',
     () {
       final session = WorkoutSession(

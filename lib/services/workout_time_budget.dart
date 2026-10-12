@@ -29,7 +29,10 @@ abstract final class WorkoutTimeBudget {
 
   static int committedSeconds(WorkoutSession session, {DateTime? now}) {
     final estimate = estimateSessionSeconds(session);
-    if (now == null ||
+    // 예전 버전에서 저장한 빈 기록에는 시작 도장이 남아 있을 수 있다.
+    // 그 시각 이후의 경과 시간을 예약하면 새로 시작할 첫 추천까지 막힌다.
+    if (session.exercises.isEmpty ||
+        now == null ||
         session.startedAt == null ||
         session.date.year != now.year ||
         session.date.month != now.month ||

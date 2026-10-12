@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'personal_coaching_screen.dart';
+import 'recommendation_profile_screen.dart';
 
 Future<void> showWorkoutRecommendationSettings(
   BuildContext context,
@@ -43,6 +44,22 @@ class _RecommendationSettingsSheetState
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('시간·추천 설정', style: theme.textTheme.titleLarge),
+            const SizedBox(height: SetflowSpacing.sm),
+            ListTile(
+              key: const ValueKey('recommendation-profile-open'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('장비·추천 정보'),
+              subtitle: Text(
+                state.recommendationProfile == null
+                    ? '사용 장비·숙련도·제외 동작 설정'
+                    : '사용 장비: ${state.recommendationProfile!.availableEquipment.map((item) => item.label).join(' · ')}',
+              ),
+              onTap: () => Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) => const RecommendationProfileScreen(),
+                ),
+              ),
+            ),
             const SizedBox(height: SetflowSpacing.sm),
             ListTile(
               key: const ValueKey('personal-coaching-open'),

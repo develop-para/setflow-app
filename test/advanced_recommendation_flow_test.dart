@@ -6,6 +6,18 @@ import 'package:setflow/theme.dart';
 
 final _day = DateTime(2026, 10, 4);
 
+RecommendationProfile _bodyweightProfile() => RecommendationProfile(
+  experienceLevel: TrainingExperienceLevel.beginner,
+  availableEquipment: {TrainingEquipment.bodyweight},
+  painRegions: {},
+  painLevel: 0,
+  restrictedMovements: {},
+  injuryNote: '',
+  recoveryStatus: TrainingRecoveryStatus.normal,
+  recoveryRecordedAt: _day,
+  updatedAt: _day,
+);
+
 Future<AppState> _pump(
   WidgetTester tester, {
   bool dark = false,
@@ -62,6 +74,214 @@ Future<void> _settings(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'bodyweight back failure opens equipment editing and retries after saving',
+    (tester) async {
+      final state = await _pump(tester);
+      state.setRecommendationProfile(_bodyweightProfile());
+      state.setTrainingFocus(_day, {TrainingMuscle.back});
+      await _tap(tester, find.text('운동 선택'));
+      expect(find.textContaining('사용 장비가 맨몸으로만'), findsOneWidget);
+      expect(find.byType(ExerciseLibraryScreen), findsNothing);
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('recommendation-recovery-primary')),
+      );
+      await _tap(tester, find.byKey(const ValueKey('equipment-cableStation')));
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('recommendation-profile-save')),
+      );
+      expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+      expect(
+        state.recommendationProfile!.availableEquipment,
+        contains(TrainingEquipment.cableStation),
+      );
+      await _tap(tester, find.text('추천 운동 추가'));
+      expect(state.sessionFor(_day).exercises.single.template.muscle, '등');
+      await tester.pump(const Duration(seconds: 4));
+    },
+  );
+
+  testWidgets(
+    'closing a failed recommendation does not disable later attempts',
+    (tester) async {
+      final state = await _pump(tester);
+      state.setRecommendationProfile(_bodyweightProfile());
+      state.setTrainingFocus(_day, {TrainingMuscle.back});
+      await _tap(tester, find.text('운동 선택'));
+      Navigator.of(
+        tester.element(
+          find.byKey(const ValueKey('recommendation-stop-reason')),
+        ),
+      ).pop();
+      await tester.pumpAndSettle();
+      await _settings(tester);
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('recommendation-profile-open')),
+      );
+      await _tap(tester, find.byKey(const ValueKey('equipment-cableStation')));
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('recommendation-profile-save')),
+      );
+      await _tap(tester, find.text('닫기'));
+      await _tap(tester, find.text('운동 선택'));
+      expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+      expect(find.byType(ExerciseLibraryScreen), findsNothing);
+      await _tap(tester, find.text('추천 운동 추가'));
+      await tester.pump(const Duration(seconds: 4));
+    },
+  );
+
+  testWidgets('restoring the last excluded candidate retries without reentry', (
+    tester,
+  ) async {
+    final state = await _pump(tester);
+    state.setRecommendationProfile(_bodyweightProfile());
+    state.setTrainingFocus(_day, {TrainingMuscle.chest});
+    state.skipRecommendedExercise(_day, 'pushup');
+    await _tap(tester, find.text('운동 선택'));
+    expect(find.textContaining('추천 후보가 없어요'), findsOneWidget);
+    await _tap(
+      tester,
+      find.byKey(const ValueKey('recommendation-recovery-primary')),
+    );
+    await _tap(
+      tester,
+      find.byKey(const ValueKey('recommendation-restore-pushup')),
+    );
+    await _tap(tester, find.text('닫기'));
+    expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+    await _tap(tester, find.text('추천 운동 추가'));
+    expect(state.sessionFor(_day).exercises.single.template.id, 'pushup');
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets(
+    'completed workout can change focus and request next recommendation',
+    (tester) async {
+      final state = await _pump(tester);
+      state.setRecommendationProfile(_bodyweightProfile());
+      state.setTrainingFocus(_day, {TrainingMuscle.chest});
+      state.addExercise(
+        _day,
+        state.exercises.firstWhere((exercise) => exercise.id == 'pushup'),
+      );
+      for (final set in state.sessionFor(_day).exercises.single.sets) {
+        set.completed = true;
+      }
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('daily-training-focus')),
+        findsOneWidget,
+      );
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('daily-next-recommendation')),
+      );
+      expect(find.text('추천 조건 확인'), findsOneWidget);
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('recommendation-recovery-focus')),
+      );
+      await _tap(tester, find.byKey(const ValueKey('training-focus-chest')));
+      await _tap(tester, find.byKey(const ValueKey('training-focus-legs')));
+      await _tap(tester, find.byKey(const ValueKey('training-focus-apply')));
+      expect(find.text('다음 운동 추천'), findsOneWidget);
+      expect(find.text('추천을 더 정확하게'), findsNothing);
+      await _tap(tester, find.text('추천 운동 추가'));
+      expect(state.sessionFor(_day).exercises.last.template.muscle, '하체');
+      expect(state.sessionFor(_day).exercises, hasLength(2));
+      await tester.pump(const Duration(seconds: 4));
+    },
+  );
+
+  testWidgets('unchanged settings close without repeating the failure sheet', (
+    tester,
+  ) async {
+    final state = await _pump(tester);
+    state.setRecommendationProfile(_bodyweightProfile());
+    state.setTrainingFocus(_day, {TrainingMuscle.chest});
+    state.skipRecommendedExercise(_day, 'pushup');
+    await _tap(tester, find.text('운동 선택'));
+    await _tap(
+      tester,
+      find.byKey(const ValueKey('recommendation-recovery-primary')),
+    );
+    await _tap(tester, find.text('닫기'));
+    expect(find.text('추천 조건 확인'), findsNothing);
+    expect(find.byType(ExerciseLibraryScreen), findsNothing);
+    await _tap(tester, find.text('운동 선택'));
+    expect(find.text('추천 조건 확인'), findsOneWidget);
+    Navigator.of(
+      tester.element(find.byKey(const ValueKey('recommendation-stop-reason'))),
+    ).pop();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'automatic next failure leaves an explicit retry without a new popup',
+    (tester) async {
+      final state = await _pump(tester);
+      state.setRecommendationProfile(_bodyweightProfile());
+      state.setTrainingFocus(_day, {TrainingMuscle.chest});
+      state.autoStartRestTimer = false;
+      state.addExercise(
+        _day,
+        state.exercises.firstWhere((exercise) => exercise.id == 'pushup'),
+      );
+      final exercise = state.sessionFor(_day).exercises.single;
+      for (final set in exercise.sets) {
+        set.completed = true;
+      }
+      exercise.sets.last.completed = false;
+      state.precisionRecommendationPrompted = false;
+      await tester.pumpAndSettle();
+      final row = find.byKey(
+        ValueKey('inline-set-reps-${exercise.sets.last.number}'),
+      );
+      await tester.ensureVisible(row);
+      await tester.drag(row, const Offset(400, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('추천 조건 확인'), findsNothing);
+      expect(find.text('추천을 더 정확하게'), findsNothing);
+      expect(find.textContaining('사용 장비가 맨몸으로만'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('daily-next-recommendation')),
+        findsOneWidget,
+      );
+      expect(state.sessionFor(_day).exercises, hasLength(1));
+      await tester.pump(const Duration(seconds: 4));
+    },
+  );
+
+  for (final dark in [false, true]) {
+    testWidgets(
+      'failed recommendation recovers with 2x text on small screen ($dark)',
+      (tester) async {
+        final state = await _pump(tester, dark: dark, small: true);
+        state.setRecommendationProfile(_bodyweightProfile());
+        state.setTrainingFocus(_day, {TrainingMuscle.back});
+        await _tap(tester, find.text('운동 선택'));
+        expect(tester.takeException(), isNull);
+        await _tap(
+          tester,
+          find.byKey(const ValueKey('recommendation-recovery-focus')),
+        );
+        await _tap(tester, find.byKey(const ValueKey('training-focus-back')));
+        await _tap(tester, find.byKey(const ValueKey('training-focus-chest')));
+        await _tap(tester, find.byKey(const ValueKey('training-focus-apply')));
+        expect(find.text('오늘의 첫 운동 추천'), findsOneWidget);
+        await _tap(tester, find.text('추천 운동 추가'));
+        expect(state.sessionFor(_day).exercises.single.template.id, 'pushup');
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(seconds: 4));
+      },
+    );
+  }
+
   testWidgets(
     'first recommendation accepts daily time and shows a concrete reason with data sufficiency',
     (tester) async {

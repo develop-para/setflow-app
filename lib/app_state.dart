@@ -2108,6 +2108,12 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  void _resetTimingForEmptySession(WorkoutSession session) {
+    if (session.exercises.isNotEmpty) return;
+    session.startedAt = null;
+    session.endedAt = null;
+  }
+
   ExerciseTemplate? createCustomExercise({
     required String name,
     required String muscle,
@@ -2300,15 +2306,28 @@ class AppState extends ChangeNotifier {
     DateTime date, {
     Set<String> excludedTemplateIds = const {},
     ExerciseTemplate? alternativeTo,
+  }) => firstExerciseRecommendationResultForDate(
+    date,
+    excludedTemplateIds: excludedTemplateIds,
+    alternativeTo: alternativeTo,
+  ).recommendation;
+
+  ExerciseRecommendationResult firstExerciseRecommendationResultForDate(
+    DateTime date, {
+    Set<String> excludedTemplateIds = const {},
+    ExerciseTemplate? alternativeTo,
   }) {
-    if (!hasTrainingGoal) return null;
     final day = dateOnly(date);
     final session = sessions[day] ?? WorkoutSession(date: day, exercises: []);
-    if (session.exercises.isNotEmpty) return null;
+    if (session.exercises.isNotEmpty) {
+      return const ExerciseRecommendationResult(
+        stopReason: ExerciseRecommendationStopReason.catalogExhausted,
+      );
+    }
     final eligibleHistory = sessions.values
         .where((item) => !item.date.isAfter(day))
         .toList(growable: false);
-    return ExerciseRecommendationEngine.recommendFirst(
+    return ExerciseRecommendationEngine.evaluateFirst(
       catalog: _curatedRecommendationCatalog,
       session: session,
       goals: goals,
@@ -2374,7 +2393,19 @@ class AppState extends ChangeNotifier {
     required WorkoutExercise completedExercise,
     Set<String> excludedTemplateIds = const {},
     ExerciseTemplate? alternativeTo,
-  }) => ExerciseRecommendationEngine.recommendNext(
+  }) => nextExerciseRecommendationResultForDate(
+    date,
+    completedExercise: completedExercise,
+    excludedTemplateIds: excludedTemplateIds,
+    alternativeTo: alternativeTo,
+  ).recommendation;
+
+  ExerciseRecommendationResult nextExerciseRecommendationResultForDate(
+    DateTime date, {
+    required WorkoutExercise completedExercise,
+    Set<String> excludedTemplateIds = const {},
+    ExerciseTemplate? alternativeTo,
+  }) => ExerciseRecommendationEngine.evaluateNext(
     catalog: _curatedRecommendationCatalog,
     session: sessionFor(date),
     completedExercise: completedExercise,
@@ -2652,6 +2683,7 @@ class AppState extends ChangeNotifier {
 
   void addExercise(DateTime date, ExerciseTemplate template) {
     final session = sessionFor(date);
+    _resetTimingForEmptySession(session);
     recommendationPreferences = recommendationPreferences.recordSelection(
       template.id,
       date,
@@ -2778,6 +2810,7 @@ class AppState extends ChangeNotifier {
   void removeExercise(WorkoutSession session, WorkoutExercise exercise) {
     if (exercise.coachingWorkoutId != null) return;
     session.exercises.remove(exercise);
+    _resetTimingForEmptySession(session);
     _schedulePersist();
     notifyListeners();
   }
@@ -3076,6 +3109,7 @@ class AppState extends ChangeNotifier {
         exercises: copiedExercises,
       );
     } else {
+      _resetTimingForEmptySession(targetSession);
       targetSession.exercises.addAll(copiedExercises);
     }
     _schedulePersist();
@@ -3101,6 +3135,7 @@ class AppState extends ChangeNotifier {
         .toList();
     if (additions.isEmpty) return 0;
 
+    _resetTimingForEmptySession(session);
     for (final template in additions) {
       final plannedSets = routine.setsFor(template);
       final cardioRecommendation = template.isCardio
@@ -3192,6 +3227,7 @@ class AppState extends ChangeNotifier {
     WorkoutRecommendation recommendation,
   ) {
     final session = sessionFor(date);
+    _resetTimingForEmptySession(session);
     var exercise = session.exercises
         .where(
           (item) =>
@@ -3269,6 +3305,7 @@ class AppState extends ChangeNotifier {
     )) {
       return false;
     }
+    _resetTimingForEmptySession(session);
     if (recommendation.template.isCardio) {
       final cardio = recommendation.cardioPrescription;
       session.exercises.add(

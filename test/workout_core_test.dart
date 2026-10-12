@@ -45,6 +45,14 @@ void main() {
     await tester.tap(find.text('부위 선택'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('exercise-muscle-grid')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('기타'),
+      200,
+      scrollable: find.descendant(
+        of: find.byKey(const Key('exercise-muscle-grid')),
+        matching: find.byType(Scrollable),
+      ),
+    );
     expect(find.text('기타'), findsOneWidget);
     expect(
       tester.widget<TextFormField>(find.byType(TextFormField)).controller?.text,

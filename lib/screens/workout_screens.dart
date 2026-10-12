@@ -22,6 +22,7 @@ import 'recommendation_profile_screen.dart';
 import 'local_equipment_screen.dart';
 import 'training_focus_sheet.dart';
 import 'workout_recommendation_settings_sheet.dart';
+import 'workout_recommendation_recovery_sheet.dart';
 import 'custom_exercise_recommendation_screen.dart';
 import '../domain/custom_exercise_recommendation_rules.dart';
 
@@ -122,6 +123,13 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
     final state = AppScope.of(context);
     final session = state.sessionFor(date);
     final coachFeedbacks = state.memberSessionFeedbackForDate(date);
+    final allCompleted =
+        session.exercises.isNotEmpty &&
+        session.exercises.every(
+          (exercise) =>
+              exercise.sets.isNotEmpty &&
+              exercise.sets.every((set) => set.completed),
+        );
     // Everything that sits above the exercises. Horizontal padding belongs to
     // whoever places this, so the same blocks fit the empty column and the
     // list's header without doubling up.
@@ -135,7 +143,9 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
           onRecommendationChanged: state.setAutoRecommendNextExercise,
         ),
       ),
-      if (state.autoRecommendNextExercise && session.exercises.isEmpty)
+      // 진행 중에는 기록 메뉴에서 바꾼다. 완료 뒤에는 재추천 옆에 둔다.
+      if (state.autoRecommendNextExercise &&
+          (session.exercises.isEmpty || allCompleted))
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -149,6 +159,25 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                   ? '오늘 · 완전 추천'
                   : '오늘 · ${session.trainingFocus!.map((item) => item.label).join(' · ')}',
             ),
+          ),
+        ),
+      if (state.autoRecommendNextExercise && allCompleted)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const ValueKey('daily-next-recommendation'),
+            onPressed: () async {
+              if (!await ensureMemberTrainingGoals(context)) return;
+              if (!context.mounted) return;
+              await _showExerciseRecommendation(
+                context,
+                state,
+                date,
+                completedExercise: session.exercises.last,
+              );
+            },
+            icon: const Icon(SetflowIcons.forward),
+            label: const Text('다음 운동 추천받기'),
           ),
         ),
       if (state.persistenceError != null)
@@ -425,85 +454,24 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
         false) {
       AppSnackbar.info(
         context,
-        '통증이 7/10 이상이라 자동 추천을 중단했어요. 의료 전문가의 평가를 먼저 받아주세요.',
+        workoutRecommendationStopMessage(
+          state,
+          date,
+          ExerciseRecommendationStopReason.severePain,
+        ),
       );
       _openLibrary();
       return;
     }
-
     if (session.trainingFocus == null && !await _selectTrainingFocus()) return;
     if (!mounted) return;
-
-    final unavailableEquipment = <String>{};
-    ExerciseTemplate? alternativeTo;
-    while (mounted) {
-      final recommendation = state.firstExerciseRecommendationForDate(
-        date,
-        excludedTemplateIds: unavailableEquipment,
-        alternativeTo: alternativeTo,
-      );
-      if (recommendation == null) {
-        AppSnackbar.info(
-          context,
-          alternativeTo != null
-              ? '같은 동작의 가능한 대체 운동이 없어요. 직접 선택하거나 추천 설정을 바꿔주세요.'
-              : state.personalCoachingStopReasonForDate(date) ??
-                    '오늘 부위·장비·운동량·남은 시간에 맞는 추천이 없어요. 설정을 바꾸거나 직접 선택해주세요.',
-        );
-        setState(() => emptyDayRecommendationDismissed = true);
-        _openLibrary();
-        return;
-      }
-
-      final action = await showSetflowSheet<_RecommendationAction>(
-        context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (_) => _NextExerciseRecommendationSheet(
-          recommendation: recommendation,
-          unit: state.weightUnit,
-          title: '오늘의 첫 운동 추천',
-          timeBudgetMinutes: session.timeBudgetMinutes,
-        ),
-      );
-      if (!mounted) return;
-      if (action == _RecommendationAction.noEquipment) {
-        unavailableEquipment.add(recommendation.template.id);
-        state.skipRecommendedExercise(
-          date,
-          recommendation.template.id,
-          equipmentUnavailable: true,
-        );
-        alternativeTo ??= recommendation.template;
-        continue;
-      }
-      if (action == _RecommendationAction.skipToday ||
-          action == _RecommendationAction.excludeAlways) {
-        if (action == _RecommendationAction.skipToday) {
-          state.skipRecommendedExercise(date, recommendation.template.id);
-        } else {
-          state.setExerciseExcludedFromRecommendations(
-            recommendation.template.id,
-            true,
-          );
-        }
-        alternativeTo = null;
-        continue;
-      }
-      if (action == _RecommendationAction.add) {
-        final added = state.addRecommendedExercise(date, recommendation);
-        if (added) {
-          AppSnackbar.success(
-            context,
-            '${recommendation.template.name}을 첫 운동으로 추가했어요.',
-          );
-        }
-        return;
-      }
-
+    final choseManually = await _showExerciseRecommendation(
+      context,
+      state,
+      date,
+    );
+    if (mounted && choseManually) {
       setState(() => emptyDayRecommendationDismissed = true);
-      _openLibrary();
-      return;
     }
   }
 
@@ -1483,88 +1451,13 @@ class _ExerciseCardState extends State<_ExerciseCard> {
     }
     // 진행 중에는 설문을 자동으로 열지 않는다. 부위는 상단에서 언제든 바꾼다.
     if (!state.hasTrainingGoal || !mounted) return;
-    if (state.recommendationProfile?.shouldPauseAutomaticRecommendation ??
-        false) {
-      AppSnackbar.info(
-        context,
-        '통증이 7/10 이상이라 자동 추천을 중단했어요. 의료 전문가의 평가를 먼저 받아주세요.',
-      );
-      return;
-    }
-    final unavailableEquipment = <String>{};
-    ExerciseTemplate? alternativeTo;
-    while (mounted) {
-      final recommendation = state.nextExerciseRecommendationForDate(
-        widget.date,
-        completedExercise: widget.exercise,
-        excludedTemplateIds: unavailableEquipment,
-        alternativeTo: alternativeTo,
-      );
-      if (recommendation == null) {
-        AppSnackbar.info(
-          context,
-          alternativeTo != null
-              ? '같은 동작의 가능한 대체 운동이 없어요. 직접 추가하거나 추천 설정을 바꿔주세요.'
-              : state.personalCoachingStopReasonForDate(widget.date) ??
-                    '오늘 부위·장비·운동량·남은 시간에 맞는 다음 추천이 없어요. 여기서 마치거나 직접 추가할 수 있어요.',
-        );
-        return;
-      }
-      final action = await showSetflowSheet<_RecommendationAction>(
-        context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (_) => _NextExerciseRecommendationSheet(
-          recommendation: recommendation,
-          unit: state.weightUnit,
-          timeBudgetMinutes: session.timeBudgetMinutes,
-        ),
-      );
-      if (!mounted) return;
-      if (action == _RecommendationAction.noEquipment) {
-        unavailableEquipment.add(recommendation.template.id);
-        state.skipRecommendedExercise(
-          widget.date,
-          recommendation.template.id,
-          equipmentUnavailable: true,
-        );
-        alternativeTo ??= recommendation.template;
-        continue;
-      }
-      if (action == _RecommendationAction.skipToday ||
-          action == _RecommendationAction.excludeAlways) {
-        if (action == _RecommendationAction.skipToday) {
-          state.skipRecommendedExercise(
-            widget.date,
-            recommendation.template.id,
-          );
-        } else {
-          state.setExerciseExcludedFromRecommendations(
-            recommendation.template.id,
-            true,
-          );
-        }
-        alternativeTo = null;
-        continue;
-      }
-      if (action == _RecommendationAction.chooseManually) {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => ExerciseLibraryScreen(date: widget.date),
-          ),
-        );
-        return;
-      }
-      if (action != _RecommendationAction.add) return;
-      final added = state.addRecommendedExercise(widget.date, recommendation);
-      if (added) {
-        AppSnackbar.success(
-          context,
-          '${recommendation.template.name}을 다음 운동으로 추가했어요.',
-        );
-      }
-      return;
-    }
+    await _showExerciseRecommendation(
+      context,
+      state,
+      widget.date,
+      completedExercise: widget.exercise,
+      allowRecovery: false,
+    );
   }
 
   Future<void> _confirmDeleteSet(
@@ -3029,6 +2922,115 @@ class _CompletedSetLine extends StatelessWidget {
   }
 }
 
+/// Returns whether the user chose the manual picker. A failed suggestion never
+/// disables later attempts; only an explicit manual choice does that.
+Future<bool> _showExerciseRecommendation(
+  BuildContext context,
+  AppState state,
+  DateTime date, {
+  WorkoutExercise? completedExercise,
+  bool allowRecovery = true,
+  bool manualPickerIsOpen = false,
+  VoidCallback? onAdded,
+}) async {
+  final unavailableEquipment = <String>{};
+  ExerciseTemplate? alternativeTo;
+  while (context.mounted) {
+    final result = completedExercise == null
+        ? state.firstExerciseRecommendationResultForDate(
+            date,
+            excludedTemplateIds: unavailableEquipment,
+            alternativeTo: alternativeTo,
+          )
+        : state.nextExerciseRecommendationResultForDate(
+            date,
+            completedExercise: completedExercise,
+            excludedTemplateIds: unavailableEquipment,
+            alternativeTo: alternativeTo,
+          );
+    final recommendation = result.recommendation;
+    if (recommendation == null) {
+      final reason =
+          result.stopReason ??
+          ExerciseRecommendationStopReason.catalogExhausted;
+      if (!allowRecovery) {
+        AppSnackbar.info(
+          context,
+          workoutRecommendationStopMessage(state, date, reason),
+        );
+        return false;
+      }
+      final retry = await recoverWorkoutRecommendation(context, date, reason);
+      if (!context.mounted || retry == null) return false;
+      if (retry) {
+        unavailableEquipment.clear();
+        alternativeTo = null;
+        continue;
+      }
+      if (!manualPickerIsOpen) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(builder: (_) => ExerciseLibraryScreen(date: date)),
+        );
+      }
+      return true;
+    }
+    final action = await showSetflowSheet<_RecommendationAction>(
+      context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _NextExerciseRecommendationSheet(
+        recommendation: recommendation,
+        unit: state.weightUnit,
+        title: completedExercise == null ? '오늘의 첫 운동 추천' : '다음 운동 추천',
+        timeBudgetMinutes: state.sessionFor(date).timeBudgetMinutes,
+      ),
+    );
+    if (!context.mounted) return false;
+    if (action == _RecommendationAction.noEquipment) {
+      unavailableEquipment.add(recommendation.template.id);
+      state.skipRecommendedExercise(
+        date,
+        recommendation.template.id,
+        equipmentUnavailable: true,
+      );
+      alternativeTo ??= recommendation.template;
+      continue;
+    }
+    if (action == _RecommendationAction.skipToday ||
+        action == _RecommendationAction.excludeAlways) {
+      if (action == _RecommendationAction.skipToday) {
+        state.skipRecommendedExercise(date, recommendation.template.id);
+      } else {
+        state.setExerciseExcludedFromRecommendations(
+          recommendation.template.id,
+          true,
+        );
+      }
+      alternativeTo = null;
+      continue;
+    }
+    if (action == _RecommendationAction.chooseManually ||
+        (action == null && completedExercise == null)) {
+      if (!manualPickerIsOpen) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(builder: (_) => ExerciseLibraryScreen(date: date)),
+        );
+      }
+      return true;
+    }
+    if (action != _RecommendationAction.add) return false;
+    if (state.addRecommendedExercise(date, recommendation)) {
+      onAdded?.call();
+      AppSnackbar.success(
+        context,
+        '${recommendation.template.name}을 ${completedExercise == null ? '첫' : '다음'} 운동으로 추가했어요.',
+      );
+    }
+    return false;
+  }
+  return false;
+}
+
 enum _RecommendationAction {
   chooseManually,
   noEquipment,
@@ -3266,6 +3268,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   String? muscle;
   String? equipment;
   final selected = <String>{};
+  bool recommending = false;
 
   @override
   void dispose() {
@@ -3332,6 +3335,21 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       ),
       body: Column(
         children: [
+          if (state.autoRecommendNextExercise)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.gutter,
+                SetflowSpacing.xs,
+                SetflowSpacing.gutter,
+                SetflowSpacing.sm,
+              ),
+              child: AppButton(
+                key: const ValueKey('exercise-library-recommendation'),
+                label: '운동 추천',
+                icon: SetflowIcons.goal,
+                onPressed: recommending ? null : _recommendExercise,
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
             child: AppTextField(
@@ -3658,6 +3676,45 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
     );
   }
 
+  Future<void> _recommendExercise() async {
+    final state = AppScope.of(context);
+    if (recommending || !state.autoRecommendNextExercise) return;
+    FocusScope.of(context).unfocus();
+    setState(() => recommending = true);
+    try {
+      if (!await ensureMemberTrainingGoals(context) || !mounted) return;
+      final session = state.sessionFor(widget.date);
+      if (session.exercises.isEmpty) {
+        await ensurePrecisionRecommendationSurvey(context);
+        if (!mounted) return;
+        if (session.trainingFocus == null &&
+            !(state.recommendationProfile?.shouldPauseAutomaticRecommendation ??
+                false)) {
+          final focus = await showTrainingFocusSheet(
+            context,
+            initialTimeBudgetMinutes: session.timeBudgetMinutes,
+            onTimeBudgetChanged: (minutes) =>
+                state.setWorkoutTimeBudget(widget.date, minutes),
+          );
+          if (!mounted || focus == null) return;
+          state.setTrainingFocus(widget.date, focus);
+        }
+      }
+      var added = false;
+      await _showExerciseRecommendation(
+        context,
+        state,
+        widget.date,
+        completedExercise: session.exercises.lastOrNull,
+        manualPickerIsOpen: true,
+        onAdded: () => added = true,
+      );
+      if (mounted && added) _finishAdding();
+    } finally {
+      if (mounted) setState(() => recommending = false);
+    }
+  }
+
   Future<void> _createExercise(BuildContext context) async {
     final draft = await showSetflowSheet<_CustomExerciseDraft>(
       context,
@@ -3693,6 +3750,10 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       state.addExercise(widget.date, template);
     }
     AppSnackbar.success(context, '${selected.length}개 운동을 추가했어요.');
+    _finishAdding();
+  }
+
+  void _finishAdding() {
     if (widget.onAdded != null) {
       setState(selected.clear);
       widget.onAdded!();
