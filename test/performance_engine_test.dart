@@ -562,7 +562,7 @@ void main() {
     });
 
     test(
-      'first exercise considers recent muscle volume and never invents weight',
+      'first exercise considers current week muscle volume and never invents weight',
       () {
         final state = AppState();
         state.sessions.clear();
@@ -600,7 +600,7 @@ void main() {
         )!;
         expect(withHistory.template.id, isNot(withoutHistory.template.id));
         expect(withHistory.startingWeight, 0);
-        expect(withHistory.reason, contains('최근 7일'));
+        expect(withHistory.reason, contains('이번 주 완료량'));
 
         final futureDate = targetDate.add(const Duration(days: 1));
         state.addExercise(futureDate, state.exercises[1]);

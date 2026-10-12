@@ -120,7 +120,14 @@ abstract final class ResistancePrescriptionEngine {
   static DateTime day(DateTime value) =>
       DateTime(value.year, value.month, value.day);
 
-  /// 오늘 계획도 예약량으로 센다. 과거는 완료한 세트만, 미래·웜업·예시 기록 제외.
+  static DateTime weekStart(DateTime value) => DateTime(
+    value.year,
+    value.month,
+    value.day - (value.weekday - DateTime.monday),
+  );
+
+  /// 월요일부터 오늘까지 집계하며, 오늘 계획도 예약량으로 센다.
+  /// 과거는 완료한 세트만, 미래·웜업·예시 기록 제외.
   /// 같은 날짜의 history 사본 대신 현재 세션을 한 번만 사용한다.
   static Map<TrainingMuscle, double> volume({
     required Iterable<WorkoutSession> history,
@@ -129,8 +136,7 @@ abstract final class ResistancePrescriptionEngine {
     DateTime? since,
   }) {
     final reference = day(session.date);
-    final start =
-        since ?? DateTime(reference.year, reference.month, reference.day - 6);
+    final start = since ?? weekStart(reference);
     final result = <TrainingMuscle, double>{};
     for (final item in [
       if (!todayOnly)
@@ -536,7 +542,7 @@ abstract final class ResistancePrescriptionEngine {
           .clamp(0, 999),
       restSeconds: compound ? (goal == TrainingGoal.strength ? 180 : 120) : 90,
       reason:
-          '$loadReason ${coachingPlan == null ? '최근 7일 완료량' : '이번 주 완료량'}과 오늘 계획은 $volumeLabel입니다. '
+          '$loadReason 이번 주 완료량과 오늘 계획은 $volumeLabel입니다. '
           '${beginner ? '입문 단계와 ' : ''}${fatigued ? '오늘 피로와 ' : ''}남은 운동량을 반영해 $sets세트를 제안합니다. '
           '$coachingReason',
       summary: coachingReason.isEmpty

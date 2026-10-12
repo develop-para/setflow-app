@@ -73,7 +73,7 @@ final evidenceCatalog = List<EvidenceReference>.unmodifiable([
     doi: '10.1007/s40279-025-02344-w',
     officialUrl: Uri.parse('https://pubmed.ncbi.nlm.nih.gov/41343037/'),
     appRules: const [
-      '자동 추천은 최근 7일 완료 세트와 오늘 계획을 함께 보고 추가 운동량을 정합니다.',
+      '자동 추천은 이번 주 월요일부터 오늘까지의 완료 세트와 오늘 계획을 함께 보고 추가 운동량을 정합니다.',
       '검토한 복합 운동의 주동근은 1세트, 보조근은 0.5세트로 계산합니다.',
     ],
     limitations:

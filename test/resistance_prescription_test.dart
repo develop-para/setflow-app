@@ -210,14 +210,15 @@ void main() {
   );
 
   test(
-    'volume includes today once and indirect arms, spanning Sunday to Monday',
+    'volume includes today once and indirect arms only within the calendar week',
     () {
       final today = _session('bench');
       final volume = ResistancePrescriptionEngine.volume(
         session: today,
         history: [
           today,
-          _session('bench', daysAgo: 2, sets: 2),
+          _session('bench', daysAgo: 1, sets: 2),
+          _session('bench', daysAgo: 2, sets: 10),
           _session('bench', daysAgo: 7, sets: 10),
           _session('bench', daysAgo: -1, sets: 10),
           _session('bench', daysAgo: 1, sets: 5, type: '웜업'),
@@ -234,6 +235,125 @@ void main() {
       expect(next.sets, 1, reason: '오늘 남은 부위 예산만 제안한다');
     },
   );
+
+  test(
+    'first Monday recommendation and prescription ignore last Sunday volume',
+    () {
+      final monday = DateTime(2026, 10, 12);
+      final sunday = DateTime(2026, 10, 11);
+      final previous = WorkoutSession(
+        date: sunday,
+        exercises: _session('bench', sets: 12).exercises,
+      );
+      final session = WorkoutSession(
+        date: monday,
+        exercises: [],
+        trainingFocus: {TrainingMuscle.chest},
+      );
+      final history = [previous];
+      expect(
+        ResistancePrescriptionEngine.volume(
+              history: history,
+              session: session,
+            )[TrainingMuscle.chest] ??
+            0,
+        0,
+      );
+      final recommendation = ExerciseRecommendationEngine.recommendFirst(
+        catalog: [_template('bench')],
+        session: session,
+        goals: ['근육 증가'],
+        weeklyHistory: history,
+      );
+      expect(recommendation, isNotNull);
+      expect(recommendation!.sets, 3);
+      final prescription = _prescribe(history: history, session: session);
+      expect(prescription.sets, 3);
+      expect(prescription.weight, 60, reason: '지난주 기록은 중량 참고에 계속 사용한다');
+      expect(prescription.reason, contains('이번 주 완료량과 오늘 계획은 가슴 0세트'));
+      expect(previous.exercises.single.sets, hasLength(12));
+      expect(
+        previous.exercises.single.sets.every((set) => set.completed),
+        isTrue,
+      );
+      expect(session.exercises, isEmpty);
+      expect(
+        ResistancePrescriptionEngine.volume(
+          history: history,
+          session: session,
+          since: sunday,
+        )[TrainingMuscle.chest],
+        12,
+        reason: '명시한 집계 시작일은 그대로 적용한다',
+      );
+      expect(
+        ResistancePrescriptionEngine.volume(
+          history: history,
+          session: session,
+          since: sunday,
+          todayOnly: true,
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test('current week volume still blocks recommendations through Sunday', () {
+    final monday = DateTime(2026, 10, 12);
+    final previous = WorkoutSession(
+      date: monday,
+      exercises: _session('bench', sets: 12).exercises,
+    );
+    for (final date in [DateTime(2026, 10, 13), DateTime(2026, 10, 18)]) {
+      final session = WorkoutSession(
+        date: date,
+        exercises: [],
+        trainingFocus: {TrainingMuscle.chest},
+      );
+      expect(
+        ResistancePrescriptionEngine.volume(
+          history: [previous],
+          session: session,
+        )[TrainingMuscle.chest],
+        12,
+      );
+      final result = ExerciseRecommendationEngine.evaluateFirst(
+        catalog: [_template('bench')],
+        session: session,
+        goals: ['근육 증가'],
+        weeklyHistory: [previous],
+      );
+      expect(result.recommendation, isNull);
+      expect(result.stopReason, ExerciseRecommendationStopReason.volumeReached);
+      expect(session.exercises, isEmpty);
+    }
+  });
+
+  test('calendar week volume crosses month and year boundaries', () {
+    for (final (date, monday) in [
+      (DateTime(2026, 10, 1), DateTime(2026, 9, 28)),
+      (DateTime(2027, 1, 1), DateTime(2026, 12, 28)),
+    ]) {
+      WorkoutSession record(DateTime date, int sets) => WorkoutSession(
+        date: date,
+        exercises: _session('bench', sets: sets).exercises,
+      );
+      final session = record(date, 1);
+      final volume = ResistancePrescriptionEngine.volume(
+        session: session,
+        history: [
+          record(monday.subtract(const Duration(days: 1)), 12),
+          record(monday, 2),
+          record(date.subtract(const Duration(days: 1)), 3),
+          session,
+          record(date.add(const Duration(days: 1)), 12),
+        ],
+      );
+      expect(ResistancePrescriptionEngine.weekStart(date), monday);
+      expect(volume[TrainingMuscle.chest], 6);
+      expect(volume[TrainingMuscle.triceps], 3);
+    }
+  });
 
   test('completion undo preserves later manual changes to pending sets', () {
     final state = AppState();

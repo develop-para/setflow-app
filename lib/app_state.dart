@@ -500,6 +500,47 @@ class AppState extends ChangeNotifier {
     return '개인 코칭의 추가 운동량 예산에 도달했어요. $details. 오늘 미완료 계획도 포함합니다. 직접 추가하거나 계획을 확인할 수 있어요.';
   }
 
+  String recommendationVolumeStopReasonForDate(DateTime date) {
+    final personalReason = personalCoachingStopReasonForDate(date);
+    if (personalReason != null) return personalReason;
+    final session =
+        sessions[dateOnly(date)] ??
+        WorkoutSession(date: dateOnly(date), exercises: []);
+    final weekly = ResistancePrescriptionEngine.volume(
+      history: sessions.values,
+      session: session,
+    );
+    final today = ResistancePrescriptionEngine.volume(
+      history: sessions.values,
+      session: session,
+      todayOnly: true,
+    );
+    final focus = session.trainingFocus;
+    final muscles = focus != null && focus.isNotEmpty
+        ? focus
+        : TrainingMuscle.values.where((muscle) => (weekly[muscle] ?? 0) > 0);
+    final details = muscles
+        .map(
+          (muscle) =>
+              '${muscle.label} 오늘 ${PerformanceEngine.formatWeight(today[muscle] ?? 0)}세트 · 이번 주 ${PerformanceEngine.formatWeight(weekly[muscle] ?? 0)}세트',
+        )
+        .join(' / ');
+    final planned = ResistancePrescriptionEngine.plannedSessionSets(session);
+    final pending = session.exercises
+        .where(
+          (exercise) =>
+              !exercise.template.isCardio && !exercise.id.startsWith('seed_'),
+        )
+        .expand((exercise) => exercise.sets)
+        .where((set) => set.type != '웜업' && !set.completed)
+        .length;
+    return [
+      '자동 추천의 추가 운동량 한도에 도달했어요.',
+      '오늘 전체 $planned세트${pending > 0 ? ' (미완료 $pending세트 포함)' : ''}.',
+      if (details.isNotEmpty) '$details.',
+    ].join(' ');
+  }
+
   Future<void> refreshPersonalCoachingAccess() async {
     final repository = personalCoachingRepository;
     final userId = Auth.instance.currentUser?.id;

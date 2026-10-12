@@ -32,8 +32,7 @@ String workoutRecommendationStopMessage(
   ExerciseRecommendationStopReason.noAlternative =>
     '같은 동작의 가능한 대체 운동이 없어요. 다른 부위를 선택하거나 추천 설정을 확인해주세요.',
   ExerciseRecommendationStopReason.volumeReached =>
-    state.personalCoachingStopReasonForDate(date) ??
-        '오늘 또는 이번 주의 추천 운동량 한도에 도달했어요. 기록과 운동 부위를 확인해주세요.',
+    state.recommendationVolumeStopReasonForDate(date),
   ExerciseRecommendationStopReason.timeBudget =>
     '설정한 운동 시간 안에 추가할 수 있는 운동이 없어요. 시간을 늘리거나 제한 없음으로 바꿔주세요.',
 };
