@@ -794,7 +794,7 @@ class _CoachingWorkoutScreenState extends State<_CoachingWorkoutPage>
                 final sets = next.exercises[exerciseIndex].sets;
                 final set = sets.isEmpty
                     ? _defaultSet(exercise.template)
-                    : sets.last.copy();
+                    : sets.last.copy(asPlan: true);
                 set.number = sets.length + 1;
                 sets.add(set);
                 _save(next);
@@ -1697,7 +1697,7 @@ class _CoachingAssignmentComposerScreenState
               onPressed: _saving || _failed
                   ? null
                   : () => setState(() {
-                      final set = exercise.sets.last.copy();
+                      final set = exercise.sets.last.copy(asPlan: true);
                       set.number = exercise.sets.length + 1;
                       exercise.sets.add(set);
                     }),

@@ -349,10 +349,9 @@ class RecommendationProfile {
 /// 세트 하나를 무엇으로 재는가. 근력은 무게×횟수지만, 맨몸운동은 무게가
 /// 없고(푸시업은 횟수만), 플랭크류는 횟수조차 없다(버티는 시간이 기록이다).
 /// 가짜 0kg을 타이핑하게 두는 대신 종목이 자기 측정 방식을 선언한다.
-/// 추정 1RM을 어느 공식으로 낼지. 둘은 반복수에 따라 갈린다 — Brzycki는
-/// 저반복(1~6회)에서, Epley는 고반복에서 더 잘 맞는다고 알려져 있고, 기본값인
-/// 평균은 한쪽으로 치우치지 않는 대신 어느 쪽도 아니다. 어느 것이 옳다고
-/// 단정할 수 없으므로 고르게 두되, 고르지 않은 사람에게는 평균을 준다.
+/// 반복 기록에서 1RM을 추정하는 방식. 개인·종목·실패까지 남은 반복에 따라
+/// 오차가 있으며 두 추정식의 평균이 더 정확하다는 직접 검증 근거는 없다.
+/// 기존 기본값은 유지하되 11회 이상 추정은 참고용으로만 사용한다.
 enum OneRepMaxFormula { average, epley, brzycki }
 
 extension OneRepMaxFormulaLabel on OneRepMaxFormula {
@@ -363,9 +362,10 @@ extension OneRepMaxFormulaLabel on OneRepMaxFormula {
   };
 
   String get description => switch (this) {
-    OneRepMaxFormula.average => '두 공식의 중간값. 반복수 구간을 가리지 않아요.',
-    OneRepMaxFormula.epley => '무게 × (1 + 횟수/30). 고반복에서 조금 더 높게 나와요.',
-    OneRepMaxFormula.brzycki => '무게 × 36 / (37 − 횟수). 저반복에서 널리 쓰여요.',
+    OneRepMaxFormula.average =>
+      '두 추정식의 산술평균. 더 정확하다는 직접 근거는 없으며, 11회 이상은 참고용이에요.',
+    OneRepMaxFormula.epley => '무게 × (1 + 횟수/30). 개인·종목별 오차가 있어요.',
+    OneRepMaxFormula.brzycki => '무게 × 36 / (37 − 횟수). 개인·종목별 오차가 있어요.',
   };
 
   /// 스냅샷에 남기는 값. 이름이 바뀌어도 저장된 것이 안 깨지도록 고정한다.
@@ -627,17 +627,19 @@ class WorkoutSetEntry {
 
   double get volume => completed ? weight * reps : 0;
 
-  WorkoutSetEntry copy() => WorkoutSetEntry(
+  /// 기록 복사는 관찰값을 보존하고, 새 계획은 완료 여부와 실제 강도를 지운다.
+  /// 중량·횟수·시간·거리는 다음에 확인할 계획값으로 재사용할 수 있다.
+  WorkoutSetEntry copy({bool asPlan = false}) => WorkoutSetEntry(
     number: number,
     weight: weight,
     reps: reps,
-    completed: false,
+    completed: asPlan ? false : completed,
     type: type,
     restSeconds: restSeconds,
     durationSeconds: durationSeconds,
     distanceKm: distanceKm,
-    intensityRpe: intensityRpe,
-    rir: rir,
+    intensityRpe: asPlan ? 0 : intensityRpe,
+    rir: asPlan ? null : rir,
   );
 }
 
@@ -707,10 +709,12 @@ class WorkoutExercise {
   final String? coachingWorkoutId;
   final String? coachingAuthor;
 
-  WorkoutExercise copy() => WorkoutExercise(
-    id: '${id}_copy_${DateTime.now().microsecondsSinceEpoch}',
+  WorkoutExercise copy({bool asPlan = false}) => WorkoutExercise(
+    id: asPlan ? '${id}_copy_${DateTime.now().microsecondsSinceEpoch}' : id,
     template: template,
-    sets: sets.map((set) => set.copy()).toList(),
+    sets: sets.map((set) => set.copy(asPlan: asPlan)).toList(),
+    coachingWorkoutId: asPlan ? null : coachingWorkoutId,
+    coachingAuthor: asPlan ? null : coachingAuthor,
   );
 }
 

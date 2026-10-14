@@ -45,6 +45,15 @@ class _RecommendationSettingsSheetState
           children: [
             Text('시간·추천 설정', style: theme.textTheme.titleLarge),
             const SizedBox(height: SetflowSpacing.sm),
+            SwitchListTile.adaptive(
+              key: const ValueKey('recommendation-auto-toggle'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('다음 운동 자동 추천'),
+              subtitle: const Text('세트를 모두 마치면 다음 운동을 제안해요.'),
+              value: state.autoRecommendNextExercise,
+              onChanged: state.setAutoRecommendNextExercise,
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
             ListTile(
               key: const ValueKey('recommendation-profile-open'),
               contentPadding: EdgeInsets.zero,
@@ -56,7 +65,8 @@ class _RecommendationSettingsSheetState
               ),
               onTap: () => Navigator.of(context).push<bool>(
                 MaterialPageRoute(
-                  builder: (_) => const RecommendationProfileScreen(),
+                  builder: (_) =>
+                      const RecommendationProfileScreen(focusEquipment: true),
                 ),
               ),
             ),

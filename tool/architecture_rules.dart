@@ -198,6 +198,36 @@ final architectureRules = <ArchitectureRule>[
         'context.setflowColors를 쓴다. 정말 새 값이면 tokens.dart에 이름을 붙여 추가한다.',
   ),
   ArchitectureRule(
+    name: '운동 추천의 기본 계획을 과학적 상한으로 표현하지 않는다',
+    // This catches specific wording only. Scientific validity still requires
+    // checking the primary source and its applicability to the app rule.
+    pattern: RegExp(r'(?:권장|최적|안전)\s*운동량\s*(?:의\s*)?(?:한도|상한)'),
+    searchIn: const [
+      'lib/app_state.dart',
+      'lib/screens/workout_screens.dart',
+      'lib/screens/workout_dashboard_screen.dart',
+      'lib/screens/workout_recommendation_recovery_sheet.dart',
+      'lib/screens/workout_recommendation_settings_sheet.dart',
+      'lib/screens/personal_coaching_screen.dart',
+      'lib/screens/recommendation_profile_screen.dart',
+      'lib/screens/training_focus_sheet.dart',
+      'lib/screens/custom_exercise_recommendation_screen.dart',
+      'lib/services/exercise_recommendation_engine.dart',
+      'lib/services/resistance_prescription_engine.dart',
+      'lib/services/personal_coaching_engine.dart',
+      'lib/services/performance_engine.dart',
+      'lib/services/cardio_prescription_engine.dart',
+    ],
+    allow: const [],
+    why:
+        '앱이 정한 시작 계획을 논문이 입증한 개인별 최적량이나 안전 상한으로 읽히게 해서는 안 된다. '
+        '이 검사는 특정 표현만 잡으며 연구 근거의 타당성을 검증하지 않는다.',
+    instead:
+        '앱의 기본 추천 계획·현재 기록·선택 조건으로 설명하고, '
+        'lib/domain/workout_design_rule.dart와 docs/workout-evidence-policy.md에서 '
+        '수치의 선택 이유·공식 출처·적용 한계·검토일·관련 회귀를 함께 확인할 것.',
+  ),
+  ArchitectureRule(
     name: '엣지 펑션 호출은 의도적으로만 늘린다',
     pattern: RegExp(r'functions\s*\.\s*invoke'),
     searchIn: const ['lib'],

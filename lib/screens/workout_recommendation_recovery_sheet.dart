@@ -28,7 +28,7 @@ String workoutRecommendationStopMessage(
         ? '사용 장비가 맨몸으로만 설정되어 있어요. 선택한 부위에 맞는 운동이 현재 장비·숙련도·제외 동작 조건에 없어요.'
         : '선택한 부위에 맞는 운동이 현재 장비·숙련도·제외 동작 조건에 없어요. 실제 사용할 장비와 추천 정보를 확인해주세요.',
   ExerciseRecommendationStopReason.excludedExercises =>
-    '오늘 또는 항상 제외한 운동과 사용할 수 없는 장비를 빼니 추천 후보가 없어요. 추천 설정에서 제외한 운동을 복원할 수 있어요.',
+    '현재 장비·운동 부위 조건에서 남은 후보를 모두 제외했어요. 사용할 장비나 운동 부위를 바꾸거나, 추천 설정에서 제외한 운동을 복원할 수 있어요.',
   ExerciseRecommendationStopReason.noAlternative =>
     '같은 동작의 가능한 대체 운동이 없어요. 다른 부위를 선택하거나 추천 설정을 확인해주세요.',
   ExerciseRecommendationStopReason.volumeReached =>
@@ -37,10 +37,12 @@ String workoutRecommendationStopMessage(
     '설정한 운동 시간 안에 추가할 수 있는 운동이 없어요. 시간을 늘리거나 제한 없음으로 바꿔주세요.',
 };
 
-enum _RecoveryAction { profile, focus, settings, manual }
+enum _RecoveryAction { profile, focus, settings, additionalVolume, manual }
 
-/// true: 조건을 수정했으므로 재추천, false: 직접 선택, null: 닫기.
-Future<bool?> recoverWorkoutRecommendation(
+enum WorkoutRecommendationRecovery { retry, additionalVolume, manual }
+
+/// 추가 운동량은 이 요청에서 사용자가 직접 선택한 경우에만 허용한다.
+Future<WorkoutRecommendationRecovery?> recoverWorkoutRecommendation(
   BuildContext context,
   DateTime date,
   ExerciseRecommendationStopReason reason,
@@ -50,8 +52,9 @@ Future<bool?> recoverWorkoutRecommendation(
     ExerciseRecommendationStopReason.profileConstraints ||
     ExerciseRecommendationStopReason.severePain => _RecoveryAction.profile,
     ExerciseRecommendationStopReason.trainingFocus ||
-    ExerciseRecommendationStopReason.catalogExhausted ||
-    ExerciseRecommendationStopReason.volumeReached => _RecoveryAction.focus,
+    ExerciseRecommendationStopReason.catalogExhausted => _RecoveryAction.focus,
+    ExerciseRecommendationStopReason.volumeReached =>
+      _RecoveryAction.additionalVolume,
     _ => _RecoveryAction.settings,
   };
   final action = await showSetflowSheet<_RecoveryAction>(
@@ -77,6 +80,7 @@ Future<bool?> recoverWorkoutRecommendation(
             child: Text(switch (primary) {
               _RecoveryAction.profile => '장비·추천 정보 수정',
               _RecoveryAction.focus => '운동 부위 바꾸기',
+              _RecoveryAction.additionalVolume => '이 부위로 추가 추천',
               _ => '시간·제외 설정',
             }),
           ),
@@ -94,6 +98,13 @@ Future<bool?> recoverWorkoutRecommendation(
                   Navigator.pop(sheetContext, _RecoveryAction.settings),
               child: const Text('시간·제외 설정'),
             ),
+          if (primary != _RecoveryAction.profile)
+            TextButton(
+              key: const ValueKey('recommendation-recovery-profile'),
+              onPressed: () =>
+                  Navigator.pop(sheetContext, _RecoveryAction.profile),
+              child: const Text('장비·추천 정보 수정'),
+            ),
           TextButton(
             key: const ValueKey('recommendation-recovery-manual'),
             onPressed: () =>
@@ -109,11 +120,14 @@ Future<bool?> recoverWorkoutRecommendation(
     case _RecoveryAction.profile:
       return await Navigator.of(context).push<bool>(
                 MaterialPageRoute(
-                  builder: (_) => const RecommendationProfileScreen(),
+                  builder: (_) => RecommendationProfileScreen(
+                    focusEquipment:
+                        reason != ExerciseRecommendationStopReason.severePain,
+                  ),
                 ),
               ) ==
               true
-          ? true
+          ? WorkoutRecommendationRecovery.retry
           : null;
     case _RecoveryAction.focus:
       final session = state.sessionFor(date);
@@ -126,7 +140,7 @@ Future<bool?> recoverWorkoutRecommendation(
       );
       if (selected == null || !context.mounted) return null;
       state.setTrainingFocus(date, selected);
-      return true;
+      return WorkoutRecommendationRecovery.retry;
     case _RecoveryAction.settings:
       final session = state.sessionFor(date);
       final previousTime = session.timeBudgetMinutes;
@@ -144,9 +158,11 @@ Future<bool?> recoverWorkoutRecommendation(
                 previousEquipment,
                 session.unavailableEquipmentExerciseIds,
               )
-          ? true
+          ? WorkoutRecommendationRecovery.retry
           : null;
+    case _RecoveryAction.additionalVolume:
+      return WorkoutRecommendationRecovery.additionalVolume;
     case _RecoveryAction.manual:
-      return false;
+      return WorkoutRecommendationRecovery.manual;
   }
 }

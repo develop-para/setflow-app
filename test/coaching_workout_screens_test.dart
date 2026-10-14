@@ -369,6 +369,44 @@ void main() {
   );
 
   testWidgets(
+    'adding a coaching set keeps recorded effort out of the new plan',
+    (tester) async {
+      final repository = _Repository();
+      final source = repository.current.session.exercises.single.sets;
+      for (final set in source) {
+        set.completed = true;
+        set.rir = 0;
+        set.intensityRpe = 8;
+      }
+      final state = _state(repository);
+      await _mount(
+        tester,
+        state,
+        const CoachingWorkoutScreen(scheduleId: 'lesson'),
+      );
+
+      await tester.ensureVisible(find.text('세트 추가'));
+      await tester.tap(find.text('세트 추가'));
+      await tester.pumpAndSettle();
+
+      final saved = repository.current.session.exercises.single.sets;
+      expect(saved, hasLength(3));
+      expect(saved.take(2).map((set) => set.completed), everyElement(isTrue));
+      expect(saved.take(2).map((set) => set.rir), everyElement(0));
+      expect(saved.take(2).map((set) => set.intensityRpe), everyElement(8));
+      expect(saved.last.number, 3);
+      expect(saved.last.weight, 50);
+      expect(saved.last.reps, 10);
+      expect(saved.last.completed, isFalse);
+      expect(saved.last.rir, isNull);
+      expect(saved.last.intensityRpe, 0);
+      expect(source.map((set) => set.completed), everyElement(isTrue));
+      expect(source.map((set) => set.rir), everyElement(0));
+      await _unmount(tester, state);
+    },
+  );
+
+  testWidgets(
     'failed completion does not start rest or discard input on back',
     (tester) async {
       final repository = _Repository()..failSave = true;

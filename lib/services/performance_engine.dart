@@ -4,9 +4,9 @@ enum EstimateQuality { high, medium, reference }
 
 extension EstimateQualityLabel on EstimateQuality {
   String get label => switch (this) {
-    EstimateQuality.high => '높음',
-    EstimateQuality.medium => '보통',
-    EstimateQuality.reference => '참고용',
+    EstimateQuality.high => '1–5회 기준',
+    EstimateQuality.medium => '6–10회 기준',
+    EstimateQuality.reference => '고반복 참고값',
   };
 }
 
@@ -206,7 +206,8 @@ abstract final class PerformanceEngine {
   }) {
     if (weight <= 0 || reps < 1 || reps > 15) return null;
     if (reps == 1) {
-      // 1회는 공식이 필요 없다 — 그 무게가 곧 1RM이다.
+      // 1회 기록에는 반복 예측식을 적용하지 않는다. 실제 최대 노력 여부를
+      // 측정하지 않았으므로 기록한 중량을 실측 1RM으로 확정하지 않는다.
       return E1rmEstimate(
         value: weight,
         epley: weight,
@@ -278,8 +279,11 @@ abstract final class PerformanceEngine {
         evidenceIds: {
           'acsm_currier_2026_resistance',
           'schoenfeld_2017_weekly_volume',
+          'singer_2024_rest_hypertrophy',
+          'robinson_2024_proximity_failure',
         },
-        evidenceNote: '폭넓은 부하가 유효하며, 이 범위보다 근육군별 주간 작업세트가 더 중요합니다.',
+        evidenceNote:
+            '폭넓은 부하에서 근비대를 얻을 수 있습니다. 주간 운동량·실패 근접도·충분한 휴식을 함께 참고하며, 개인의 최적 RIR이나 정확한 휴식 초를 확정하지 않습니다.',
       ),
       TrainingGoal.fatLoss => const TrainingPrescription(
         minReps: 8,

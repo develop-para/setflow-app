@@ -944,6 +944,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('정밀 운동 추천 설문'), findsOneWidget);
+    final bodyweight = find.byKey(const ValueKey('equipment-bodyweight'));
+    await tester.ensureVisible(bodyweight);
+    await tester.tap(bodyweight);
     await tester.ensureVisible(
       find.byKey(const ValueKey('recommendation-profile-save')),
     );

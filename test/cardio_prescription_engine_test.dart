@@ -351,6 +351,123 @@ void main() {
       },
     );
 
+    test('many segments on one date do not establish six training days', () {
+      final now = DateTime(2026, 8, 17, 18);
+      final prescription = CardioPrescriptionEngine.recommend(
+        exerciseId: 'run',
+        goal: TrainingGoal.endurance,
+        history: [
+          for (var segment = 0; segment < 6; segment++)
+            record(
+              id: 'same-day-$segment',
+              exerciseId: segment.isEven ? 'run' : 'stationary_bike',
+              occurredAt: now.subtract(const Duration(days: 1)),
+              minutes: 20,
+            ),
+        ],
+        now: now,
+        experience: CardioExperience.advanced,
+        vigorousExerciseEligible: true,
+      )!;
+
+      expect(prescription.structure, CardioSessionStructure.continuous);
+    });
+
+    test(
+      'training-day eligibility combines short segments on distinct dates',
+      () {
+        final now = DateTime(2026, 8, 17, 18);
+        final prescription = CardioPrescriptionEngine.recommend(
+          exerciseId: 'run',
+          goal: TrainingGoal.endurance,
+          history: [
+            for (var day = 1; day <= 6; day++)
+              for (var segment = 0; segment < 2; segment++)
+                record(
+                  id: 'day-$day-segment-$segment',
+                  exerciseId: 'run',
+                  occurredAt: now.subtract(Duration(days: day * 3)),
+                  minutes: 10,
+                ),
+          ],
+          now: now,
+          experience: CardioExperience.advanced,
+          vigorousExerciseEligible: true,
+        )!;
+
+        expect(prescription.structure, CardioSessionStructure.intervals);
+        expect(prescription.reason, contains('안전성을 확인하는 기준은 아닙니다'));
+      },
+    );
+
+    test(
+      'distance uses time-weighted daily speeds and ignores missing distance',
+      () {
+        final now = DateTime(2026, 8, 17, 18);
+        final prescription = CardioPrescriptionEngine.recommend(
+          exerciseId: 'run',
+          goal: TrainingGoal.health,
+          history: [
+            record(
+              id: 'short-fast',
+              exerciseId: 'run',
+              occurredAt: now.subtract(const Duration(days: 1)),
+              minutes: 5,
+              distanceKm: 2,
+            ),
+            record(
+              id: 'long-slow',
+              exerciseId: 'run',
+              occurredAt: now.subtract(const Duration(days: 1)),
+              minutes: 45,
+              distanceKm: 3,
+            ),
+            record(
+              id: 'distance-unknown',
+              exerciseId: 'run',
+              occurredAt: now.subtract(const Duration(days: 1)),
+              minutes: 60,
+            ),
+          ],
+          now: now,
+        )!;
+
+        expect(prescription.targetDistanceKm, 3);
+      },
+    );
+
+    test(
+      'segment count does not dominate the median of recent training days',
+      () {
+        final now = DateTime(2026, 8, 17, 18);
+        final prescription = CardioPrescriptionEngine.recommend(
+          exerciseId: 'run',
+          goal: TrainingGoal.health,
+          history: [
+            for (var day = 2; day <= 5; day++)
+              record(
+                id: 'usual-$day',
+                exerciseId: 'run',
+                occurredAt: now.subtract(Duration(days: day)),
+                minutes: 30,
+                distanceKm: 5,
+              ),
+            for (var segment = 0; segment < 6; segment++)
+              record(
+                id: 'split-$segment',
+                exerciseId: 'run',
+                occurredAt: now.subtract(const Duration(days: 1)),
+                minutes: 5,
+                distanceKm: 1,
+              ),
+          ],
+          now: now,
+        )!;
+
+        expect(prescription.targetDistanceKm, 5);
+      },
+    );
+
     test('returns null for resistance exercise ids', () {
       expect(
         CardioPrescriptionEngine.recommend(

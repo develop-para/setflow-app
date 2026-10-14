@@ -78,7 +78,9 @@ Future<void> _ensurePrecisionRecommendationSurvey(
 }
 
 class RecommendationProfileScreen extends StatefulWidget {
-  const RecommendationProfileScreen({super.key});
+  const RecommendationProfileScreen({this.focusEquipment = false, super.key});
+
+  final bool focusEquipment;
 
   @override
   State<RecommendationProfileScreen> createState() =>
@@ -88,8 +90,10 @@ class RecommendationProfileScreen extends StatefulWidget {
 class _RecommendationProfileScreenState
     extends State<RecommendationProfileScreen> {
   final injuryNoteController = TextEditingController();
+  final _equipmentSectionKey = GlobalKey();
   bool initialized = false;
   bool isSaving = false;
+  bool showEquipmentError = false;
   RecommendationProfile? initialProfile;
   bool recoveryAnsweredForToday = false;
   late TrainingExperienceLevel experienceLevel;
@@ -109,7 +113,7 @@ class _RecommendationProfileScreenState
     experienceLevel =
         profile?.experienceLevel ?? TrainingExperienceLevel.beginner;
     availableEquipment = profile == null
-        ? {TrainingEquipment.bodyweight}
+        ? <TrainingEquipment>{}
         : Set.of(profile.availableEquipment);
     painRegions = Set.of(profile?.painRegions ?? const {});
     painLevel = (profile?.painLevel ?? 0).toDouble();
@@ -120,6 +124,22 @@ class _RecommendationProfileScreenState
     recoveryAnsweredForToday = profile == null || hasCurrentRecovery;
     injuryNoteController.text = profile?.injuryNote ?? '';
     initialized = true;
+    if (widget.focusEquipment) _scheduleEquipmentFocus();
+  }
+
+  void _scheduleEquipmentFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final sectionContext = _equipmentSectionKey.currentContext;
+      if (sectionContext == null) return;
+      unawaited(
+        Scrollable.ensureVisible(
+          sectionContext,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+        ),
+      );
+    });
   }
 
   @override
@@ -130,7 +150,9 @@ class _RecommendationProfileScreenState
 
   Future<void> _save() async {
     if (availableEquipment.isEmpty) {
-      AppSnackbar.info(context, '사용할 수 있는 장비를 하나 이상 선택해주세요.');
+      setState(() => showEquipmentError = true);
+      FocusManager.instance.primaryFocus?.unfocus();
+      _scheduleEquipmentFocus();
       return;
     }
     if (isSaving) return;
@@ -227,246 +249,261 @@ class _RecommendationProfileScreenState
             ),
         ],
       ),
-      body: ListView(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 120),
-        children: [
-          const Text(
-            '내 상황에 맞지 않는 운동을\n먼저 걸러낼게요.',
-            style: TextStyle(
-              fontSize: SetflowFontSize.headlineLarge,
-              height: 1.25,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.sm2),
-          Text(
-            '답변은 계정에 저장되며 언제든 수정할 수 있습니다. 통증 부위만으로 진단하지 않고, 직접 선택한 제외 동작만 추천에서 뺍니다.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.xxl),
-          _SurveySection(
-            title: '1. 운동 숙련도',
-            subtitle: '동작 난이도와 종목 후보를 조정합니다.',
-            child: RadioGroup<TrainingExperienceLevel>(
-              groupValue: experienceLevel,
-              onChanged: isSaving
-                  ? (_) {}
-                  : (value) {
-                      if (value != null) {
-                        setState(() => experienceLevel = value);
-                      }
-                    },
-              child: Column(
-                children: [
-                  for (final level in TrainingExperienceLevel.values)
-                    RadioListTile<TrainingExperienceLevel>(
-                      key: ValueKey('experience-${level.name}'),
-                      value: level,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(level.label),
-                      enabled: !isSaving,
-                    ),
-                ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              '내 상황에 맞지 않는 운동을\n먼저 걸러낼게요.',
+              style: TextStyle(
+                fontSize: SetflowFontSize.headlineLarge,
+                height: 1.25,
+                fontWeight: FontWeight.w900,
               ),
             ),
-          ),
-          _SurveySection(
-            title: '2. 사용할 수 있는 장비',
-            subtitle:
-                '선택한 장비만 추천에 사용해요. 헬스장에서 실제 사용할 수 있는 장비를 모두 선택해주세요. 맨몸만 선택하면 일부 부위는 추천이 없을 수 있어요.',
-            trailing: TextButton(
-              onPressed: isSaving
-                  ? null
-                  : () => setState(
-                      () =>
-                          availableEquipment = Set.of(TrainingEquipment.values),
-                    ),
-              child: const Text('전체 선택'),
+            const SizedBox(height: SetflowSpacing.sm2),
+            Text(
+              '답변은 계정에 저장되며 언제든 수정할 수 있습니다. 통증 부위만으로 진단하지 않고, 직접 선택한 제외 동작만 추천에서 뺍니다.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.45,
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 7,
+            const SizedBox(height: SetflowSpacing.xxl),
+            _SurveySection(
+              title: '1. 운동 숙련도',
+              subtitle: '동작 난이도와 종목 후보를 조정합니다.',
+              child: RadioGroup<TrainingExperienceLevel>(
+                groupValue: experienceLevel,
+                onChanged: isSaving
+                    ? (_) {}
+                    : (value) {
+                        if (value != null) {
+                          setState(() => experienceLevel = value);
+                        }
+                      },
+                child: Column(
                   children: [
-                    for (final equipment in TrainingEquipment.values)
-                      FilterChip(
-                        key: ValueKey('equipment-${equipment.name}'),
-                        label: Text(equipment.label),
-                        selected: availableEquipment.contains(equipment),
-                        onSelected: isSaving
-                            ? null
-                            : (selected) => setState(() {
-                                if (selected) {
-                                  availableEquipment.add(equipment);
-                                } else {
-                                  availableEquipment.remove(equipment);
-                                }
-                              }),
+                    for (final level in TrainingExperienceLevel.values)
+                      RadioListTile<TrainingExperienceLevel>(
+                        key: ValueKey('experience-${level.name}'),
+                        value: level,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(level.label),
+                        enabled: !isSaving,
                       ),
                   ],
                 ),
-                const SizedBox(height: SetflowSpacing.sm2),
-                Text(
-                  '일반 웨이트 머신은 머신 구역 전체를 뜻합니다. 직접 만든 운동은 안전 태그가 없어 자동 추천 후보에서 제외됩니다.',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          _SurveySection(
-            title: '3. 현재 통증 또는 최근 부상',
-            subtitle: '해당 부위를 모두 선택하세요. 이 정보만으로 운동을 진단하지 않습니다.',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 7,
-                  children: [
-                    for (final region in TrainingPainRegion.values)
-                      FilterChip(
-                        key: ValueKey('pain-${region.name}'),
-                        label: Text(region.label),
-                        selected: painRegions.contains(region),
-                        onSelected: isSaving
-                            ? null
-                            : (selected) => setState(() {
-                                if (selected) {
-                                  painRegions.add(region);
-                                } else {
-                                  painRegions.remove(region);
-                                  if (painRegions.isEmpty) painLevel = 0;
-                                }
-                              }),
-                      ),
-                  ],
-                ),
-                if (painRegions.isNotEmpty) ...[
-                  const SizedBox(height: SetflowSpacing.lg),
-                  Text(
-                    '현재 통증 정도 · ${painLevel.round()}/10',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  Slider(
-                    key: const ValueKey('pain-level-slider'),
-                    value: painLevel,
-                    min: 0,
-                    max: 10,
-                    divisions: 10,
-                    label: '${painLevel.round()}',
-                    onChanged: isSaving
-                        ? null
-                        : (value) => setState(() => painLevel = value),
-                  ),
-                ],
-                const SizedBox(height: SetflowSpacing.sm2),
-                AppTextField(
-                  key: const ValueKey('injury-note'),
-                  controller: injuryNoteController,
-                  label: '부상 · 통증 메모 (선택)',
-                  hint: '예: 오른쪽 어깨를 올릴 때 불편함, 치료 중인 부상 등',
-                  helperText: '진단명 대신 추천에 참고할 사실만 적어주세요. 최대 500자',
-                  minLines: 2,
-                  maxLines: 4,
-                  inputFormatters: [LengthLimitingTextInputFormatter(500)],
-                ),
-              ],
-            ),
-          ),
-          _SurveySection(
-            title: '4. 피해야 할 동작',
-            subtitle: '전문가에게 피하라고 안내받았거나 직접 불편한 동작만 선택하세요.',
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 7,
-              children: [
-                for (final movement in TrainingMovementRestriction.values)
-                  FilterChip(
-                    key: ValueKey('restriction-${movement.name}'),
-                    label: Text(movement.label),
-                    selected: restrictedMovements.contains(movement),
-                    onSelected: isSaving
-                        ? null
-                        : (selected) => setState(() {
-                            if (selected) {
-                              restrictedMovements.add(movement);
-                            } else {
-                              restrictedMovements.remove(movement);
-                            }
-                          }),
-                  ),
-              ],
-            ),
-          ),
-          _SurveySection(
-            title: '5. 오늘의 회복 상태',
-            subtitle: recoveryAnsweredForToday
-                ? '회복 응답은 오늘 추천에만 사용하고 이후 날짜에는 자동 적용하지 않습니다.'
-                : '오늘 상태를 다시 선택하지 않으면 이전 기록 날짜를 유지하며 오늘 추천에는 적용하지 않습니다.',
-            child: RadioGroup<TrainingRecoveryStatus>(
-              groupValue: recoveryStatus,
-              onChanged: isSaving
-                  ? (_) {}
-                  : (value) {
-                      if (value != null) {
-                        setState(() {
-                          recoveryStatus = value;
-                          recoveryAnsweredForToday = true;
-                        });
-                      }
-                    },
+            _SurveySection(
+              key: _equipmentSectionKey,
+              title: '2. 사용할 수 있는 장비',
+              subtitle:
+                  '선택한 장비만 추천에 사용해요. 헬스장에서 실제 사용할 수 있는 장비를 모두 선택해주세요. 맨몸만 선택하면 일부 부위는 추천이 없을 수 있어요.',
+              trailing: TextButton(
+                onPressed: isSaving
+                    ? null
+                    : () => setState(() {
+                        availableEquipment = Set.of(TrainingEquipment.values);
+                        showEquipmentError = false;
+                      }),
+                child: const Text('전체 선택'),
+              ),
               child: Column(
-                children: [
-                  for (final status in TrainingRecoveryStatus.values)
-                    RadioListTile<TrainingRecoveryStatus>(
-                      key: ValueKey('recovery-${status.name}'),
-                      value: status,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(status.label),
-                      enabled: !isSaving,
-                    ),
-                ],
-              ),
-            ),
-          ),
-          if (painLevel >= 7) ...[
-            const SizedBox(height: SetflowSpacing.xxs),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: context.setflowColors.error.withValues(alpha: .09),
-                borderRadius: BorderRadius.circular(SetflowRadii.md),
-              ),
-              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: context.setflowColors.error,
-                  ),
-                  SizedBox(width: SetflowSpacing.sm2),
-                  Expanded(
-                    child: Text(
-                      '통증이 7/10 이상이면 자동 추천을 중단합니다. 통증이 심하거나 갑자기 생겼다면 의료 전문가의 평가를 먼저 받아주세요.',
-                      style: TextStyle(
-                        height: 1.4,
-                        fontWeight: FontWeight.w700,
+                  if (showEquipmentError) ...[
+                    Text(
+                      '사용할 수 있는 장비를 하나 이상 선택해주세요.',
+                      key: const ValueKey('recommendation-equipment-error'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.setflowColors.error,
                       ),
+                    ),
+                    const SizedBox(height: SetflowSpacing.sm),
+                  ],
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 7,
+                    children: [
+                      for (final equipment in TrainingEquipment.values)
+                        FilterChip(
+                          key: ValueKey('equipment-${equipment.name}'),
+                          label: Text(equipment.label),
+                          selected: availableEquipment.contains(equipment),
+                          onSelected: isSaving
+                              ? null
+                              : (selected) => setState(() {
+                                  if (selected) {
+                                    availableEquipment.add(equipment);
+                                    showEquipmentError = false;
+                                  } else {
+                                    availableEquipment.remove(equipment);
+                                  }
+                                }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: SetflowSpacing.sm2),
+                  Text(
+                    '일반 웨이트 머신은 머신 구역 전체를 뜻합니다. 직접 만든 운동은 추천 정보를 설정하고 자동 추천에 포함한 경우에만 후보가 됩니다.',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.4,
                     ),
                   ),
                 ],
               ),
             ),
+            _SurveySection(
+              title: '3. 현재 통증 또는 최근 부상',
+              subtitle: '해당 부위를 모두 선택하세요. 이 정보만으로 운동을 진단하지 않습니다.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 7,
+                    children: [
+                      for (final region in TrainingPainRegion.values)
+                        FilterChip(
+                          key: ValueKey('pain-${region.name}'),
+                          label: Text(region.label),
+                          selected: painRegions.contains(region),
+                          onSelected: isSaving
+                              ? null
+                              : (selected) => setState(() {
+                                  if (selected) {
+                                    painRegions.add(region);
+                                  } else {
+                                    painRegions.remove(region);
+                                    if (painRegions.isEmpty) painLevel = 0;
+                                  }
+                                }),
+                        ),
+                    ],
+                  ),
+                  if (painRegions.isNotEmpty) ...[
+                    const SizedBox(height: SetflowSpacing.lg),
+                    Text(
+                      '현재 통증 정도 · ${painLevel.round()}/10',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    Slider(
+                      key: const ValueKey('pain-level-slider'),
+                      value: painLevel,
+                      min: 0,
+                      max: 10,
+                      divisions: 10,
+                      label: '${painLevel.round()}',
+                      onChanged: isSaving
+                          ? null
+                          : (value) => setState(() => painLevel = value),
+                    ),
+                  ],
+                  const SizedBox(height: SetflowSpacing.sm2),
+                  AppTextField(
+                    key: const ValueKey('injury-note'),
+                    controller: injuryNoteController,
+                    label: '부상 · 통증 메모 (선택)',
+                    hint: '예: 오른쪽 어깨를 올릴 때 불편함, 치료 중인 부상 등',
+                    helperText: '진단명 대신 추천에 참고할 사실만 적어주세요. 최대 500자',
+                    minLines: 2,
+                    maxLines: 4,
+                    inputFormatters: [LengthLimitingTextInputFormatter(500)],
+                  ),
+                ],
+              ),
+            ),
+            _SurveySection(
+              title: '4. 피해야 할 동작',
+              subtitle: '전문가에게 피하라고 안내받았거나 직접 불편한 동작만 선택하세요.',
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 7,
+                children: [
+                  for (final movement in TrainingMovementRestriction.values)
+                    FilterChip(
+                      key: ValueKey('restriction-${movement.name}'),
+                      label: Text(movement.label),
+                      selected: restrictedMovements.contains(movement),
+                      onSelected: isSaving
+                          ? null
+                          : (selected) => setState(() {
+                              if (selected) {
+                                restrictedMovements.add(movement);
+                              } else {
+                                restrictedMovements.remove(movement);
+                              }
+                            }),
+                    ),
+                ],
+              ),
+            ),
+            _SurveySection(
+              title: '5. 오늘의 회복 상태',
+              subtitle: recoveryAnsweredForToday
+                  ? '회복 응답은 오늘 추천에만 사용하고 이후 날짜에는 자동 적용하지 않습니다.'
+                  : '오늘 상태를 다시 선택하지 않으면 이전 기록 날짜를 유지하며 오늘 추천에는 적용하지 않습니다.',
+              child: RadioGroup<TrainingRecoveryStatus>(
+                groupValue: recoveryStatus,
+                onChanged: isSaving
+                    ? (_) {}
+                    : (value) {
+                        if (value != null) {
+                          setState(() {
+                            recoveryStatus = value;
+                            recoveryAnsweredForToday = true;
+                          });
+                        }
+                      },
+                child: Column(
+                  children: [
+                    for (final status in TrainingRecoveryStatus.values)
+                      RadioListTile<TrainingRecoveryStatus>(
+                        key: ValueKey('recovery-${status.name}'),
+                        value: status,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(status.label),
+                        enabled: !isSaving,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (painLevel >= 7) ...[
+              const SizedBox(height: SetflowSpacing.xxs),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: context.setflowColors.error.withValues(alpha: .09),
+                  borderRadius: BorderRadius.circular(SetflowRadii.md),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: context.setflowColors.error,
+                    ),
+                    SizedBox(width: SetflowSpacing.sm2),
+                    Expanded(
+                      child: Text(
+                        '통증이 7/10 이상이면 자동 추천을 중단합니다. 통증이 심하거나 갑자기 생겼다면 의료 전문가의 평가를 먼저 받아주세요.',
+                        style: TextStyle(
+                          height: 1.4,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.all(18),
@@ -484,6 +521,7 @@ class _RecommendationProfileScreenState
 
 class _SurveySection extends StatelessWidget {
   const _SurveySection({
+    super.key,
     required this.title,
     required this.subtitle,
     required this.child,

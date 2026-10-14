@@ -92,6 +92,9 @@ void main() {
         find.byKey(const ValueKey('setting-one-rep-max-formula')),
       );
       await tester.pumpAndSettle();
+      expect(find.textContaining('더 정확하다는 직접 근거는 없으며'), findsOneWidget);
+      expect(find.textContaining('11회 이상은 참고용'), findsOneWidget);
+      expect(find.textContaining('반복수 구간을 가리지'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('formula-brzycki')));
       await tester.pumpAndSettle();
 
@@ -124,7 +127,7 @@ void main() {
       expect(average.value, closeTo((epley.epley + brzycki.brzycki) / 2, .001));
     });
 
-    test('1회는 공식과 무관하게 그 무게가 1RM이다', () {
+    test('1회 기록의 추정값은 공식과 무관하게 기록 중량을 사용한다', () {
       for (final formula in OneRepMaxFormula.values) {
         expect(
           PerformanceEngine.estimate(120, 1, formula: formula)!.value,

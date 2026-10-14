@@ -624,7 +624,9 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
     super.didChangeDependencies();
     final state = AppScope.of(context);
     if (!_settingsLoaded) {
-      timer = state.restDefaultSeconds.toDouble();
+      // 과거 스냅샷의 범위 밖 값은 표시만 맞춘다. 사용자가 조작하기 전에는
+      // 저장된 기본값이나 기존 세트의 휴식을 변경하지 않는다.
+      timer = state.restDefaultSeconds.clamp(30, 600).toDouble();
       switch (widget.section) {
         case SettingSection.account:
           _nicknameController.text = state.memberDisplayName;
@@ -764,10 +766,11 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
             ListTile(
               title: const Text('휴식 타이머 기본값'),
               subtitle: Slider(
+                key: const ValueKey('setting-rest-default'),
                 value: timer,
                 min: 30,
-                max: 300,
-                divisions: 9,
+                max: 600,
+                divisions: 38,
                 label: '${timer.toInt()}초',
                 onChanged: (value) => setState(() => timer = value),
                 onChangeEnd: (value) =>

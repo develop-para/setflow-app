@@ -316,10 +316,19 @@ void main() {
         await tester.drag(find.byType(ListView).last, const Offset(0, -180));
         await tester.pumpAndSettle();
         final id = state.customExercises.single.id;
-        await _tap(
-          tester,
-          find.byKey(ValueKey('custom-recommendation-edit-$id')),
+        final settings = find.byKey(ValueKey('custom-recommendation-edit-$id'));
+        await tester.ensureVisible(settings);
+        await tester.pumpAndSettle();
+        final addButton = find.byKey(
+          const ValueKey('exercise-library-add-selected'),
         );
+        expect(addButton.hitTestable(), findsOneWidget);
+        expect(tester.getRect(addButton).bottom, lessThanOrEqualTo(672));
+        expect(
+          tester.getRect(settings).bottom,
+          lessThanOrEqualTo(tester.getRect(addButton).top),
+        );
+        await _tap(tester, settings);
         expect(find.text('추천 정보 설정'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },

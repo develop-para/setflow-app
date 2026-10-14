@@ -143,7 +143,7 @@ void main() {
     state.setTrainingFocus(_day, {TrainingMuscle.chest});
     state.skipRecommendedExercise(_day, 'pushup');
     await _tap(tester, find.text('운동 선택'));
-    expect(find.textContaining('추천 후보가 없어요'), findsOneWidget);
+    expect(find.textContaining('남은 후보를 모두 제외했어요'), findsOneWidget);
     await _tap(
       tester,
       find.byKey(const ValueKey('recommendation-recovery-primary')),

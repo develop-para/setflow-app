@@ -283,15 +283,15 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
             // 메모와 공유는 눌러도 토스트만 뜨고 아무것도 저장·공유하지 않아서 뺐다.
             // 만들어지면 그때 다시 넣는다 — 있는 척하는 메뉴가 없는 것보다 나쁘다.
             itemBuilder: (_) => [
-              if (state.autoRecommendNextExercise)
-                PopupMenuItem(
-                  value: 'recommendation-settings',
-                  child: Text(
-                    session.timeBudgetMinutes == null
-                        ? '시간·추천 설정'
-                        : '오늘 ${session.timeBudgetMinutes}분 · 추천 설정',
-                  ),
+              PopupMenuItem(
+                key: const ValueKey('daily-recommendation-settings'),
+                value: 'recommendation-settings',
+                child: Text(
+                  session.timeBudgetMinutes == null
+                      ? '시간·추천 설정'
+                      : '오늘 ${session.timeBudgetMinutes}분 · 추천 설정',
                 ),
+              ),
               if (state.autoRecommendNextExercise)
                 PopupMenuItem(
                   value: 'training-focus',
@@ -302,6 +302,7 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                   ),
                 ),
               const PopupMenuItem(
+                key: ValueKey('daily-set-defaults'),
                 value: 'set-defaults',
                 child: Row(
                   children: [
@@ -2935,18 +2936,23 @@ Future<bool> _showExerciseRecommendation(
 }) async {
   final unavailableEquipment = <String>{};
   ExerciseTemplate? alternativeTo;
+  // 명시적 추천 요청은 앱의 시작 계획을 생리적 상한처럼 강제하지 않는다.
+  // 세트 완료에 따른 자동 제안만 기본 계획 안에서 끝낸다.
+  var allowAdditionalVolume = allowRecovery;
   while (context.mounted) {
     final result = completedExercise == null
         ? state.firstExerciseRecommendationResultForDate(
             date,
             excludedTemplateIds: unavailableEquipment,
             alternativeTo: alternativeTo,
+            allowAdditionalVolume: allowAdditionalVolume,
           )
         : state.nextExerciseRecommendationResultForDate(
             date,
             completedExercise: completedExercise,
             excludedTemplateIds: unavailableEquipment,
             alternativeTo: alternativeTo,
+            allowAdditionalVolume: allowAdditionalVolume,
           );
     final recommendation = result.recommendation;
     if (recommendation == null) {
@@ -2960,9 +2966,17 @@ Future<bool> _showExerciseRecommendation(
         );
         return false;
       }
-      final retry = await recoverWorkoutRecommendation(context, date, reason);
-      if (!context.mounted || retry == null) return false;
-      if (retry) {
+      final recovery = await recoverWorkoutRecommendation(
+        context,
+        date,
+        reason,
+      );
+      if (!context.mounted || recovery == null) return false;
+      if (recovery == WorkoutRecommendationRecovery.additionalVolume) {
+        allowAdditionalVolume = true;
+        continue;
+      }
+      if (recovery == WorkoutRecommendationRecovery.retry) {
         unavailableEquipment.clear();
         alternativeTo = null;
         continue;
@@ -3113,6 +3127,14 @@ class _NextExerciseRecommendationSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: SetflowSpacing.xs2),
                   Text(prescriptionText, style: theme.textTheme.titleSmall),
+                  if (recommendation.isAdditionalVolume) ...[
+                    const SizedBox(height: SetflowSpacing.sm),
+                    Text(
+                      '앱의 기본 추천 계획을 넘는 추가 제안이에요. 이 계획값은 개인의 운동 상한이 아닙니다.',
+                      key: const ValueKey('recommendation-additional-volume'),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
                   const SizedBox(height: SetflowSpacing.sm2),
                   Text(
                     recommendation.historyCount < 2
@@ -3298,6 +3320,16 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
         item.resolvedEquipmentKey: item.resolvedEquipmentName,
     }.entries.toList()..sort((a, b) => a.value.compareTo(b.value));
     final showCategories = query.isEmpty && muscle == null && equipment == null;
+    final keyboardIsOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final recommendationEquipment =
+        state.recommendationProfile?.availableEquipment;
+    final recommendationEquipmentLabel = recommendationEquipment == null
+        ? '아직 설정하지 않았어요'
+        : recommendationEquipment.length == 1 &&
+              recommendationEquipment.contains(TrainingEquipment.bodyweight)
+        ? '맨몸만'
+        : '${recommendationEquipment.take(2).map((item) => item.label).join(' · ')}'
+              '${recommendationEquipment.length > 2 ? ' 외 ${recommendationEquipment.length - 2}종' : ''}';
 
     return Scaffold(
       appBar: AppBar(
@@ -3335,7 +3367,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       ),
       body: Column(
         children: [
-          if (state.autoRecommendNextExercise)
+          if (state.autoRecommendNextExercise && !keyboardIsOpen)
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 SetflowSpacing.gutter,
@@ -3343,14 +3375,47 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                 SetflowSpacing.gutter,
                 SetflowSpacing.sm,
               ),
-              child: AppButton(
-                key: const ValueKey('exercise-library-recommendation'),
-                label: '운동 추천',
-                icon: SetflowIcons.goal,
-                onPressed: recommending ? null : _recommendExercise,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AppButton(
+                    key: const ValueKey('exercise-library-recommendation'),
+                    label: '운동 추천',
+                    icon: SetflowIcons.goal,
+                    onPressed: recommending ? null : _recommendExercise,
+                  ),
+                  TextButton(
+                    key: const ValueKey(
+                      'exercise-library-recommendation-equipment',
+                    ),
+                    onPressed: recommending
+                        ? null
+                        : () => Navigator.of(context).push<bool>(
+                            MaterialPageRoute(
+                              builder: (_) => const RecommendationProfileScreen(
+                                focusEquipment: true,
+                              ),
+                            ),
+                          ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '추천 장비: $recommendationEquipmentLabel',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: SetflowSpacing.sm),
+                        const Text('변경'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           Padding(
+            key: const ValueKey('exercise-library-search'),
             padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
             child: AppTextField(
               controller: searchController,
@@ -3477,48 +3542,49 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                   )
                 : Column(
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-                        child: Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          runSpacing: SetflowSpacing.xs,
-                          children: [
-                            TextButton.icon(
-                              onPressed: () {
-                                searchController.clear();
-                                setState(() {
-                                  search = '';
-                                  muscle = null;
-                                  equipment = null;
-                                });
-                              },
-                              icon: const Icon(
-                                Icons.grid_view_rounded,
-                                size: 17,
+                      if (!keyboardIsOpen)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+                          child: Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            runSpacing: SetflowSpacing.xs,
+                            children: [
+                              TextButton.icon(
+                                onPressed: () {
+                                  searchController.clear();
+                                  setState(() {
+                                    search = '';
+                                    muscle = null;
+                                    equipment = null;
+                                  });
+                                },
+                                icon: const Icon(
+                                  Icons.grid_view_rounded,
+                                  size: 17,
+                                ),
+                                label: const Text('부위 선택'),
                               ),
-                              label: const Text('부위 선택'),
-                            ),
-                            Text(
-                              '${filtered.length}개 운동 · 전체 ${state.exercises.length}개',
-                              style: TextStyle(
-                                fontSize: SetflowFontSize.small,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w800,
+                              Text(
+                                '${filtered.length}개 운동 · 전체 ${state.exercises.length}개',
+                                style: TextStyle(
+                                  fontSize: SetflowFontSize.small,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
                       Expanded(
                         child: ListView.builder(
                           padding: const EdgeInsets.fromLTRB(
                             SetflowSpacing.gutter,
                             0,
                             SetflowSpacing.gutter,
-                            100,
+                            SetflowSpacing.xxl2,
                           ),
                           itemCount: filtered.length + 1,
                           itemBuilder: (_, index) {
@@ -3666,12 +3732,18 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
           ),
         ],
       ),
-      floatingActionButton: selected.isEmpty
+      bottomNavigationBar: selected.isEmpty || keyboardIsOpen
           ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _addSelected(context),
-              icon: const Icon(Icons.check),
-              label: Text('${selected.length}개 운동 추가'),
+          : SafeArea(
+              child: Padding(
+                padding: SetflowInsets.bottomAction,
+                child: AppButton(
+                  key: const ValueKey('exercise-library-add-selected'),
+                  onPressed: () => _addSelected(context),
+                  icon: SetflowIcons.addExercise,
+                  label: '${selected.length}개 운동 추가',
+                ),
+              ),
             ),
     );
   }
@@ -3743,6 +3815,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   }
 
   void _addSelected(BuildContext context) {
+    FocusScope.of(context).unfocus();
     final state = AppScope.of(context);
     for (final template in state.exercises.where(
       (item) => selected.contains(item.id),
@@ -4190,7 +4263,7 @@ class _ExerciseSetScreenState extends State<ExerciseSetScreen> {
                                   '${PerformanceEngine.formatWeight(previous.latestSessionBest.set.weight)}'
                                   '${state.weightUnit} × '
                                   '${previous.latestSessionBest.set.reps}회 · '
-                                  '추정 품질 ${previous.quality.label}',
+                                  '추정 ${previous.quality.label}',
                         style: TextStyle(
                           fontSize: SetflowFontSize.small,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -4875,11 +4948,12 @@ void _showSetDefaultsSheet(BuildContext context) {
   var rest = state.restDefaultSeconds;
   showSetflowSheet<void>(
     context,
+    isScrollControlled: true,
     showDragHandle: true,
     builder: (sheetContext) => StatefulBuilder(
       builder: (sheetContext, setSheetState) {
         final theme = Theme.of(sheetContext);
-        return Padding(
+        return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
             SetflowSpacing.gutter,
             0,
@@ -4893,8 +4967,8 @@ void _showSetDefaultsSheet(BuildContext context) {
               Text('세트 기본값', style: theme.textTheme.titleLarge),
               const SizedBox(height: SetflowSpacing.xs),
               Text(
-                '운동을 추가할 때 이 값으로 세트가 만들어져요. '
-                '이전 기록이 있으면 그때의 무게·횟수를 따라가요.',
+                '휴식은 직접 추가하는 새 운동의 기본값이에요. '
+                '추천 운동은 제안한 구성을 사용하며, 이미 추가한 운동과 완료 기록은 바뀌지 않아요.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

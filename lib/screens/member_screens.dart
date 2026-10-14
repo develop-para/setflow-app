@@ -3403,6 +3403,7 @@ class RoutinesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final storageLimit = state.routineStorageLimit;
     return Scaffold(
       appBar: AppBar(
         title: const Text('내 루틴'),
@@ -3437,7 +3438,9 @@ class RoutinesScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '저장된 루틴 ${state.routines.length}/4',
+                  storageLimit == null
+                      ? '저장된 루틴 ${state.routines.length}개'
+                      : '저장된 루틴 ${state.routines.length}/$storageLimit',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
@@ -3445,7 +3448,7 @@ class RoutinesScreen extends StatelessWidget {
                 ),
               ),
               Text(
-                '무료 플랜',
+                storageLimit == null ? '제한 없음' : '무료 플랜',
                 style: TextStyle(
                   fontSize: SetflowFontSize.small,
                   fontWeight: SetflowWeight.medium,
@@ -3481,9 +3484,7 @@ class RoutinesScreen extends StatelessWidget {
               onAction: () => _createRoutine(context),
             ),
           OutlinedButton.icon(
-            onPressed: state.routines.length >= 4
-                ? () => AppSnackbar.info(context, '무료 플랜은 루틴을 4개까지 저장할 수 있어요.')
-                : () => _createRoutine(context),
+            onPressed: () => _createRoutine(context),
             icon: const Icon(Icons.add),
             label: const Text('새 루틴 만들기'),
             style: OutlinedButton.styleFrom(
@@ -3567,8 +3568,11 @@ class RoutinesScreen extends StatelessWidget {
 
   Future<void> _createRoutine(BuildContext context) async {
     final state = AppScope.of(context);
-    if (state.routines.length >= 4) {
-      AppSnackbar.error(context, '무료 플랜은 루틴을 4개까지 저장할 수 있어요.');
+    if (state.hasReachedRoutineStorageLimit) {
+      AppSnackbar.error(
+        context,
+        '무료 플랜은 루틴을 ${state.routineStorageLimit}개까지 저장할 수 있어요.',
+      );
       return;
     }
     final draft = await showSetflowSheet<RoutineDraft>(
@@ -3597,7 +3601,12 @@ class RoutinesScreen extends StatelessWidget {
     if (created) {
       AppSnackbar.success(context, '새 루틴을 저장했어요.');
     } else {
-      AppSnackbar.error(context, '무료 플랜 저장 한도에 도달했어요.');
+      AppSnackbar.error(
+        context,
+        state.hasReachedRoutineStorageLimit
+            ? '무료 플랜은 루틴을 ${state.routineStorageLimit}개까지 저장할 수 있어요.'
+            : '루틴을 저장하지 못했어요. 다시 시도해주세요.',
+      );
     }
   }
 

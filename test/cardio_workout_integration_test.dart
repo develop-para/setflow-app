@@ -191,6 +191,155 @@ void main() {
       expect(added.reps, 0);
     });
 
+    test(
+      'mixed cardio segments retain their own moderate-equivalent minutes',
+      () async {
+        final state = AppState();
+        addTearDown(state.dispose);
+        await state.initialize();
+        state.sessions.clear();
+        state.setMemberProfile(goals: const ['체중 감량']);
+        final today = state.dateOnly(DateTime.now());
+        state.addExercise(today, exerciseById(state, 'bench'));
+        final session = state.sessions[today]!;
+        final bench = session.exercises.single;
+        for (final set in bench.sets) {
+          state.updateSet(set, weight: 40, reps: 8);
+          state.toggleSet(set, startRest: false);
+        }
+
+        for (final testCase in [
+          (
+            vigorousMinutes: 5,
+            vigorousRpe: 9.0,
+            moderateMinutes: 45,
+            moderateRpe: 3.0,
+            expected: 55,
+          ),
+          (
+            vigorousMinutes: 40,
+            vigorousRpe: 8.0,
+            moderateMinutes: 10,
+            moderateRpe: 6.0,
+            expected: 90,
+          ),
+        ]) {
+          final history = WorkoutSession(
+            date: today,
+            exercises: [
+              WorkoutExercise(
+                id: 'mixed-cardio',
+                template: exerciseById(state, 'run'),
+                sets: [
+                  WorkoutSetEntry(
+                    number: 1,
+                    weight: 0,
+                    reps: 0,
+                    completed: true,
+                    durationSeconds: testCase.vigorousMinutes * 60,
+                    intensityRpe: testCase.vigorousRpe,
+                  ),
+                  WorkoutSetEntry(
+                    number: 2,
+                    weight: 0,
+                    reps: 0,
+                    completed: true,
+                    durationSeconds: testCase.moderateMinutes * 60,
+                    intensityRpe: testCase.moderateRpe,
+                  ),
+                  WorkoutSetEntry(
+                    number: 3,
+                    weight: 0,
+                    reps: 0,
+                    completed: true,
+                    durationSeconds: 60 * 60,
+                    intensityRpe: 2,
+                  ),
+                  WorkoutSetEntry(
+                    number: 4,
+                    weight: 0,
+                    reps: 0,
+                    durationSeconds: 60 * 60,
+                    intensityRpe: 9,
+                  ),
+                ],
+              ),
+            ],
+          );
+          final next = ExerciseRecommendationEngine.recommendNext(
+            catalog: state.exercises,
+            session: session,
+            completedExercise: bench,
+            goals: state.goals,
+            weeklyHistory: [session, history],
+          )!;
+
+          expect(
+            next.cardioPrescription!.completedModerateEquivalentMinutes,
+            testCase.expected,
+            reason: '완료한 각 구간의 시간에 해당 강도만 적용하고 가벼운 활동·미완료 계획은 제외합니다.',
+          );
+        }
+      },
+    );
+
+    test(
+      'state cardio distance excludes time without a recorded distance',
+      () async {
+        final state = AppState();
+        addTearDown(state.dispose);
+        await state.initialize();
+        state.sessions.clear();
+        state.setMemberProfile(goals: const ['건강 유지']);
+        final today = state.dateOnly(DateTime.now());
+        final historyDay = today.subtract(const Duration(days: 1));
+        final run = exerciseById(state, 'run');
+        state.sessions[historyDay] = WorkoutSession(
+          date: historyDay,
+          exercises: [
+            WorkoutExercise(
+              id: 'distance-history',
+              template: run,
+              sets: [
+                WorkoutSetEntry(
+                  number: 1,
+                  weight: 0,
+                  reps: 0,
+                  completed: true,
+                  durationSeconds: 5 * 60,
+                  distanceKm: 2,
+                  intensityRpe: 8,
+                ),
+                WorkoutSetEntry(
+                  number: 2,
+                  weight: 0,
+                  reps: 0,
+                  completed: true,
+                  durationSeconds: 45 * 60,
+                  distanceKm: 3,
+                  intensityRpe: 4,
+                ),
+                WorkoutSetEntry(
+                  number: 3,
+                  weight: 0,
+                  reps: 0,
+                  completed: true,
+                  durationSeconds: 60 * 60,
+                  intensityRpe: 4,
+                ),
+              ],
+            ),
+          ],
+        );
+
+        expect(
+          state.recommendationFor(run, before: today)!.cardioDistanceKm,
+          3,
+          reason: '거리 있는 50분·5km의 속도만 사용해 30분 목표를 계산합니다.',
+        );
+      },
+    );
+
     test('RPE 1-2 cardio is excluded from WHO moderate minutes', () async {
       final state = AppState();
       addTearDown(state.dispose);

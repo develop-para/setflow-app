@@ -98,7 +98,7 @@ class CardioPrescription {
 /// The engine intentionally does not predict HRmax from age: prediction error
 /// is too large for an individual target. It provides an HR target only when a
 /// measured/known maximum is supplied (and resting HR for HRR prescriptions).
-/// Moderate continuous work is the safe default. The narrow 4 x 4 protocol is
+/// Moderate continuous work is the general default. The narrow 4 x 4 protocol is
 /// gated to advanced users with explicit vigorous-exercise eligibility and a
 /// recent training base because the source RCT studied trained healthy adults.
 abstract final class CardioPrescriptionEngine {
@@ -173,7 +173,9 @@ abstract final class CardioPrescriptionEngine {
           CardioEvidenceIds.acsmExercisePrescription2011,
           CardioEvidenceIds.aerobicIntervals2007,
         },
-        reason: '최근 유산소 기반이 있는 숙련자의 체력 향상 목표에 맞춰 4분 고강도와 3분 회복을 4회 반복합니다.',
+        reason:
+            '체력 향상 목표에 4분 고강도 4회와 구간 사이 3분 회복을 제안합니다. '
+            '최근 28일 중 20분 이상 운동한 6일은 앱의 제안 조건이며 안전성을 확인하는 기준은 아닙니다.',
         safetyNote:
             '고강도 운동이 가능한 상태에서만 사용하고, 통증·흉부 불편·비정상적인 숨참이나 어지럼이 있으면 중단하세요.',
         targetHeartRate: target,
@@ -298,16 +300,25 @@ abstract final class CardioPrescriptionEngine {
     DateTime now,
   ) {
     final cutoff = now.subtract(const Duration(days: 28));
-    return history
-        .where(
-          (record) =>
-              !record.occurredAt.isBefore(cutoff) &&
-              !record.occurredAt.isAfter(now) &&
-              (record.perceivedExertion == null ||
-                  record.perceivedExertion! >= 3) &&
-              record.duration >= const Duration(minutes: 20),
-        )
-        .length;
+    final secondsByDay = <DateTime, int>{};
+    for (final record in history) {
+      if (record.occurredAt.isBefore(cutoff) ||
+          record.occurredAt.isAfter(now) ||
+          (record.perceivedExertion != null && record.perceivedExertion! < 3)) {
+        continue;
+      }
+      final local = record.occurredAt.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      secondsByDay.update(
+        day,
+        (seconds) => seconds + record.duration.inSeconds,
+        ifAbsent: () => record.duration.inSeconds,
+      );
+    }
+    // Segments and multiple modalities on one date do not create additional
+    // training days. The threshold is an app eligibility rule, not a test of
+    // individual readiness for vigorous exercise.
+    return secondsByDay.values.where((seconds) => seconds >= 20 * 60).length;
   }
 
   static double? _distanceAtRecentMedianSpeed({
@@ -315,26 +326,31 @@ abstract final class CardioPrescriptionEngine {
     required Iterable<CardioSessionRecord> history,
     required Duration duration,
   }) {
-    final matching =
-        history
-            .where(
-              (record) =>
-                  record.exerciseId == exerciseId &&
-                  (record.perceivedExertion == null ||
-                      record.perceivedExertion! >= 3) &&
-                  record.derivedAverageSpeedKph != null &&
-                  record.derivedAverageSpeedKph! > 0 &&
-                  record.derivedAverageSpeedKph! <= 80,
-            )
-            .toList()
-          ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-    if (matching.isEmpty) return null;
-    final recent =
-        matching
-            .take(5)
-            .map((record) => record.derivedAverageSpeedKph!)
-            .toList()
-          ..sort();
+    final totalsByDay = <DateTime, (int seconds, double distanceKm)>{};
+    for (final record in history) {
+      final speed = record.derivedAverageSpeedKph;
+      if (record.exerciseId != exerciseId ||
+          (record.perceivedExertion != null && record.perceivedExertion! < 3) ||
+          speed == null ||
+          speed <= 0 ||
+          speed > 80) {
+        continue;
+      }
+      // Include only segments with a recorded distance/speed. Adding the time
+      // of a distance-less segment would invent a slower pace.
+      final seconds = record.duration.inSeconds;
+      final distance = speed * seconds / Duration.secondsPerHour;
+      final local = record.occurredAt.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      final previous = totalsByDay[day] ?? (0, 0.0);
+      totalsByDay[day] = (previous.$1 + seconds, previous.$2 + distance);
+    }
+    if (totalsByDay.isEmpty) return null;
+    final days = totalsByDay.keys.toList()..sort((a, b) => b.compareTo(a));
+    final recent = [
+      for (final day in days.take(5))
+        totalsByDay[day]!.$2 * Duration.secondsPerHour / totalsByDay[day]!.$1,
+    ]..sort();
     final middle = recent.length ~/ 2;
     final median = recent.length.isOdd
         ? recent[middle]
@@ -347,9 +363,14 @@ abstract final class CardioPrescriptionEngine {
     TrainingGoal.strength => '근력 운동과 병행 가능한 중강도 유산소로 주간 심폐 활동량을 채웁니다.',
     TrainingGoal.hypertrophy => '근비대 운동과 병행 가능한 중강도 유산소로 주간 심폐 활동량을 채웁니다.',
     TrainingGoal.fatLoss =>
-      '체중·체지방 관리를 위한 활동량은 최소 주 150분부터 용량-반응 관계가 있어 40분 중강도로 구성했습니다.',
-    TrainingGoal.endurance => '고강도 조건이 확인되기 전에는 중강도 지속 운동으로 안전하게 유산소 기반을 만듭니다.',
-    TrainingGoal.health => '일반 건강 권고의 주 150분 중강도 목표를 향해 30분 지속 운동으로 구성했습니다.',
+      '체중·체지방 관리에는 주간 활동량과 점진적 증가를 참고합니다. '
+          '40분은 일반 30분보다 활동 시간을 더 배정한 앱의 시작 제안이며, 개인별 최적 시간이나 필수량은 아닙니다.',
+    TrainingGoal.endurance =>
+      '고강도 운동 가능 여부가 확인되지 않았을 때는 중강도 지속 운동을 기본으로 제안합니다. '
+          '30분은 조절 가능한 시작 제안이며 현재 수행 가능한 시간부터 늘려요.',
+    TrainingGoal.health =>
+      '일반 건강 권고의 주 150분 중강도 목표를 여러 날에 나누기 위한 30분 시작 제안입니다. '
+          '한 번에 30분을 채워야만 효과가 있는 것은 아닙니다.',
   };
 
   static String _continuousSafetyNote(TrainingGoal goal) {

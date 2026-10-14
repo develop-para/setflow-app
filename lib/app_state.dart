@@ -497,7 +497,7 @@ class AppState extends ChangeNotifier {
               : '${target.muscle.label} 오늘 ${PerformanceEngine.formatWeight(today[target.muscle] ?? 0)}/${target.dailySets}세트',
         )
         .join(' · ');
-    return '개인 코칭의 추가 운동량 예산에 도달했어요. $details. 오늘 미완료 계획도 포함합니다. 직접 추가하거나 계획을 확인할 수 있어요.';
+    return '개인 코칭의 자동 추천 계획을 채웠어요. $details. 오늘 미완료 계획도 포함합니다. 개인의 운동 상한은 아니며 운동 추천에서 추가로 받을 수 있어요.';
   }
 
   String recommendationVolumeStopReasonForDate(DateTime date) {
@@ -535,7 +535,7 @@ class AppState extends ChangeNotifier {
         .where((set) => set.type != '웜업' && !set.completed)
         .length;
     return [
-      '자동 추천의 추가 운동량 한도에 도달했어요.',
+      '자동 추천의 기본 계획을 채웠어요. 개인의 운동 상한은 아니며 운동 추천에서 추가로 받을 수 있어요.',
       '오늘 전체 $planned세트${pending > 0 ? ' (미완료 $pending세트 포함)' : ''}.',
       if (details.isNotEmpty) '$details.',
     ].join(' ');
@@ -660,7 +660,7 @@ class AppState extends ChangeNotifier {
       for (final exercise in workout.session.exercises) {
         final sets = exercise.sets
             .where((set) => !workout.isCancelled || set.completed)
-            .map((set) => set.copy()..completed = set.completed)
+            .map((set) => set.copy())
             .toList();
         if (sets.isEmpty) continue;
         final session = sessions.putIfAbsent(
@@ -949,6 +949,12 @@ class AppState extends ChangeNotifier {
   final AccountProfileRepository? accountProfileRepository;
 
   bool get isAdmin => _verifiedAdmin;
+  int? get routineStorageLimit => hasPaidPlan || _verifiedAdmin ? null : 4;
+  bool get hasReachedRoutineStorageLimit {
+    final limit = routineStorageLimit;
+    return limit != null && routines.length >= limit;
+  }
+
   bool get usesLiveBusinessData => businessRepository != null;
   bool get hasPendingBusinessMutation => _businessMutations.isNotEmpty;
   bool isBusinessMutationPending(String key) =>
@@ -2347,16 +2353,19 @@ class AppState extends ChangeNotifier {
     DateTime date, {
     Set<String> excludedTemplateIds = const {},
     ExerciseTemplate? alternativeTo,
+    bool allowAdditionalVolume = false,
   }) => firstExerciseRecommendationResultForDate(
     date,
     excludedTemplateIds: excludedTemplateIds,
     alternativeTo: alternativeTo,
+    allowAdditionalVolume: allowAdditionalVolume,
   ).recommendation;
 
   ExerciseRecommendationResult firstExerciseRecommendationResultForDate(
     DateTime date, {
     Set<String> excludedTemplateIds = const {},
     ExerciseTemplate? alternativeTo,
+    bool allowAdditionalVolume = false,
   }) {
     final day = dateOnly(date);
     final session = sessions[day] ?? WorkoutSession(date: day, exercises: []);
@@ -2378,6 +2387,7 @@ class AppState extends ChangeNotifier {
       recommendationProfile: recommendationProfile,
       preferences: recommendationPreferences,
       alternativeTo: alternativeTo,
+      allowAdditionalVolume: allowAdditionalVolume,
       now: DateTime.now(),
     );
   }
@@ -2434,11 +2444,13 @@ class AppState extends ChangeNotifier {
     required WorkoutExercise completedExercise,
     Set<String> excludedTemplateIds = const {},
     ExerciseTemplate? alternativeTo,
+    bool allowAdditionalVolume = false,
   }) => nextExerciseRecommendationResultForDate(
     date,
     completedExercise: completedExercise,
     excludedTemplateIds: excludedTemplateIds,
     alternativeTo: alternativeTo,
+    allowAdditionalVolume: allowAdditionalVolume,
   ).recommendation;
 
   ExerciseRecommendationResult nextExerciseRecommendationResultForDate(
@@ -2446,6 +2458,7 @@ class AppState extends ChangeNotifier {
     required WorkoutExercise completedExercise,
     Set<String> excludedTemplateIds = const {},
     ExerciseTemplate? alternativeTo,
+    bool allowAdditionalVolume = false,
   }) => ExerciseRecommendationEngine.evaluateNext(
     catalog: _curatedRecommendationCatalog,
     session: sessionFor(date),
@@ -2457,6 +2470,7 @@ class AppState extends ChangeNotifier {
     recommendationProfile: recommendationProfile,
     preferences: recommendationPreferences,
     alternativeTo: alternativeTo,
+    allowAdditionalVolume: allowAdditionalVolume,
     now: DateTime.now(),
   );
 
@@ -2600,7 +2614,8 @@ class AppState extends ChangeNotifier {
     for (final session in sessions.values) {
       if (before != null && !session.date.isBefore(before)) continue;
       for (final exercise in session.exercises) {
-        if (!exercise.template.isCardio ||
+        if (exercise.id.startsWith('seed_') ||
+            !exercise.template.isCardio ||
             CustomExerciseRecommendationRules.cardioDefinitionIdFor(
                   exercise.template,
                 ) ==
@@ -2609,48 +2624,31 @@ class AppState extends ChangeNotifier {
         }
         // WHO's moderate/vigorous target must not silently count an unknown
         // intensity or RPE 1–2 light activity as moderate exercise.
-        final completed = exercise.sets
-            .where(
-              (set) =>
-                  set.completed &&
-                  set.durationSeconds > 0 &&
-                  set.intensityRpe >= 3,
-            )
-            .toList();
-        if (completed.isEmpty) continue;
-        final durationSeconds = completed.fold<int>(
-          0,
-          (sum, set) => sum + set.durationSeconds,
-        );
-        final distances = completed
-            .map((set) => set.distanceKm)
-            .where((distance) => distance > 0)
-            .toList();
-        final rpes = completed
-            .map((set) => set.intensityRpe)
-            .where((rpe) => rpe > 0)
-            .toList();
-        final averageRpe = rpes.isEmpty
-            ? null
-            : rpes.reduce((a, b) => a + b) / rpes.length;
-        yield CardioSessionRecord(
-          id: exercise.id,
-          exerciseId: exercise.template.id,
-          definitionExerciseId: exercise.template.id.startsWith('custom_')
-              ? CustomExerciseRecommendationRules.cardioDefinitionIdFor(
-                  exercise.template,
-                )
-              : null,
-          occurredAt: session.date,
-          duration: Duration(seconds: durationSeconds),
-          intensity: averageRpe != null && averageRpe >= 7
-              ? CardioIntensity.vigorous
-              : CardioIntensity.moderate,
-          distanceKm: distances.isEmpty
-              ? null
-              : distances.reduce((a, b) => a + b),
-          perceivedExertion: averageRpe,
-        );
+        // Each segment keeps its own duration and intensity: an average RPE
+        // would incorrectly classify an entire mixed-intensity workout.
+        for (final (index, set) in exercise.sets.indexed) {
+          if (!set.completed ||
+              set.durationSeconds <= 0 ||
+              set.intensityRpe < 3) {
+            continue;
+          }
+          yield CardioSessionRecord(
+            id: '${exercise.id}:$index',
+            exerciseId: exercise.template.id,
+            definitionExerciseId: exercise.template.id.startsWith('custom_')
+                ? CustomExerciseRecommendationRules.cardioDefinitionIdFor(
+                    exercise.template,
+                  )
+                : null,
+            occurredAt: session.date,
+            duration: Duration(seconds: set.durationSeconds),
+            intensity: set.intensityRpe >= 7
+                ? CardioIntensity.vigorous
+                : CardioIntensity.moderate,
+            distanceKm: set.distanceKm > 0 ? set.distanceKm : null,
+            perceivedExertion: set.intensityRpe,
+          );
+        }
       }
     }
   }
@@ -2797,10 +2795,9 @@ class AppState extends ChangeNotifier {
                       : resistanceRecommendation?.repsForSet(index) ??
                             suggestedReps,
                   durationSeconds: template.isDurationHold ? 60 : 0,
-                  restSeconds:
-                      resistanceRecommendation?.restSeconds ??
-                      resistancePrescription?.restSeconds ??
-                      restDefaultSeconds,
+                  // 직접 기록하는 운동은 사용자가 정한 기본 휴식을 따른다.
+                  // 추천 운동의 근거별 휴식은 addRecommendedExercise에서 적용한다.
+                  restSeconds: restDefaultSeconds,
                 ),
               ),
       ),
@@ -2816,10 +2813,10 @@ class AppState extends ChangeNotifier {
     exercise.sets.add(
       WorkoutSetEntry(
         number: exercise.sets.length + 1,
-        // 몸이 곧 중량인 운동에 가짜 20kg을 남기지 않는다.
+        // 이전 세트가 없으면 기구 무게를 추측하지 않고 직접 선택하게 한다.
         weight: template.isCardio || !template.usesWeight
             ? 0
-            : previous?.weight ?? 20,
+            : previous?.weight ?? 0,
         reps: template.isCardio || template.isDurationHold
             ? 0
             : previous?.reps ?? 10,
@@ -3140,7 +3137,7 @@ class AppState extends ChangeNotifier {
         .where(
           (exercise) => !existingTemplateIds.contains(exercise.template.id),
         )
-        .map((exercise) => exercise.copy())
+        .map((exercise) => exercise.copy(asPlan: true))
         .toList();
     if (copiedExercises.isEmpty) return 0;
 
@@ -4590,7 +4587,7 @@ class AppState extends ChangeNotifier {
     if (routine.isPaid && !hasPaidPlan && !_verifiedAdmin) {
       return RoutineImportResult.paidPlanRequired;
     }
-    if (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4) {
+    if (hasReachedRoutineStorageLimit) {
       return RoutineImportResult.limitReached;
     }
     routines.add(routine);
@@ -4650,14 +4647,14 @@ class AppState extends ChangeNotifier {
     if (routine.isPaid && !hasPaidPlan && !_verifiedAdmin) {
       return RoutineImportResult.paidPlanRequired;
     }
-    if (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4) {
+    if (hasReachedRoutineStorageLimit) {
       return RoutineImportResult.limitReached;
     }
     return RoutineImportResult.imported;
   }
 
   bool createRoutine(String name, String description, {Color? color}) {
-    if (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4) return false;
+    if (hasReachedRoutineStorageLimit) return false;
     routines.add(
       RoutineData(
         id: 'routine_${DateTime.now().microsecondsSinceEpoch}',
@@ -4681,8 +4678,7 @@ class AppState extends ChangeNotifier {
   }) async {
     final normalizedName = name.trim();
     final normalizedDescription = description.trim();
-    if (normalizedName.isEmpty ||
-        (!hasPaidPlan && !_verifiedAdmin && routines.length >= 4)) {
+    if (normalizedName.isEmpty || hasReachedRoutineStorageLimit) {
       return false;
     }
     final repository = businessRepository;
@@ -4850,26 +4846,17 @@ class AppState extends ChangeNotifier {
             intensityRpe: 3,
           ),
         ]
-      : [
-          RoutineSetPlan(
-            number: 1,
-            weight: 40,
-            reps: 10,
+      : List.generate(
+          defaultSetCount ?? 3,
+          (index) => RoutineSetPlan(
+            number: index + 1,
+            // 새 계획의 중량은 사용자가 정한다. 관찰하지 않은 kg을 넣지 않는다.
+            weight: 0,
+            reps: exercise.isDurationHold ? 0 : defaultRepCount ?? 10,
+            durationSeconds: exercise.isDurationHold ? 60 : 0,
             restSeconds: restDefaultSeconds,
           ),
-          RoutineSetPlan(
-            number: 2,
-            weight: 40,
-            reps: 10,
-            restSeconds: restDefaultSeconds,
-          ),
-          RoutineSetPlan(
-            number: 3,
-            weight: 40,
-            reps: 8,
-            restSeconds: restDefaultSeconds,
-          ),
-        ];
+        );
 
   SavePersonalRoutineInput _personalRoutineSaveInput(
     RoutineData routine, {

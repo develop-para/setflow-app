@@ -44,6 +44,7 @@ ExerciseRecommendationResult _first({
   Set<String> excluded = const {},
   ExerciseTemplate? alternativeTo,
   DateTime? now,
+  bool allowAdditionalVolume = false,
 }) => ExerciseRecommendationEngine.evaluateFirst(
   catalog: catalog ?? exerciseCatalog,
   session: session ?? WorkoutSession(date: _day, exercises: []),
@@ -54,6 +55,7 @@ ExerciseRecommendationResult _first({
   excludedTemplateIds: excluded,
   alternativeTo: alternativeTo,
   now: now,
+  allowAdditionalVolume: allowAdditionalVolume,
 );
 
 void _expectStop(
@@ -268,6 +270,262 @@ void main() {
     expect(historical.sets, hasLength(12));
     expect(historical.sets.every((set) => set.completed), isTrue);
   });
+
+  test(
+    'eight chest sets stop automatic suggestions but an explicit request continues in the same focus',
+    () {
+      final record = _record('bench', sets: 8);
+      final session = WorkoutSession(
+        date: _day,
+        exercises: [record],
+        trainingFocus: {TrainingMuscle.chest},
+      );
+      final profile = _profile(
+        equipment: TrainingEquipment.values.toSet(),
+        experience: TrainingExperienceLevel.advanced,
+      );
+      ExerciseRecommendationResult next({bool extra = false}) =>
+          ExerciseRecommendationEngine.evaluateNext(
+            catalog: [
+              _exercise('bench'),
+              _exercise('chest_press'),
+              _exercise('latpull'),
+            ],
+            session: session,
+            completedExercise: record,
+            goals: ['근육 증가'],
+            recommendationProfile: profile,
+            allowAdditionalVolume: extra,
+          );
+      _expectStop(next(), ExerciseRecommendationStopReason.volumeReached);
+      final recommendation = next(extra: true).recommendation!;
+      expect(recommendation.template.id, 'chest_press');
+      expect(recommendation.sets, 3);
+      expect(recommendation.targetRepsBySet, [8, 8, 8]);
+      expect(recommendation.isAdditionalVolume, isTrue);
+      expect(recommendation.reason, contains('추가 추천 요청'));
+      expect(recommendation.summary, contains('직접 요청한 추가 운동'));
+      _expectStop(next(), ExerciseRecommendationStopReason.volumeReached);
+      expect(session.trainingFocus, {TrainingMuscle.chest});
+      expect(session.exercises, [record]);
+      expect(record.sets, hasLength(8));
+    },
+  );
+
+  test(
+    'an explicit first request may exceed a weekly default without changing history',
+    () {
+      final historical = _record('bench', sets: 12);
+      final history = [
+        WorkoutSession(
+          date: _day.subtract(const Duration(days: 1)),
+          exercises: [historical],
+        ),
+      ];
+      final session = WorkoutSession(
+        date: _day,
+        exercises: [],
+        trainingFocus: {TrainingMuscle.chest},
+      );
+      _expectStop(
+        _first(
+          catalog: [_exercise('chest_press')],
+          session: session,
+          history: history,
+        ),
+        ExerciseRecommendationStopReason.volumeReached,
+      );
+      final recommendation = ExerciseRecommendationEngine.recommendFirst(
+        catalog: [_exercise('chest_press')],
+        session: session,
+        goals: ['근육 증가'],
+        weeklyHistory: history,
+        allowAdditionalVolume: true,
+      )!;
+      expect(recommendation.sets, 3);
+      expect(recommendation.isAdditionalVolume, isTrue);
+      expect(session.exercises, isEmpty);
+      expect(historical.sets, hasLength(12));
+      expect(historical.sets.every((set) => set.completed), isTrue);
+    },
+  );
+
+  test('an explicit next request may exceed the total session default', () {
+    final record = _record('bench', sets: 24);
+    final session = WorkoutSession(
+      date: _day,
+      exercises: [record],
+      trainingFocus: {TrainingMuscle.back},
+    );
+    final profile = _profile(
+      equipment: TrainingEquipment.values.toSet(),
+      experience: TrainingExperienceLevel.advanced,
+    );
+    NextExerciseRecommendation? next({bool extra = false}) =>
+        ExerciseRecommendationEngine.recommendNext(
+          catalog: [_exercise('latpull')],
+          session: session,
+          completedExercise: record,
+          goals: ['근육 증가'],
+          recommendationProfile: profile,
+          allowAdditionalVolume: extra,
+        );
+    expect(next(), isNull);
+    final recommendation = next(extra: true)!;
+    expect(recommendation.template.id, 'latpull');
+    expect(recommendation.sets, 3);
+    expect(recommendation.isAdditionalVolume, isTrue);
+    expect(next(), isNull);
+    expect(record.sets, hasLength(24));
+  });
+
+  test(
+    'additional volume does not relax pain equipment experience movement focus or exclusions',
+    () {
+      final allEquipment = TrainingEquipment.values.toSet();
+      for (final (result, reason) in [
+        (
+          _first(profile: _profile(pain: 7), allowAdditionalVolume: true),
+          ExerciseRecommendationStopReason.severePain,
+        ),
+        (
+          _first(
+            catalog: [_exercise('bench')],
+            profile: _profile(),
+            allowAdditionalVolume: true,
+          ),
+          ExerciseRecommendationStopReason.profileConstraints,
+        ),
+        (
+          _first(
+            catalog: [_exercise('deadlift')],
+            profile: _profile(equipment: allEquipment),
+            allowAdditionalVolume: true,
+          ),
+          ExerciseRecommendationStopReason.profileConstraints,
+        ),
+        (
+          _first(
+            catalog: [_exercise('bench')],
+            profile: _profile(
+              equipment: allEquipment,
+              restrictions: {TrainingMovementRestriction.horizontalPress},
+            ),
+            allowAdditionalVolume: true,
+          ),
+          ExerciseRecommendationStopReason.profileConstraints,
+        ),
+        (
+          _first(
+            catalog: [_exercise('bench')],
+            session: WorkoutSession(
+              date: _day,
+              exercises: [],
+              trainingFocus: {TrainingMuscle.back},
+            ),
+            allowAdditionalVolume: true,
+          ),
+          ExerciseRecommendationStopReason.trainingFocus,
+        ),
+        (
+          _first(
+            catalog: [_exercise('bench')],
+            excluded: {'bench'},
+            allowAdditionalVolume: true,
+          ),
+          ExerciseRecommendationStopReason.excludedExercises,
+        ),
+        (
+          _first(
+            catalog: [_exercise('bench')],
+            preferences: const RecommendationPreferences().exclude(
+              'bench',
+              true,
+            ),
+            allowAdditionalVolume: true,
+          ),
+          ExerciseRecommendationStopReason.excludedExercises,
+        ),
+        (
+          _first(
+            catalog: [_exercise('bench')],
+            session: WorkoutSession(
+              date: _day,
+              exercises: [],
+              skippedRecommendationIds: {'bench'},
+            ),
+            allowAdditionalVolume: true,
+          ),
+          ExerciseRecommendationStopReason.excludedExercises,
+        ),
+      ]) {
+        _expectStop(result, reason);
+      }
+    },
+  );
+
+  test(
+    'additional volume still respects spent time and fits only sets that remain',
+    () {
+      final record = _record('bench', sets: 8);
+      final startedAt = _day.add(const Duration(hours: 10));
+      final session = WorkoutSession(
+        date: _day,
+        exercises: [record],
+        trainingFocus: {TrainingMuscle.chest},
+        timeBudgetMinutes: 15,
+        startedAt: startedAt,
+      );
+      _expectStop(
+        ExerciseRecommendationEngine.evaluateNext(
+          catalog: [_exercise('chest_press')],
+          session: session,
+          completedExercise: record,
+          goals: ['근육 증가'],
+          allowAdditionalVolume: true,
+          now: startedAt.add(const Duration(minutes: 30)),
+        ),
+        ExerciseRecommendationStopReason.timeBudget,
+      );
+      final fitted = _first(
+        catalog: [_exercise('bench')],
+        session: WorkoutSession(
+          date: _day,
+          exercises: [],
+          timeBudgetMinutes: 5,
+        ),
+        allowAdditionalVolume: true,
+      ).recommendation!;
+      expect(fitted.sets, 2);
+      expect(fitted.isAdditionalVolume, isFalse);
+      expect(fitted.reason, contains('2세트를 제안합니다'));
+      expect(fitted.reason, isNot(contains('3세트를 제안합니다')));
+      expect(fitted.summary, isNot(contains('기본 추천 계획을 넘어')));
+      expect(fitted.estimatedDurationSeconds, lessThanOrEqualTo(300));
+      final weeklyRemainingOne = _first(
+        catalog: [_exercise('bench')],
+        history: [
+          WorkoutSession(
+            date: _day.subtract(const Duration(days: 1)),
+            exercises: [_record('bench', sets: 11)],
+          ),
+        ],
+        session: WorkoutSession(
+          date: _day,
+          exercises: [],
+          timeBudgetMinutes: 3,
+        ),
+        allowAdditionalVolume: true,
+      ).recommendation!;
+      expect(weeklyRemainingOne.sets, 1);
+      expect(weeklyRemainingOne.isAdditionalVolume, isFalse);
+      expect(weeklyRemainingOne.reason, contains('1세트를 제안합니다'));
+      expect(weeklyRemainingOne.reason, isNot(contains('기본 추천 계획을 넘어')));
+      expect(weeklyRemainingOne.summary, isNot(contains('추가 운동 추천')));
+      expect(session.startedAt, startedAt);
+      expect(record.sets, hasLength(8));
+    },
+  );
 
   test(
     'spent time is distinguished from volume and preserves workout state',

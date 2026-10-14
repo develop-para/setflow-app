@@ -241,6 +241,8 @@ abstract final class ResistancePrescriptionEngine {
     required WorkoutSession session,
     RecommendationProfile? profile,
     PersonalCoachingPlan? coachingPlan,
+    bool allowAdditionalVolume = false,
+    int? maximumSets,
   }) {
     final base = PerformanceEngine.prescriptionFor(goal);
     final compound = isCompound(template);
@@ -276,7 +278,9 @@ abstract final class ResistancePrescriptionEngine {
     );
     var sets = beginner || !compound ? 2 : base.sets;
     if (fatigued) sets = math.max(1, sets - 1);
-    sets = sets.clamp(1, math.max(1, remaining));
+    if (!allowAdditionalVolume) {
+      sets = sets.clamp(1, math.max(1, remaining));
+    }
 
     // 실제 같은 종목의 작업세트만 기준으로 삼는다. e1RM을 반복 곱해
     // 수행한 적 없는 무게를 만들어 내거나, 다른 기구의 kg을 옮기지 않는다.
@@ -409,10 +413,14 @@ abstract final class ResistancePrescriptionEngine {
           trend = RecommendationTrend.returning;
           sets = math.max(1, sets - 1);
         }
-        weight = (weight * .9 * 2).floorToDouble() / 2;
-        loadReason = stale
-            ? '4주 넘게 쉬어 최근 중량에서 10% 낮춰 다시 시작합니다.'
-            : '오늘 피로를 반영해 최근 중량에서 10% 낮췄습니다.';
+        final previousWeight = weight;
+        weight = _reducedWeight(previousWeight, .9);
+        loadReason = _reducedWeightReason(
+          trigger: stale ? '이 종목의 마지막 기록이 4주보다 오래되어' : '오늘 입력한 피로를 반영해',
+          previousWeight: previousWeight,
+          weight: weight,
+          reductionPercent: 10,
+        );
       } else if (previous.length >= 2 &&
           upperSuccess(previous.first) &&
           upperSuccess(previous[1]) &&
@@ -426,9 +434,15 @@ abstract final class ResistancePrescriptionEngine {
           missed(latest) &&
           missed(previous[1].$2) &&
           previous.first.$1.difference(previous[1].$1).inDays <= 28) {
-        weight = (weight * .95 * 2).floorToDouble() / 2;
+        final previousWeight = weight;
+        weight = _reducedWeight(previousWeight, .95);
         trend = RecommendationTrend.declining;
-        loadReason = '두 번 연속 최소 반복에 미달해 중량을 5% 낮췄습니다.';
+        loadReason = _reducedWeightReason(
+          trigger: '두 번 연속 목표 최소 반복에 미달해',
+          previousWeight: previousWeight,
+          weight: weight,
+          reductionPercent: 5,
+        );
       } else if (declining) {
         trend = RecommendationTrend.declining;
         sets = math.max(1, sets - 1);
@@ -459,9 +473,10 @@ abstract final class ResistancePrescriptionEngine {
         final addSet = targets.every(
           (target) => target.adjustment == CoachingAdjustment.increase,
         );
-        sets = (latest.length + (addSet ? 1 : 0))
-            .clamp(2, 5)
-            .clamp(1, math.max(1, remaining));
+        sets = (latest.length + (addSet ? 1 : 0)).clamp(2, 5);
+        if (!allowAdditionalVolume) {
+          sets = sets.clamp(1, math.max(1, remaining));
+        }
       }
     }
     final muscles = primaryMuscles(template);
@@ -512,6 +527,11 @@ abstract final class ResistancePrescriptionEngine {
                   set.reps >= minReps &&
                   (set.rir == null || (set.rir! >= 2 && set.rir! <= 10)),
             );
+        // 시간 때문에 세트가 줄어도 원래 계획의 반복 증가 판단은 바꾸지 않는다.
+        // 시간 계산에 사용한 반복 목표를 보존한 뒤 최종 세트만 잘라낸다.
+        if (maximumSets != null) {
+          sets = math.min(sets, math.max(1, maximumSets));
+        }
         targetRepsBySet = List.generate(sets, (index) {
           // 추가 세트에는 이전 마지막 작업세트보다 높은 목표를 주지 않는다.
           final existing = index < latest.length;
@@ -524,12 +544,20 @@ abstract final class ResistancePrescriptionEngine {
             : ' 이번 목표는 $targets회입니다. ${full ? '반복 여유·수행 변화 또는 증량 조건을 확인하며 유지합니다.' : '완전한 작업세트 기록이 부족해 횟수 증가를 보류합니다.'}';
       }
     }
+    if (maximumSets != null) {
+      sets = math.min(sets, math.max(1, maximumSets));
+      targetRepsBySet = targetRepsBySet.take(sets).toList();
+    }
     final volumeLabel = muscles
         .map(
           (muscle) =>
               '${muscle.label} ${PerformanceEngine.formatWeight(weeklyVolume[muscle] ?? 0)}세트',
         )
         .join(' · ');
+    final exceedsDefaultPlan = allowAdditionalVolume && sets > remaining;
+    final volumeReason = exceedsDefaultPlan
+        ? '사용자의 추가 추천 요청으로 앱의 기본 추천 계획을 넘어 $sets세트를 제안합니다.'
+        : '${beginner ? '입문 단계와 ' : ''}${fatigued ? '오늘 피로와 ' : ''}남은 운동량을 반영해 $sets세트를 제안합니다.';
     return WorkoutRecommendation(
       template: template,
       goal: goal,
@@ -543,11 +571,13 @@ abstract final class ResistancePrescriptionEngine {
       restSeconds: compound ? (goal == TrainingGoal.strength ? 180 : 120) : 90,
       reason:
           '$loadReason 이번 주 완료량과 오늘 계획은 $volumeLabel입니다. '
-          '${beginner ? '입문 단계와 ' : ''}${fatigued ? '오늘 피로와 ' : ''}남은 운동량을 반영해 $sets세트를 제안합니다. '
+          '$volumeReason '
           '$coachingReason',
-      summary: coachingReason.isEmpty
-          ? loadReason
-          : '$loadReason 개인 코칭 기준을 반영했습니다.',
+      summary: [
+        if (exceedsDefaultPlan) '앱의 기본 추천 계획을 넘어 직접 요청한 추가 운동 추천입니다.',
+        loadReason,
+        if (coachingReason.isNotEmpty) '개인 코칭 기준을 반영했습니다.',
+      ].join(' '),
       historyCount: previous.length,
       trend: trend,
       evidenceIds: {
@@ -556,14 +586,37 @@ abstract final class ResistancePrescriptionEngine {
         'grgic-2018',
         'pelland_2026_dose_response',
         'refalo_2023_proximity_failure',
+        'halperin_2022_rir_accuracy',
         if (fatigued) 'craven_2022_sleep_loss',
         if (coachingPlan != null) 'larsen_2021_autoregulation',
+        if (coachingPlan != null) 'hickmott_2022_autoregulation',
       },
       evidenceNote:
           '주동근은 1세트, 보조근은 0.5세트로 계산합니다. '
           '세트 예산·반복 범위·중량 증감 폭은 연구 원칙을 적용한 앱 기본값입니다. '
-          '가능하면 2–3회 더 할 여유를 두고, 수행 결과에 맞게 조절해주세요. '
+          '2–3회 여유는 조절 가능한 시작 안내입니다. RIR은 사용자의 주관적 추정이며 남은 반복수의 정확한 실측값이 아닙니다. '
+          '${goal == TrainingGoal.hypertrophy ? '근비대에는 실패에 가까운 수행도 고려하지만 개인의 최적 RIR은 확정되지 않았습니다. ' : ''}'
+          '${coachingPlan != null ? '수행을 반영한 조정이 고정된 부하 계획보다 우월하다고 확정하지 않습니다. ' : ''}'
           '$coachingReason',
     );
+  }
+
+  static double _reducedWeight(double weight, double factor) {
+    final rounded = (weight * factor * 2).floorToDouble() / 2;
+    return rounded > 0 ? rounded : weight;
+  }
+
+  static String _reducedWeightReason({
+    required String trigger,
+    required double previousWeight,
+    required double weight,
+    required int reductionPercent,
+  }) {
+    String label(double value) =>
+        value % 1 == 0 ? value.toStringAsFixed(0) : value.toString();
+    return '$trigger 약 $reductionPercent% 감량을 기준으로 한 앱 조정입니다. '
+        '0.5kg 단위를 반영해 ${label(previousWeight)}kg → '
+        '${label(weight)}kg을 제안합니다.'
+        '${weight == previousWeight ? ' 0kg이 되지 않도록 기존 중량을 유지했습니다.' : ''}';
   }
 }

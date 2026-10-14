@@ -28,6 +28,7 @@ class NextExerciseRecommendation {
     this.estimatedDurationSeconds = 0,
     this.personalCoachingReason = '',
     this.targetRepsBySet = const [],
+    this.isAdditionalVolume = false,
   });
 
   final ExerciseTemplate template;
@@ -47,6 +48,7 @@ class NextExerciseRecommendation {
   final int estimatedDurationSeconds;
   final String personalCoachingReason;
   final List<int> targetRepsBySet;
+  final bool isAdditionalVolume;
   int repsForSet(int index) =>
       index < targetRepsBySet.length ? targetRepsBySet[index] : minReps;
   String get targetRepsLabel => List.generate(sets, repsForSet).join(' / ');
@@ -92,6 +94,7 @@ abstract final class ExerciseRecommendationEngine {
     ExerciseTemplate? alternativeTo,
     DateTime? now,
     PersonalCoachingPlan? coachingPlan,
+    bool allowAdditionalVolume = false,
   }) => evaluateNext(
     catalog: catalog,
     session: session,
@@ -104,6 +107,7 @@ abstract final class ExerciseRecommendationEngine {
     alternativeTo: alternativeTo,
     now: now,
     coachingPlan: coachingPlan,
+    allowAdditionalVolume: allowAdditionalVolume,
   ).recommendation;
 
   static ExerciseRecommendationResult evaluateNext({
@@ -118,6 +122,7 @@ abstract final class ExerciseRecommendationEngine {
     ExerciseTemplate? alternativeTo,
     DateTime? now,
     PersonalCoachingPlan? coachingPlan,
+    bool allowAdditionalVolume = false,
   }) => _evaluate(
     catalog: catalog,
     session: session,
@@ -130,6 +135,7 @@ abstract final class ExerciseRecommendationEngine {
     alternativeTo: alternativeTo,
     now: now,
     coachingPlan: coachingPlan,
+    allowAdditionalVolume: allowAdditionalVolume,
   );
 
   static NextExerciseRecommendation? recommendFirst({
@@ -143,6 +149,7 @@ abstract final class ExerciseRecommendationEngine {
     ExerciseTemplate? alternativeTo,
     DateTime? now,
     PersonalCoachingPlan? coachingPlan,
+    bool allowAdditionalVolume = false,
   }) => evaluateFirst(
     catalog: catalog,
     session: session,
@@ -154,6 +161,7 @@ abstract final class ExerciseRecommendationEngine {
     alternativeTo: alternativeTo,
     now: now,
     coachingPlan: coachingPlan,
+    allowAdditionalVolume: allowAdditionalVolume,
   ).recommendation;
 
   static ExerciseRecommendationResult evaluateFirst({
@@ -167,6 +175,7 @@ abstract final class ExerciseRecommendationEngine {
     ExerciseTemplate? alternativeTo,
     DateTime? now,
     PersonalCoachingPlan? coachingPlan,
+    bool allowAdditionalVolume = false,
   }) => _evaluate(
     catalog: catalog,
     session: session,
@@ -178,6 +187,7 @@ abstract final class ExerciseRecommendationEngine {
     alternativeTo: alternativeTo,
     now: now,
     coachingPlan: coachingPlan,
+    allowAdditionalVolume: allowAdditionalVolume,
   );
 
   static ExerciseRecommendationResult _evaluate({
@@ -192,6 +202,7 @@ abstract final class ExerciseRecommendationEngine {
     required DateTime? now,
     WorkoutExercise? completedExercise,
     PersonalCoachingPlan? coachingPlan,
+    required bool allowAdditionalVolume,
   }) {
     if (goals.isEmpty) {
       return const ExerciseRecommendationResult(
@@ -341,6 +352,7 @@ abstract final class ExerciseRecommendationEngine {
     );
     candidates.removeWhere(
       (item) =>
+          !allowAdditionalVolume &&
           !item.isCardio &&
           ResistancePrescriptionEngine.remainingSets(
                 template: item,
@@ -376,6 +388,7 @@ abstract final class ExerciseRecommendationEngine {
             session: session,
             profile: recommendationProfile,
             coachingPlan: coachingPlan,
+            allowAdditionalVolume: allowAdditionalVolume,
           ),
         );
     CardioPrescription? cardioFor(ExerciseTemplate item) =>
@@ -487,9 +500,23 @@ abstract final class ExerciseRecommendationEngine {
 
     final prescription = PerformanceEngine.prescriptionFor(trainingGoal);
     final cardioPrescription = candidate.isCardio ? cardioFor(candidate) : null;
-    final historicalRecommendation = candidate.isCardio
+    final originalResistanceRecommendation = candidate.isCardio
         ? null
         : resistanceFor(candidate);
+    final historicalRecommendation = candidate.isCardio
+        ? null
+        : setsById[candidate.id] == null
+        ? originalResistanceRecommendation
+        : ResistancePrescriptionEngine.prescribe(
+            template: candidate,
+            goal: trainingGoal,
+            history: history,
+            session: session,
+            profile: recommendationProfile,
+            coachingPlan: coachingPlan,
+            allowAdditionalVolume: allowAdditionalVolume,
+            maximumSets: setsById[candidate.id],
+          );
     final recommendedSets =
         setsById[candidate.id] ??
         historicalRecommendation?.sets ??
@@ -548,6 +575,20 @@ abstract final class ExerciseRecommendationEngine {
     };
     return ExerciseRecommendationResult(
       recommendation: NextExerciseRecommendation(
+        isAdditionalVolume:
+            allowAdditionalVolume &&
+            !candidate.isCardio &&
+            recommendedSets >
+                ResistancePrescriptionEngine.remainingSets(
+                  template: candidate,
+                  goal: trainingGoal,
+                  weeklyVolume: weeklyVolume,
+                  todayVolume: todayVolume,
+                  profile: recommendationProfile,
+                  plannedSessionSets:
+                      ResistancePrescriptionEngine.plannedSessionSets(session),
+                  coachingPlan: coachingPlan,
+                ),
         personalCoachingReason: candidate.isCardio
             ? ''
             : coachingPlan?.reasonFor(
@@ -576,7 +617,7 @@ abstract final class ExerciseRecommendationEngine {
           if (preferredCount >= 2) '여러 날 직접 선택한 운동입니다.',
           historicalRecommendation?.summary ?? cardioPrescription!.reason,
           if (historicalRecommendation != null &&
-              recommendedSets < historicalRecommendation.sets)
+              recommendedSets < originalResistanceRecommendation!.sets)
             '남은 시간에 맞춰 $recommendedSets세트로 줄여 제안합니다.',
         ].join(' '),
         historyCount:
@@ -1187,51 +1228,39 @@ abstract final class ExerciseRecommendationEngine {
   ) sync* {
     for (final session in sessions) {
       for (final exercise in session.exercises) {
-        if (!exercise.template.isCardio ||
+        if (exercise.id.startsWith('seed_') ||
+            !exercise.template.isCardio ||
             CustomExerciseRecommendationRules.cardioDefinitionIdFor(
                   exercise.template,
                 ) ==
                 null) {
           continue;
         }
-        final completed = exercise.sets
-            .where(
-              (set) =>
-                  set.completed &&
-                  set.durationSeconds > 0 &&
-                  set.intensityRpe >= 3,
-            )
-            .toList();
-        if (completed.isEmpty) continue;
-        final durationSeconds = completed.fold<int>(
-          0,
-          (sum, set) => sum + set.durationSeconds,
-        );
-        final distances = completed
-            .map((set) => set.distanceKm)
-            .where((distance) => distance > 0)
-            .toList();
-        final averageRpe =
-            completed.fold<double>(0, (sum, set) => sum + set.intensityRpe) /
-            completed.length;
-        yield CardioSessionRecord(
-          id: exercise.id,
-          exerciseId: exercise.template.id,
-          definitionExerciseId: exercise.template.id.startsWith('custom_')
-              ? CustomExerciseRecommendationRules.cardioDefinitionIdFor(
-                  exercise.template,
-                )
-              : null,
-          occurredAt: session.date,
-          duration: Duration(seconds: durationSeconds),
-          intensity: averageRpe >= 7
-              ? CardioIntensity.vigorous
-              : CardioIntensity.moderate,
-          distanceKm: distances.isEmpty
-              ? null
-              : distances.reduce((left, right) => left + right),
-          perceivedExertion: averageRpe,
-        );
+        // Preserve each segment's intensity instead of applying an average
+        // RPE to all recorded minutes.
+        for (final (index, set) in exercise.sets.indexed) {
+          if (!set.completed ||
+              set.durationSeconds <= 0 ||
+              set.intensityRpe < 3) {
+            continue;
+          }
+          yield CardioSessionRecord(
+            id: '${exercise.id}:$index',
+            exerciseId: exercise.template.id,
+            definitionExerciseId: exercise.template.id.startsWith('custom_')
+                ? CustomExerciseRecommendationRules.cardioDefinitionIdFor(
+                    exercise.template,
+                  )
+                : null,
+            occurredAt: session.date,
+            duration: Duration(seconds: set.durationSeconds),
+            intensity: set.intensityRpe >= 7
+                ? CardioIntensity.vigorous
+                : CardioIntensity.moderate,
+            distanceKm: set.distanceKm > 0 ? set.distanceKm : null,
+            perceivedExertion: set.intensityRpe,
+          );
+        }
       }
     }
   }

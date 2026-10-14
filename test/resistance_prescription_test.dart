@@ -3,6 +3,7 @@ import 'package:setflow/app_state.dart';
 import 'package:setflow/data/app_repository.dart';
 import 'package:setflow/data/app_snapshot_codec.dart';
 import 'package:setflow/data/exercise_catalog.dart';
+import 'package:setflow/domain/personal_coaching.dart';
 import 'package:setflow/services/resistance_prescription_engine.dart';
 
 final _day = DateTime(2026, 9, 15);
@@ -42,12 +43,16 @@ WorkoutRecommendation _prescribe({
   List<WorkoutSession> history = const [],
   WorkoutSession? session,
   RecommendationProfile? profile,
+  PersonalCoachingPlan? coachingPlan,
+  bool allowAdditionalVolume = false,
 }) => ResistancePrescriptionEngine.prescribe(
   template: _template(id),
   goal: TrainingGoal.hypertrophy,
   history: history,
   session: session ?? WorkoutSession(date: _day, exercises: []),
   profile: profile,
+  coachingPlan: coachingPlan,
+  allowAdditionalVolume: allowAdditionalVolume,
 );
 
 void main() {
@@ -148,6 +153,48 @@ void main() {
     expect(_prescribe(history: [_session('bench', daysAgo: 40)]).weight, 54);
   });
 
+  test('load adjustments report the actual rounded weights and app rule', () {
+    final returning = _prescribe(
+      history: [_session('bench', daysAgo: 40, weight: 3.5)],
+    );
+    expect(returning.weight, 3);
+    expect(returning.reason, contains('이 종목의 마지막 기록'));
+    expect(returning.reason, contains('약 10% 감량을 기준으로 한 앱 조정'));
+    expect(returning.reason, contains('0.5kg 단위를 반영해 3.5kg → 3kg'));
+    expect(returning.summary, contains('3.5kg → 3kg'));
+
+    final missed = _prescribe(
+      history: [
+        _session('bench', daysAgo: 2, reps: 6, weight: 3.5),
+        _session('bench', daysAgo: 5, reps: 6, weight: 3.5),
+      ],
+    );
+    expect(missed.weight, 3);
+    expect(missed.reason, contains('약 5% 감량을 기준으로 한 앱 조정'));
+    expect(missed.reason, contains('0.5kg 단위를 반영해 3.5kg → 3kg'));
+    expect(missed.summary, contains('3.5kg → 3kg'));
+  });
+
+  test('load reductions preserve positive small recorded weights', () {
+    for (final weight in [0.25, 0.5]) {
+      final returningRecord = _session('bench', daysAgo: 40, weight: weight);
+      final returning = _prescribe(history: [returningRecord]);
+      expect(returning.weight, weight);
+      expect(returning.reason, contains('0kg이 되지 않도록 기존 중량을 유지'));
+      expect(returning.reason, contains('${weight}kg → ${weight}kg'));
+      expect(returningRecord.exercises.single.sets.first.weight, weight);
+
+      final missed = _prescribe(
+        history: [
+          _session('bench', daysAgo: 2, reps: 6, weight: weight),
+          _session('bench', daysAgo: 5, reps: 6, weight: weight),
+        ],
+      );
+      expect(missed.weight, weight);
+      expect(missed.reason, contains('0kg이 되지 않도록 기존 중량을 유지'));
+    }
+  });
+
   test(
     'different weights and oversized increments cannot trigger a load increase',
     () {
@@ -185,6 +232,240 @@ void main() {
         ),
         isNull,
       );
+    },
+  );
+
+  test(
+    'additional volume retains base prescription instead of clipping to one set',
+    () {
+      final session = _session('bench', sets: 18);
+      final defaultResult = _prescribe(session: session);
+      final extra = _prescribe(session: session, allowAdditionalVolume: true);
+      expect(defaultResult.sets, 1);
+      expect(extra.sets, 3);
+      expect(extra.targetRepsBySet, [8, 8, 8]);
+      expect(extra.reason, contains('앱의 기본 추천 계획을 넘어'));
+      expect(extra.summary, contains('직접 요청한 추가 운동'));
+      expect(
+        _prescribe(
+          id: 'curl',
+          session: session,
+          allowAdditionalVolume: true,
+        ).sets,
+        2,
+      );
+      expect(
+        _prescribe(session: session).sets,
+        1,
+        reason: '추가 요청은 이후 처방에 남지 않는다',
+      );
+      expect(session.exercises.single.sets, hasLength(18));
+    },
+  );
+
+  test(
+    'explicit requests inside the default plan keep ordinary explanations',
+    () {
+      for (final session in [
+        WorkoutSession(date: _day, exercises: []),
+        _session('bench', sets: 3),
+      ]) {
+        final result = _prescribe(
+          session: session,
+          allowAdditionalVolume: true,
+        );
+        expect(result.sets, 3);
+        expect(result.reason, isNot(contains('추가 추천 요청')));
+        expect(result.summary, isNot(contains('추가 운동 추천')));
+        expect(result.reason, contains('남은 운동량을 반영해 3세트'));
+      }
+
+      final exceeds = _prescribe(
+        session: _session('bench', sets: 4),
+        allowAdditionalVolume: true,
+      );
+      expect(exceeds.sets, 3);
+      expect(exceeds.reason, contains('앱의 기본 추천 계획을 넘어'));
+      expect(exceeds.summary, contains('직접 요청한 추가 운동 추천'));
+    },
+  );
+
+  test(
+    'time-limited coaching sets retain the repetition targets that were fitted',
+    () {
+      final history = [
+        for (final daysAgo in [1, 3, 5, 7])
+          _session('bench', daysAgo: daysAgo, sets: 3, reps: 8, rir: 2),
+      ];
+      final session = WorkoutSession(date: _day, exercises: []);
+      final coaching = PersonalCoachingPlan(
+        weekStart: _day.subtract(Duration(days: _day.weekday - 1)),
+        targets: {
+          TrainingMuscle.chest: const MuscleCoachingTarget(
+            muscle: TrainingMuscle.chest,
+            weeklySets: 20,
+            dailySets: 10,
+            trainingDays: 2,
+            historyDays: 4,
+            adjustment: CoachingAdjustment.increase,
+            reason: '최근 수행을 참고해 세트 추가를 제안합니다.',
+          ),
+        },
+      );
+
+      WorkoutRecommendation prescribe({int? maximumSets}) =>
+          ResistancePrescriptionEngine.prescribe(
+            template: _template('bench'),
+            goal: TrainingGoal.hypertrophy,
+            history: history,
+            session: session,
+            coachingPlan: coaching,
+            maximumSets: maximumSets,
+          );
+
+      final full = prescribe();
+      final fitted = prescribe(maximumSets: 3);
+      expect(full.sets, 4);
+      expect(full.targetRepsBySet, [8, 8, 8, 8]);
+      expect(fitted.sets, 3);
+      expect(fitted.targetRepsBySet, [8, 8, 8]);
+      expect(
+        fitted.targetRepsBySet,
+        full.targetRepsBySet.take(3).toList(),
+        reason: '세트를 줄인 뒤 +1회 판단이 새로 켜지면 시간 추정도 늘어난다',
+      );
+      expect(fitted.weight, full.weight);
+      expect(fitted.historyCount, 4);
+      expect(fitted.reason, contains('이번 목표는 8 / 8 / 8회'));
+      expect(fitted.reason, contains('3세트를 제안합니다'));
+      expect(fitted.reason, isNot(contains('4세트를 제안합니다')));
+      expect(
+        history.map((item) => item.exercises.single.sets.length),
+        everyElement(3),
+      );
+      expect(
+        history
+            .expand((item) => item.exercises.single.sets)
+            .map((set) => set.reps),
+        everyElement(8),
+      );
+      expect(session.exercises, isEmpty);
+    },
+  );
+
+  test('additional explanation uses the final fatigue-adjusted set count', () {
+    final fatigued = RecommendationProfile(
+      experienceLevel: TrainingExperienceLevel.intermediate,
+      availableEquipment: {TrainingEquipment.barbell, TrainingEquipment.bench},
+      painRegions: const {},
+      painLevel: 0,
+      restrictedMovements: const {},
+      injuryNote: '',
+      recoveryStatus: TrainingRecoveryStatus.fatigued,
+      recoveryRecordedAt: _day,
+      updatedAt: _day,
+    );
+    final result = _prescribe(
+      session: _session('bench', sets: 4),
+      history: [_session('bench', daysAgo: 2, weight: 0.5)],
+      profile: fatigued,
+      allowAdditionalVolume: true,
+    );
+    expect(result.sets, 2, reason: '피로 조정 후 두 세트는 남은 기본 계획 안에 들어간다');
+    expect(result.reason, isNot(contains('추가 추천 요청')));
+    expect(result.summary, isNot(contains('추가 운동 추천')));
+    expect(result.weight, 0.5);
+    expect(result.reason, contains('오늘 입력한 피로'));
+    expect(result.reason, contains('약 10% 감량을 기준으로 한 앱 조정'));
+    expect(result.reason, contains('0.5kg → 0.5kg'));
+  });
+
+  test(
+    'additional volume keeps fatigue and return reductions and same-exercise load',
+    () {
+      final session = _session('bench', sets: 18);
+      final fatigued = RecommendationProfile(
+        experienceLevel: TrainingExperienceLevel.intermediate,
+        availableEquipment: {
+          TrainingEquipment.barbell,
+          TrainingEquipment.bench,
+        },
+        painRegions: const {},
+        painLevel: 0,
+        restrictedMovements: const {},
+        injuryNote: '',
+        recoveryStatus: TrainingRecoveryStatus.fatigued,
+        recoveryRecordedAt: _day,
+        updatedAt: _day,
+      );
+      final fatigueResult = _prescribe(
+        history: [_session('bench', daysAgo: 2)],
+        session: session,
+        profile: fatigued,
+        allowAdditionalVolume: true,
+      );
+      expect(fatigueResult.sets, 2);
+      expect(fatigueResult.weight, 54);
+      final returnResult = _prescribe(
+        history: [_session('bench', daysAgo: 40)],
+        session: session,
+        allowAdditionalVolume: true,
+      );
+      expect(returnResult.sets, 2);
+      expect(returnResult.weight, 54);
+      expect(returnResult.trend, RecommendationTrend.returning);
+      expect(
+        _prescribe(
+          id: 'curl',
+          history: [_session('bench', daysAgo: 2)],
+          session: session,
+          allowAdditionalVolume: true,
+        ).weight,
+        0,
+      );
+    },
+  );
+
+  test(
+    'additional volume keeps personal coaching per-exercise bounds without the budget clamp',
+    () {
+      final coaching = PersonalCoachingPlan(
+        weekStart: ResistancePrescriptionEngine.weekStart(_day),
+        targets: {
+          TrainingMuscle.chest: const MuscleCoachingTarget(
+            muscle: TrainingMuscle.chest,
+            weeklySets: 12,
+            dailySets: 6,
+            trainingDays: 2,
+            historyDays: 4,
+            adjustment: CoachingAdjustment.maintain,
+            reason: '가슴 기록 기반 계획 유지',
+          ),
+        },
+      );
+      final history = [
+        for (var daysAgo = 1; daysAgo <= 4; daysAgo++)
+          _session('bench', daysAgo: daysAgo, sets: 6, reps: 10),
+      ];
+      final session = _session('bench', sets: 18);
+      expect(
+        _prescribe(
+          history: history,
+          session: session,
+          coachingPlan: coaching,
+        ).sets,
+        1,
+      );
+      final result = _prescribe(
+        history: history,
+        session: session,
+        coachingPlan: coaching,
+        allowAdditionalVolume: true,
+      );
+      expect(result.sets, 5);
+      expect(result.weight, 60);
+      expect(result.targetRepsBySet, hasLength(5));
+      expect(result.reason, contains('가슴 기록 기반 계획 유지'));
     },
   );
 
