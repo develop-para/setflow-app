@@ -28,6 +28,7 @@ val appDistributionUpdates = (project.findProperty("dart-defines") as? String)
 
 android {
     buildFeatures { buildConfig = true }
+    testOptions { unitTests.isIncludeAndroidResources = true }
     namespace = "com.teampara.setflow"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -80,7 +81,18 @@ flutter {
     source = "../.."
 }
 
+// Host Android tests package the merged assets too. Flutter writes into that
+// directory in a separate task, so AGP 9 needs this dependency stated explicitly.
+tasks.configureEach {
+    if (name.startsWith("package") && name.endsWith("UnitTestForUnitTest")) {
+        val variant = name.removePrefix("package").removeSuffix("UnitTestForUnitTest")
+        dependsOn("copyFlutterAssets$variant")
+    }
+}
+
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.16.1")
     implementation("com.google.firebase:firebase-appdistribution-api:16.0.0-beta20")
     if (appDistributionUpdates) {
         implementation("com.google.firebase:firebase-appdistribution:16.0.0-beta20")

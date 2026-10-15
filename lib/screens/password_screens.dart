@@ -124,6 +124,7 @@ class _PasswordResetRequestScreenState
   }
 
   Future<void> _submit() async {
+    if (_submitting || !mounted) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _submitting = true;
@@ -278,14 +279,17 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
   }
 
   Future<void> _submit() async {
+    if (_submitting || !mounted) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final currentPassword = _currentController.text;
+    final newPassword = _passwordController.text;
     setState(() {
       _submitting = true;
       _error = null;
     });
     try {
       if (widget.requiresCurrentPassword) {
-        final ok = await _auth.verifyPassword(_currentController.text);
+        final ok = await _auth.verifyPassword(currentPassword);
         if (!mounted) return;
         if (!ok) {
           setState(() {
@@ -295,7 +299,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
           return;
         }
       }
-      await _auth.updatePassword(newPassword: _passwordController.text);
+      await _auth.updatePassword(newPassword: newPassword);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (error) {

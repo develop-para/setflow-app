@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
@@ -17,6 +19,8 @@ class _RecordingAuthService implements AuthService {
     this.currentPassword = 'correct-horse',
     this.email = 'me@example.com',
     this.failWith,
+    this.pending,
+    this.pendingVerification,
   });
 
   final bool signUpSignsIn;
@@ -25,6 +29,8 @@ class _RecordingAuthService implements AuthService {
 
   /// Thrown by the next network-ish call, to exercise the error paths.
   final Object? failWith;
+  final Completer<void>? pending;
+  final Completer<bool>? pendingVerification;
 
   final calls = <String>[];
   String? lastResetEmail;
@@ -53,14 +59,15 @@ class _RecordingAuthService implements AuthService {
     required String nickname,
   }) async {
     calls.add('signUp');
+    await pending?.future;
     return AuthSignUpResult(signedIn: signUpSignsIn);
   }
 
   @override
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async => calls.add('signIn');
+  Future<void> signIn({required String email, required String password}) async {
+    calls.add('signIn');
+    await pending?.future;
+  }
 
   @override
   Future<bool> signInWithSocial(SocialLoginProvider provider) async => false;
@@ -69,6 +76,7 @@ class _RecordingAuthService implements AuthService {
   Future<void> sendPasswordReset({required String email}) async {
     calls.add('sendPasswordReset');
     lastResetEmail = email;
+    await pending?.future;
     if (failWith != null) throw failWith!;
   }
 
@@ -82,13 +90,14 @@ class _RecordingAuthService implements AuthService {
   Future<void> updatePassword({required String newPassword}) async {
     calls.add('updatePassword');
     lastNewPassword = newPassword;
+    await pending?.future;
     if (failWith != null) throw failWith!;
   }
 
   @override
   Future<bool> verifyPassword(String password) async {
     calls.add('verifyPassword');
-    return password == currentPassword;
+    return pendingVerification?.future ?? password == currentPassword;
   }
 
   @override
@@ -116,6 +125,55 @@ void main() {
     Auth.use(service);
     addTearDown(Auth.reset);
     return service;
+  }
+
+  for (final flow in [
+    (
+      name: '로그인',
+      screen: const EmailAuthScreen(initialMode: EmailAuthMode.signIn),
+      values: ['me@example.com', 'longenough'],
+      request: 'signIn',
+    ),
+    (
+      name: '회원가입',
+      screen: const EmailAuthScreen(initialMode: EmailAuthMode.signUp),
+      values: ['테스터', 'me@example.com', 'longenough', 'longenough'],
+      request: 'signUp',
+    ),
+    (
+      name: '재설정 메일',
+      screen: const PasswordResetRequestScreen(),
+      values: ['me@example.com'],
+      request: 'sendPasswordReset',
+    ),
+    (
+      name: '새 비밀번호',
+      screen: const NewPasswordScreen(),
+      values: ['longenough', 'longenough'],
+      request: 'updatePassword',
+    ),
+  ]) {
+    testWidgets('${flow.name} 요청 중 키보드 제출을 반복해도 한 번만 전송한다', (tester) async {
+      final pending = Completer<void>();
+      final auth = bind(_RecordingAuthService(pending: pending));
+      await show(tester, flow.screen);
+      final fields = find.byType(TextFormField);
+      for (var index = 0; index < flow.values.length; index++) {
+        await tester.enterText(fields.at(index), flow.values[index]);
+      }
+
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      await tester.showKeyboard(fields.last);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+
+      expect(auth.calls.where((call) => call == flow.request), hasLength(1));
+      await tester.pumpWidget(const SizedBox.shrink());
+      pending.complete();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
   }
 
   group('password policy', () {
@@ -268,6 +326,48 @@ void main() {
   });
 
   group('changing a password while signed in', () {
+    testWidgets('현재 비밀번호 확인 중 편집해도 제출 때 검증한 비밀번호를 저장한다', (tester) async {
+      final verification = Completer<bool>();
+      final auth = bind(
+        _RecordingAuthService(pendingVerification: verification),
+      );
+      await show(
+        tester,
+        const NewPasswordScreen(requiresCurrentPassword: true),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('current-password')),
+        'correct-horse',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('new-password')),
+        'validated-password',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('confirm-password')),
+        'validated-password',
+      );
+      await tester.tap(find.byKey(const ValueKey('new-password-save')));
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const ValueKey('new-password')),
+        'short',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('confirm-password')),
+        'short',
+      );
+      verification.complete(true);
+      await tester.pumpAndSettle();
+
+      expect(auth.lastNewPassword, 'validated-password');
+      expect(
+        auth.calls.where((call) => call == 'updatePassword'),
+        hasLength(1),
+      );
+    });
+
     testWidgets('a wrong current password never reaches updatePassword', (
       tester,
     ) async {

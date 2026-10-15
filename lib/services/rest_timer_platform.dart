@@ -35,6 +35,7 @@ abstract final class RestTimerPlatform {
     required int seconds,
     required bool showCompletionNotification,
     required bool vibrate,
+    DateTime? endsAt,
     bool sound = true,
     int countdownSeconds = 30,
     String? detail,
@@ -44,6 +45,7 @@ abstract final class RestTimerPlatform {
     try {
       await _channel.invokeMethod<void>('start', {
         'seconds': seconds,
+        'endsAtMillis': ?endsAt?.millisecondsSinceEpoch,
         'showCompletionNotification': showCompletionNotification,
         'vibrate': vibrate,
         'sound': sound,
@@ -99,6 +101,29 @@ abstract final class RestTimerPlatform {
   static Future<bool> openOverlaySettings() async {
     try {
       return await _channel.invokeMethod<bool>('openOverlaySettings') ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Null on hosts without Android's device-level timer notification settings.
+  static Future<bool?> notificationsAllowed() async {
+    try {
+      return await _channel.invokeMethod<bool>('notificationStatus');
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  /// Opened by an explicit notification-setting action, never by a set.
+  static Future<bool> openNotificationSettings() async {
+    try {
+      return await _channel.invokeMethod<bool>('openNotificationSettings') ??
+          false;
     } on MissingPluginException {
       return false;
     } on PlatformException {

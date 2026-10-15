@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../services/push_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/rest_timer_notification_setting.dart';
 import '../widgets/rest_timer_overlay_setting.dart';
 import 'account_deletion_screen.dart';
 import 'member_goal_screen.dart';
@@ -607,7 +608,6 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
   // sections, so the same name meant RIR here and vibration there.
   bool _useRir = false;
   bool _autoStartRestTimer = true;
-  bool _restTimerNotifications = true;
   bool _timerVibration = true;
   bool _shareBodyData = false;
   bool _shareWorkoutRecords = false;
@@ -635,7 +635,6 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
           _useRir = state.useRir;
           _autoStartRestTimer = state.autoStartRestTimer;
         case SettingSection.notifications:
-          _restTimerNotifications = state.restTimerNotifications;
           _timerVibration = state.timerVibration;
         case SettingSection.privacy:
           break;
@@ -806,14 +805,7 @@ class _SettingDetailScreenState extends State<SettingDetailScreen> {
           ],
           SettingSection.notifications => [
             const RestTimerOverlaySetting(),
-            SwitchListTile(
-              title: const Text('휴식 타이머 종료 알림'),
-              value: _restTimerNotifications,
-              onChanged: (value) {
-                setState(() => _restTimerNotifications = value);
-                state.setRestTimerNotifications(value);
-              },
-            ),
+            const RestTimerNotificationSetting(),
             SwitchListTile(
               title: const Text('진동'),
               value: _timerVibration,

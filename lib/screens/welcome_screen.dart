@@ -24,6 +24,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   StreamSubscription<AuthChange>? authSubscription;
   bool isSubmitting = false;
   bool awaitingOAuth = false;
+  bool _authenticationCompleted = false;
   String? submitError;
 
   @override
@@ -221,7 +222,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   /// 기다릴 이유가 없다: 역할은 서버가 정해지면 셸이 알아서 바뀌고, 동기화는
   /// 실패하면 토스트로 말하고 5분 주기 동기화가 다시 시도한다.
   Future<void> _completeAuthentication() async {
-    if (!mounted || authService.currentUser == null) return;
+    if (!mounted ||
+        _authenticationCompleted ||
+        authService.currentUser == null) {
+      return;
+    }
+    // OAuth can emit signedIn more than once while this route is animating
+    // out. Only this login page may close; a repeated event must not pop the
+    // workout/settings screen underneath it or start another sync.
+    _authenticationCompleted = true;
+    awaitingOAuth = false;
     final state = AppScope.of(context);
     final navigator = Navigator.of(context);
     // 토스트는 라우트가 아니라 루트 오버레이에 산다 — 이 화면이 닫혀도 남는다.

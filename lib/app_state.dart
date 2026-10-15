@@ -749,6 +749,7 @@ class AppState extends ChangeNotifier {
   Future<void>? _persistInFlight;
   Future<void>? _accountFlushInFlight;
   AppSnapshot? _queuedSnapshot;
+  int _persistenceRevision = 0;
   MemberProfileDraft? _stagedMemberProfileDraft;
 
   bool get isInitialized => _initialized;
@@ -883,6 +884,8 @@ class AppState extends ChangeNotifier {
   int restRemaining = 0;
   Timer? _restTimer;
   DateTime? _restTimerEndsAt;
+  int _restTimerRevision = 0;
+  int _restTimerSyncRequest = 0;
 
   final List<ExerciseTemplate> exercises = List.of(offlineExerciseCatalog);
   final List<ExerciseTemplate> _sharedCatalogExercises = [];
@@ -1325,6 +1328,7 @@ class AppState extends ChangeNotifier {
           (snapshot == null || _repositoryHasPendingSave)) {
         _schedulePersist();
       }
+      final restoreRevision = _persistenceRevision;
       // The local account is ready, so the shell must be allowed to render now.
       // Cloud reads can spend tens of seconds in the Supabase client's
       // transient-error retries. If the splash timer already elapsed while the
@@ -1337,7 +1341,12 @@ class AppState extends ChangeNotifier {
         try {
           snapshot = await _repository.load(exercises);
           if (!_isCurrentAccount(accountEpoch)) return;
-          if (snapshot != null) {
+          if (_persistenceRevision != restoreRevision) {
+            // The local shell is already interactive while the cloud loads.
+            // Keep edits made there even if their save finished during the
+            // read; an empty queue does not mean no new work was recorded.
+            _schedulePersist();
+          } else if (snapshot != null) {
             _applySnapshot(snapshot);
           } else if (localSnapshot != null && _repositorySyncError == null) {
             // A successful empty response is authoritative. The device cache
@@ -1682,11 +1691,10 @@ class AppState extends ChangeNotifier {
             }
           }),
     );
-    _restTimer?.cancel();
-    restRemaining = 0;
     _accountEpoch++;
     _businessRequestSequence++;
     _resetForSignedOutUser();
+    cancelRestTimer();
     notifyListeners();
   }
 
@@ -7688,6 +7696,7 @@ class AppState extends ChangeNotifier {
 
   void _schedulePersist() {
     if (!_initialized) return;
+    _persistenceRevision++;
     _queuedSnapshot = _snapshotForPersistence();
     _schedulePersistTimer();
   }
@@ -7812,25 +7821,42 @@ class AppState extends ChangeNotifier {
   /// 휴식을 새로 시작한다. [focus]는 "무엇을 하다 쉬는지" — 세트 완료가 아닌
   /// 시작(함께 방의 공유 휴식)은 비워서 지난 세트 얘기가 바에 남지 않게 한다.
   /// 이미 가는 휴식을 늘리는 건 [extendRestTimer]다.
-  void startRestTimer(int seconds, {RestFocus? focus}) {
+  void startRestTimer(int seconds, {RestFocus? focus, DateTime? endsAt}) {
+    if (_disposed) return;
     restFocus = focus;
     restSessionId++;
-    _runRestTimer(seconds);
+    _runRestTimer(seconds, endsAt: endsAt);
   }
 
   /// 가던 휴식에 [seconds]초를 더한다. 어디쯤인지는 그대로다.
   void extendRestTimer([int seconds = 30]) {
-    _runRestTimer(restRemaining + seconds);
+    if (_disposed) return;
+    _refreshRestRemaining();
+    if (restRemaining <= 0) return;
+    _runRestTimer(
+      restRemaining + seconds,
+      endsAt: _restTimerEndsAt?.add(Duration(seconds: seconds)),
+    );
   }
 
-  void _runRestTimer(int seconds) {
+  void _runRestTimer(int seconds, {DateTime? endsAt}) {
+    final now = DateTime.now();
+    if (endsAt != null && !endsAt.isAfter(now)) {
+      cancelRestTimer();
+      return;
+    }
+    _restTimerRevision++;
     _restTimer?.cancel();
     final safeSeconds = seconds.clamp(1, 3600);
-    _restTimerEndsAt = DateTime.now().add(Duration(seconds: safeSeconds));
-    restRemaining = safeSeconds;
+    final latestEnd = now.add(Duration(seconds: safeSeconds));
+    _restTimerEndsAt = endsAt != null && endsAt.isBefore(latestEnd)
+        ? endsAt
+        : latestEnd;
+    _refreshRestRemaining();
     unawaited(
       RestTimerPlatform.start(
         seconds: safeSeconds,
+        endsAt: _restTimerEndsAt,
         showCompletionNotification: restTimerNotifications,
         vibrate: timerVibration,
         sound: timerSound,
@@ -7878,11 +7904,26 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> syncRestTimerFromPlatform() async {
+    if (_disposed) return;
+    final revision = _restTimerRevision;
+    final request = ++_restTimerSyncRequest;
+    final accountEpoch = _accountEpoch;
     // 앱을 보고 있다면 "휴식이 끝났어요" 알림은 할 일을 마쳤다. 안 걷으면
     // 탭할 때까지 알림창에 남아 런처 배지를 붙들고 있는다.
     unawaited(RestTimerPlatform.clearCompletionNotification());
     final status = await RestTimerPlatform.status();
-    if (_disposed || status == null) return;
+    if (!_isCurrentAccount(accountEpoch) ||
+        revision != _restTimerRevision ||
+        request != _restTimerSyncRequest) {
+      return;
+    }
+    if (status == null) {
+      // Unsupported hosts still need to refresh immediately on resume, before
+      // the next Dart tick can run after a long time in the background.
+      _refreshRestRemaining();
+      notifyListeners();
+      return;
+    }
     _restTimer?.cancel();
     if (status.remainingSeconds <= 0) {
       restRemaining = 0;
@@ -7902,9 +7943,12 @@ class AppState extends ChangeNotifier {
   }
 
   void cancelRestTimer() {
+    if (_disposed) return;
+    _restTimerRevision++;
     _restTimer?.cancel();
     _restTimerEndsAt = null;
     restRemaining = 0;
+    restFocus = null;
     unawaited(RestTimerPlatform.cancel());
     notifyListeners();
   }

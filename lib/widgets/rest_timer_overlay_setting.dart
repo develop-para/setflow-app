@@ -20,6 +20,7 @@ class _RestTimerOverlaySettingState extends State<RestTimerOverlaySetting>
   bool _busy = false;
   bool _pendingEnable = false;
   bool _permissionDenied = false;
+  int _statusRequest = 0;
 
   @override
   void initState() {
@@ -40,20 +41,24 @@ class _RestTimerOverlaySettingState extends State<RestTimerOverlaySetting>
   }
 
   Future<void> _reload() async {
+    if (_busy) return;
+    final request = ++_statusRequest;
     final status = await RestTimerPlatform.overlayStatus();
-    if (!mounted) return;
+    if (!mounted || request != _statusRequest) return;
     if (status == null) {
       if (_status != null || _pendingEnable) {
-        _pendingEnable = false;
+        setState(() => _pendingEnable = false);
         AppSnackbar.error(context, '타이머 표시 설정을 확인하지 못했어요.');
       }
       return;
     }
     setState(() => _status = status);
     if (!_pendingEnable) return;
-    _pendingEnable = false;
+    setState(() => _pendingEnable = false);
     if (status.permissionGranted) {
-      await _saveEnabled(true, status);
+      // Android also retains this intent across Activity/process recreation.
+      // Its resume handler may already have applied the granted permission.
+      if (!status.enabled) await _saveEnabled(true, status);
     } else {
       setState(() => _permissionDenied = true);
       AppSnackbar.info(context, '다른 앱 위에 표시 권한을 허용해주세요.');
@@ -61,6 +66,8 @@ class _RestTimerOverlaySettingState extends State<RestTimerOverlaySetting>
   }
 
   Future<void> _saveEnabled(bool enabled, RestTimerOverlayStatus status) async {
+    // A status read started before this change must not restore the old value.
+    ++_statusRequest;
     setState(() => _busy = true);
     final saved = await RestTimerPlatform.setOverlayEnabled(enabled);
     if (!mounted) return;
@@ -81,7 +88,8 @@ class _RestTimerOverlaySettingState extends State<RestTimerOverlaySetting>
 
   Future<void> _change(bool enabled) async {
     final status = _status;
-    if (_busy || status == null) return;
+    if (_busy || _pendingEnable || status == null) return;
+    ++_statusRequest;
     if (!enabled || status.permissionGranted) {
       await _saveEnabled(enabled, status);
       return;
@@ -108,12 +116,14 @@ class _RestTimerOverlaySettingState extends State<RestTimerOverlaySetting>
       ),
     );
     if (!mounted) return;
-    setState(() => _busy = false);
+    setState(() {
+      _busy = false;
+      _pendingEnable = openSettings == true;
+    });
     if (openSettings != true) return;
-    _pendingEnable = true;
     final opened = await RestTimerPlatform.openOverlaySettings();
     if (!mounted || opened) return;
-    _pendingEnable = false;
+    setState(() => _pendingEnable = false);
     AppSnackbar.error(context, '권한 설정을 열지 못했어요. 다시 시도해주세요.');
   }
 
@@ -132,7 +142,7 @@ class _RestTimerOverlaySettingState extends State<RestTimerOverlaySetting>
             : '앱을 나가도 남은 휴식과 운동 복귀 버튼을 보여줘요.',
       ),
       value: status.enabled && status.permissionGranted,
-      onChanged: _busy ? null : _change,
+      onChanged: _busy || _pendingEnable ? null : _change,
     );
   }
 }

@@ -152,4 +152,62 @@ void main() {
       );
     }
   }
+
+  for (final cardio in [false, true]) {
+    testWidgets(
+      'removing an earlier ${cardio ? 'interval' : 'set'} keeps the edited record open',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(432, 1000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final state = AppState();
+        await state.initialize();
+        addTearDown(state.dispose);
+        state.sessions.clear();
+        state.addExercise(
+          date,
+          state.exercises.firstWhere(
+            (exercise) => cardio
+                ? exercise.id == 'run'
+                : !exercise.isCardio &&
+                      exercise.measurement == ExerciseMeasurement.weightReps,
+          ),
+        );
+        final exercise = state.sessions[date]!.exercises.single;
+        while (exercise.sets.length < 3) {
+          state.addSet(exercise);
+        }
+        final first = exercise.sets.first;
+        final edited = exercise.sets[1];
+        await state.toggleSet(first, startRest: false);
+        await state.toggleSet(edited, startRest: false);
+        await tester.pumpWidget(
+          AppScope(
+            notifier: state,
+            child: MaterialApp(
+              theme: SetflowTheme.light,
+              home: DailyWorkoutScreen(date: date),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final prefix = cardio ? 'inline-cardio' : 'inline-set';
+        await tester.tap(find.byKey(ValueKey('$prefix-done-2')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(ValueKey('$prefix-collapse-2')), findsOneWidget);
+
+        state.removeSet(exercise, first);
+        await tester.pumpAndSettle();
+
+        expect(exercise.sets.first, same(edited));
+        expect(edited.completed, isTrue);
+        expect(
+          find.byKey(ValueKey('$prefix-collapse-1')),
+          findsOneWidget,
+          reason: '앞 기록을 지워 번호가 바뀌어도 수정 중인 기록은 펼쳐져 있어야 한다',
+        );
+        expect(find.byKey(ValueKey('$prefix-done-1')), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

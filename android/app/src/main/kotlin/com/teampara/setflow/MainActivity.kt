@@ -1,17 +1,21 @@
 package com.teampara.setflow
 
-import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun onResume() {
+        super.onResume()
+        // Persist the user's intent across Activity/process recreation while
+        // Android's special-access Settings screen is in front of the app.
+        RestTimerService.completeOverlayPermissionRequest(this)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
@@ -40,33 +44,33 @@ class MainActivity : FlutterActivity() {
                         result.error("invalid_seconds", "Timer seconds must be positive.", null)
                         return@setMethodCallHandler
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-                        PackageManager.PERMISSION_GRANTED
-                    ) {
-                        requestPermissions(
-                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                            NOTIFICATION_PERMISSION_REQUEST,
+                    try {
+                        RestTimerService.start(
+                            this,
+                            seconds,
+                            call.argument<Boolean>("showCompletionNotification") ?: true,
+                            call.argument<Boolean>("vibrate") ?: true,
+                            call.argument<Boolean>("sound") ?: true,
+                            call.argument<Number>("countdownSeconds")?.toInt() ?: 30,
+                            call.argument<String>("detail"),
+                            call.argument<String>("workoutDate"),
+                            call.argument<String>("sessionId"),
+                            call.argument<Number>("endsAtMillis")?.toLong(),
                         )
+                        result.success(null)
+                    } catch (_: SecurityException) {
+                        result.error("rest_timer_unavailable", "Rest timer service permission was denied.", null)
+                    } catch (_: IllegalStateException) {
+                        result.error("rest_timer_unavailable", "Android prevented the background timer from starting.", null)
                     }
-                    RestTimerService.start(
-                        this,
-                        seconds,
-                        call.argument<Boolean>("showCompletionNotification") ?: true,
-                        call.argument<Boolean>("vibrate") ?: true,
-                        call.argument<Boolean>("sound") ?: true,
-                        call.argument<Number>("countdownSeconds")?.toInt() ?: 30,
-                        call.argument<String>("detail"),
-                        call.argument<String>("workoutDate"),
-                        call.argument<String>("sessionId"),
-                    )
-                    result.success(null)
                 }
                 "cancel" -> {
                     RestTimerService.cancel(this)
                     result.success(null)
                 }
                 "status" -> result.success(RestTimerService.status(this))
+                "notificationStatus" -> result.success(RestTimerService.notificationsAllowed(this))
+                "openNotificationSettings" -> result.success(RestTimerService.openNotificationSettings(this))
                 "overlayStatus" -> result.success(RestTimerService.overlayStatus(this))
                 "setOverlayEnabled" -> {
                     RestTimerService.setOverlayEnabled(
@@ -82,6 +86,7 @@ class MainActivity : FlutterActivity() {
                             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                             Uri.parse("package:$packageName"),
                         ))
+                        RestTimerService.beginOverlayPermissionRequest(this)
                         result.success(true)
                     } catch (_: ActivityNotFoundException) {
                         result.success(false)
@@ -100,7 +105,4 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private companion object {
-        const val NOTIFICATION_PERMISSION_REQUEST = 4312
-    }
 }

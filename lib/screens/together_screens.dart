@@ -61,6 +61,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
   StreamSubscription<TrainingParty>? _subscription;
   String? _error;
   bool _busy = false;
+  int _partyWatchGeneration = 0;
+  int _partyOperationGeneration = 0;
 
   /// 화면 안내(코치마크)가 비출 자리들. 방의 세 덩어리 + 앱바 메뉴.
   final _statusKey = GlobalKey(debugLabel: 'together-guide-status');
@@ -220,6 +222,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
 
   @override
   void dispose() {
+    _partyWatchGeneration++;
+    _partyOperationGeneration++;
     _tick?.cancel();
     unawaited(_subscription?.cancel());
     unawaited(_nearbySubscription?.cancel());
@@ -227,6 +231,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
   }
 
   void _watch(TrainingParty party) {
+    final generation = ++_partyWatchGeneration;
     unawaited(_subscription?.cancel());
     // 방 안에서는 로비가 없다 — 근처 목록 구독(과 어댑터의 폴링)도 같이 쉰다.
     // 로비로 접거나 방이 닫히면 _loadNearby가 다시 구독한다.
@@ -237,21 +242,34 @@ class _TogetherScreenState extends State<TogetherScreen> {
       _minimized = false;
     });
     AppScope.of(context).setActiveTrainingParty(party.id);
+    _restoreSharedRest(party);
     _subscription = _repository
         ?.watchParty(party.id)
         .listen(
           (next) {
-            if (!mounted) return;
+            if (!mounted ||
+                generation != _partyWatchGeneration ||
+                next.id != party.id) {
+              return;
+            }
             _handleIncoming(next);
+          },
+          onError: (Object error) {
+            if (!mounted || generation != _partyWatchGeneration) return;
+            _recordRoomError(error);
           },
           // 스트림이 끝났다 = 방이 사라졌거나 내가 빠졌다. 이 처리가 없으면
           // 유령 방이 화면에 남는다 — 로비로 내려가고 기억도 지운다.
           onDone: () {
-            if (!mounted) return;
+            if (!mounted || generation != _partyWatchGeneration) return;
+            _partyWatchGeneration++;
+            _partyOperationGeneration++;
+            _subscription = null;
             AppScope.of(context).setActiveTrainingParty(null);
             setState(() {
               _party = null;
               _minimized = false;
+              _busy = false;
             });
             _tick?.cancel();
             _tick = null;
@@ -275,9 +293,15 @@ class _TogetherScreenState extends State<TogetherScreen> {
       return;
     }
     setState(() => _busy = true);
+    final generation = ++_partyOperationGeneration;
     try {
       final party = await repository.fetchParty(remembered);
-      if (!mounted) return;
+      if (!mounted ||
+          generation != _partyOperationGeneration ||
+          _joiningFromLink ||
+          _party != null) {
+        return;
+      }
       if (party == null) {
         state.setActiveTrainingParty(null);
       } else {
@@ -286,7 +310,9 @@ class _TogetherScreenState extends State<TogetherScreen> {
     } catch (_) {
       // 복원 실패는 로비로 두면 된다 — 코드로 다시 들어올 길이 있다.
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && generation == _partyOperationGeneration) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -382,6 +408,15 @@ class _TogetherScreenState extends State<TogetherScreen> {
     });
   }
 
+  void _restoreSharedRest(TrainingParty party) {
+    final member = _userId == null ? null : party.memberOf(_userId!);
+    if (member?.state != PartyMemberState.resting) return;
+    final endsAt = member!.restEndsAt;
+    final seconds = member.restRemainingSeconds;
+    if (endsAt == null || seconds <= 0) return;
+    AppScope.of(context).startRestTimer(seconds, endsAt: endsAt);
+  }
+
   /// Mirrors the room's rest into the app's own timer.
   ///
   /// Without this the partner's set would end and nothing on this phone would
@@ -389,7 +424,10 @@ class _TogetherScreenState extends State<TogetherScreen> {
   /// or "같이 쉰다" is just a label on a card.
   void _handleIncoming(TrainingParty next) {
     final previous = _party;
-    setState(() => _party = next);
+    setState(() {
+      _party = next;
+      _error = null;
+    });
     _syncTicker(next);
 
     final me = _userId == null ? null : next.memberOf(_userId!);
@@ -397,6 +435,8 @@ class _TogetherScreenState extends State<TogetherScreen> {
       // 명단에 내가 없다 = 내보내졌다(자발적 나가기는 이 스트림을 타기 전에
       // 구독을 정리한다). 방을 접고 로비로, 이유는 한 줄로.
       AppScope.of(context).setActiveTrainingParty(null);
+      _partyWatchGeneration++;
+      _partyOperationGeneration++;
       unawaited(_subscription?.cancel());
       _subscription = null;
       _tick?.cancel();
@@ -404,6 +444,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
       setState(() {
         _party = null;
         _minimized = false;
+        _busy = false;
       });
       AppSnackbar.info(context, '방에서 내보내졌어요.');
       unawaited(_loadNearby());
@@ -415,7 +456,7 @@ class _TogetherScreenState extends State<TogetherScreen> {
         me.restEndsAt != wasResting) {
       final state = AppScope.of(context);
       final seconds = me.restRemainingSeconds;
-      if (seconds > 0) state.startRestTimer(seconds);
+      if (seconds > 0) state.startRestTimer(seconds, endsAt: me.restEndsAt);
       return;
     }
     // The turn landing on you is the one moment worth interrupting for: the
@@ -427,26 +468,39 @@ class _TogetherScreenState extends State<TogetherScreen> {
     }
   }
 
-  Future<void> _run(Future<TrainingParty> Function() action) async {
-    if (_busy) return;
+  Future<bool> _run(Future<TrainingParty> Function() action) async {
+    if (_busy || !mounted) return false;
+    final generation = ++_partyOperationGeneration;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       final party = await action();
-      if (!mounted) return;
+      if (!mounted || generation != _partyOperationGeneration) return false;
       if (_subscription == null || _party?.id != party.id) {
         _watch(party);
       } else {
-        setState(() => _party = party);
-        _syncTicker(party);
+        _handleIncoming(party);
       }
+      return true;
     } catch (error) {
-      if (mounted) setState(() => _error = _messageFor(error));
+      if (mounted && generation == _partyOperationGeneration) {
+        _recordRoomError(error);
+      }
+      return false;
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && generation == _partyOperationGeneration) {
+        setState(() => _busy = false);
+      }
     }
+  }
+
+  void _recordRoomError(Object error) {
+    final message = _messageFor(error);
+    if (_error == message) return;
+    setState(() => _error = message);
+    if (_party != null && !_minimized) AppSnackbar.error(context, message);
   }
 
   String _messageFor(Object error) => error is TogetherFailure
@@ -921,11 +975,11 @@ class _TogetherScreenState extends State<TogetherScreen> {
       isScrollControlled: true,
       builder: (_) => _RoutinePickerSheet(routines: state.routines),
     );
-    if (routine == null || !mounted) return;
-    await _run(
+    if (routine == null || !mounted || _party == null) return;
+    final offered = await _run(
       () => _repository!.offerRoutine(partyId: _party!.id, routine: routine),
     );
-    if (mounted) AppSnackbar.success(context, '루틴을 건넸어요.');
+    if (mounted && offered) AppSnackbar.success(context, '루틴을 건넸어요.');
   }
 
   Future<void> _saveOfferedRoutine(OfferedRoutine offer) async {
@@ -997,6 +1051,9 @@ class _TogetherScreenState extends State<TogetherScreen> {
   Future<void> _leave() async {
     final party = _party;
     if (party == null) return;
+    final generation = ++_partyOperationGeneration;
+    _partyWatchGeneration++;
+    setState(() => _busy = true);
     unawaited(_subscription?.cancel());
     _subscription = null;
     _tick?.cancel();
@@ -1008,10 +1065,11 @@ class _TogetherScreenState extends State<TogetherScreen> {
       // Leaving is the one action that must always appear to work: staying
       // stuck in a room you closed is worse than a stale row on the server.
     }
-    if (mounted) {
+    if (mounted && generation == _partyOperationGeneration) {
       setState(() {
         _party = null;
         _minimized = false;
+        _busy = false;
       });
     }
   }

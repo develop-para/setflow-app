@@ -1284,6 +1284,7 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                     children: [
                       for (final set in exercise.sets)
                         Padding(
+                          key: ObjectKey(set),
                           padding: const EdgeInsets.only(bottom: 8),
                           child: _SwipeableSet(
                             set: set,

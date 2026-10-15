@@ -8,7 +8,7 @@ import 'package:setflow/widgets/common.dart';
 void main() {
   const size = Size(400, 800);
 
-  Future<void> pumpHost(WidgetTester tester) async {
+  Future<void> pumpHost(WidgetTester tester, {VoidCallback? onUndo}) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -26,6 +26,16 @@ void main() {
                   onPressed: () => AppSnackbar.error(context, '저장하지 못했어요.'),
                   child: const Text('실패'),
                 ),
+                if (onUndo != null)
+                  TextButton(
+                    onPressed: () => AppSnackbar.undoable(
+                      context,
+                      '남은 세트에 반영했어요.',
+                      actionLabel: '되돌리기',
+                      onAction: onUndo,
+                    ),
+                    child: const Text('전파'),
+                  ),
               ],
             ),
           ),
@@ -81,5 +91,36 @@ void main() {
     await tester.tap(find.text('1세트를 저장했어요.'));
     await tester.pumpAndSettle();
     expect(find.text('1세트를 저장했어요.'), findsNothing);
+  });
+
+  testWidgets('되돌리기를 연속으로 눌러도 한 번만 실행한다', (tester) async {
+    var undoCount = 0;
+    await pumpHost(tester, onUndo: () => undoCount++);
+    await tester.tap(find.text('전파'));
+    await tester.pumpAndSettle();
+
+    // 닫히는 애니메이션이 끝나기 전에도 두 번째 터치가 들어올 수 있다.
+    await tester.tap(find.text('되돌리기'));
+    await tester.tap(find.text('되돌리기'));
+    await tester.pumpAndSettle();
+
+    expect(undoCount, 1);
+    expect(find.text('남은 세트에 반영했어요.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('자동으로 닫히기 시작한 토스트는 뒤늦은 되돌리기를 실행하지 않는다', (tester) async {
+    var undoCount = 0;
+    await pumpHost(tester, onUndo: () => undoCount++);
+    await tester.tap(find.text('전파'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 2700));
+
+    await tester.tap(find.text('되돌리기'));
+    await tester.pumpAndSettle();
+
+    expect(undoCount, 0);
+    expect(tester.takeException(), isNull);
   });
 }

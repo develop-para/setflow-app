@@ -17,6 +17,7 @@ class FakeUpdates implements AppUpdateService {
   AppUpdateCheck result = const AppUpdateCheck(needsSignIn: true);
   AppUpdateException? failure;
   Completer<AppUpdateCheck>? pending;
+  Completer<void>? pendingInstall;
   final requests = <bool>[];
   int installs = 0;
   @override
@@ -30,6 +31,7 @@ class FakeUpdates implements AppUpdateService {
   Future<void> installUpdate() async {
     installs++;
     if (failure != null) throw failure!;
+    await pendingInstall?.future;
   }
 }
 
@@ -109,6 +111,34 @@ void main() {
     pending.complete(installedVersion);
     await operation;
     expect(controller.installedVersion, isNull);
+  });
+
+  test('업데이트 조회 중 컨트롤러가 닫히면 완료 응답을 적용하지 않는다', () async {
+    service.pending = Completer<AppUpdateCheck>();
+    final controller = AppUpdateController(service);
+    final operation = controller.check();
+    controller.dispose();
+    service.pending!.complete(const AppUpdateCheck(release: newRelease));
+    await operation;
+    expect(controller.release, isNull);
+  });
+
+  test('업데이트 설치 중 컨트롤러가 닫혀도 완료 알림을 보내지 않는다', () async {
+    service.pendingInstall = Completer<void>();
+    final controller = AppUpdateController(service)..release = newRelease;
+    final operation = controller.install();
+    controller.dispose();
+    service.pendingInstall!.complete();
+    await operation;
+  });
+
+  test('닫힌 컨트롤러는 업데이트 조회나 설치를 새로 시작하지 않는다', () async {
+    final controller = AppUpdateController(service)..release = newRelease;
+    controller.dispose();
+    await controller.check(interactive: true);
+    await controller.install();
+    expect(service.requests, isEmpty);
+    expect(service.installs, 0);
   });
   tearDown(() {
     AppUpdates.instance = AppUpdateController(const DisabledAppUpdateService());

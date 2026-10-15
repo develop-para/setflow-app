@@ -657,7 +657,14 @@ class _FloatingRestTimerState extends State<FloatingRestTimer> {
   @override
   Widget build(BuildContext context) => SafeArea(
     child: Padding(
-      padding: const EdgeInsets.all(SetflowSpacing.sm),
+      // This timer lives above the Navigator, outside the Scaffold that moves
+      // its body above the keyboard. Keep its controls in the visible area too.
+      padding: EdgeInsets.fromLTRB(
+        SetflowSpacing.sm,
+        SetflowSpacing.sm,
+        SetflowSpacing.sm,
+        SetflowSpacing.sm + MediaQuery.viewInsetsOf(context).bottom,
+      ),
       child: LayoutBuilder(
         builder: (context, constraints) => Align(
           alignment: _alignment,
@@ -965,8 +972,10 @@ abstract final class AppSnackbar {
         actionLabel: actionLabel,
         onAction: onAction,
         onDismiss: () {
-          if (identical(_current, entry)) _current = null;
+          if (!identical(_current, entry)) return;
+          _current = null;
           entry.remove();
+          entry.dispose();
         },
       ),
     );
@@ -977,8 +986,10 @@ abstract final class AppSnackbar {
   /// Takes the visible toast down early — a new one replacing it, or a screen
   /// that no longer wants it around.
   static void dismiss() {
-    _current?.remove();
+    final entry = _current;
     _current = null;
+    entry?.remove();
+    entry?.dispose();
   }
 }
 
@@ -1013,6 +1024,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
   );
 
   Timer? _timer;
+  bool _closing = false;
 
   @override
   void initState() {
@@ -1032,11 +1044,20 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _close() async {
+    if (!mounted || _closing) return;
+    _closing = true;
     _timer?.cancel();
-    if (!mounted) return;
     await _controller.reverse();
     if (!mounted) return;
     widget.onDismiss();
+  }
+
+  void _performAction() {
+    if (!mounted || _closing) return;
+    // Mark the toast closed before the callback: undo can synchronously show
+    // another toast, and a second tap during the fade must not repeat it.
+    unawaited(_close());
+    widget.onAction?.call();
   }
 
   @override
@@ -1102,10 +1123,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
                       if (widget.onAction != null) ...[
                         const SizedBox(width: SetflowSpacing.sm),
                         TextButton(
-                          onPressed: () {
-                            widget.onAction!();
-                            _close();
-                          },
+                          onPressed: _performAction,
                           style: TextButton.styleFrom(
                             // The toast paints on ink, where the only readable
                             // foreground is white.

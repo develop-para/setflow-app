@@ -267,12 +267,11 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    // 운동 장소·센터는 게스트에게 화면이 아니라 로그인 게이트를 연다 — 그
-    // 시트도 사용자가 실제로 보는 화면이니 찍고, 시트의 닫기로 나온다.
+    // 게스트도 공개 운동 장소를 기기에 저장한다. 센터 연결 때 로그인을 요청한다.
     await tester.tap(find.text('운동 장소 및 센터').first);
     await tester.pumpAndSettle();
-    await _shot(tester, 'build/shots/auth_gate.png');
-    await tester.tap(find.byKey(const ValueKey('auth-gate-dismiss')));
+    await _shot(tester, 'build/shots/gym_places.png');
+    await tester.pageBack();
     await tester.pumpAndSettle();
 
     // 설정과 그 하위.

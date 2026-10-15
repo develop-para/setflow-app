@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/app_snapshot_codec.dart';
@@ -65,6 +66,108 @@ void main() {
     await tester.pumpAndSettle();
     return state;
   }
+
+  testWidgets('방 연결 오류는 안내하고 다음 갱신에서 같은 방을 이어간다', (tester) async {
+    final repository = _RecoveringTogetherRepository(backend);
+    await pumpTogether(tester, repository: repository);
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await repository.updates.close();
+    });
+    await tester.tap(find.byKey(const ValueKey('together-create')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
+
+    repository.updates.addError(const TogetherFailure('방 연결이 잠시 끊겼어요.'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('방 연결이 잠시 끊겼어요.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('together-scoreboard')), findsOneWidget);
+
+    final party = backend.partyByCode(
+      tester.widget<Text>(find.byKey(const ValueKey('together-code'))).data!,
+    )!;
+    final joined = await client('u-friend', '친구').joinParty(party.code);
+    repository.updates.add(joined);
+    await tester.pumpAndSettle();
+    expect(find.text('친구'), findsOneWidget);
+    expect(find.text('헬스 · 2명'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    AppSnackbar.dismiss();
+    await tester.pump();
+  });
+
+  testWidgets('방을 나간 뒤 늦게 도착한 시작 응답은 방을 다시 열지 않는다', (tester) async {
+    final repository = _RecoveringTogetherRepository(backend)
+      ..pendingStart = Completer<TrainingParty>();
+    final state = await pumpTogether(tester, repository: repository);
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await repository.updates.close();
+    });
+    await tester.tap(find.byKey(const ValueKey('together-create')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('create-mode-together')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+    await tester.pumpAndSettle();
+    final party = backend.partyById(state.activeTrainingPartyId!)!;
+    final joined = await client('u-friend', '친구').joinParty(party.code);
+    repository.updates.add(joined);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('together-start')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.tap(find.byKey(const ValueKey('together-leave')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.tap(find.byKey(const ValueKey('together-leave-confirm')));
+    await tester.pumpAndSettle();
+    expect(state.activeTrainingPartyId, isNull);
+
+    repository.pendingStart!.complete(
+      joined.copyWith(startsAt: DateTime.now().add(const Duration(seconds: 5))),
+    );
+    await tester.pumpAndSettle();
+    expect(state.activeTrainingPartyId, isNull);
+    expect(find.byKey(const ValueKey('together-scoreboard')), findsNothing);
+    expect(find.byKey(const ValueKey('together-create')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('루틴 전송 실패는 실패로 표시하고 성공 안내를 띄우지 않는다', (tester) async {
+    final repository = _RecoveringTogetherRepository(backend)
+      ..offerFailure = const TogetherFailure('루틴을 전송하지 못했어요.');
+    final state = await pumpTogether(tester, repository: repository);
+    addTearDown(() async {
+      AppSnackbar.dismiss();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await repository.updates.close();
+    });
+    state.createRoutine('테스트 루틴', '전송 오류를 확인하는 루틴');
+    await tester.tap(find.byKey(const ValueKey('together-create')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('together-create-confirm')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('together-room-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('주고받은 루틴'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('together-offer-routine')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('테스트 루틴'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('루틴을 전송하지 못했어요.'), findsOneWidget);
+    expect(find.text('루틴을 건넸어요.'), findsNothing);
+    expect(backend.partyById(state.activeTrainingPartyId!)!.routines, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
 
   group('the bar', () {
     testWidgets('통계 is gone and 함께 took its slot', (tester) async {
@@ -630,6 +733,51 @@ void main() {
       await client('u-friend', '친구').joinParty(party.code);
       return backend.partyById(party.id)!;
     }
+
+    testWidgets('이미 진행 중인 공유 휴식도 서버 종료시각 그대로 이어간다', (tester) async {
+      const timerChannel = MethodChannel('com.teampara.setflow/rest_timer');
+      final starts = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        timerChannel,
+        (call) async {
+          if (call.method == 'start') starts.add(call);
+          return null;
+        },
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          timerChannel,
+          null,
+        );
+      });
+      final room = await seatTwo(PartyMode.together);
+      final resting = backend.reportSetDone(
+        partyId: room.id,
+        userId: 'u-friend',
+        restSeconds: 60,
+        now: DateTime.now().subtract(
+          const Duration(seconds: 20, milliseconds: 250),
+        ),
+      );
+      final endsAt = resting.memberOf('u-me')!.restEndsAt!;
+      final state = await pumpTogether(tester, repository: client('u-me', '나'));
+      await tester.tap(find.byKey(const ValueKey('together-join')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('together-code-input')),
+        room.code,
+      );
+      await tester.pumpAndSettle();
+
+      expect(state.restRemaining, greaterThan(0));
+      expect(state.restRemaining, lessThanOrEqualTo(40));
+      expect(starts, hasLength(1), reason: '동일한 종료시각의 초기 echo는 다시 시작하지 않는다');
+      expect(
+        starts.single.arguments['endsAtMillis'],
+        endsAt.millisecondsSinceEpoch,
+      );
+      state.cancelRestTimer();
+    });
 
     testWidgets(
       'current exercise guidance leaves the set and party unchanged',
@@ -1272,6 +1420,33 @@ void main() {
       );
     });
   });
+}
+
+class _RecoveringTogetherRepository extends MemoryTogetherRepository {
+  _RecoveringTogetherRepository(MemoryTogetherBackend backend)
+    : super(backend: backend, userId: 'u-me');
+
+  final updates = StreamController<TrainingParty>.broadcast();
+  Completer<TrainingParty>? pendingStart;
+  Object? offerFailure;
+
+  @override
+  Stream<TrainingParty> watchParty(String partyId) => updates.stream;
+
+  @override
+  Future<TrainingParty> startTogether(
+    String partyId, {
+    Duration lead = const Duration(seconds: 5),
+  }) => pendingStart?.future ?? super.startTogether(partyId, lead: lead);
+
+  @override
+  Future<TrainingParty> offerRoutine({
+    required String partyId,
+    required RoutineData routine,
+  }) async {
+    if (offerFailure case final Object error) throw error;
+    return super.offerRoutine(partyId: partyId, routine: routine);
+  }
 }
 
 /// 정해진 자리에 서 있는 가짜 위치. [granted]가 false면 버튼을 누를 때 묻는다.

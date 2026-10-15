@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +18,7 @@ void main() {
   var permissionGranted = false;
   var failSave = false;
   var failSettings = false;
+  Completer<Map<String, Object?>?>? nextStatus;
 
   setUp(() {
     supported = true;
@@ -23,6 +26,7 @@ void main() {
     permissionGranted = false;
     failSave = false;
     failSettings = false;
+    nextStatus = null;
     calls.clear();
     binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
       call,
@@ -30,6 +34,9 @@ void main() {
       calls.add(call);
       switch (call.method) {
         case 'overlayStatus':
+          final delayed = nextStatus;
+          nextStatus = null;
+          if (delayed != null) return delayed.future;
           return supported
               ? {'enabled': enabled, 'permissionGranted': permissionGranted}
               : null;
@@ -164,6 +171,24 @@ void main() {
     expect(tester.widget<SwitchListTile>(tile).value, isTrue);
   });
 
+  testWidgets(
+    'returning after Android enabled the overlay avoids another save',
+    (tester) async {
+      await launch(tester);
+      await requestPermission(tester);
+      permissionGranted = true;
+      enabled = true;
+
+      await returnFromSettings(tester);
+
+      expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+      expect(
+        calls.where((call) => call.method == 'setOverlayEnabled'),
+        isEmpty,
+      );
+    },
+  );
+
   testWidgets('denied permission stays off with guidance', (tester) async {
     await launch(tester);
     await requestPermission(tester);
@@ -244,6 +269,60 @@ void main() {
     supported = false;
     await returnFromSettings(tester);
     expect(find.text('타이머 표시 설정을 확인하지 못했어요.'), findsOneWidget);
+  });
+
+  testWidgets('a late status response cannot undo a saved switch change', (
+    tester,
+  ) async {
+    permissionGranted = true;
+    await launch(tester);
+    final delayed = Completer<Map<String, Object?>?>();
+    nextStatus = delayed;
+    await returnFromSettings(tester);
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(enabled, isTrue);
+
+    delayed.complete({'enabled': false, 'permissionGranted': true});
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    expect(enabled, isTrue);
+  });
+
+  testWidgets('a newer resume response wins over an older response', (
+    tester,
+  ) async {
+    permissionGranted = true;
+    await launch(tester);
+    final delayed = Completer<Map<String, Object?>?>();
+    nextStatus = delayed;
+    await returnFromSettings(tester);
+    enabled = true;
+    await returnFromSettings(tester);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+
+    delayed.complete({'enabled': false, 'permissionGranted': true});
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+  });
+
+  testWidgets('permission settings disable duplicate enable requests', (
+    tester,
+  ) async {
+    await launch(tester);
+    await requestPermission(tester);
+
+    expect(tester.widget<SwitchListTile>(tile).onChanged, isNull);
+
+    await returnFromSettings(tester);
+    expect(tester.widget<SwitchListTile>(tile).onChanged, isNotNull);
+    permissionGranted = true;
+    await returnFromSettings(tester);
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(enabled, isTrue);
   });
 
   testWidgets('notification settings expose the control to guests', (

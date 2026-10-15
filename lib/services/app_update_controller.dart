@@ -55,7 +55,7 @@ class AppUpdateController extends ChangeNotifier {
   }
 
   Future<void> check({bool interactive = false}) async {
-    if (!isAvailable || busy) return;
+    if (_disposed || !isAvailable || busy) return;
     if (!interactive &&
         _lastCheck != null &&
         DateTime.now().difference(_lastCheck!) < const Duration(minutes: 5)) {
@@ -67,22 +67,25 @@ class AppUpdateController extends ChangeNotifier {
     notifyListeners();
     try {
       final result = await service.checkForUpdate(requestSignIn: interactive);
+      if (_disposed) return;
       needsSignIn = result.needsSignIn;
       release = result.release;
       checked = !needsSignIn;
       _lastCheck = DateTime.now();
     } on AppUpdateException catch (failure) {
-      if (!failure.cancelled && interactive) error = failure.message;
+      if (!_disposed && !failure.cancelled && interactive) {
+        error = failure.message;
+      }
     } catch (_) {
-      if (interactive) error = '업데이트를 확인하지 못했어요. 다시 시도해주세요.';
+      if (!_disposed && interactive) error = '업데이트를 확인하지 못했어요. 다시 시도해주세요.';
     } finally {
       busy = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 
   Future<void> install() async {
-    if (!isAvailable || busy || release == null) return;
+    if (_disposed || !isAvailable || busy || release == null) return;
     busy = true;
     error = null;
     notifyListeners();
@@ -90,12 +93,12 @@ class AppUpdateController extends ChangeNotifier {
       await service.installUpdate();
       // 설치 화면을 열었다고 실제 설치가 끝난 것은 아니다. 새 실행에서 재확인.
     } on AppUpdateException catch (failure) {
-      if (!failure.cancelled) error = failure.message;
+      if (!_disposed && !failure.cancelled) error = failure.message;
     } catch (_) {
-      error = '업데이트를 시작하지 못했어요. 다시 시도해주세요.';
+      if (!_disposed) error = '업데이트를 시작하지 못했어요. 다시 시도해주세요.';
     } finally {
       busy = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 }

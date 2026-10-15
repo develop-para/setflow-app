@@ -274,6 +274,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
   }
 
   Future<void> _resendConfirmation() async {
+    if (_submitting || _resendSecondsLeft > 0 || !mounted) return;
     setState(() {
       _submitting = true;
       _error = null;
@@ -292,6 +293,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
   }
 
   Future<void> _submit() async {
+    if (_submitting || !mounted) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _submitting = true;

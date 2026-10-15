@@ -101,4 +101,56 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     },
   );
+
+  testWidgets('a dragged timer stays above the keyboard when it opens', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final keyboardInset = ValueNotifier<double>(0);
+    addTearDown(keyboardInset.dispose);
+    var cancelled = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: SetflowTheme.light,
+        builder: (context, child) => ValueListenableBuilder<double>(
+          valueListenable: keyboardInset,
+          builder: (context, bottom, _) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(viewInsets: EdgeInsets.only(bottom: bottom)),
+            child: Stack(
+              children: [
+                child!,
+                Positioned.fill(
+                  child: FloatingRestTimer(
+                    sessionId: 1,
+                    seconds: 90,
+                    totalSeconds: 90,
+                    onAddTime: () {},
+                    onCancel: () => cancelled = true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        home: const Scaffold(),
+      ),
+    );
+    final panel = find.byType(GlobalRestTimerOverlay);
+    await tester.dragFrom(
+      tester.getTopLeft(panel) + const Offset(30, 20),
+      const Offset(0, 900),
+    );
+    await tester.pump();
+    keyboardInset.value = 280;
+    await tester.pump();
+
+    expect(tester.getRect(panel).bottom, lessThanOrEqualTo(432));
+    await tester.tap(find.byKey(const ValueKey('rest-bar-finish')));
+    await tester.pump();
+    expect(cancelled, isTrue);
+    expect(tester.takeException(), isNull);
+  });
 }

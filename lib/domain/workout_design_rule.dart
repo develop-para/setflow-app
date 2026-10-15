@@ -214,7 +214,7 @@ enum WorkoutDesignRule {
     basis: WorkoutRuleBasis.recordIntegrity,
     principle: '',
     implementation:
-        '첫 미완료 세트부터 완료하며 완료한 세트는 수정·되돌리기가 가능합니다. 휴식은 종료 시각으로 유지하고 앱 복귀에도 같은 시각을 사용합니다.',
+        '첫 미완료 세트부터 완료하며 완료한 세트는 수정·되돌리기가 가능합니다. 휴식은 앱·기기·함께 방에서 같은 종료 시각을 사용하며, 연장은 기존 종료 시각에 더합니다. 복귀 조회의 늦은 응답은 새 휴식·연장·취소를 덮어쓰지 않습니다.',
     rationale: '앞의 세트가 비어 있는데 뒤 세트가 기록되거나, 다른 세트를 눌러 진행 중 휴식이 리셋되는 일을 방지합니다.',
     limitations:
         '생리적으로 모든 운동 순서를 고정해야 한다는 연구 주장이 아니라 기록 순서와 타이머 일관성을 위한 동작입니다.',
@@ -225,7 +225,7 @@ enum WorkoutDesignRule {
     basis: WorkoutRuleBasis.userControl,
     principle: '',
     implementation:
-        '숫자 박스를 누르면 다이얼이 열리고 적용할 때 저장합니다. 게스트 기록도 기기에 저장하며 계정으로 가져오기는 사용자가 선택합니다.',
+        '숫자 박스를 누르면 다이얼이 열리고 적용할 때 저장합니다. 앞 세트 삭제로 번호가 바뀌어도 편집 대상은 유지하며 키보드가 휴식 조작을 가리지 않게 합니다. 게스트 기록도 기기에 저장하며 계정으로 가져오기는 사용자가 선택합니다. 초기 서버 조회 중 새 기록은 늦은 응답으로 되돌리지 않습니다.',
     rationale:
         '뒤로가기·화면 잠금으로 편집 중인 값이 저장된 것처럼 보이는 문제를 줄이고, 로그인 여부로 운동 기록을 잃지 않게 합니다.',
     limitations: '입력 방식과 소유권에 관한 사용성·데이터 원칙이며 운동 효과에 관한 연구 결론이 아닙니다.',
@@ -261,5 +261,5 @@ enum WorkoutDesignRule {
   final String limitations;
   final Set<String> evidenceIds;
 
-  static const reviewedOn = '2026-10-14';
+  static const reviewedOn = '2026-10-15';
 }

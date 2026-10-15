@@ -496,6 +496,217 @@ void main() {
   });
 
   group('SupabaseAppRepository durable account outbox', () {
+    for (final serverHasSnapshot in [false, true]) {
+      test(
+        'a delayed ${serverHasSnapshot ? 'existing' : 'empty'} server read preserves a newer local save',
+        () async {
+          final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+          if (serverHasSnapshot) {
+            gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+              payload: AppSnapshotCodec.toJson(
+                _snapshot(goals: const ['이전 서버 목표']),
+              ),
+              updatedAt: DateTime.utc(2026, 10, 15),
+            );
+          }
+          final store = _MemoryOutbox();
+          final repository = SupabaseAppRepository.withGateway(
+            gateway,
+            outbox: store,
+            cache: store,
+          );
+          await repository.loadLocal(const []);
+          gateway.loadGate = Completer<void>();
+          final loading = repository.load(const []);
+          await Future<void>.delayed(Duration.zero);
+          final latest = _snapshot(goals: const ['방금 기록한 목표']);
+
+          // Device saving must finish while the network read is still blocked.
+          await repository.save(latest).timeout(const Duration(seconds: 1));
+          expect(
+            store.pendingByUser['account-a']?.snapshot.goals,
+            latest.goals,
+          );
+          gateway.loadGate!.complete();
+          final loaded = await loading;
+
+          expect(loaded?.goals, latest.goals);
+          expect(repository.hasPendingSave, isTrue);
+          expect(
+            store.pendingByUser['account-a']?.snapshot.goals,
+            latest.goals,
+          );
+          expect(store.cachedByUser['account-a']?.goals, latest.goals);
+        },
+      );
+    }
+
+    test(
+      'an old pending acknowledgement cannot clear a newer local save',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final store = _MemoryOutbox();
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: store,
+          cache: store,
+        );
+        await repository.load(const []);
+        final previous = _snapshot(goals: const ['이전 기록']);
+        await repository.save(previous);
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(previous),
+          updatedAt: DateTime.utc(2026, 10, 15),
+        );
+        gateway.loadGate = Completer<void>();
+        final loading = repository.load(const []);
+        await Future<void>.delayed(Duration.zero);
+        final latest = _snapshot(goals: const ['방금 추가한 기록']);
+        await repository.save(latest).timeout(const Duration(seconds: 1));
+
+        gateway.loadGate!.complete();
+        final loaded = await loading;
+
+        expect(loaded?.goals, latest.goals);
+        expect(repository.hasPendingSave, isTrue);
+        expect(store.pendingByUser['account-a']?.snapshot.goals, latest.goals);
+        expect(store.cachedByUser['account-a']?.goals, latest.goals);
+      },
+    );
+
+    test(
+      'a delayed failed read returns the newest local pending save',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final store = _MemoryOutbox();
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: store,
+          cache: store,
+        );
+        await repository.load(const []);
+        gateway.loadGate = Completer<void>();
+        gateway.loadFailuresRemaining = 1;
+        final loading = repository.load(const []);
+        await Future<void>.delayed(Duration.zero);
+        final latest = _snapshot(goals: const ['오프라인에서도 보존']);
+        await repository.save(latest).timeout(const Duration(seconds: 1));
+
+        gateway.loadGate!.complete();
+        final loaded = await loading;
+
+        expect(loaded?.goals, latest.goals);
+        expect(store.pendingByUser['account-a']?.snapshot.goals, latest.goals);
+      },
+    );
+
+    test(
+      'delayed workout projection cannot restage an older snapshot',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final day = DateTime(2026, 10, 15);
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(
+            _snapshot(
+              goals: const ['이전 서버 목표'],
+              sessions: {day: WorkoutSession(date: day, exercises: [])},
+            ),
+          ),
+          updatedAt: DateTime.utc(2026, 10, 15),
+        );
+        final store = _MemoryOutbox();
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: store,
+          cache: store,
+        );
+        gateway.workoutLoadGate = Completer<void>();
+        final loading = repository.load(const []);
+        await Future<void>.delayed(Duration.zero);
+        final latest = _snapshot(goals: const ['방금 기록한 목표']);
+        await repository.save(latest).timeout(const Duration(seconds: 1));
+
+        gateway.workoutLoadGate!.complete();
+        final loaded = await loading;
+
+        expect(loaded?.goals, latest.goals);
+        expect(store.pendingByUser['account-a']?.snapshot.goals, latest.goals);
+        expect(store.cachedByUser['account-a']?.goals, latest.goals);
+        expect(gateway.expectedSaveUserIds, isEmpty);
+      },
+    );
+
+    test(
+      'a pending acknowledgement and a local save keep device writes ordered',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        final previous = _snapshot(goals: const ['서버에서 확인한 이전 기록']);
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(previous),
+          updatedAt: DateTime.utc(2026, 10, 15),
+        );
+        final store = _BlockingCache();
+        store.pendingByUser['account-a'] = PendingAppSnapshot(
+          snapshot: previous,
+          queuedAt: DateTime.utc(2026, 10, 15),
+        );
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: store,
+          cache: store,
+        );
+        final loading = repository.load(const []);
+        await store.storeStarted.future;
+        final latest = _snapshot(goals: const ['저장 확인 중 추가한 기록']);
+        final saving = repository.save(latest);
+        await Future<void>.delayed(Duration.zero);
+        store.allowStoreToFinish.complete();
+        await saving;
+        final loaded = await loading;
+
+        expect(loaded?.goals, latest.goals);
+        expect(repository.hasPendingSave, isTrue);
+        expect(store.pendingByUser['account-a']?.snapshot.goals, latest.goals);
+        expect(store.cachedByUser['account-a']?.goals, latest.goals);
+      },
+    );
+
+    test(
+      'a previous account read cannot change the newly loaded account',
+      () async {
+        final gateway = _FakeSupabaseGateway(currentUserId: 'account-a');
+        gateway.rows['account-a'] = SupabaseAppSnapshotRow(
+          payload: AppSnapshotCodec.toJson(_snapshot(goals: const ['A 계정'])),
+          updatedAt: DateTime.utc(2026, 10, 15),
+        );
+        final store = _MemoryOutbox();
+        final repository = SupabaseAppRepository.withGateway(
+          gateway,
+          outbox: store,
+          cache: store,
+        );
+        final gate = Completer<void>();
+        gateway.loadGate = gate;
+        final accountALoad = repository.load(const []);
+        await Future<void>.delayed(Duration.zero);
+        gateway.currentUserId = 'account-b';
+        gateway.loadGate = null;
+        await repository.load(const []);
+        final accountB = _snapshot(goals: const ['B 계정 최신 기록']);
+        await repository.save(accountB);
+
+        gate.complete();
+        expect(await accountALoad, isNull);
+
+        expect((await repository.loadLocal(const []))?.goals, accountB.goals);
+        expect(
+          store.pendingByUser['account-b']?.snapshot.goals,
+          accountB.goals,
+        );
+        expect(store.cachedByUser, isNot(contains('account-a')));
+      },
+    );
+
     test(
       'local cache initializes the shell before a delayed server read',
       () async {
@@ -1336,6 +1547,18 @@ class _BlockingOutbox extends _MemoryOutbox {
   }
 }
 
+class _BlockingCache extends _MemoryOutbox {
+  final storeStarted = Completer<void>();
+  final allowStoreToFinish = Completer<void>();
+
+  @override
+  Future<void> storeCached(String userId, AppSnapshot snapshot) async {
+    if (!storeStarted.isCompleted) storeStarted.complete();
+    await allowStoreToFinish.future;
+    await super.storeCached(userId, snapshot);
+  }
+}
+
 class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
   _FakeSupabaseGateway({this.currentUserId});
 
@@ -1345,6 +1568,7 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
   int saveFailuresRemaining = 0;
   int loadFailuresRemaining = 0;
   Completer<void>? loadGate;
+  Completer<void>? workoutLoadGate;
   int _version = 0;
   void Function()? beforeServerAuthorization;
   final List<String> expectedSaveUserIds = [];
@@ -1394,7 +1618,10 @@ class _FakeSupabaseGateway implements SupabaseAppRemoteGateway {
   final Map<String, String> pushTokens = {};
 
   @override
-  Future<DateTime?> latestWorkoutUpdatedAt(String userId) async => null;
+  Future<DateTime?> latestWorkoutUpdatedAt(String userId) async {
+    await workoutLoadGate?.future;
+    return null;
+  }
 
   @override
   Future<SupabaseAppSnapshotRow?> loadSnapshot(String userId) async {

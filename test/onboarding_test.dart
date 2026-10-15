@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
@@ -116,6 +118,48 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
   });
 
+  testWidgets('중복 소셜 로그인 완료 이벤트는 원래 화면을 닫지 않는다', (tester) async {
+    final auth = _OAuthAuthService();
+    Auth.use(auth);
+    addTearDown(Auth.reset);
+    final state = await pumpScreen(
+      tester,
+      const Scaffold(body: Text('앱 첫 화면')),
+    );
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await auth.changes.close();
+    });
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    unawaited(
+      navigator.push<void>(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Text('로그인 전 화면')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    unawaited(
+      navigator.push<void>(
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('social-kakao')));
+    await tester.pump();
+
+    auth.completeSignIn();
+    auth.completeSignIn();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(WelcomeScreen), findsNothing);
+    expect(find.text('로그인 전 화면'), findsOneWidget);
+    expect(navigator.canPop(), isTrue);
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(seconds: 4));
+  });
+
   testWidgets('gym onboarding validates and submits verification steps', (
     tester,
   ) async {
@@ -206,4 +250,30 @@ class _SignedInAuthService extends _KakaoOnlyAuthService {
 
   @override
   bool get hasAuthenticatedUser => true;
+}
+
+class _OAuthAuthService extends _KakaoOnlyAuthService {
+  final changes = StreamController<AuthChange>.broadcast(sync: true);
+  AuthUser? _user;
+
+  @override
+  AuthUser? get currentUser => _user;
+
+  @override
+  bool get hasAuthenticatedUser => _user != null;
+
+  @override
+  Stream<AuthChange> get authChanges => changes.stream;
+
+  @override
+  Future<bool> signInWithSocial(SocialLoginProvider provider) async => true;
+
+  void completeSignIn() {
+    _user = const AuthUser(
+      id: 'u-me',
+      email: 'me@example.com',
+      displayName: '나',
+    );
+    changes.add(AuthChange(AuthEvent.signedIn, _user));
+  }
 }

@@ -522,7 +522,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final set = state.sessions[date]!.exercises.single.sets.first;
-    await tester.longPress(find.byKey(ObjectKey(set)));
+    await tester.longPress(
+      find.byWidgetPredicate(
+        (widget) => widget is Dismissible && widget.key == ObjectKey(set),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('길게 눌러 삭제 메뉴를 열었어요.'), findsOneWidget);
