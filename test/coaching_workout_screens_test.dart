@@ -659,6 +659,378 @@ void main() {
     await _unmount(tester, state);
   });
 
+  testWidgets('assignment names the recipient and protects a normal draft', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final state = _state(repository);
+    await _mount(
+      tester,
+      state,
+      const CoachingAssignmentComposerScreen(
+        memberUserId: 'member',
+        memberName: '민지',
+      ),
+    );
+    expect(find.text('민지 회원님'), findsOneWidget);
+    expect(find.text('민지 회원님께 보내기'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField), '입력 중인 과제');
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('과제를 남겨둘까요?'), findsOneWidget);
+    await tester.tap(find.text('계속 작성'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextFormField>(find.byType(TextFormField)).controller!.text,
+      '입력 중인 과제',
+    );
+    expect(repository.createdSession, isNull);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('초안 버리고 나가기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CoachingAssignmentComposerScreen), findsNothing);
+    await _unmount(tester, state);
+  });
+
+  testWidgets('untouched assignment can close without a discard dialog', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final state = _state(repository);
+    await _mount(
+      tester,
+      state,
+      const CoachingAssignmentComposerScreen(memberUserId: 'member'),
+    );
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('과제를 남겨둘까요?'), findsNothing);
+    expect(find.byType(CoachingAssignmentComposerScreen), findsNothing);
+    await _unmount(tester, state);
+  });
+
+  testWidgets('list copies a completed assignment into a fresh plan', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    repository.current = repository.copy(kind: CoachingWorkoutKind.assignment);
+    final source = repository.current.session;
+    source.startedAt = DateTime.now().subtract(const Duration(hours: 1));
+    source.endedAt = DateTime.now();
+    for (final set in source.exercises.single.sets) {
+      set.completed = true;
+      set.rir = 1;
+      set.intensityRpe = 8;
+    }
+    final before = AppSnapshotCodec.sessionToJson(source);
+    final state = _state(repository);
+    await _mount(
+      tester,
+      state,
+      const CoachingAssignmentsScreen(memberUserId: 'member', memberName: '민지'),
+    );
+    final copy = find.byKey(const ValueKey('assignment-copy-workout'));
+    await tester.ensureVisible(copy);
+    await tester.tap(copy);
+    await tester.pumpAndSettle();
+    expect(find.text('민지 회원님께 보내기'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('assignment-send')));
+    await tester.pumpAndSettle();
+    final copied = repository.createdSession!;
+    expect(copied.completedSets, 0);
+    expect(copied.startedAt, isNull);
+    expect(copied.endedAt, isNull);
+    expect(copied.exercises.single.id, isNot(source.exercises.single.id));
+    for (final set in copied.exercises.single.sets) {
+      expect(set.weight, 50);
+      expect(set.reps, 10);
+      expect(set.rir, isNull);
+      expect(set.intensityRpe, 0);
+    }
+    expect(AppSnapshotCodec.sessionToJson(source), before);
+    await _unmount(tester, state);
+  });
+
+  testWidgets(
+    'previous assignment import filters the member and confirms replacement',
+    (tester) async {
+      final repository = _Repository();
+      repository.current = repository.copy(
+        kind: CoachingWorkoutKind.assignment,
+      );
+      repository.extraWorkouts = [
+        repository.copy(id: 'another', memberUserId: 'another-member'),
+      ];
+      final state = _state(repository);
+      await _mount(
+        tester,
+        state,
+        const CoachingAssignmentComposerScreen(memberUserId: 'member'),
+      );
+      await tester.enterText(find.byType(TextFormField), '작성한 이름');
+      await tester.tap(find.byKey(const ValueKey('assignment-copy-previous')));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, '오늘 하체 수업'), findsOneWidget);
+      expect(repository.requestedMembers, ['member']);
+      await tester.tap(find.widgetWithText(ListTile, '오늘 하체 수업'));
+      await tester.pumpAndSettle();
+      expect(find.text('작성 내용을 바꿀까요?'), findsOneWidget);
+      await tester.tap(find.text('계속 작성'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField))
+            .controller!
+            .text,
+        '작성한 이름',
+      );
+      expect(repository.createdSession, isNull);
+      await _unmount(tester, state);
+    },
+  );
+
+  testWidgets(
+    'personal routine imports actual editable plans without fabricating effort',
+    (tester) async {
+      final repository = _Repository();
+      final state = _state(repository);
+      state.routines.add(
+        RoutineData(
+          id: 'personal',
+          name: '내 하체 루틴',
+          description: '천천히 내려가세요.',
+          color: SetflowColors.brand,
+          exercises: [_exercise],
+          setPlans: const {
+            'squat': [
+              RoutineSetPlan(
+                number: 1,
+                weight: 42.5,
+                reps: 8,
+                restSeconds: 120,
+                intensityRpe: 7,
+              ),
+            ],
+          },
+        ),
+      );
+      await _mount(
+        tester,
+        state,
+        const CoachingAssignmentComposerScreen(memberUserId: 'member'),
+      );
+      await tester.tap(find.byKey(const ValueKey('assignment-import-routine')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, '내 하체 루틴'));
+      await tester.pumpAndSettle();
+      expect(find.text('무게 42.5kg'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('assignment-send')));
+      await tester.pumpAndSettle();
+      final set = repository.createdSession!.exercises.single.sets.single;
+      expect(repository.createdTitle, '내 하체 루틴');
+      expect(repository.createdInstruction, '천천히 내려가세요.');
+      expect(set.weight, 42.5);
+      expect(set.reps, 8);
+      expect(set.restSeconds, 120);
+      expect(set.completed, false);
+      expect(set.intensityRpe, 0);
+      expect(set.rir, isNull);
+      expect(
+        state.routines
+            .singleWhere((item) => item.id == 'personal')
+            .setsFor(_exercise)
+            .single
+            .intensityRpe,
+        7,
+      );
+      await _unmount(tester, state);
+    },
+  );
+
+  testWidgets(
+    'failed assignment retains its recipient and retries one request',
+    (tester) async {
+      final repository = _Repository()..failCreate = true;
+      final state = _state(repository);
+      await _mount(
+        tester,
+        state,
+        CoachingAssignmentComposerScreen(
+          memberUserId: 'member',
+          memberName: '민지',
+          initialAssignment: repository.copy(
+            kind: CoachingWorkoutKind.assignment,
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('assignment-send')));
+      await tester.pumpAndSettle();
+      expect(find.text('민지 회원님께 다시 보내기'), findsOneWidget);
+      expect(find.text('민지 회원님'), findsOneWidget);
+      expect(
+        tester.widget<TextFormField>(find.byType(TextFormField)).enabled,
+        false,
+      );
+      final first = AppSnapshotCodec.sessionToJson(repository.createdSession!);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('계속 작성'));
+      await tester.pumpAndSettle();
+      repository.failCreate = false;
+      await tester.tap(find.byKey(const ValueKey('assignment-send')));
+      await tester.pumpAndSettle();
+      expect(repository.createRequests, hasLength(2));
+      expect(repository.createRequests[0], repository.createRequests[1]);
+      expect(AppSnapshotCodec.sessionToJson(repository.createdSession!), first);
+      expect(repository.createdMember, 'member');
+      await _unmount(tester, state);
+    },
+  );
+
+  testWidgets(
+    'owned coaching routine keeps plan units and resolves the recipient',
+    (tester) async {
+      final repository = _Repository();
+      final state = _state(repository);
+      state.businessWorkspace = BusinessWorkspaceData(
+        role: UserRole.trainer,
+        access: state.businessAccess!,
+        dashboardStats: const BusinessDashboardMetrics(),
+        members: const [
+          BusinessMember(
+            id: 'membership',
+            gymId: 'gym',
+            userId: 'member',
+            name: '민지',
+            remainingPtSessions: 3,
+          ),
+        ],
+        ownedRoutines: const [
+          OwnedCoachingRoutine(
+            id: 'owned',
+            title: '코칭 유산소',
+            status: BusinessRoutineStatus.draft,
+            difficulty: BusinessRoutineDifficulty.beginner,
+            cumulativeUsers: 0,
+            exercises: [
+              OwnedRoutineExercise(
+                id: 'custom-cardio',
+                routineId: 'owned',
+                name: '내 유산소',
+                targetMuscle: '유산소',
+                orderIndex: 0,
+                sets: [
+                  OwnedRoutineSet(
+                    id: 'plan',
+                    exerciseId: 'custom-cardio',
+                    setNumber: 1,
+                    type: 'normal',
+                    durationSeconds: 900,
+                    distanceMeters: 2500,
+                    intensityRpe: 6,
+                    restSeconds: 0,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      await _mount(
+        tester,
+        state,
+        const CoachingAssignmentComposerScreen(memberUserId: 'member'),
+      );
+      expect(find.text('민지 회원님께 보내기'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('assignment-import-routine')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, '코칭 유산소'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('assignment-send')));
+      await tester.pumpAndSettle();
+      final exercise = repository.createdSession!.exercises.single;
+      expect(exercise.template.name, '내 유산소');
+      expect(exercise.template.isCardio, true);
+      final set = exercise.sets.single;
+      expect(set.durationSeconds, 900);
+      expect(set.distanceKm, 2.5);
+      expect(set.restSeconds, 0);
+      expect(set.intensityRpe, 0);
+      expect(set.completed, false);
+      expect(
+        state
+            .ownedBusinessRoutines
+            .single
+            .exercises
+            .single
+            .sets
+            .single
+            .intensityRpe,
+        6,
+      );
+      await _unmount(tester, state);
+    },
+  );
+
+  testWidgets(
+    'late previous assignment response cannot restore another account draft',
+    (tester) async {
+      final repository = _Repository();
+      final state = _state(repository);
+      await _mount(
+        tester,
+        state,
+        const CoachingAssignmentComposerScreen(memberUserId: 'member'),
+      );
+      repository.listGate = Completer<void>();
+      await tester.tap(find.byKey(const ValueKey('assignment-copy-previous')));
+      await tester.pump(const Duration(milliseconds: 100));
+      state.changeAccount('another-member');
+      await tester.pumpAndSettle();
+      repository.listGate!.complete();
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('coaching-account-expired')),
+        findsOneWidget,
+      );
+      expect(find.text('오늘 하체 수업'), findsNothing);
+      expect(find.byKey(const ValueKey('assignment-send')), findsNothing);
+      expect(repository.createdSession, isNull);
+      await _unmount(tester, state);
+    },
+  );
+
+  testWidgets('small composer keeps recipient and send action reachable', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final state = _state(repository);
+    await _mount(
+      tester,
+      state,
+      CoachingAssignmentComposerScreen(
+        memberUserId: 'member',
+        memberName: '김민지',
+        initialAssignment: repository.copy(
+          kind: CoachingWorkoutKind.assignment,
+        ),
+      ),
+      small: true,
+    );
+    expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('assignment-send')).hitTestable(),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('assignment-send')));
+    await tester.pumpAndSettle();
+    expect(repository.createdMember, 'member');
+    expect(tester.takeException(), isNull);
+    await _unmount(tester, state);
+  });
+
   testWidgets(
     'daily assignment reminder remains off until member explicitly saves',
     (tester) async {
@@ -883,6 +1255,10 @@ class _Repository implements CoachingWorkoutRepository {
   WorkoutSession? createdSession;
   String? createdTitle;
   String? createdMember;
+  String? createdInstruction;
+  bool failCreate = false;
+  final createRequests = <String>[];
+  Completer<void>? listGate;
 
   CoachingWorkout copy({
     String? id,
@@ -924,6 +1300,7 @@ class _Repository implements CoachingWorkoutRepository {
     String? memberUserId,
   }) async {
     requestedMembers.add(memberUserId);
+    if (listGate != null) await listGate!.future;
     return [current, ...extraWorkouts];
   }
 
@@ -962,9 +1339,12 @@ class _Repository implements CoachingWorkoutRepository {
     required WorkoutSession session,
     required String requestId,
   }) async {
+    createRequests.add(requestId);
     createdSession = session;
     createdTitle = title;
     createdMember = memberUserId;
+    createdInstruction = instruction;
+    if (failCreate) throw StateError('Create failed');
     current = copy(
       session: session,
       kind: CoachingWorkoutKind.assignment,

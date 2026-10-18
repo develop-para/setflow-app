@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/business_repository.dart';
+import 'package:setflow/data/coaching_management_repository.dart';
 import 'package:setflow/screens/member_detail_screens.dart';
+import 'package:setflow/services/auth_service.dart';
 import 'package:setflow/theme.dart';
 import 'package:setflow/widgets/common.dart';
 import 'package:setflow/widgets/exercise_muscle_map.dart';
@@ -17,11 +19,15 @@ const _sessionId = '55555555-5555-4555-8555-555555555555';
 void main() {
   Future<AppState> pumpMemberDetail(
     WidgetTester tester,
-    _FakeBusinessRepository repository,
-  ) async {
+    _FakeBusinessRepository repository, {
+    UserRole role = UserRole.guest,
+    BusinessAccess? access,
+  }) async {
     await tester.binding.setSurfaceSize(const Size(432, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final state = AppState(businessRepository: repository);
+    final state = AppState(businessRepository: repository)
+      ..role = role
+      ..businessAccess = access;
     addTearDown(state.dispose);
     await tester.pumpWidget(
       AppScope(
@@ -106,6 +112,38 @@ void main() {
     expect(find.textContaining('120초'), findsOneWidget);
   });
 
+  testWidgets(
+    'returning from record sharing reloads consent and the selected month',
+    (tester) async {
+      Auth.use(_TrainerAuth());
+      addTearDown(Auth.reset);
+      final repository = _SharingBusinessRepository(
+        detail: _memberDetail(canReadWorkouts: true),
+      );
+      final state = await pumpMemberDetail(
+        tester,
+        repository,
+        role: UserRole.trainer,
+        access: repository.access,
+      );
+      await tester.tap(find.byKey(const ValueKey('member-records-calendar')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('이전 달'));
+      await tester.pumpAndSettle();
+      final selectedRange = repository.requestedRanges.last;
+      await tester.tap(find.byKey(const ValueKey('member-detail-sharing')));
+      await tester.pumpAndSettle();
+      expect(find.text('실회원 기록 공유'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(state.businessMemberDetail(_memberId)?.canReadWorkouts, isTrue);
+      expect(find.text('운동 기록 공유가 꺼져 있어요'), findsNothing);
+      expect(find.text('2026.07'), findsOneWidget);
+      expect(repository.requestedRanges.last, selectedRange);
+      expect(repository.requestedMemberIds, hasLength(3));
+    },
+  );
+
   testWidgets('calendar selects one day and retains the month on refresh', (
     tester,
   ) async {
@@ -119,6 +157,13 @@ void main() {
       ),
     );
     final state = await pumpMemberDetail(tester, repository);
+    expect(find.byType(WorkoutHistoryCalendar), findsNothing);
+    expect(
+      find.byKey(const ValueKey('member-session-second-session')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('member-records-calendar')));
+    await tester.pumpAndSettle();
     expect(find.text('2026.08'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('member-session-$_sessionId')),
@@ -158,6 +203,16 @@ void main() {
       from: DateTime(2026, 7),
       to: DateTime(2026, 7, 31),
     ));
+    final recent = find.byKey(const ValueKey('member-records-recent'));
+    await tester.ensureVisible(recent);
+    await tester.tap(recent);
+    await tester.pumpAndSettle();
+    expect(find.byType(WorkoutHistoryCalendar), findsNothing);
+    expect(
+      find.byKey(const ValueKey('member-session-$_sessionId')),
+      findsOneWidget,
+    );
+    expect(repository.requestedRanges.last, repository.requestedRanges.first);
   });
 
   testWidgets(
@@ -169,7 +224,7 @@ void main() {
         feedbackCompleter: feedbackCompleter,
       );
       await pumpMemberDetail(tester, repository);
-      await _expandSession(tester);
+      await _openFeedback(tester);
 
       final field = find.byKey(
         const ValueKey('session-feedback-field-$_sessionId'),
@@ -211,6 +266,112 @@ void main() {
       expect(repository.feedbackInputs, hasLength(1));
     },
   );
+
+  testWidgets(
+    'feedback opens before set details and retains a collapsed draft',
+    (tester) async {
+      final repository = _FakeBusinessRepository(
+        detail: _memberDetail(canReadWorkouts: true),
+      );
+      await pumpMemberDetail(tester, repository);
+      expect(find.textContaining('82.5kg'), findsNothing);
+      await _openFeedback(tester);
+      final field = find.byKey(
+        const ValueKey('session-feedback-field-$_sessionId'),
+      );
+      expect(find.text('2026.08.15 운동에 보낼 피드백'), findsOneWidget);
+      expect(find.textContaining('82.5kg'), findsNothing);
+      await tester.enterText(field, '호흡을 유지해주세요.');
+      await _openFeedback(tester);
+      expect(field, findsNothing);
+      await _openFeedback(tester);
+      expect(find.text('호흡을 유지해주세요.'), findsOneWidget);
+      await tester.tap(find.text('피드백').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('운동 기록').first);
+      await tester.pumpAndSettle();
+      expect(find.text('호흡을 유지해주세요.'), findsOneWidget);
+      expect(repository.feedbackInputs, isEmpty);
+    },
+  );
+
+  testWidgets('feedback history identifies and opens the exact workout', (
+    tester,
+  ) async {
+    final repository = _FakeBusinessRepository(
+      detail: _memberDetail(
+        canReadWorkouts: true,
+        sessions: [
+          _session(
+            feedbacks: [
+              BusinessSessionFeedback(
+                id: 'history-feedback',
+                sessionId: _sessionId,
+                trainerUserId: 'trainer-user',
+                authorName: '정코치',
+                text: '다음 운동에서도 호흡을 유지해주세요.',
+                createdAt: DateTime(2026, 8, 16),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await pumpMemberDetail(tester, repository);
+    await tester.tap(find.text('피드백').first);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('member-feedback-period')),
+      findsOneWidget,
+    );
+    expect(find.text('2026.08.15 운동'), findsOneWidget);
+    await tester.tap(find.text('2026.08.15 운동'));
+    await tester.pumpAndSettle();
+    expect(find.text('실회원 운동 피드백'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('session-feedback-field-$_sessionId')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'live recent records and feedback work on a narrow screen at 2x text',
+    (tester) async {
+      final repository = _FakeBusinessRepository(
+        detail: _memberDetail(canReadWorkouts: true),
+      );
+      await pumpMemberDetail(tester, repository);
+      await tester.binding.setSurfaceSize(const Size(320, 900));
+      final appContext = tester.element(find.byType(MemberDetailScreen));
+      final state = AppScope.of(appContext);
+      await tester.pumpWidget(
+        AppScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: SetflowTheme.light,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(2)),
+              child: child!,
+            ),
+            home: MemberDetailScreen(member: _member(), role: UserRole.trainer),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _openFeedback(tester);
+      expect(tester.takeException(), isNull);
+      expect(find.text('2026.08.15 운동에 보낼 피드백'), findsOneWidget);
+    },
+  );
+}
+
+Future<void> _openFeedback(WidgetTester tester) async {
+  final open = find.byKey(const ValueKey('session-feedback-open-$_sessionId'));
+  await tester.ensureVisible(open);
+  await tester.tap(open);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _expandSession(WidgetTester tester) async {
@@ -251,40 +412,43 @@ BusinessMemberDetail _memberDetail({
   );
 }
 
-BusinessWorkoutSession _session({String id = _sessionId, DateTime? date}) =>
-    BusinessWorkoutSession(
-      id: id,
-      userId: _memberUserId,
-      date: date ?? DateTime(2026, 8, 15),
-      category: 'strength',
-      intensity: 'moderate',
-      startedAt: DateTime.utc(2026, 8, 15, 9),
-      endedAt: DateTime.utc(2026, 8, 15, 10),
-      exercises: [
-        BusinessWorkoutExercise(
-          id: '66666666-6666-4666-8666-666666666666',
-          name: '바벨 벤치 프레스 · E2E',
-          targetMuscle: '가슴',
-          orderIndex: 0,
-          sets: [
-            BusinessWorkoutSet(
-              id: '77777777-7777-4777-8777-777777777777',
-              setNumber: 1,
-              type: 'normal',
-              weight: 82.5,
-              reps: 8,
-              rir: 2,
-              memo: '하강 2초',
-              completed: true,
-              completedAt: DateTime.utc(2026, 8, 15, 9, 15),
-              estimated1Rm: 104.5,
-              restSeconds: 120,
-            ),
-          ],
+BusinessWorkoutSession _session({
+  String id = _sessionId,
+  DateTime? date,
+  List<BusinessSessionFeedback> feedbacks = const [],
+}) => BusinessWorkoutSession(
+  id: id,
+  userId: _memberUserId,
+  date: date ?? DateTime(2026, 8, 15),
+  category: 'strength',
+  intensity: 'moderate',
+  startedAt: DateTime.utc(2026, 8, 15, 9),
+  endedAt: DateTime.utc(2026, 8, 15, 10),
+  exercises: [
+    BusinessWorkoutExercise(
+      id: '66666666-6666-4666-8666-666666666666',
+      name: '바벨 벤치 프레스 · E2E',
+      targetMuscle: '가슴',
+      orderIndex: 0,
+      sets: [
+        BusinessWorkoutSet(
+          id: '77777777-7777-4777-8777-777777777777',
+          setNumber: 1,
+          type: 'normal',
+          weight: 82.5,
+          reps: 8,
+          rir: 2,
+          memo: '하강 2초',
+          completed: true,
+          completedAt: DateTime.utc(2026, 8, 15, 9, 15),
+          estimated1Rm: 104.5,
+          restSeconds: 120,
         ),
       ],
-      feedbacks: const [],
-    );
+    ),
+  ],
+  feedbacks: feedbacks,
+);
 
 class _FakeBusinessRepository implements BusinessRepository {
   _FakeBusinessRepository({required this.detail, this.feedbackCompleter});
@@ -341,4 +505,48 @@ class _FakeBusinessRepository implements BusinessRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TrainerAuth implements AuthService {
+  @override
+  AuthUser? get currentUser =>
+      const AuthUser(id: 'trainer-user', displayName: '정코치');
+  @override
+  bool get hasAuthenticatedUser => true;
+  @override
+  String get currentDisplayName => '정코치';
+  @override
+  Stream<AuthChange> get authChanges => const Stream.empty();
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _SharingBusinessRepository extends _FakeBusinessRepository
+    implements CoachingManagementRepository {
+  _SharingBusinessRepository({required super.detail});
+  final access = const BusinessAccess(
+    userId: 'trainer-user',
+    accountRole: UserRole.trainer,
+    resolvedRole: UserRole.trainer,
+    availableRoles: {UserRole.member, UserRole.trainer},
+  );
+
+  @override
+  Future<BusinessAccess> loadAccess() async => access;
+  @override
+  Future<BusinessWorkspaceData> loadWorkspace(UserRole role) async =>
+      BusinessWorkspaceData(
+        role: role,
+        access: access,
+        dashboardStats: const BusinessDashboardMetrics(),
+        members: [_member()],
+      );
+  @override
+  Future<List<CoachingManagementLink>> listManagementLinks({
+    required CoachingManagementRole role,
+  }) async => [];
+  @override
+  Future<List<WorkoutCorrection>> listWorkoutCorrections({
+    required CoachingManagementRole role,
+  }) async => [];
 }

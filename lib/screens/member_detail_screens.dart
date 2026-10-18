@@ -3,10 +3,16 @@ import 'package:intl/intl.dart';
 
 import '../app_state.dart';
 import '../data/business_repository.dart';
+import '../data/coaching_management_repository.dart';
 import '../theme.dart';
+import '../theme/icons.dart';
 import '../widgets/common.dart';
 import '../widgets/exercise_muscle_map.dart';
+import '../widgets/pro_access_gate.dart';
 import '../widgets/workout_history_calendar.dart';
+import 'coaching_management_screen.dart';
+import 'coaching_workout_screens.dart';
+import 'consultation_chat_screen.dart';
 
 const _weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -62,10 +68,18 @@ class MemberDetailScreen extends StatefulWidget {
 class _MemberDetailScreenState extends State<MemberDetailScreen>
     with WidgetsBindingObserver {
   var _requested = false;
+  late final DateTime _recentTo;
+  late final DateTime _recentFrom;
+  late DateTime _from;
+  late DateTime _to;
 
   @override
   void initState() {
     super.initState();
+    _recentTo = DateUtils.dateOnly(DateTime.now());
+    _recentFrom = _recentTo.subtract(const Duration(days: 90));
+    _from = _recentFrom;
+    _to = _recentTo;
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -94,7 +108,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       state
-          .loadBusinessMemberDetail(widget.member.id)
+          .loadBusinessMemberDetail(
+            widget.member.id,
+            force: true,
+            from: _from,
+            to: _to,
+          )
           .then<void>((_) {}, onError: (_) {});
     });
   }
@@ -131,8 +150,23 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
               detail: detail,
               loading: state.isBusinessMemberDetailLoading(widget.member.id),
               error: state.businessMemberDetailError(widget.member.id),
+              from: _from,
+              to: _to,
+              recentFrom: _recentFrom,
+              recentTo: _recentTo,
+              onRangeChanged: (from, to) => setState(() {
+                _from = from;
+                _to = to;
+              }),
             ),
-            _LiveMemberFeedbackTab(member: widget.member, detail: detail),
+            _LiveMemberFeedbackTab(
+              member: widget.member,
+              detail: detail,
+              from: _from,
+              to: _to,
+              loading: state.isBusinessMemberDetailLoading(widget.member.id),
+              error: state.businessMemberDetailError(widget.member.id),
+            ),
           ]
         : isGym
         ? <Widget>[
@@ -157,17 +191,146 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
         body: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-              child: _MemberSummaryHeader(
-                member: widget.member,
-                latestSession: latestSession,
-                liveDetail: detail,
+              padding: const EdgeInsets.fromLTRB(
+                SetflowSpacing.gutter,
+                SetflowSpacing.md,
+                SetflowSpacing.gutter,
+                SetflowSpacing.sm2,
               ),
+              child: liveBusinessData
+                  ? _LiveMemberHeader(
+                      member: widget.member,
+                      role: widget.role,
+                      from: _from,
+                      to: _to,
+                    )
+                  : _MemberSummaryHeader(
+                      member: widget.member,
+                      latestSession: latestSession,
+                      liveDetail: detail,
+                    ),
             ),
             Expanded(child: TabBarView(children: tabViews)),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LiveMemberHeader extends StatelessWidget {
+  const _LiveMemberHeader({
+    required this.member,
+    required this.role,
+    required this.from,
+    required this.to,
+  });
+
+  final BusinessMember member;
+  final UserRole role;
+  final DateTime from;
+  final DateTime to;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final consultations =
+        state.businessConsultations
+            .where((consultation) => consultation.userId == member.userId)
+            .toList()
+          ..sort(
+            (left, right) => (right.createdAt ?? DateTime(0)).compareTo(
+              left.createdAt ?? DateTime(0),
+            ),
+          );
+    final consultation = consultations.firstOrNull;
+    final connectedTrainer = role == UserRole.trainer && member.userId != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${member.goal ?? '목표 미등록'} · 마지막 기록 ${_relativeDate(member.lastActivityAt)}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        if (connectedTrainer) ...[
+          const SizedBox(height: SetflowSpacing.sm),
+          Wrap(
+            spacing: SetflowSpacing.sm,
+            runSpacing: SetflowSpacing.xs,
+            children: [
+              if (state.coachingWorkoutRepository != null)
+                OutlinedButton.icon(
+                  key: const ValueKey('member-detail-assignments'),
+                  icon: const Icon(SetflowIcons.routine),
+                  label: const Text('운동 과제'),
+                  onPressed: () async {
+                    if (!await requireProAccess(context) || !context.mounted) {
+                      return;
+                    }
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CoachingAssignmentsScreen(
+                          memberUserId: member.userId,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              if (consultation != null &&
+                  state.businessRepository is ConsultationChatRepository)
+                OutlinedButton.icon(
+                  key: const ValueKey('member-detail-chat'),
+                  icon: const Icon(SetflowIcons.comment),
+                  label: const Text('대화'),
+                  onPressed: () async {
+                    if (!await requireProAccess(context) || !context.mounted) {
+                      return;
+                    }
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ConsultationChatScreen(
+                          consultationId: consultation.id,
+                          role: role,
+                          initialConsultation: consultation,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              if (state.businessRepository is CoachingManagementRepository)
+                OutlinedButton.icon(
+                  key: const ValueKey('member-detail-sharing'),
+                  icon: const Icon(SetflowIcons.handOver),
+                  label: const Text('기록 공유'),
+                  onPressed: () async {
+                    final accountId = state.businessAccess?.userId;
+                    await openTrainerMemberRecords(
+                      context,
+                      memberUserId: member.userId,
+                      memberName: member.name,
+                      consultationId: consultation?.id,
+                    );
+                    if (!context.mounted ||
+                        state.role != role ||
+                        state.businessAccess?.userId != accountId) {
+                      return;
+                    }
+                    try {
+                      await state.loadBusinessMemberDetail(
+                        member.id,
+                        force: true,
+                        from: from,
+                        to: to,
+                      );
+                    } catch (_) {
+                      // 기록 탭의 조회 실패와 다시 시도로 안내한다.
+                    }
+                  },
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -178,39 +341,69 @@ class _LiveMemberRecordTab extends StatefulWidget {
     required this.detail,
     required this.loading,
     required this.error,
+    required this.from,
+    required this.to,
+    required this.recentFrom,
+    required this.recentTo,
+    required this.onRangeChanged,
   });
 
   final BusinessMember member;
   final BusinessMemberDetail? detail;
   final bool loading;
   final Object? error;
+  final DateTime from;
+  final DateTime to;
+  final DateTime recentFrom;
+  final DateTime recentTo;
+  final void Function(DateTime from, DateTime to) onRangeChanged;
 
   @override
   State<_LiveMemberRecordTab> createState() => _LiveMemberRecordTabState();
 }
 
-class _LiveMemberRecordTabState extends State<_LiveMemberRecordTab> {
+class _LiveMemberRecordTabState extends State<_LiveMemberRecordTab>
+    with AutomaticKeepAliveClientMixin<_LiveMemberRecordTab> {
   DateTime? _selectedHistoryDate;
+  bool _showCalendar = false;
   BusinessMember get member => widget.member;
   BusinessMemberDetail? get detail => widget.detail;
   bool get loading => widget.loading;
   Object? get error => widget.error;
 
+  @override
+  bool get wantKeepAlive => true;
+
   Future<void> _loadMonth(DateTime month) async {
+    final end = DateTime(month.year, month.month + 1, 0);
+    widget.onRangeChanged(month, end);
     try {
-      await AppScope.of(context).loadBusinessMemberDetail(
-        member.id,
-        force: true,
-        from: month,
-        to: DateTime(month.year, month.month + 1, 0),
-      );
+      await AppScope.of(
+        context,
+      ).loadBusinessMemberDetail(member.id, force: true, from: month, to: end);
     } catch (_) {
       // 공유 권한 철회와 조회 실패는 기존 오류 화면으로 안내한다.
     }
   }
 
+  Future<void> _showRecent() async {
+    setState(() => _showCalendar = false);
+    widget.onRangeChanged(widget.recentFrom, widget.recentTo);
+    try {
+      await AppScope.of(context).loadBusinessMemberDetail(
+        member.id,
+        force: true,
+        from: widget.recentFrom,
+        to: widget.recentTo,
+      );
+    } catch (_) {
+      // 기존 조회 오류와 다시 시도로 안내한다.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final state = AppScope.of(context);
     if (detail == null && loading) {
       return const Center(child: CircularProgressIndicator());
@@ -251,61 +444,79 @@ class _LiveMemberRecordTabState extends State<_LiveMemberRecordTab> {
         message: '회원이 개인정보 설정에서 운동 기록 공유에 동의하면 담당자에게만 표시됩니다.',
       );
     }
+    final sessions = [...detail!.sessions]
+      ..sort((left, right) => right.date.compareTo(left.date));
     return RefreshIndicator(
       onRefresh: () => state.loadBusinessMemberDetail(member.id, force: true),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: SetflowInsets.pageListTight,
         children: [
-          Container(
-            padding: const EdgeInsets.all(SetflowSpacing.md),
-            decoration: BoxDecoration(
-              color: context.setflowColors.success.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(SetflowRadii.md),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.verified_user_outlined,
-                  color: context.setflowColors.success,
-                ),
-                const SizedBox(width: SetflowSpacing.sm),
-                const Expanded(
-                  child: Text(
-                    '회원이 공유에 동의한 운동 기록만 표시됩니다.',
-                    style: TextStyle(
-                      fontSize: SetflowFontSize.caption,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: SetflowSpacing.lg),
-          WorkoutHistoryCalendar(
-            days: [
-              for (final session in detail!.sessions)
-                WorkoutHistoryDay.business(session),
+          Wrap(
+            spacing: SetflowSpacing.sm,
+            runSpacing: SetflowSpacing.xs,
+            children: [
+              TextButton.icon(
+                key: const ValueKey('member-records-recent'),
+                onPressed: loading ? null : _showRecent,
+                icon: const Icon(SetflowIcons.pastDays),
+                label: const Text('최근 운동'),
+              ),
+              TextButton.icon(
+                key: const ValueKey('member-records-calendar'),
+                onPressed: loading
+                    ? null
+                    : () => setState(() => _showCalendar = !_showCalendar),
+                icon: const Icon(SetflowIcons.calendar),
+                label: Text(_showCalendar ? '달력 접기' : '날짜로 찾기'),
+              ),
             ],
-            initialDate: _selectedHistoryDate,
-            onDateSelected: (date) => _selectedHistoryDate = date,
-            onMonthChanged: _loadMonth,
-            recordBuilder: (date) => Column(
-              children: [
-                for (final session in detail!.sessions.where(
-                  (session) => DateUtils.isSameDay(session.date, date),
-                )) ...[
-                  _LiveSessionCard(
-                    key: ValueKey(session.id),
-                    memberId: member.id,
-                    session: session,
-                  ),
-                  const SizedBox(height: SetflowSpacing.md),
-                ],
-              ],
-            ),
           ),
+          Text(
+            '조회 기간 ${DateFormat('yyyy.MM.dd').format(widget.from)} ~ ${DateFormat('yyyy.MM.dd').format(widget.to)}',
+            key: const ValueKey('member-records-period'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+          if (_showCalendar)
+            WorkoutHistoryCalendar(
+              days: [
+                for (final session in sessions)
+                  WorkoutHistoryDay.business(session),
+              ],
+              initialDate: _selectedHistoryDate,
+              onDateSelected: (date) => _selectedHistoryDate = date,
+              onMonthChanged: _loadMonth,
+              recordBuilder: (date) => Column(
+                children: [
+                  for (final session in sessions.where(
+                    (session) => DateUtils.isSameDay(session.date, date),
+                  )) ...[
+                    _LiveSessionCard(
+                      key: ValueKey(session.id),
+                      memberId: member.id,
+                      session: session,
+                    ),
+                    const SizedBox(height: SetflowSpacing.md),
+                  ],
+                ],
+              ),
+            )
+          else if (sessions.isEmpty)
+            const EmptyState(
+              icon: SetflowIcons.pastDays,
+              title: '이 기간의 운동 기록이 없어요',
+              message: '날짜로 찾기에서 다른 달의 공유된 기록을 확인해보세요.',
+            )
+          else
+            for (final session in sessions) ...[
+              _LiveSessionCard(
+                key: ValueKey(session.id),
+                memberId: member.id,
+                session: session,
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+            ],
         ],
       ),
     );
@@ -316,11 +527,13 @@ class _LiveSessionCard extends StatefulWidget {
   const _LiveSessionCard({
     required this.memberId,
     required this.session,
+    this.startWithFeedback = false,
     super.key,
   });
 
   final String memberId;
   final BusinessWorkoutSession session;
+  final bool startWithFeedback;
 
   @override
   State<_LiveSessionCard> createState() => _LiveSessionCardState();
@@ -330,6 +543,13 @@ class _LiveSessionCardState extends State<_LiveSessionCard> {
   final _feedbackController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _expanded = false;
+  late bool _writingFeedback;
+
+  @override
+  void initState() {
+    super.initState();
+    _writingFeedback = widget.startWithFeedback;
+  }
 
   @override
   void dispose() {
@@ -354,8 +574,8 @@ class _LiveSessionCardState extends State<_LiveSessionCard> {
           ListTile(
             onTap: () => setState(() => _expanded = !_expanded),
             title: Text(
-              '${DateFormat('MM.dd').format(session.date)} (${_weekdayLabel(session.date)})',
-              style: const TextStyle(fontWeight: FontWeight.w900),
+              '${DateFormat('yyyy.MM.dd').format(session.date)} (${_weekdayLabel(session.date)})',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             subtitle: Text(
               '${session.exercises.length}개 종목 · '
@@ -363,9 +583,38 @@ class _LiveSessionCardState extends State<_LiveSessionCard> {
               '${_businessSessionActivityText(session)}',
             ),
             trailing: Icon(
-              _expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+              _expanded ? SetflowIcons.collapse : SetflowIcons.expand,
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SetflowSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!_expanded)
+                  Text(
+                    session.exercises
+                        .map((exercise) => exercise.name)
+                        .join(' · '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                TextButton.icon(
+                  key: ValueKey('session-feedback-open-${session.id}'),
+                  icon: const Icon(SetflowIcons.comment),
+                  label: Text(_writingFeedback ? '입력 접기' : '피드백 쓰기'),
+                  onPressed: () =>
+                      setState(() => _writingFeedback = !_writingFeedback),
+                ),
+              ],
+            ),
+          ),
+          if (_writingFeedback)
+            Padding(
+              padding: const EdgeInsets.all(SetflowSpacing.md),
+              child: _feedbackEditor(context, state, session, sending),
+            ),
           if (_expanded) ...[
             const Divider(height: 1),
             Padding(
@@ -433,56 +682,6 @@ class _LiveSessionCardState extends State<_LiveSessionCard> {
                         ),
                       ),
                   ],
-                  const Divider(),
-                  Form(
-                    key: _formKey,
-                    child: AppTextField(
-                      key: ValueKey('session-feedback-field-${session.id}'),
-                      controller: _feedbackController,
-                      maxLines: 3,
-                      label: '세션 피드백',
-                      hint: '회원에게 전달할 피드백을 작성하세요.',
-                      validator: (value) {
-                        final text = value?.trim() ?? '';
-                        if (text.isEmpty) return '피드백 내용을 입력해주세요.';
-                        if (text.length < 5) return '피드백을 5자 이상 입력해주세요.';
-                        if (text.length > 2000) {
-                          return '피드백은 2,000자 이하로 입력해주세요.';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: SetflowSpacing.sm),
-                  AppButton(
-                    key: ValueKey('session-feedback-submit-${session.id}'),
-                    label: sending ? '전송 중...' : '피드백 보내기',
-                    icon: Icons.send_rounded,
-                    onPressed: sending
-                        ? null
-                        : () async {
-                            if (!(_formKey.currentState?.validate() ?? false)) {
-                              return;
-                            }
-                            try {
-                              await state.sendBusinessSessionFeedback(
-                                memberId: widget.memberId,
-                                sessionId: session.id,
-                                text: _feedbackController.text,
-                              );
-                              if (!mounted) return;
-                              _feedbackController.clear();
-                              AppSnackbar.success(this.context, '피드백을 전송했어요.');
-                            } catch (_) {
-                              if (mounted) {
-                                AppSnackbar.error(
-                                  this.context,
-                                  '피드백을 전송하지 못했어요.',
-                                );
-                              }
-                            }
-                          },
-                  ),
                 ],
               ),
             ),
@@ -491,20 +690,104 @@ class _LiveSessionCardState extends State<_LiveSessionCard> {
       ),
     );
   }
+
+  Widget _feedbackEditor(
+    BuildContext context,
+    AppState state,
+    BusinessWorkoutSession session,
+    bool sending,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        '${DateFormat('yyyy.MM.dd').format(session.date)} 운동에 보낼 피드백',
+        style: Theme.of(context).textTheme.titleSmall,
+      ),
+      const SizedBox(height: SetflowSpacing.sm),
+      Form(
+        key: _formKey,
+        child: AppTextField(
+          key: ValueKey('session-feedback-field-${session.id}'),
+          controller: _feedbackController,
+          enabled: !sending,
+          maxLines: 3,
+          label: '세션 피드백',
+          hint: '회원에게 전달할 피드백을 작성하세요.',
+          validator: (value) {
+            final text = value?.trim() ?? '';
+            if (text.isEmpty) return '피드백 내용을 입력해주세요.';
+            if (text.length < 5) return '피드백을 5자 이상 입력해주세요.';
+            if (text.length > 2000) return '피드백은 2,000자 이하로 입력해주세요.';
+            return null;
+          },
+        ),
+      ),
+      const SizedBox(height: SetflowSpacing.sm),
+      AppButton(
+        key: ValueKey('session-feedback-submit-${session.id}'),
+        label: sending ? '전송 중...' : '피드백 보내기',
+        icon: SetflowIcons.sendComment,
+        onPressed: sending
+            ? null
+            : () async {
+                if (!(_formKey.currentState?.validate() ?? false)) return;
+                try {
+                  await state.sendBusinessSessionFeedback(
+                    memberId: widget.memberId,
+                    sessionId: session.id,
+                    text: _feedbackController.text,
+                  );
+                  if (!mounted) return;
+                  _feedbackController.clear();
+                  AppSnackbar.success(this.context, '피드백을 전송했어요.');
+                } catch (_) {
+                  if (mounted) {
+                    AppSnackbar.error(this.context, '피드백을 전송하지 못했어요.');
+                  }
+                }
+              },
+      ),
+    ],
+  );
 }
 
 class _LiveMemberFeedbackTab extends StatelessWidget {
-  const _LiveMemberFeedbackTab({required this.member, required this.detail});
+  const _LiveMemberFeedbackTab({
+    required this.member,
+    required this.detail,
+    required this.from,
+    required this.to,
+    required this.loading,
+    required this.error,
+  });
 
   final BusinessMember member;
   final BusinessMemberDetail? detail;
+  final DateTime from;
+  final DateTime to;
+  final bool loading;
+  final Object? error;
 
   @override
   Widget build(BuildContext context) {
-    final feedbacks = <BusinessSessionFeedback>[
-      ...?detail?.sessions.expand((session) => session.feedbacks),
-    ];
-    feedbacks.sort((left, right) => right.createdAt.compareTo(left.createdAt));
+    if (loading) return const Center(child: CircularProgressIndicator());
+    if (error != null) {
+      return const EmptyState(
+        icon: SetflowIcons.cloudUnavailable,
+        title: '피드백을 불러오지 못했어요',
+        message: '운동 기록 탭에서 다시 시도해주세요.',
+      );
+    }
+    final feedbacks =
+        <({BusinessWorkoutSession session, BusinessSessionFeedback feedback})>[
+          for (final session in detail?.sessions ?? <BusinessWorkoutSession>[])
+            for (final feedback in session.feedbacks)
+              (session: session, feedback: feedback),
+        ];
+    feedbacks.sort(
+      (left, right) =>
+          right.feedback.createdAt.compareTo(left.feedback.createdAt),
+    );
     if (detail == null || !detail!.canReadWorkouts) {
       return const EmptyState(
         icon: Icons.lock_person_outlined,
@@ -512,31 +795,101 @@ class _LiveMemberFeedbackTab extends StatelessWidget {
         message: '운동 기록 공유가 켜지면 세션별 피드백을 확인할 수 있어요.',
       );
     }
-    if (feedbacks.isEmpty) {
-      return const EmptyState(
-        icon: Icons.forum_outlined,
-        title: '아직 보낸 피드백이 없어요',
-        message: '운동 기록 탭에서 세션을 열어 피드백을 작성해보세요.',
-      );
-    }
-    return ListView.separated(
+    return ListView(
       padding: SetflowInsets.pageListTight,
-      itemCount: feedbacks.length,
-      separatorBuilder: (_, _) => const SizedBox(height: SetflowSpacing.sm),
-      itemBuilder: (_, index) {
-        final feedback = feedbacks[index];
-        return SetflowCard(
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              feedback.authorName,
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-            subtitle: Text(feedback.text),
-            trailing: Text(DateFormat('MM.dd').format(feedback.createdAt)),
+      children: [
+        Text(
+          '조회 기간 ${DateFormat('yyyy.MM.dd').format(from)} ~ ${DateFormat('yyyy.MM.dd').format(to)}',
+          key: const ValueKey('member-feedback-period'),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: SetflowSpacing.md),
+        if (feedbacks.isEmpty)
+          const EmptyState(
+            icon: SetflowIcons.comment,
+            title: '이 기간에 보낸 피드백이 없어요',
+            message: '운동 기록의 피드백 쓰기에서 해당 운동에 바로 전달할 수 있어요.',
           ),
-        );
-      },
+        for (final item in feedbacks) ...[
+          SetflowCard(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _MemberSessionFeedbackScreen(
+                    member: member,
+                    sessionId: item.session.id,
+                  ),
+                ),
+              ),
+              title: Text(
+                '${DateFormat('yyyy.MM.dd').format(item.session.date)} 운동',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.session.exercises
+                        .map((exercise) => exercise.name)
+                        .join(' · '),
+                  ),
+                  const SizedBox(height: SetflowSpacing.sm),
+                  Text(item.feedback.text),
+                  const SizedBox(height: SetflowSpacing.xs),
+                  Text(
+                    '${item.feedback.authorName} · ${DateFormat('MM.dd').format(item.feedback.createdAt)} 전송',
+                  ),
+                ],
+              ),
+              trailing: const Icon(SetflowIcons.forward),
+            ),
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+        ],
+      ],
+    );
+  }
+}
+
+class _MemberSessionFeedbackScreen extends StatelessWidget {
+  const _MemberSessionFeedbackScreen({
+    required this.member,
+    required this.sessionId,
+  });
+
+  final BusinessMember member;
+  final String sessionId;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final detail = state.businessMemberDetail(member.id);
+    final session = detail?.canReadWorkouts == true
+        ? detail!.sessions
+              .where((session) => session.id == sessionId)
+              .firstOrNull
+        : null;
+    return Scaffold(
+      appBar: AppBar(title: Text('${member.name} 운동 피드백')),
+      body: state.isBusinessMemberDetailLoading(member.id)
+          ? const Center(child: CircularProgressIndicator())
+          : session == null
+          ? const EmptyState(
+              icon: SetflowIcons.account,
+              title: '운동 기록을 확인할 수 없어요',
+              message: '공유 상태와 조회 기간을 다시 확인해주세요.',
+            )
+          : ListView(
+              padding: SetflowInsets.pageList,
+              children: [
+                _LiveSessionCard(
+                  memberId: member.id,
+                  session: session,
+                  startWithFeedback: true,
+                ),
+              ],
+            ),
     );
   }
 }

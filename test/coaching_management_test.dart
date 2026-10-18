@@ -558,6 +558,11 @@ void main() {
     await mount(tester, repository);
     await tester.tap(find.text('공유된 내 기록'));
     await tester.pumpAndSettle();
+    expect(find.byType(WorkoutHistoryCalendar), findsNothing);
+    expect(repository.historyCursors, [null]);
+    expect(find.text('스쿼트'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('managed-records-calendar')));
+    await tester.pumpAndSettle();
     expect(find.byType(WorkoutHistoryCalendar), findsOneWidget);
     expect(find.text('2026.09'), findsOneWidget);
     expect(repository.historyCursors, [null, 'older']);
@@ -604,6 +609,98 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'member workspace filters links and corrections by exact account ID',
+    (tester) async {
+      final repository = _Repository()
+        ..viewer = 'trainer'
+        ..memberUserId = 'target-member'
+        ..hasCorrection = true
+        ..extraLinks = [
+          const CoachingManagementLink(
+            id: 'same-name-other-member',
+            memberUserId: 'different-member',
+            memberName: '민지',
+            trainerName: '지훈',
+            status: 'active',
+            viewerRole: 'trainer',
+            canRespond: false,
+          ),
+        ]
+        ..extraCorrections = [_correctionFor('trainer')];
+      await mount(
+        tester,
+        repository,
+        screen: const TrainerMemberRecordsScreen(
+          memberUserId: 'target-member',
+          memberName: '민지',
+        ),
+      );
+      expect(find.text('민지 기록 공유'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('management-link-link')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('management-link-same-name-other-member')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('management-correction-correction')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(
+          const ValueKey('management-correction-other-role-correction'),
+        ),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'member without consent cannot open history or see another member',
+    (tester) async {
+      final repository = _Repository()
+        ..viewer = 'trainer'
+        ..memberUserId = 'different-member';
+      await mount(
+        tester,
+        repository,
+        screen: const TrainerMemberRecordsScreen(
+          memberUserId: 'target-member',
+          memberName: '목표 회원',
+        ),
+      );
+      expect(find.textContaining('이 회원과 연결된 기록 공유가 없어요'), findsOneWidget);
+      expect(find.byKey(const ValueKey('management-link-link')), findsNothing);
+      expect(find.text('회원 운동 기록'), findsNothing);
+      expect(repository.historyCursors, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'legacy links expose an explicit whole list fallback without guessing identity',
+    (tester) async {
+      final repository = _Repository()..viewer = 'trainer';
+      await mount(
+        tester,
+        repository,
+        screen: const TrainerMemberRecordsScreen(
+          memberUserId: 'target-member',
+          memberName: '민지',
+        ),
+      );
+      expect(find.byKey(const ValueKey('management-link-link')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('member-sharing-open-all')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('회원별 연결 정보를 확인할 수 없어요'), findsOneWidget);
+      expect(repository.historyCursors, isEmpty);
+    },
+  );
 }
 
 WorkoutSession _session() => WorkoutSession(
@@ -656,6 +753,7 @@ class _State extends AppState {
 }
 
 class _Repository implements BusinessRepository, CoachingManagementRepository {
+  String? memberUserId;
   String status = 'active';
   List<CoachingManagementLink> extraLinks = [];
   List<WorkoutCorrection> extraCorrections = [];
@@ -687,6 +785,7 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
     return [
       CoachingManagementLink(
         id: 'link',
+        memberUserId: memberUserId,
         memberName: '민지',
         trainerName: '지훈',
         status: status,
@@ -771,6 +870,7 @@ class _Repository implements BusinessRepository, CoachingManagementRepository {
           ? [
               WorkoutCorrection(
                 id: 'correction',
+                memberUserId: memberUserId,
                 memberName: '민지',
                 trainerName: '지훈',
                 viewerRole: viewer,

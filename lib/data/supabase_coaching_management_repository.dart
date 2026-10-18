@@ -19,6 +19,7 @@ mixin SupabaseCoachingManagement on Object
           final row = _object(value);
           return CoachingManagementLink(
             id: row['id'] as String,
+            memberUserId: row['member_user_id'] as String?,
             memberName: row['member_name'] as String,
             trainerName: row['trainer_name'] as String,
             status: row['status'] as String,
@@ -118,6 +119,7 @@ mixin SupabaseCoachingManagement on Object
           final row = _object(value);
           return WorkoutCorrection(
             id: row['id'] as String,
+            memberUserId: row['member_user_id'] as String?,
             memberName: row['member_name'] as String,
             viewerRole: row['viewer_role'] as String,
             recordKey: row['record_key'] as String,

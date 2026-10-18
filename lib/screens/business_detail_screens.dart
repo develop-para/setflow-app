@@ -25,9 +25,15 @@ enum BusinessTool {
 }
 
 class BusinessToolScreen extends StatefulWidget {
-  const BusinessToolScreen({required this.tool, required this.role, super.key});
+  const BusinessToolScreen({
+    required this.tool,
+    required this.role,
+    this.initialScheduleId,
+    super.key,
+  });
   final BusinessTool tool;
   final UserRole role;
+  final String? initialScheduleId;
 
   @override
   State<BusinessToolScreen> createState() => _BusinessToolScreenState();
@@ -36,11 +42,13 @@ class BusinessToolScreen extends StatefulWidget {
 class _BusinessToolScreenState extends State<BusinessToolScreen> {
   bool first = true;
   double slider = 72;
+  String? _selectedScheduleId;
   final keywords = <String>['무조건', '기적', '100% 보장', '한 달 완성'];
 
   @override
   void initState() {
     super.initState();
+    _selectedScheduleId = widget.initialScheduleId;
     if (widget.tool == BusinessTool.calendar) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
@@ -102,9 +110,23 @@ class _BusinessToolScreenState extends State<BusinessToolScreen> {
       now.month,
       now.day - now.weekday + 1,
     );
-    final schedules = state.coachingSchedules;
+    final schedules = state.coachingSchedules
+        .where(
+          (item) =>
+              _selectedScheduleId == null || item.id == _selectedScheduleId,
+        )
+        .toList();
     final canCreate = widget.role == UserRole.trainer;
     final widgets = <Widget>[
+      if (_selectedScheduleId != null)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => setState(() => _selectedScheduleId = null),
+            icon: const Icon(SetflowIcons.calendar),
+            label: const Text('전체 일정 보기'),
+          ),
+        ),
       SetflowCard(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,

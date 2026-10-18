@@ -25,10 +25,14 @@ Future<void> openMemberRecordSharing(
 Future<void> openTrainerMemberRecords(
   BuildContext context, {
   String? consultationId,
+  String? memberUserId,
+  String? memberName,
 }) => _openCoachingManagement(
   context,
   role: CoachingManagementRole.trainer,
   consultationId: consultationId,
+  memberUserId: memberUserId,
+  memberName: memberName,
 );
 
 Future<void> openGymSharedRecords(BuildContext context) =>
@@ -38,6 +42,8 @@ Future<void> _openCoachingManagement(
   BuildContext context, {
   required CoachingManagementRole role,
   String? consultationId,
+  String? memberUserId,
+  String? memberName,
 }) async {
   if (role == CoachingManagementRole.trainer) {
     if (!await requireProAccess(context)) return;
@@ -59,6 +65,8 @@ Future<void> _openCoachingManagement(
         ),
         CoachingManagementRole.trainer => TrainerMemberRecordsScreen(
           consultationId: consultationId,
+          memberUserId: memberUserId,
+          memberName: memberName,
         ),
         CoachingManagementRole.gym => GymSharedRecordsScreen(
           consultationId: consultationId,
@@ -170,10 +178,14 @@ class TrainerMemberRecordsScreen extends StatelessWidget {
   const TrainerMemberRecordsScreen({
     this.consultationId,
     this.linkId,
+    this.memberUserId,
+    this.memberName,
     super.key,
   });
   final String? consultationId;
   final String? linkId;
+  final String? memberUserId;
+  final String? memberName;
 
   @override
   Widget build(BuildContext context) => CoachingAccountBoundary(
@@ -182,6 +194,8 @@ class TrainerMemberRecordsScreen extends StatelessWidget {
       role: CoachingManagementRole.trainer,
       consultationId: consultationId,
       linkId: linkId,
+      memberUserId: memberUserId,
+      memberName: memberName,
     ),
   );
 }
@@ -203,10 +217,18 @@ class GymSharedRecordsScreen extends StatelessWidget {
 }
 
 class _ManagementPage extends StatefulWidget {
-  const _ManagementPage({required this.role, this.consultationId, this.linkId});
+  const _ManagementPage({
+    required this.role,
+    this.consultationId,
+    this.linkId,
+    this.memberUserId,
+    this.memberName,
+  });
   final CoachingManagementRole role;
   final String? consultationId;
   final String? linkId;
+  final String? memberUserId;
+  final String? memberName;
   @override
   State<_ManagementPage> createState() => _ManagementPageState();
 }
@@ -222,6 +244,7 @@ class _ManagementPageState extends State<_ManagementPage>
   bool _confirming = false;
   bool _showLinkHistory = false;
   bool _showCorrectionHistory = false;
+  bool _legacyMemberIds = false;
   int _generation = 0;
 
   bool get _blocked => _busy || _loading || _confirming;
@@ -260,15 +283,31 @@ class _ManagementPageState extends State<_ManagementPage>
       ]);
       if (!mounted || generation != _generation) return;
       setState(() {
-        final links = (results[0] as List<CoachingManagementLink>).where(
-          (link) => link.viewerRole == widget.role.name,
+        final returnedLinks = results[0] as List<CoachingManagementLink>;
+        _legacyMemberIds =
+            widget.memberUserId != null &&
+            returnedLinks.any(
+              (link) =>
+                  link.viewerRole == widget.role.name &&
+                  link.memberUserId == null,
+            );
+        final links = returnedLinks.where(
+          (link) =>
+              link.viewerRole == widget.role.name &&
+              (widget.memberUserId == null ||
+                  link.memberUserId == widget.memberUserId),
         );
         _links = [
           ...links.where((link) => link.id == widget.linkId),
           ...links.where((link) => link.id != widget.linkId),
         ];
         _corrections = (results[1] as List<WorkoutCorrection>)
-            .where((correction) => correction.viewerRole == widget.role.name)
+            .where(
+              (correction) =>
+                  correction.viewerRole == widget.role.name &&
+                  (widget.memberUserId == null ||
+                      correction.memberUserId == widget.memberUserId),
+            )
             .toList();
       });
       if (widget.role == CoachingManagementRole.member) {
@@ -280,6 +319,7 @@ class _ManagementPageState extends State<_ManagementPage>
         _failed = true;
         _links = [];
         _corrections = [];
+        _legacyMemberIds = false;
       });
     } finally {
       if (mounted && generation == _generation) {
@@ -799,9 +839,27 @@ class _ManagementPageState extends State<_ManagementPage>
         ],
         if (_links.isEmpty) ...[
           Text(
-            widget.role == CoachingManagementRole.member
+            _legacyMemberIds
+                ? '회원별 기록 공유 상태를 아직 확인할 수 없어요.'
+                : widget.memberUserId != null
+                ? '이 회원과 연결된 기록 공유가 없어요. 상담에서 공유를 요청하고 상대가 수락하면 전체 운동 기록을 볼 수 있어요.'
+                : widget.role == CoachingManagementRole.member
                 ? '아직 기록을 공유하는 트레이너가 없어요. 내 상담 상세에서 기록 공유를 요청할 수 있어요.'
                 : '아직 공유받은 회원 기록이 없어요. 담당 회원의 상담 상세에서 기록 공유를 요청할 수 있어요.',
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+        ],
+        if (_legacyMemberIds) ...[
+          const Text(
+            '회원별 연결 정보를 확인할 수 없어요. 전체 기록 공유 관리에서 회원과 동의 상태를 직접 확인해주세요.',
+          ),
+          const SizedBox(height: SetflowSpacing.sm),
+          OutlinedButton(
+            key: const ValueKey('member-sharing-open-all'),
+            onPressed: _blocked
+                ? null
+                : () => openTrainerMemberRecords(context),
+            child: const Text('전체 기록 공유 관리'),
           ),
           const SizedBox(height: SetflowSpacing.lg),
         ],
@@ -871,7 +929,8 @@ class _ManagementPageState extends State<_ManagementPage>
     appBar: AppBar(
       title: Text(switch (widget.role) {
         CoachingManagementRole.member => '내 기록 공유',
-        CoachingManagementRole.trainer => '회원 기록 관리',
+        CoachingManagementRole.trainer =>
+          widget.memberName == null ? '회원 기록 관리' : '${widget.memberName} 기록 공유',
         CoachingManagementRole.gym => '회원 공유 기록',
       }),
       actions: [
@@ -910,6 +969,7 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
   final List<ManagedWorkout> _workouts = [];
   String? _next;
   DateTime? _selectedHistoryDate;
+  bool _showCalendar = false;
   bool _loading = false;
   bool _busy = false;
   bool _failed = false;
@@ -959,7 +1019,7 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-    if (mounted && !more && !_failed && _workouts.isNotEmpty) {
+    if (mounted && _showCalendar && !more && !_failed && _workouts.isNotEmpty) {
       final date = _selectedHistoryDate ?? _workouts.first.session.date;
       await _loadMonth(DateTime(date.year, date.month));
     }
@@ -981,8 +1041,10 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
     await _load(more: true);
     if (!mounted || _failed || _workouts.length <= previousCount) return;
     final date = _workouts[previousCount].session.date;
-    setState(() => _selectedHistoryDate = date);
-    await _loadMonth(DateTime(date.year, date.month));
+    if (_showCalendar) {
+      setState(() => _selectedHistoryDate = date);
+      await _loadMonth(DateTime(date.year, date.month));
+    }
   }
 
   Future<void> _correct(
@@ -1069,13 +1131,51 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
     body: ListView(
       padding: SetflowInsets.pageList,
       children: [
+        if (_loading) const LinearProgressIndicator(),
+        Wrap(
+          spacing: SetflowSpacing.sm,
+          runSpacing: SetflowSpacing.xs,
+          children: [
+            TextButton.icon(
+              key: const ValueKey('managed-records-recent'),
+              icon: const Icon(SetflowIcons.pastDays),
+              label: const Text('최근 운동'),
+              onPressed: _busy || _loading
+                  ? null
+                  : () => setState(() => _showCalendar = false),
+            ),
+            TextButton.icon(
+              key: const ValueKey('managed-records-calendar'),
+              icon: const Icon(SetflowIcons.calendar),
+              label: Text(_showCalendar ? '달력 접기' : '날짜로 찾기'),
+              onPressed: _busy || _loading
+                  ? null
+                  : () async {
+                      setState(() => _showCalendar = !_showCalendar);
+                      if (_showCalendar && _workouts.isNotEmpty) {
+                        final date =
+                            _selectedHistoryDate ??
+                            _workouts.first.session.date;
+                        await _loadMonth(DateTime(date.year, date.month));
+                      }
+                    },
+            ),
+          ],
+        ),
+        if (!_failed && !_loading) ...[
+          Text(
+            '불러온 운동 ${_workouts.length}개${_next == null ? '' : ' · 이전 기록을 더 볼 수 있어요'}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: SetflowSpacing.md),
+        ],
         if (_failed) ...[
           const Text('기록을 불러오지 못했어요. 연결과 공유 권한을 확인해주세요.'),
           OutlinedButton(onPressed: _load, child: const Text('다시 시도')),
         ],
         if (!_loading && !_failed && _workouts.isEmpty)
           const Text('아직 서버에 저장된 운동 기록이 없어요.'),
-        if (!_failed)
+        if (!_failed && _showCalendar)
           WorkoutHistoryCalendar(
             days: [
               for (final workout in _workouts)
@@ -1091,86 +1191,100 @@ class _ManagedHistoryPageState extends State<_ManagedHistoryPage>
                 for (final workout in _workouts.where(
                   (workout) => DateUtils.isSameDay(workout.session.date, date),
                 )) ...[
-                  SetflowCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${_date(workout.session.date)} · ${workout.title}',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        if (_canCorrect(workout))
-                          Text(
-                            workout.requiresApproval
-                                ? '수정 시 회원 승인이 필요해요.'
-                                : '종료 후 48시간 이내 · 수정 시 회원에게 알려요.',
-                          ),
-                        for (final exercise in workout.session.exercises) ...[
-                          const SizedBox(height: SetflowSpacing.md),
-                          Text(
-                            exercise.template.name,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          for (final set in exercise.sets) ...[
-                            Text(
-                              '${set.number}세트 · ${set.completed ? '완료' : '미완료'}',
-                            ),
-                            Wrap(
-                              spacing: SetflowSpacing.sm,
-                              runSpacing: SetflowSpacing.xs,
-                              children: [
-                                for (final metric in [
-                                  if (exercise.template.isCardio) ...[
-                                    WorkoutMetric.durationSeconds,
-                                    WorkoutMetric.distanceKm,
-                                    WorkoutMetric.intensityRpe,
-                                  ] else if (exercise.template.isDurationHold)
-                                    WorkoutMetric.durationSeconds
-                                  else ...[
-                                    WorkoutMetric.weight,
-                                    WorkoutMetric.reps,
-                                  ],
-                                  WorkoutMetric.restSeconds,
-                                  if (!exercise.template.isCardio)
-                                    WorkoutMetric.rir,
-                                ])
-                                  _canCorrect(workout)
-                                      ? OutlinedButton(
-                                          key: ValueKey(
-                                            '${workout.key}-${exercise.id}-${set.number}-${metric.name}',
-                                          ),
-                                          onPressed: _busy || _loading
-                                              ? null
-                                              : () => _correct(
-                                                  workout,
-                                                  exercise,
-                                                  set,
-                                                  metric,
-                                                ),
-                                          child: Text(
-                                            '${metric.label} ${_number(metric == WorkoutMetric.rir && set.rir == null ? null : metric.read(set))} ${metric.unit}',
-                                          ),
-                                        )
-                                      : Text(
-                                          '${metric.label} ${_number(metric == WorkoutMetric.rir && set.rir == null ? null : metric.read(set))} ${metric.unit}',
-                                        ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ],
-                    ),
-                  ),
+                  _workoutCard(workout),
                   const SizedBox(height: SetflowSpacing.md),
                 ],
               ],
             ),
           ),
+        if (!_failed && !_showCalendar)
+          for (final workout
+              in ([..._workouts]..sort(
+                (left, right) =>
+                    right.session.date.compareTo(left.session.date),
+              ))) ...[
+            _workoutCard(
+              workout,
+              initiallyExpanded: workout == _workouts.first,
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+          ],
         if (_next != null && !_loading)
           OutlinedButton(
             onPressed: _busy ? null : _loadOlder,
             child: const Text('이전 기록 더 보기'),
           ),
+      ],
+    ),
+  );
+  Widget _workoutCard(
+    ManagedWorkout workout, {
+    bool initiallyExpanded = true,
+  }) => SetflowCard(
+    child: ExpansionTile(
+      key: PageStorageKey('managed-workout-${workout.key}'),
+      initiallyExpanded: initiallyExpanded,
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: EdgeInsets.zero,
+      title: Text(
+        '${_date(workout.session.date)} · ${workout.title}',
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      subtitle: Text(
+        '${workout.session.exercises.length}개 종목 · ${workout.session.completedSets}/${workout.session.totalSets}세트',
+      ),
+      children: [
+        if (_canCorrect(workout))
+          Text(
+            workout.requiresApproval
+                ? '수정 시 회원 승인이 필요해요.'
+                : '종료 후 48시간 이내 · 수정 시 회원에게 알려요.',
+          ),
+        for (final exercise in workout.session.exercises) ...[
+          const SizedBox(height: SetflowSpacing.md),
+          Text(
+            exercise.template.name,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          for (final set in exercise.sets) ...[
+            Text('${set.number}세트 · ${set.completed ? '완료' : '미완료'}'),
+            Wrap(
+              spacing: SetflowSpacing.sm,
+              runSpacing: SetflowSpacing.xs,
+              children: [
+                for (final metric in [
+                  if (exercise.template.isCardio) ...[
+                    WorkoutMetric.durationSeconds,
+                    WorkoutMetric.distanceKm,
+                    WorkoutMetric.intensityRpe,
+                  ] else if (exercise.template.isDurationHold)
+                    WorkoutMetric.durationSeconds
+                  else ...[
+                    WorkoutMetric.weight,
+                    WorkoutMetric.reps,
+                  ],
+                  WorkoutMetric.restSeconds,
+                  if (!exercise.template.isCardio) WorkoutMetric.rir,
+                ])
+                  _canCorrect(workout)
+                      ? OutlinedButton(
+                          key: ValueKey(
+                            '${workout.key}-${exercise.id}-${set.number}-${metric.name}',
+                          ),
+                          onPressed: _busy || _loading
+                              ? null
+                              : () => _correct(workout, exercise, set, metric),
+                          child: Text(
+                            '${metric.label} ${_number(metric == WorkoutMetric.rir && set.rir == null ? null : metric.read(set))} ${metric.unit}',
+                          ),
+                        )
+                      : Text(
+                          '${metric.label} ${_number(metric == WorkoutMetric.rir && set.rir == null ? null : metric.read(set))} ${metric.unit}',
+                        ),
+              ],
+            ),
+          ],
+        ],
       ],
     ),
   );

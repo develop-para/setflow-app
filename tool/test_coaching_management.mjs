@@ -137,6 +137,7 @@ await db.exec(readFileSync('supabase/migrations/20261001134701_management_link_s
   .replaceAll('clock_timestamp()', 'private.test_clock()'));
 await db.exec(readFileSync('supabase/migrations/20261003124541_management_connection_push.sql','utf8')
   .replaceAll('clock_timestamp()', 'private.test_clock()'));
+await db.exec(readFileSync('supabase/migrations/20261018150956_management_member_identity.sql','utf8'));
 // Historical personal snapshots use KST without a zone; this is 10:00 UTC.
 const today = {...session(true),startedAt:'2026-09-11T18:00:00.000',endedAt:'2026-09-11T19:00:00.000'};
 const old = {...session(true,'2026-09-08'),startedAt:'2026-09-08T09:00:00Z',endedAt:'2026-09-08T10:00:00Z'};
@@ -175,11 +176,15 @@ await rpc('request_management_link',[id(100)]);
 await rpc('request_management_link',[id(100)]);
 let link = (await links())[0].id;
 assert.equal((await links()).length,1);
+assert.equal((await links())[0].member_user_id,member,
+  'The trainer receives the member identity from the authorized pending relationship');
 assert.equal((await links())[0].can_respond,false);
 await assert.rejects(()=>rpc('respond_management_link',[link,true]),/already consented/);
 await assert.rejects(()=>history(link),/consent required/);
 await asUser(member);
 assert.equal((await links())[0].can_respond,true);
+assert.equal((await links())[0].member_user_id,member,
+  'The member receives the same stable identity when approving the relationship');
 await rpc('respond_management_link',[link,true]);
 assert.equal((await links())[0].status,'active');
 await rpc('respond_management_link',[link,true]); // safe response replay
@@ -197,6 +202,13 @@ await assert.rejects(()=>propose(link,recent,46,retry),/bound to another/);
 await assert.rejects(()=>propose(link,recent,47),/Workout changed/);
 assert.equal((await corrections()).length,1);
 assert.equal((await corrections())[0].status,'applied');
+assert.equal((await corrections())[0].member_user_id,member,
+  'Corrections carry the relationship member identity rather than the trainer identity');
+for (const outsider of [stranger,otherMember,otherTrainerUser,gymOwner]) {
+  await asUser(outsider);
+  assert.deepEqual(await links(),[],'Adding member IDs does not disclose relationships to an unrelated viewer');
+  assert.deepEqual(await corrections(),[],'Adding member IDs does not disclose corrections to an unrelated viewer');
+}
 let snapshot = (await admin('select payload,updated_at from app_state_snapshots where user_id=$1',[member]))[0];
 assert.equal(snapshot.payload.sessions[0].exercises[0].sets[0].weight,45);
 assert.equal(snapshot.payload.preferences.preserve,'yes');
@@ -204,6 +216,8 @@ assert.equal(snapshot.payload.profile.heightCm,177);
 assert.equal(snapshot.payload.sessions[1].exercises[0].sets[0].weight,40);
 assert.equal(Number((await admin('select weight from workout_sets where id=$1',[id(220)]))[0].weight),45);
 await asUser(member);
+assert.equal((await corrections())[0].member_user_id,member,
+  'The record owner receives their own identity in correction responses');
 await assert.rejects(()=>sql('select private.save_my_account_snapshot($1,11::smallint,$2,$3,$4)',[
   member,{...snapshot.payload,sessions:[today,old]},[],snapshot.updated_at]),/Workout corrections changed/);
 assert.deepEqual((await sql('select private.save_my_account_snapshot($1,11::smallint,$2,$3,$4) result',[
@@ -284,6 +298,9 @@ await assert.rejects(()=>rpc('set_management_gym',[link,id(999)]),/membership re
 await rpc('set_management_gym',[link,gym]);
 await asUser(gymOwner);
 assert.equal((await links())[0].viewer_role,'gym');
+assert.equal((await links())[0].member_user_id,member,
+  'A sharing gym receives identity only after explicit member consent');
+assert.ok((await corrections()).every(c=>c.member_user_id===member));
 assert.equal((await history(link)).workouts.every(w=>!w.can_propose),true);
 await assert.rejects(()=>propose(link,recent,80),/Connected trainer/);
 await admin("update members set status='ended' where id=$1",[id(120)]);
@@ -360,6 +377,8 @@ await rpc('request_management_link',[id(100)]);
 await rpc('request_management_link',[id(102)]);
 const pendingMembers = (await links()).filter(l=>l.status === 'pending');
 assert.equal(pendingMembers.length,2,'A trainer can request more than one member connection');
+assert.deepEqual(new Set(pendingMembers.map(l=>l.member_user_id)),new Set([member,otherMember]),
+  'Distinct member IDs remain available when multiple relationships share a workspace');
 const firstLink = pendingMembers.find(l=>l.member_name === '회원').id;
 const secondLink = pendingMembers.find(l=>l.member_name === '다른 회원').id;
 await asUser(member);
@@ -382,9 +401,13 @@ assert.equal(firstPersonal.session.exercises[0].sets[0].weight,45);
 assert.equal(secondPersonal.session.exercises[0].sets[0].weight,30);
 await propose(firstLink,firstPersonal,55);
 await propose(secondLink,secondPersonal,35);
+assert.deepEqual(new Set((await corrections()).map(c=>c.member_user_id)),new Set([member,otherMember]),
+  'Corrections for identical personal record keys preserve their separate member identities');
 assert.equal((await history(firstLink)).workouts.find(w=>w.key === 'personal:'+day).session.exercises[0].sets[0].weight,55);
 assert.equal((await history(secondLink)).workouts[0].session.exercises[0].sets[0].weight,35);
 await asUser(member);
+assert.ok((await corrections()).every(c=>c.member_user_id===member),
+  'A member never sees another member correction identity');
 await rpc('end_management_link',[firstLink]);
 await asUser(trainerUser);
 await assert.rejects(()=>history(firstLink),/consent required/);
@@ -444,5 +467,5 @@ assert.equal(completed.find(n=>n.user_id===trainerUser).kind,'business');
 assert.match(completed.find(n=>n.user_id===trainerUser).body,/신청 회원님과 운동 관리가 연결됐어요/);
 assert.equal((await inbox(pushLink)).length,3,'Every push has a durable inbox entry');
 
-console.log('PASS: mutual consent, full history, corrections, approvals, gym access, revocation, isolated members, named connection pushes, role-specific settings and notification replay safety');
+console.log('PASS: mutual consent, full history, corrections, approvals, gym access, revocation, isolated members, authorized member identities, named connection pushes, role-specific settings and notification replay safety');
 await db.close();

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../app_state.dart';
+import '../data/business_repository.dart';
 import '../data/coaching_workout_repository.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
@@ -970,11 +971,13 @@ class _SetValues extends StatelessWidget {
     required this.set,
     required this.enabled,
     required this.onEdit,
+    this.asPlan = false,
   });
   final ExerciseTemplate template;
   final WorkoutSetEntry set;
   final bool enabled;
   final Future<void> Function(_SetMutation) onEdit;
+  final bool asPlan;
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -1014,7 +1017,7 @@ class _SetValues extends StatelessWidget {
           1,
           (s, v) => s.durationSeconds = (v * 60).round(),
         ),
-      if (template.isDurationHold)
+      if (!template.isCardio && template.isDurationHold)
         _value(
           context,
           '시간',
@@ -1036,16 +1039,17 @@ class _SetValues extends StatelessWidget {
           .1,
           (s, v) => s.distanceKm = v,
         ),
-        _value(
-          context,
-          '강도',
-          'RPE',
-          set.intensityRpe,
-          0,
-          10,
-          .5,
-          (s, v) => s.intensityRpe = v,
-        ),
+        if (!asPlan)
+          _value(
+            context,
+            '강도',
+            'RPE',
+            set.intensityRpe,
+            0,
+            10,
+            .5,
+            (s, v) => s.intensityRpe = v,
+          ),
       ],
       _value(
         context,
@@ -1173,18 +1177,27 @@ class _ExercisePickerState extends State<_ExercisePicker> {
 }
 
 class CoachingAssignmentsScreen extends StatelessWidget {
-  const CoachingAssignmentsScreen({this.memberUserId, super.key});
+  const CoachingAssignmentsScreen({
+    this.memberUserId,
+    this.memberName,
+    super.key,
+  });
   final String? memberUserId;
+  final String? memberName;
   @override
   Widget build(BuildContext context) => CoachingAccountBoundary(
     requiredRole: memberUserId == null ? UserRole.member : UserRole.trainer,
-    child: _CoachingAssignmentsPage(memberUserId: memberUserId),
+    child: _CoachingAssignmentsPage(
+      memberUserId: memberUserId,
+      memberName: memberName,
+    ),
   );
 }
 
 class _CoachingAssignmentsPage extends StatefulWidget {
-  const _CoachingAssignmentsPage({this.memberUserId});
+  const _CoachingAssignmentsPage({this.memberUserId, this.memberName});
   final String? memberUserId;
+  final String? memberName;
   @override
   State<_CoachingAssignmentsPage> createState() =>
       _CoachingAssignmentsScreenState();
@@ -1297,6 +1310,23 @@ class _CoachingAssignmentsScreenState extends State<_CoachingAssignmentsPage> {
     }
   }
 
+  Future<void> _compose({CoachingWorkout? previous}) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => CoachingAssignmentComposerScreen(
+          memberUserId: widget.memberUserId!,
+          memberName:
+              widget.memberName ??
+              previous?.memberName ??
+              _assignmentMemberName(AppScope.of(context), widget.memberUserId!),
+          initialAssignment: previous,
+        ),
+      ),
+    );
+    if (mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -1323,31 +1353,25 @@ class _CoachingAssignmentsScreenState extends State<_CoachingAssignmentsPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: SetflowInsets.pageList,
         children: [
-          Text(_trainer ? '회원의 수업 밖 운동까지 이어가요.' : '트레이너가 준비한 운동을 내 속도로 이어가요.'),
+          Text(
+            _trainer
+                ? '${widget.memberName ?? _assignmentMemberName(AppScope.of(context), widget.memberUserId!)} 회원님의 운동 과제'
+                : '트레이너가 준비한 운동을 내 속도로 이어가요.',
+          ),
           const SizedBox(height: SetflowSpacing.lg),
           if (_trainer && widget.memberUserId != null)
             FilledButton.icon(
               key: const ValueKey('coaching-create-assignment'),
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => CoachingAssignmentComposerScreen(
-                      memberUserId: widget.memberUserId!,
-                    ),
-                  ),
-                );
-                if (context.mounted) _load();
-              },
+              onPressed: _compose,
               icon: const Icon(SetflowIcons.addExercise),
               label: const Text('운동 과제 만들기'),
             ),
           if (_loading) const LinearProgressIndicator(),
           if (_failed) _Unavailable(onRetry: _load),
           if (!_loading && !_failed && _items.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: SetflowSpacing.section),
-              child: Text('아직 받은 운동 과제가 없어요.'),
+              child: Text(_trainer ? '아직 보낸 운동 과제가 없어요.' : '아직 받은 운동 과제가 없어요.'),
             ),
           for (final workout in _items) ...[
             const SizedBox(height: SetflowSpacing.md),
@@ -1395,6 +1419,13 @@ class _CoachingAssignmentsScreenState extends State<_CoachingAssignmentsPage> {
                           : '기록 보기',
                     ),
                   ),
+                  if (_trainer)
+                    OutlinedButton.icon(
+                      key: ValueKey('assignment-copy-${workout.id}'),
+                      onPressed: () => _compose(previous: workout),
+                      icon: const Icon(SetflowIcons.copyCode),
+                      label: const Text('이 과제로 새로 만들기'),
+                    ),
                   if (!workout.isCancelled &&
                       workout.status != CoachingWorkoutStatus.completed)
                     TextButton(
@@ -1419,22 +1450,49 @@ class _CoachingAssignmentsScreenState extends State<_CoachingAssignmentsPage> {
   );
 }
 
+String _assignmentMemberName(AppState state, String userId) {
+  final connection = state.coachingConnections
+      .where((item) => item.memberUserId == userId)
+      .firstOrNull;
+  final member = state.businessMembers
+      .where((item) => item.userId == userId)
+      .firstOrNull;
+  final workout = state.coachingWorkouts
+      .where((item) => item.memberUserId == userId)
+      .firstOrNull;
+  return connection?.memberName ?? member?.name ?? workout?.memberName ?? '선택한';
+}
+
 class CoachingAssignmentComposerScreen extends StatelessWidget {
   const CoachingAssignmentComposerScreen({
     required this.memberUserId,
+    this.memberName,
+    this.initialAssignment,
     super.key,
   });
   final String memberUserId;
+  final String? memberName;
+  final CoachingWorkout? initialAssignment;
   @override
   Widget build(BuildContext context) => CoachingAccountBoundary(
     requiredRole: UserRole.trainer,
-    child: _CoachingAssignmentComposerPage(memberUserId: memberUserId),
+    child: _CoachingAssignmentComposerPage(
+      memberUserId: memberUserId,
+      memberName: memberName,
+      initialAssignment: initialAssignment,
+    ),
   );
 }
 
 class _CoachingAssignmentComposerPage extends StatefulWidget {
-  const _CoachingAssignmentComposerPage({required this.memberUserId});
+  const _CoachingAssignmentComposerPage({
+    required this.memberUserId,
+    this.memberName,
+    this.initialAssignment,
+  });
   final String memberUserId;
+  final String? memberName;
+  final CoachingWorkout? initialAssignment;
   @override
   State<_CoachingAssignmentComposerPage> createState() =>
       _CoachingAssignmentComposerScreenState();
@@ -1449,8 +1507,19 @@ class _CoachingAssignmentComposerScreenState
   late WorkoutSession _session;
   bool _saving = false;
   bool _failed = false;
+  bool _dirty = false;
+  bool _loadingSource = false;
+  bool _fetchingPrevious = false;
+  String? _resolvedMemberName;
   String? _request;
   bool _allowLeave = false;
+
+  String get _memberName => widget.memberName?.trim().isNotEmpty == true
+      ? widget.memberName!.trim()
+      : _resolvedMemberName ??
+            _assignmentMemberName(AppScope.of(context), widget.memberUserId);
+
+  bool get _locked => _saving || _failed || _loadingSource;
 
   @override
   void initState() {
@@ -1458,6 +1527,186 @@ class _CoachingAssignmentComposerScreenState
     final today = DateTime.now();
     _date = DateTime(today.year, today.month, today.day);
     _session = WorkoutSession(date: _date, exercises: []);
+    final previous = widget.initialAssignment;
+    if (previous != null &&
+        previous.memberUserId == widget.memberUserId &&
+        previous.kind == CoachingWorkoutKind.assignment) {
+      _applyAssignment(previous);
+    }
+    _title.addListener(_textChanged);
+    _instruction.addListener(_textChanged);
+  }
+
+  void _textChanged() {
+    if (mounted) setState(() => _dirty = true);
+  }
+
+  void _applyAssignment(CoachingWorkout previous) {
+    _resolvedMemberName = previous.memberName;
+    _title.text = previous.title;
+    _instruction.text = previous.instruction;
+    _session = WorkoutSession(
+      date: _date,
+      exercises: [
+        for (final exercise in previous.session.exercises)
+          exercise.copy(asPlan: true),
+      ],
+    );
+    _dirty = true;
+  }
+
+  Future<bool> _confirmReplace() async {
+    if (!_dirty) return true;
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('작성 내용을 바꿀까요?'),
+            content: const Text('날짜는 유지하고 과제 이름, 안내와 운동을 선택한 내용으로 바꿉니다.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('계속 작성'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('가져오기'),
+              ),
+            ],
+          ),
+        ) ==
+        true;
+  }
+
+  Future<void> _copyPrevious() async {
+    if (_locked) return;
+    setState(() {
+      _loadingSource = true;
+      _fetchingPrevious = true;
+    });
+    try {
+      final repository = AppScope.of(context).coachingWorkoutRepository;
+      if (repository == null) throw StateError('Coaching unavailable');
+      final items =
+          (await repository.listCoachingWorkouts(
+                memberUserId: widget.memberUserId,
+              ))
+              .where(
+                (item) =>
+                    item.kind == CoachingWorkoutKind.assignment &&
+                    item.memberUserId == widget.memberUserId,
+              )
+              .toList()
+            ..sort((a, b) => b.date.compareTo(a.date));
+      if (!mounted) return;
+      setState(() => _fetchingPrevious = false);
+      final previous = await showSetflowSheet<CoachingWorkout>(
+        context,
+        isScrollControlled: true,
+        builder: (context) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .65,
+            child: ListView(
+              padding: SetflowInsets.pageList,
+              children: [
+                Text('지난 과제 복사', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: SetflowSpacing.sm),
+                const Text('운동 계획만 가져오고 완료 상태와 실제 강도는 초기화합니다.'),
+                const SizedBox(height: SetflowSpacing.md),
+                if (items.isEmpty) const Text('이 회원에게 보낸 과제가 아직 없어요.'),
+                for (final item in items)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(item.title),
+                    subtitle: Text(
+                      '${_dateLabel(item.date)} · ${item.session.totalSets}세트',
+                    ),
+                    onTap: () => Navigator.pop(context, item),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (previous == null ||
+          !mounted ||
+          !await _confirmReplace() ||
+          !mounted) {
+        return;
+      }
+      setState(() => _applyAssignment(previous));
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, '지난 과제를 불러오지 못했어요. 다시 시도해주세요.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingSource = false;
+          _fetchingPrevious = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _importRoutine() async {
+    if (_locked) return;
+    final state = AppScope.of(context);
+    final choices = <_AssignmentRoutineChoice>[
+      for (final routine in state.ownedBusinessRoutines)
+        if (routine.exercises.isNotEmpty)
+          _AssignmentRoutineChoice.fromOwned(routine, state.exercises),
+      for (final routine in state.routines)
+        if (routine.exercises.isNotEmpty &&
+            !state.ownedBusinessRoutines.any(
+              (owned) => owned.id == routine.sourceCoachingRoutineId,
+            ))
+          _AssignmentRoutineChoice.fromPersonal(routine),
+    ];
+    setState(() => _loadingSource = true);
+    try {
+      final selected = await showSetflowSheet<_AssignmentRoutineChoice>(
+        context,
+        isScrollControlled: true,
+        builder: (context) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .65,
+            child: ListView(
+              padding: SetflowInsets.pageList,
+              children: [
+                Text(
+                  '내 루틴 가져오기',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                if (choices.isEmpty)
+                  const Text('저장한 루틴이 없어요. 종목을 직접 추가할 수 있어요.'),
+                for (final choice in choices)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(choice.title),
+                    subtitle: Text(
+                      '${choice.source} · ${choice.exercises.length}종목',
+                    ),
+                    onTap: () => Navigator.pop(context, choice),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (selected == null ||
+          !mounted ||
+          !await _confirmReplace() ||
+          !mounted) {
+        return;
+      }
+      setState(() {
+        _title.text = selected.title;
+        _instruction.text = selected.instruction;
+        _session = WorkoutSession(date: _date, exercises: selected.exercises);
+        _dirty = true;
+      });
+    } finally {
+      if (mounted) setState(() => _loadingSource = false);
+    }
   }
 
   @override
@@ -1468,7 +1717,15 @@ class _CoachingAssignmentComposerScreenState
   }
 
   Future<void> _save() async {
-    if (_saving || !_form.currentState!.validate()) return;
+    if (_saving || _loadingSource || !_form.currentState!.validate()) return;
+    final state = AppScope.of(context);
+    if (state.role != UserRole.trainer ||
+        state.businessAccess?.availableRoles.contains(UserRole.trainer) !=
+            true ||
+        widget.memberUserId == _actorId(state)) {
+      AppSnackbar.error(context, '회원에게 과제를 보낼 수 있는 권한을 확인해주세요.');
+      return;
+    }
     if (_session.totalSets == 0) {
       AppSnackbar.info(context, '운동 종목을 하나 이상 추가해주세요.');
       return;
@@ -1488,7 +1745,14 @@ class _CoachingAssignmentComposerScreenState
         instruction: _instruction.text.trim(),
         session: WorkoutSession(
           date: _date,
-          exercises: _cloneSession(_session).exercises,
+          exercises: [
+            for (final exercise in _session.exercises)
+              WorkoutExercise(
+                id: exercise.id,
+                template: exercise.template,
+                sets: [for (final set in exercise.sets) set.copy(asPlan: true)],
+              ),
+          ],
         ),
         requestId: _request!,
       );
@@ -1518,13 +1782,15 @@ class _CoachingAssignmentComposerScreenState
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('과제를 남겨둘까요?'),
-        content: const Text(
-          '전달 결과를 확인하지 못했어요. 입력을 유지하고 다시 시도하거나, 이 화면의 초안을 지우고 과제함에서 확인할 수 있어요.',
+        content: Text(
+          _failed
+              ? '전달 결과를 확인하지 못했어요. 입력을 유지해 다시 시도하거나, 초안을 버리고 과제함에서 확인할 수 있어요.'
+              : '아직 $_memberName 회원님에게 보내지 않았어요. 계속 작성하면 지금 입력한 내용을 유지합니다.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('입력 유지'),
+            child: const Text('계속 작성'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
@@ -1542,22 +1808,77 @@ class _CoachingAssignmentComposerScreenState
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: _allowLeave || (!_saving && !_failed),
+    canPop: _allowLeave || (!_saving && !_failed && !_dirty),
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) _confirmLeave();
     },
     child: Scaffold(
       appBar: AppBar(title: const Text('새 운동 과제')),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(SetflowSpacing.gutter),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_failed) ...[
+                Text(
+                  '전달 결과를 확인하지 못했어요. 입력을 유지한 채 다시 시도할 수 있어요.',
+                  style: TextStyle(color: context.setflowColors.error),
+                ),
+                const SizedBox(height: SetflowSpacing.sm),
+              ],
+              FilledButton(
+                key: const ValueKey('assignment-send'),
+                onPressed: _saving || _loadingSource ? null : _save,
+                child: Text(
+                  _saving
+                      ? '$_memberName 회원님께 전달 중…'
+                      : _failed
+                      ? '$_memberName 회원님께 다시 보내기'
+                      : '$_memberName 회원님께 보내기',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: Form(
         key: _form,
         child: ListView(
           padding: SetflowInsets.pageForm,
           children: [
-            const Text('날짜와 운동을 정하면 회원의 과제함에 전달돼요. 반복 알림은 회원이 직접 선택합니다.'),
+            Text(
+              '$_memberName 회원님',
+              key: const ValueKey('assignment-recipient'),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: SetflowSpacing.sm),
+            const Text('날짜와 운동을 정해 과제함으로 보냅니다.'),
+            const SizedBox(height: SetflowSpacing.md),
+            Wrap(
+              spacing: SetflowSpacing.sm,
+              runSpacing: SetflowSpacing.sm,
+              children: [
+                OutlinedButton.icon(
+                  key: const ValueKey('assignment-copy-previous'),
+                  onPressed: _locked ? null : _copyPrevious,
+                  icon: const Icon(SetflowIcons.copyCode),
+                  label: const Text('지난 과제 복사'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('assignment-import-routine'),
+                  onPressed: _locked ? null : _importRoutine,
+                  icon: const Icon(SetflowIcons.routine),
+                  label: const Text('내 루틴 가져오기'),
+                ),
+              ],
+            ),
+            if (_fetchingPrevious) const LinearProgressIndicator(),
             const SizedBox(height: SetflowSpacing.lg),
             TextFormField(
               controller: _title,
-              enabled: !_saving && !_failed,
+              enabled: !_locked,
               maxLength: 80,
               decoration: const InputDecoration(
                 labelText: '과제 이름',
@@ -1568,7 +1889,7 @@ class _CoachingAssignmentComposerScreenState
                   : null,
             ),
             OutlinedButton.icon(
-              onPressed: _saving || _failed
+              onPressed: _locked
                   ? null
                   : () async {
                       final now = DateTime.now();
@@ -1579,7 +1900,12 @@ class _CoachingAssignmentComposerScreenState
                         firstDate: today,
                         lastDate: today.add(const Duration(days: 90)),
                       );
-                      if (date != null && mounted) setState(() => _date = date);
+                      if (date != null && mounted) {
+                        setState(() {
+                          _date = date;
+                          _dirty = true;
+                        });
+                      }
                     },
               icon: const Icon(SetflowIcons.calendar),
               label: Text('운동할 날짜 · ${_dateLabel(_date)}'),
@@ -1587,7 +1913,7 @@ class _CoachingAssignmentComposerScreenState
             const SizedBox(height: SetflowSpacing.md),
             TextField(
               controller: _instruction,
-              enabled: !_saving && !_failed,
+              enabled: !_locked,
               minLines: 2,
               maxLines: 5,
               maxLength: 1000,
@@ -1601,36 +1927,21 @@ class _CoachingAssignmentComposerScreenState
               _plannedExercise(i),
             OutlinedButton.icon(
               key: const ValueKey('assignment-add-exercise'),
-              onPressed: _saving || _failed
+              onPressed: _locked
                   ? null
                   : () async {
                       final template = await _pickExercise(context);
                       if (template != null && mounted) {
-                        setState(
-                          () => _session.exercises.add(_newExercise(template)),
-                        );
+                        setState(() {
+                          _session.exercises.add(_newExercise(template));
+                          _dirty = true;
+                        });
                       }
                     },
               icon: const Icon(SetflowIcons.addExercise),
               label: const Text('종목 추가'),
             ),
             const SizedBox(height: SetflowSpacing.lg),
-            if (_failed)
-              Text(
-                '전달하지 못했어요. 입력한 과제는 남아 있습니다. 다시 시도해주세요.',
-                style: TextStyle(color: context.setflowColors.error),
-              ),
-            FilledButton(
-              key: const ValueKey('assignment-send'),
-              onPressed: _saving ? null : _save,
-              child: Text(
-                _saving
-                    ? '전달 중…'
-                    : _failed
-                    ? '전달 재시도'
-                    : '회원에게 과제 보내기',
-              ),
-            ),
           ],
         ),
       ),
@@ -1655,10 +1966,12 @@ class _CoachingAssignmentComposerScreenState
                 ),
                 IconButton(
                   tooltip: '종목 삭제',
-                  onPressed: _saving || _failed
+                  onPressed: _locked
                       ? null
-                      : () =>
-                            setState(() => _session.exercises.removeAt(index)),
+                      : () => setState(() {
+                          _session.exercises.removeAt(index);
+                          _dirty = true;
+                        }),
                   icon: const Icon(SetflowIcons.delete),
                 ),
               ],
@@ -1669,10 +1982,11 @@ class _CoachingAssignmentComposerScreenState
                   Expanded(child: Text('${i + 1}세트')),
                   IconButton(
                     tooltip: '${i + 1}세트 삭제',
-                    onPressed: _saving || _failed || exercise.sets.length == 1
+                    onPressed: _locked || exercise.sets.length == 1
                         ? null
                         : () => setState(() {
                             exercise.sets.removeAt(i);
+                            _dirty = true;
                             for (var n = 0; n < exercise.sets.length; n++) {
                               exercise.sets[n].number = n + 1;
                             }
@@ -1684,22 +1998,27 @@ class _CoachingAssignmentComposerScreenState
               _SetValues(
                 template: exercise.template,
                 set: exercise.sets[i],
-                enabled: !_saving && !_failed,
+                asPlan: true,
+                enabled: !_locked,
                 onEdit: (update) async {
-                  if (!_saving && !_failed) {
-                    setState(() => update(exercise.sets[i]));
+                  if (!_locked) {
+                    setState(() {
+                      update(exercise.sets[i]);
+                      _dirty = true;
+                    });
                   }
                 },
               ),
               const SizedBox(height: SetflowSpacing.sm),
             ],
             TextButton.icon(
-              onPressed: _saving || _failed
+              onPressed: _locked
                   ? null
                   : () => setState(() {
                       final set = exercise.sets.last.copy(asPlan: true);
                       set.number = exercise.sets.length + 1;
                       exercise.sets.add(set);
+                      _dirty = true;
                     }),
               icon: const Icon(SetflowIcons.addExercise),
               label: const Text('세트 추가'),
@@ -1707,6 +2026,109 @@ class _CoachingAssignmentComposerScreenState
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AssignmentRoutineChoice {
+  const _AssignmentRoutineChoice({
+    required this.title,
+    required this.instruction,
+    required this.source,
+    required this.exercises,
+  });
+
+  factory _AssignmentRoutineChoice.fromPersonal(RoutineData routine) =>
+      _AssignmentRoutineChoice(
+        title: routine.name,
+        instruction: routine.description,
+        source: '개인 루틴',
+        exercises: [
+          for (final template in routine.exercises)
+            WorkoutExercise(
+              id: _requestId(),
+              template: template,
+              sets: routine.setsFor(template).isEmpty
+                  ? [_defaultSet(template)]
+                  : [
+                      for (final plan in routine.setsFor(template))
+                        plan.toWorkoutSetEntry().copy(asPlan: true),
+                    ],
+            ),
+        ],
+      );
+
+  factory _AssignmentRoutineChoice.fromOwned(
+    OwnedCoachingRoutine routine,
+    List<ExerciseTemplate> catalog,
+  ) {
+    final ordered = [...routine.exercises]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    return _AssignmentRoutineChoice(
+      title: routine.title,
+      instruction: routine.intro ?? '',
+      source: '코칭 루틴',
+      exercises: [
+        for (final exercise in ordered) _ownedExercisePlan(exercise, catalog),
+      ],
+    );
+  }
+
+  final String title;
+  final String instruction;
+  final String source;
+  final List<WorkoutExercise> exercises;
+
+  static WorkoutExercise _ownedExercisePlan(
+    OwnedRoutineExercise exercise,
+    List<ExerciseTemplate> catalog,
+  ) {
+    // 이름이 비슷한 종목으로 바꾸지 않는다. 연결된 ID가 없는 자체 종목은
+    // 루틴의 이름·부위·계획값을 그대로 사용하고 실제 수행값은 만들지 않는다.
+    final template =
+        catalog
+            .where(
+              (item) =>
+                  exercise.baseExerciseId != null &&
+                  (item.id == exercise.baseExerciseId ||
+                      item.databaseReferenceId == exercise.baseExerciseId),
+            )
+            .firstOrNull ??
+        ExerciseTemplate(
+          id: 'coaching-routine-${exercise.id}',
+          name: exercise.name,
+          muscle: exercise.targetMuscle,
+          icon: SetflowIcons.record,
+          measurement:
+              exercise.targetMuscle != '유산소' &&
+                  exercise.sets.isNotEmpty &&
+                  exercise.sets.every(
+                    (set) =>
+                        (set.durationSeconds ?? 0) > 0 &&
+                        (set.targetReps ?? 0) == 0,
+                  )
+              ? ExerciseMeasurement.duration
+              : ExerciseMeasurement.weightReps,
+        );
+    final plans = [...exercise.sets]
+      ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+    return WorkoutExercise(
+      id: _requestId(),
+      template: template,
+      sets: plans.isEmpty
+          ? [_defaultSet(template)]
+          : [
+              for (var index = 0; index < plans.length; index++)
+                WorkoutSetEntry(
+                  number: index + 1,
+                  weight: plans[index].targetWeight ?? 0,
+                  reps: plans[index].targetReps ?? 0,
+                  type: workoutSetTypeLabel(plans[index].type),
+                  restSeconds: plans[index].restSeconds,
+                  durationSeconds: plans[index].durationSeconds ?? 0,
+                  distanceKm: (plans[index].distanceMeters ?? 0) / 1000,
+                ),
+            ],
     );
   }
 }

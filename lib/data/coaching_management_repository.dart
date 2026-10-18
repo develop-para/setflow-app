@@ -84,10 +84,13 @@ class CoachingManagementLink {
     required this.status,
     required this.viewerRole,
     required this.canRespond,
+    this.memberUserId,
     this.gymId,
     this.gymName,
   });
   final String id;
+  // Older server responses omit the identity; never match members by name.
+  final String? memberUserId;
   final String memberName;
   final String trainerName;
   final String status;
@@ -142,10 +145,12 @@ class WorkoutCorrection {
     required this.reason,
     required this.status,
     required this.canRespond,
+    this.memberUserId,
     // Keep the public argument while storing the original label privately.
     // ignore: prefer_initializing_formals
   }) : _exerciseName = exerciseName;
   final String id;
+  final String? memberUserId;
   final String viewerRole;
   final String recordKey;
   final String exerciseId;

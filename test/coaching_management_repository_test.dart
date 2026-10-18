@@ -15,6 +15,7 @@ void main() {
           for (final viewer in CoachingManagementRole.values)
             {
               'id': viewer.name,
+              'member_user_id': 'member-${viewer.name}',
               'member_name': '회원',
               'trainer_name': '트레이너',
               'status': 'active',
@@ -24,10 +25,12 @@ void main() {
         ];
         final links = await adapter.listManagementLinks(role: role);
         expect(links.map((link) => link.id), [role.name]);
+        expect(links.single.memberUserId, 'member-${role.name}');
         adapter.response = [
           for (final viewer in CoachingManagementRole.values)
             {
               'id': viewer.name,
+              'member_user_id': 'member-${viewer.name}',
               'member_name': '회원',
               'trainer_name': '트레이너',
               'viewer_role': viewer.name,
@@ -48,9 +51,80 @@ void main() {
         ];
         final corrections = await adapter.listWorkoutCorrections(role: role);
         expect(corrections.map((correction) => correction.id), [role.name]);
+        expect(corrections.single.memberUserId, 'member-${role.name}');
       },
     );
   }
+
+  test('member identity stays optional for older server responses', () async {
+    final adapter = _Adapter();
+    adapter.response = [
+      {
+        'id': 'legacy-link',
+        'member_name': '동명이인',
+        'trainer_name': '트레이너',
+        'status': 'active',
+        'viewer_role': 'trainer',
+        'can_respond': false,
+      },
+    ];
+    final links = await adapter.listManagementLinks(
+      role: CoachingManagementRole.trainer,
+    );
+    expect(links.single.memberName, '동명이인');
+    expect(links.single.memberUserId, isNull);
+
+    adapter.response = [
+      {
+        'id': 'legacy-correction',
+        'member_name': '동명이인',
+        'trainer_name': '트레이너',
+        'viewer_role': 'trainer',
+        'record_key': 'personal:2026-10-18',
+        'exercise_id': 'squat',
+        'correction_key': '["squat",1,"weight"]',
+        'workout_title': '개인 운동',
+        'workout_date': '2026-10-18',
+        'exercise_name': '스쿼트',
+        'set_number': 1,
+        'metric': 'weight',
+        'before_value': 40,
+        'after_value': 45,
+        'reason': '중량 확인',
+        'status': 'pending',
+        'can_respond': false,
+      },
+    ];
+    final corrections = await adapter.listWorkoutCorrections(
+      role: CoachingManagementRole.trainer,
+    );
+    expect(corrections.single.memberUserId, isNull);
+    expect(corrections.single.canRespond, isFalse);
+  });
+
+  test('same display name preserves distinct member identities', () async {
+    final adapter = _Adapter()
+      ..response = [
+        for (final id in ['first-member', 'second-member'])
+          {
+            'id': 'link-$id',
+            'member_user_id': id,
+            'member_name': '같은 이름',
+            'trainer_name': '트레이너',
+            'status': 'active',
+            'viewer_role': 'trainer',
+            'can_respond': false,
+          },
+      ];
+    final links = await adapter.listManagementLinks(
+      role: CoachingManagementRole.trainer,
+    );
+    expect(links.map((link) => link.memberName).toSet(), {'같은 이름'});
+    expect(links.map((link) => link.memberUserId), [
+      'first-member',
+      'second-member',
+    ]);
+  });
 
   test(
     'history preserves server permission, original revision, and cursor',
