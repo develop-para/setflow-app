@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../data/community_repository.dart';
+import '../services/auth_service.dart';
+import '../services/community_photo_renderer.dart';
 import '../services/post_media_picker.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
@@ -121,9 +123,14 @@ class _RoutineCreateSheetState extends State<RoutineCreateSheet> {
 }
 
 class SocialPostComposerScreen extends StatefulWidget {
-  const SocialPostComposerScreen({this.mediaPicker, super.key});
+  const SocialPostComposerScreen({
+    this.mediaPicker,
+    this.photoRenderer,
+    super.key,
+  });
 
   final PostMediaPicker? mediaPicker;
+  final CommunityPhotoRenderer? photoRenderer;
 
   @override
   State<SocialPostComposerScreen> createState() =>
@@ -134,6 +141,11 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
   final formKey = GlobalKey<FormState>();
   final contentController = TextEditingController();
   late final PostMediaPicker mediaPicker;
+  late final CommunityPhotoRenderer photoRenderer;
+  late final String? composerUserId;
+  int? composerAccountVersion;
+  int mediaRequest = 0;
+  late DateTime photoTimestamp;
   CommunityPostMedia? selectedMedia;
   bool includeWorkout = true;
   bool isSubmitting = false;
@@ -145,7 +157,17 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
   void initState() {
     super.initState();
     mediaPicker = widget.mediaPicker ?? ImagePickerPostMediaPicker();
+    photoRenderer =
+        widget.photoRenderer ?? const CanvasCommunityPhotoRenderer();
+    composerUserId = Auth.instance.currentUser?.id;
+    photoTimestamp = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) => _recoverLostMedia());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    composerAccountVersion ??= AppScope.of(context).communityFeedAccountVersion;
   }
 
   @override
@@ -155,51 +177,127 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
   }
 
   Future<void> _submit() async {
+    if (isSubmitting || isSelectingMedia) return;
     if (!(formKey.currentState?.validate() ?? false)) return;
+    final state = AppScope.of(context);
+    if (!_sameAccount(state)) {
+      AppSnackbar.error(context, '로그인 계정이 바뀌었어요. 글쓰기를 다시 열어주세요.');
+      return;
+    }
+    final content = contentController.text.trim().isEmpty
+        ? '오늘 운동 기록을 공유했습니다.'
+        : contentController.text.trim();
+    final attachWorkout = includeWorkout;
+    final workoutMetric = attachWorkout ? state.todayWorkoutMetric : null;
+    final style = visualKey;
+    final sourceMedia = selectedMedia;
+    final photoOverlay = _photoOverlay(state, workoutMetric: workoutMetric);
+    final activeOverlays = overlays
+        .where((item) => item != '완료 루틴' || attachWorkout)
+        .toList(growable: false);
     setState(() => isSubmitting = true);
     try {
-      await AppScope.of(context).addCommunityPost(
-        content: contentController.text.trim().isEmpty
-            ? '오늘 운동 기록을 공유했습니다.'
-            : contentController.text.trim(),
-        includeWorkout: includeWorkout,
-        visualKey: visualKey,
-        media: selectedMedia,
-        activeOverlays: overlays.toList(growable: false),
-      );
+      final media = sourceMedia == null || photoOverlay.isEmpty
+          ? sourceMedia
+          : await photoRenderer.render(
+              media: sourceMedia,
+              overlay: photoOverlay,
+            );
       if (!mounted) return;
+      if (!_sameAccount(state)) {
+        AppSnackbar.error(context, '로그인 계정이 바뀌었어요. 글쓰기를 다시 열어주세요.');
+        return;
+      }
+      await state.addCommunityPost(
+        content: content,
+        includeWorkout: attachWorkout,
+        visualKey: style,
+        media: media,
+        activeOverlays: activeOverlays,
+        workoutMetricSnapshot: workoutMetric,
+      );
+      if (!mounted || !_sameAccount(state)) return;
       HapticFeedback.lightImpact();
       Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
-      setState(() => isSubmitting = false);
-      AppSnackbar.error(context, _communityErrorMessage(error));
+      AppSnackbar.error(
+        context,
+        error is FormatException
+            ? _mediaErrorMessage(error)
+            : _communityErrorMessage(error),
+      );
+    } finally {
+      if (mounted) setState(() => isSubmitting = false);
     }
   }
 
+  bool _sameAccount(AppState state) =>
+      composerAccountVersion == state.communityFeedAccountVersion &&
+      composerUserId == Auth.instance.currentUser?.id;
+
+  CommunityPhotoOverlay _photoOverlay(
+    AppState state, {
+    String? workoutMetric,
+  }) => CommunityPhotoOverlay(
+    dateText: overlays.contains('날짜')
+        ? '${photoTimestamp.month}월 ${photoTimestamp.day}일'
+        : null,
+    timeText: overlays.contains('시간')
+        ? DateFormat('HH:mm').format(photoTimestamp)
+        : null,
+    workoutText: includeWorkout && overlays.contains('완료 루틴')
+        ? workoutMetric ?? state.todayWorkoutMetric
+        : null,
+  );
+
+  void _selectMedia(CommunityPostMedia media) => setState(() {
+    selectedMedia = media;
+    photoTimestamp = DateTime.now();
+  });
+
   Future<void> _recoverLostMedia() async {
+    if (!mounted) return;
+    final request = mediaRequest;
+    final state = AppScope.of(context);
     try {
       final media = await mediaPicker.recoverLostImage();
-      if (media != null && mounted) setState(() => selectedMedia = media);
+      if (!mounted ||
+          request != mediaRequest ||
+          isSelectingMedia ||
+          isSubmitting ||
+          !_sameAccount(state)) {
+        return;
+      }
+      if (media != null) _selectMedia(media);
     } catch (error) {
-      if (mounted) AppSnackbar.error(context, _mediaErrorMessage(error));
+      if (mounted && request == mediaRequest && _sameAccount(state)) {
+        AppSnackbar.error(context, _mediaErrorMessage(error));
+      }
     }
   }
 
   Future<void> _pickMedia(PostMediaSource source) async {
     if (isSelectingMedia || isSubmitting) return;
+    final request = ++mediaRequest;
+    final state = AppScope.of(context);
     setState(() => isSelectingMedia = true);
     try {
       final media = await mediaPicker.pick(source);
-      if (media != null && mounted) setState(() => selectedMedia = media);
+      if (media != null && mounted && _sameAccount(state)) _selectMedia(media);
     } catch (error) {
-      if (mounted) AppSnackbar.error(context, _mediaErrorMessage(error));
+      if (mounted && _sameAccount(state)) {
+        AppSnackbar.error(context, _mediaErrorMessage(error));
+      }
     } finally {
-      if (mounted) setState(() => isSelectingMedia = false);
+      if (mounted && request == mediaRequest) {
+        setState(() => isSelectingMedia = false);
+      }
     }
   }
 
   Future<void> _showMediaOptions() async {
+    if (isSubmitting || isSelectingMedia) return;
     final source = await showSetflowSheet<PostMediaSource>(
       context,
       showDragHandle: true,
@@ -233,6 +331,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
                 style: TextStyle(color: context.setflowColors.error),
               ),
               onTap: () {
+                ++mediaRequest;
                 setState(() => selectedMedia = null);
                 Navigator.pop(sheetContext);
               },
@@ -247,29 +346,34 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final busy = isSubmitting || isSelectingMedia;
     return Scaffold(
       appBar: AppBar(
         title: const Text('새 글 쓰기'),
         actions: [
-          TextButton(
-            onPressed: isSubmitting ? null : _submit,
-            child: const Text('게시'),
-          ),
+          TextButton(onPressed: busy ? null : _submit, child: const Text('게시')),
         ],
       ),
       body: Form(
         key: formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 40),
+          padding: const EdgeInsets.fromLTRB(
+            SetflowSpacing.gutter,
+            SetflowSpacing.sm,
+            SetflowSpacing.gutter,
+            SetflowSpacing.huge,
+          ),
           children: [
             _WorkoutVisualPreview(
               media: selectedMedia,
               isLoading: isSelectingMedia,
               visualKey: visualKey,
-              overlays: overlays,
-              onCamera: () => _pickMedia(PostMediaSource.camera),
-              onGallery: () => _pickMedia(PostMediaSource.gallery),
-              onChange: _showMediaOptions,
+              overlay: _photoOverlay(state),
+              onCamera: busy ? null : () => _pickMedia(PostMediaSource.camera),
+              onGallery: busy
+                  ? null
+                  : () => _pickMedia(PostMediaSource.gallery),
+              onChange: busy ? null : _showMediaOptions,
             ),
             const SizedBox(height: SetflowSpacing.xl),
             const SectionTitle('사진 스타일'),
@@ -293,8 +397,9 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
                 ),
               ],
               selected: {visualKey},
-              onSelectionChanged: (value) =>
-                  setState(() => visualKey = value.single),
+              onSelectionChanged: busy
+                  ? null
+                  : (value) => setState(() => visualKey = value.single),
             ),
             const SizedBox(height: SetflowSpacing.xl),
             const SectionTitle('오버레이'),
@@ -307,11 +412,13 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
                     (item) => FilterChip(
                       label: Text(item),
                       selected: overlays.contains(item),
-                      onSelected: (selected) => setState(
-                        () => selected
-                            ? overlays.add(item)
-                            : overlays.remove(item),
-                      ),
+                      onSelected: busy
+                          ? null
+                          : (selected) => setState(
+                              () => selected
+                                  ? overlays.add(item)
+                                  : overlays.remove(item),
+                            ),
                     ),
                   )
                   .toList(),
@@ -319,6 +426,7 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
             const SizedBox(height: SetflowSpacing.xl),
             AppTextField(
               controller: contentController,
+              enabled: !busy,
               label: '오늘 운동 기록',
               hint: '오늘 운동은 어땠나요? 기분 좋은 변화를 기록해보세요.',
               minLines: 4,
@@ -342,46 +450,16 @@ class _SocialPostComposerScreenState extends State<SocialPostComposerScreen> {
               ),
               subtitle: Text(state.todayWorkoutMetric),
               value: includeWorkout,
-              onChanged: (value) => setState(() => includeWorkout = value),
-            ),
-            const SizedBox(height: SetflowSpacing.xl),
-            const SectionTitle('외부 공유'),
-            const SizedBox(height: SetflowSpacing.sm),
-            SizedBox(
-              height: 76,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _ShareTarget(
-                    icon: Icons.chat_bubble_rounded,
-                    label: '카카오톡',
-                    color: SetflowColors.primary,
-                    onTap: () =>
-                        AppSnackbar.info(context, '게시 후 카카오톡으로 공유할 수 있어요.'),
-                  ),
-                  _ShareTarget(
-                    icon: Icons.ios_share_rounded,
-                    label: '더보기',
-                    color: context.setflowColors.info,
-                    onTap: () =>
-                        AppSnackbar.info(context, '게시 후 공유 메뉴를 열 수 있어요.'),
-                  ),
-                  _ShareTarget(
-                    icon: Icons.download_rounded,
-                    label: '저장',
-                    color: context.setflowColors.success,
-                    onTap: () =>
-                        AppSnackbar.info(context, '게시 후 이미지로 저장할 수 있어요.'),
-                  ),
-                ],
-              ),
+              onChanged: busy
+                  ? null
+                  : (value) => setState(() => includeWorkout = value),
             ),
             const SizedBox(height: SetflowSpacing.xl),
             AppButton(
               label: '게시하기',
               icon: Icons.send_rounded,
               isLoading: isSubmitting,
-              onPressed: isSubmitting ? null : _submit,
+              onPressed: busy ? null : _submit,
             ),
           ],
         ),
@@ -416,7 +494,7 @@ class _WorkoutVisualPreview extends StatelessWidget {
     required this.media,
     required this.isLoading,
     required this.visualKey,
-    required this.overlays,
+    required this.overlay,
     required this.onCamera,
     required this.onGallery,
     required this.onChange,
@@ -425,10 +503,10 @@ class _WorkoutVisualPreview extends StatelessWidget {
   final CommunityPostMedia? media;
   final bool isLoading;
   final String visualKey;
-  final Set<String> overlays;
-  final VoidCallback onCamera;
-  final VoidCallback onGallery;
-  final VoidCallback onChange;
+  final CommunityPhotoOverlay overlay;
+  final VoidCallback? onCamera;
+  final VoidCallback? onGallery;
+  final VoidCallback? onChange;
 
   @override
   Widget build(BuildContext context) {
@@ -487,14 +565,12 @@ class _WorkoutVisualPreview extends StatelessWidget {
       'tip' => Icons.lightbulb_rounded,
       _ => Icons.fitness_center_rounded,
     };
-    final now = DateTime.now();
-
     return AspectRatio(
       aspectRatio: 1,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(SetflowRadii.lg),
         child: Material(
-          color: color.withValues(alpha: .18),
+          color: Colors.white,
           child: InkWell(
             onTap: onChange,
             child: Stack(
@@ -509,40 +585,38 @@ class _WorkoutVisualPreview extends StatelessWidget {
                     child: Center(child: Icon(icon, size: 124, color: color)),
                   ),
                 ),
-                ColoredBox(color: Colors.black.withValues(alpha: .12)),
-                if (overlays.contains('날짜'))
-                  _PreviewLabel(
-                    alignment: Alignment.topLeft,
-                    text: '${now.month}월 ${now.day}일',
+                Semantics(
+                  label: [
+                    overlay.dateText,
+                    overlay.timeText,
+                    overlay.workoutText,
+                  ].whereType<String>().join(', '),
+                  child: CustomPaint(
+                    painter: CommunityPhotoOverlayPainter(overlay),
                   ),
-                if (overlays.contains('시간'))
-                  _PreviewLabel(
-                    alignment: Alignment.topRight,
-                    text: DateFormat('HH:mm').format(now),
-                  ),
-                if (overlays.contains('완료 루틴'))
-                  const _PreviewLabel(
-                    alignment: Alignment.bottomLeft,
-                    text: '오늘 운동 완료',
-                  ),
+                ),
                 Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: SetflowSpacing.md,
-                      vertical: SetflowSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(SetflowRadii.md),
-                    ),
-                    child: const Text(
-                      '사진 변경',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
+                  child: isLoading
+                      ? const CircularProgressIndicator()
+                      : Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: SetflowSpacing.md,
+                            vertical: SetflowSpacing.sm,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(
+                              SetflowRadii.md,
+                            ),
+                          ),
+                          child: const Text(
+                            '사진 변경',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -562,7 +636,7 @@ class _MediaButton extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -585,81 +659,6 @@ class _MediaButton extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: SetflowFontSize.small,
                   fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PreviewLabel extends StatelessWidget {
-  const _PreviewLabel({required this.alignment, required this.text});
-
-  final Alignment alignment;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: alignment,
-      child: Container(
-        margin: const EdgeInsets.all(SetflowSpacing.md),
-        padding: const EdgeInsets.symmetric(
-          horizontal: SetflowSpacing.sm,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(SetflowRadii.sm),
-        ),
-        child: Text(
-          text,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: SetflowFontSize.small,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ShareTarget extends StatelessWidget {
-  const _ShareTarget({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: SetflowSpacing.lg),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(SetflowRadii.md),
-        child: SizedBox(
-          width: 62,
-          child: Column(
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(height: SetflowSpacing.xs2),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: SetflowFontSize.small,
-                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],

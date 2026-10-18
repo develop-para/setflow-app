@@ -5002,8 +5002,13 @@ class AppState extends ChangeNotifier {
     required String visualKey,
     CommunityPostMedia? media,
     List<String> activeOverlays = const [],
+    String? workoutMetricSnapshot,
   }) async {
-    final metric = includeWorkout ? todayWorkoutMetric : '일상 기록';
+    final accountEpoch = _accountEpoch;
+    final authorUserId = Auth.instance.currentUser?.id;
+    final metric = includeWorkout
+        ? workoutMetricSnapshot ?? todayWorkoutMetric
+        : '일상 기록';
     final repository = communityRepository;
     if (repository != null) {
       final record = await repository.createPost(
@@ -5016,6 +5021,10 @@ class AppState extends ChangeNotifier {
           routineName: includeWorkout ? '오늘 운동' : null,
         ),
       );
+      if (!_isCurrentAccount(accountEpoch) ||
+          Auth.instance.currentUser?.id != authorUserId) {
+        return;
+      }
       communityPosts.removeWhere((post) => post.id == record.post.id);
       communityPosts.insert(0, record.post);
       notifyListeners();
