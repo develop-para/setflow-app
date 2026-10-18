@@ -109,7 +109,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('supported host starts off and only reads status on entry', (
+  testWidgets('an explicitly disabled host only reads status on entry', (
     tester,
   ) async {
     await launch(tester);
@@ -124,6 +124,33 @@ void main() {
     await launch(tester);
     expect(tile, findsNothing);
     expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets('enabled default waits for permission without opening settings', (
+    tester,
+  ) async {
+    enabled = true;
+    await launch(tester);
+
+    expect(enabled, isTrue);
+    expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+    expect(
+      find.text('다른 앱 위에 표시 권한이 필요해요. 스위치를 켜서 권한을 허용해주세요.'),
+      findsOneWidget,
+    );
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(calls.map((call) => call.method), ['overlayStatus']);
+  });
+
+  testWidgets('enabled default is active on entry when permission is granted', (
+    tester,
+  ) async {
+    enabled = true;
+    permissionGranted = true;
+    await launch(tester);
+
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    expect(calls.map((call) => call.method), ['overlayStatus']);
   });
 
   testWidgets('granted permission enables directly and disabling keeps timer', (
@@ -197,7 +224,7 @@ void main() {
     expect(tester.widget<SwitchListTile>(tile).value, isFalse);
     expect(calls.where((call) => call.method == 'setOverlayEnabled'), isEmpty);
     expect(
-      find.text('다른 앱 위에 표시 권한이 필요해요. 다시 켜서 권한 설정을 열어주세요.'),
+      find.text('다른 앱 위에 표시 권한이 필요해요. 스위치를 켜서 권한을 허용해주세요.'),
       findsOneWidget,
     );
     // 거절한 의도는 끝난다. 나중의 앱 복귀가 몰래 설정을 켜면 안 된다.
@@ -252,10 +279,14 @@ void main() {
     tester,
   ) async {
     enabled = true;
+    permissionGranted = true;
     await launch(tester);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    permissionGranted = false;
+    await returnFromSettings(tester);
     expect(tester.widget<SwitchListTile>(tile).value, isFalse);
     expect(
-      find.text('다른 앱 위에 표시 권한이 필요해요. 다시 켜서 권한 설정을 열어주세요.'),
+      find.text('다른 앱 위에 표시 권한이 필요해요. 스위치를 켜서 권한을 허용해주세요.'),
       findsOneWidget,
     );
     await requestPermission(tester);

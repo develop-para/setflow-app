@@ -1,22 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="rest_overlay_title">휴식 시간</string>
-    <string name="rest_overlay_close">닫기</string>
+    <string name="rest_overlay_close">끝내기</string>
     <string name="rest_overlay_close_description">휴식 타이머와 알림 종료</string>
-    <string name="rest_overlay_return">운동으로 돌아가기</string>
+    <string name="rest_overlay_return">운동 ↗</string>
+    <string name="rest_overlay_return_description">%1$s. %2$s. 운동으로 돌아가기</string>
+    <string name="rest_overlay_extend">+30초</string>
+    <string name="rest_overlay_extend_description">휴식 30초 연장</string>
     <string name="rest_overlay_remaining">휴식 %1$d분 %2$d초 남음</string>
     <color name="rest_overlay_surface">#E6222222</color>
     <color name="rest_overlay_text">#FFFFFF</color>
     <color name="rest_overlay_muted_text">#E0E0E0</color>
     <color name="rest_overlay_brand">#CCFF00</color>
     <color name="rest_overlay_on_brand">#181818</color>
-    <dimen name="rest_overlay_width">240dp</dimen>
-    <dimen name="rest_overlay_padding">16dp</dimen>
+    <color name="rest_overlay_ripple">#24FFFFFF</color>
+    <dimen name="rest_overlay_width">192dp</dimen>
+    <dimen name="rest_overlay_padding">8dp</dimen>
     <dimen name="rest_overlay_gap">8dp</dimen>
-    <dimen name="rest_overlay_radius">20dp</dimen>
+    <dimen name="rest_overlay_control_gap">4dp</dimen>
+    <dimen name="rest_overlay_radius">16dp</dimen>
     <dimen name="rest_overlay_button_radius">12dp</dimen>
     <dimen name="rest_overlay_touch_target">48dp</dimen>
     <dimen name="rest_overlay_title_size">12sp</dimen>
     <dimen name="rest_overlay_body_size">14sp</dimen>
-    <dimen name="rest_overlay_timer_size">32sp</dimen>
+    <dimen name="rest_overlay_timer_size">28sp</dimen>
 </resources>

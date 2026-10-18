@@ -3,7 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/rest_timer_overlay_background"
-    android:fillViewport="false">
+    android:fillViewport="false"
+    android:scrollbars="none">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -12,71 +13,81 @@
         android:padding="@dimen/rest_overlay_padding">
 
         <LinearLayout
+            android:id="@+id/rest_overlay_return"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/rest_timer_overlay_control_background"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
+            android:minHeight="@dimen/rest_overlay_touch_target"
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/rest_overlay_title"
+                android:id="@+id/rest_overlay_timer"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/rest_overlay_title"
+                android:fontFamily="sans-serif-medium"
+                android:fontFeatureSettings="tnum"
+                android:importantForAccessibility="no"
+                android:includeFontPadding="false"
+                android:singleLine="true"
+                android:textColor="@color/rest_overlay_text"
+                android:textSize="@dimen/rest_overlay_timer_size" />
+
+            <TextView
+                android:id="@+id/rest_overlay_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/rest_overlay_gap"
+                android:importantForAccessibility="no"
+                android:includeFontPadding="false"
+                android:text="@string/rest_overlay_return"
                 android:textColor="@color/rest_overlay_muted_text"
                 android:textSize="@dimen/rest_overlay_title_size" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/rest_overlay_control_gap"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/rest_overlay_extend"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/rest_timer_overlay_extend_background"
+                android:backgroundTint="@null"
+                android:contentDescription="@string/rest_overlay_extend_description"
+                android:fontFamily="sans-serif-medium"
+                android:minWidth="0dp"
+                android:minHeight="@dimen/rest_overlay_touch_target"
+                android:padding="@dimen/rest_overlay_gap"
+                android:text="@string/rest_overlay_extend"
+                android:textAllCaps="false"
+                android:textColor="@color/rest_overlay_on_brand"
+                android:textSize="@dimen/rest_overlay_body_size" />
 
             <Button
                 android:id="@+id/rest_overlay_close"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/rest_overlay_gap"
+                android:layout_weight="1"
+                android:background="@drawable/rest_timer_overlay_control_background"
+                android:backgroundTint="@null"
                 android:contentDescription="@string/rest_overlay_close_description"
-                android:minWidth="@dimen/rest_overlay_touch_target"
+                android:minWidth="0dp"
                 android:minHeight="@dimen/rest_overlay_touch_target"
-                android:paddingStart="@dimen/rest_overlay_gap"
-                android:paddingEnd="@dimen/rest_overlay_gap"
+                android:padding="@dimen/rest_overlay_gap"
                 android:text="@string/rest_overlay_close"
                 android:textAllCaps="false"
                 android:textColor="@color/rest_overlay_text"
                 android:textSize="@dimen/rest_overlay_body_size" />
         </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/rest_overlay_drag_handle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/rest_overlay_timer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-black"
-                android:textColor="@color/rest_overlay_text"
-                android:textSize="@dimen/rest_overlay_timer_size" />
-
-            <TextView
-                android:id="@+id/rest_overlay_detail"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/rest_overlay_gap"
-                android:textColor="@color/rest_overlay_muted_text"
-                android:textSize="@dimen/rest_overlay_body_size" />
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/rest_overlay_return"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/rest_overlay_padding"
-            android:background="@drawable/rest_timer_overlay_return_background"
-            android:backgroundTint="@null"
-            android:minHeight="@dimen/rest_overlay_touch_target"
-            android:padding="@dimen/rest_overlay_gap"
-            android:text="@string/rest_overlay_return"
-            android:textAllCaps="false"
-            android:textColor="@color/rest_overlay_on_brand"
-            android:textSize="@dimen/rest_overlay_body_size" />
     </LinearLayout>
 </ScrollView>

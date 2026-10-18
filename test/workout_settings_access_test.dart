@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/app_snapshot_codec.dart';
@@ -57,7 +58,122 @@ Future<void> _openMenuItem(WidgetTester tester, String key) async {
 }
 
 void main() {
+  const timerChannel = MethodChannel('com.teampara.setflow/rest_timer');
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  final timerCalls = <MethodCall>[];
+  var overlaySupported = true;
+  var overlayEnabled = false;
+  var overlayPermissionGranted = false;
+
+  setUp(() {
+    overlaySupported = true;
+    overlayEnabled = true;
+    overlayPermissionGranted = false;
+    timerCalls.clear();
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(timerChannel, (
+      call,
+    ) async {
+      timerCalls.add(call);
+      return switch (call.method) {
+        'overlayStatus' =>
+          overlaySupported
+              ? {
+                  'enabled': overlayEnabled,
+                  'permissionGranted': overlayPermissionGranted,
+                }
+              : null,
+        'notificationStatus' => true,
+        'openOverlaySettings' => true,
+        'setOverlayEnabled' =>
+          overlayEnabled = (call.arguments as Map)['enabled'] as bool,
+        _ => null,
+      };
+    });
+  });
+
+  tearDown(() {
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(timerChannel, null);
+  });
+
   for (final dark in [false, true]) {
+    testWidgets(
+      'rest timer settings are reachable without interrupting recording at 2x ($dark)',
+      (tester) async {
+        final state = await _pump(tester, dark: dark);
+        final set = state.sessionFor(_day).exercises.single.sets.last;
+        await state.toggleSet(set);
+        await tester.pumpAndSettle();
+        final before = AppSnapshotCodec.sessionToJson(state.sessionFor(_day));
+        final timerSession = state.restSessionId;
+        expect(state.restRemaining, greaterThan(0));
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(
+          timerCalls.where((call) => call.method == 'openOverlaySettings'),
+          isEmpty,
+        );
+        timerCalls.clear();
+
+        await _openMenuItem(tester, 'daily-rest-timer-settings');
+        final overlay = find.byKey(
+          const ValueKey('setting-rest-timer-overlay'),
+        );
+        final close = find.byKey(const ValueKey('rest-timer-settings-close'));
+        expect(find.text('휴식 타이머'), findsOneWidget);
+        expect(tester.widget<SwitchListTile>(overlay).value, isFalse);
+        expect(
+          find.byKey(const ValueKey('setting-rest-timer-notifications')),
+          findsOneWidget,
+        );
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(
+          timerCalls.map((call) => call.method),
+          unorderedEquals(['overlayStatus', 'notificationStatus']),
+        );
+
+        await _tap(tester, overlay);
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(
+          timerCalls.where((call) => call.method == 'openOverlaySettings'),
+          isEmpty,
+        );
+        await _tap(tester, find.text('권한 설정'));
+        expect(
+          timerCalls.where((call) => call.method == 'openOverlaySettings'),
+          hasLength(1),
+        );
+        expect(overlayEnabled, isTrue);
+        expect(tester.widget<SwitchListTile>(overlay).value, isFalse);
+        overlayPermissionGranted = true;
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await tester.pumpAndSettle();
+        expect(tester.widget<SwitchListTile>(overlay).value, isTrue);
+        expect(overlayEnabled, isTrue);
+
+        await tester.ensureVisible(close);
+        await tester.pumpAndSettle();
+        expect(close.hitTestable(), findsOneWidget);
+        expect(tester.getRect(close).bottom, lessThanOrEqualTo(700 - 28));
+        expect(tester.takeException(), isNull);
+        await _tap(tester, close);
+        expect(overlay, findsNothing);
+        expect(AppSnapshotCodec.sessionToJson(state.sessionFor(_day)), before);
+        expect(state.defaultSetCount, 2);
+        expect(state.defaultRepCount, 8);
+        expect(state.restDefaultSeconds, 90);
+        expect(state.restSessionId, timerSession);
+        expect(
+          timerCalls.where(
+            (call) => call.method == 'start' || call.method == 'cancel',
+          ),
+          isEmpty,
+        );
+        expect(tester.takeException(), isNull);
+        state.cancelRestTimer();
+        await tester.pump();
+      },
+    );
+
     testWidgets(
       'record settings remain reachable with recommendation off at 2x ($dark)',
       (tester) async {
@@ -162,4 +278,28 @@ void main() {
       },
     );
   }
+
+  testWidgets('unsupported hosts hide the optional floating timer control', (
+    tester,
+  ) async {
+    overlaySupported = false;
+    final state = await _pump(tester, dark: false);
+    final before = AppSnapshotCodec.sessionToJson(state.sessionFor(_day));
+
+    await _openMenuItem(tester, 'daily-rest-timer-settings');
+
+    expect(find.text('휴식 타이머'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('setting-rest-timer-overlay')),
+      findsNothing,
+    );
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(
+      timerCalls.where((call) => call.method == 'openOverlaySettings'),
+      isEmpty,
+    );
+    await _tap(tester, find.byKey(const ValueKey('rest-timer-settings-close')));
+    expect(AppSnapshotCodec.sessionToJson(state.sessionFor(_day)), before);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -138,7 +138,7 @@ class _RestTimerOverlaySettingState extends State<RestTimerOverlaySetting>
       title: const Text('다른 앱 위에 타이머'),
       subtitle: Text(
         needsPermission
-            ? '다른 앱 위에 표시 권한이 필요해요. 다시 켜서 권한 설정을 열어주세요.'
+            ? '다른 앱 위에 표시 권한이 필요해요. 스위치를 켜서 권한을 허용해주세요.'
             : '앱을 나가도 남은 휴식과 운동 복귀 버튼을 보여줘요.',
       ),
       value: status.enabled && status.permissionGranted,

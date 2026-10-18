@@ -22,6 +22,7 @@ import 'recommendation_profile_screen.dart';
 import 'local_equipment_screen.dart';
 import 'training_focus_sheet.dart';
 import 'workout_recommendation_settings_sheet.dart';
+import 'workout_rest_timer_settings_sheet.dart';
 import 'workout_recommendation_recovery_sheet.dart';
 import 'custom_exercise_recommendation_screen.dart';
 import '../domain/custom_exercise_recommendation_rules.dart';
@@ -271,6 +272,9 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
             onSelected: (value) {
               if (value == 'delete') _deleteWorkout(context);
               if (value == 'set-defaults') _showSetDefaultsSheet(context);
+              if (value == 'rest-timer-settings') {
+                showWorkoutRestTimerSettings(context);
+              }
               if (value == 'training-focus') _selectTrainingFocus();
               if (value == 'recommendation-settings') {
                 showWorkoutRecommendationSettings(context, date).then((_) {
@@ -301,6 +305,11 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
                         : '오늘 운동 부위',
                   ),
                 ),
+              const PopupMenuItem(
+                key: ValueKey('daily-rest-timer-settings'),
+                value: 'rest-timer-settings',
+                child: Text('휴식 타이머 설정'),
+              ),
               const PopupMenuItem(
                 key: ValueKey('daily-set-defaults'),
                 value: 'set-defaults',

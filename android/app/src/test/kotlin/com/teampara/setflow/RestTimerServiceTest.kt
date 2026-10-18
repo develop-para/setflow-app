@@ -1,10 +1,12 @@
 package com.teampara.setflow
 
+import android.app.Activity
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.os.Looper
+import android.view.View
 import android.view.WindowManager
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -211,6 +213,90 @@ class RestTimerServiceTest {
     }
 
     @Test
+    fun floatingCountdownDefaultsOnButWaitsForAndroidPermission() {
+        assertEquals(true, RestTimerService.overlayStatus(context)["enabled"])
+        assertEquals(false, RestTimerService.overlayStatus(context)["permissionGranted"])
+        val service = startTimer(seconds = 90)
+        val deadline = RestTimerService.status(context)["endsAtMillis"]
+
+        RestTimerService.onAppVisibilityChanged(false)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val windows = Shadow.extract<ShadowWindowManagerImpl>(
+            context.getSystemService(WindowManager::class.java),
+        )
+        assertTrue(windows.views.isEmpty())
+        assertNull(shadowOf(context as Application).nextStartedActivity)
+        assertFalse(shadowOf(service).isStoppedBySelf)
+        assertEquals(deadline, RestTimerService.status(context)["endsAtMillis"])
+    }
+
+    @Test
+    fun grantingAndroidPermissionShowsDefaultEnabledCountdownWithoutAnotherToggle() {
+        startTimer(seconds = 90)
+        RestTimerService.onAppVisibilityChanged(false)
+        ShadowSettings.setCanDrawOverlays(true)
+
+        RestTimerService.onAppVisibilityChanged(true)
+        RestTimerService.onAppVisibilityChanged(false)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val windows = Shadow.extract<ShadowWindowManagerImpl>(
+            context.getSystemService(WindowManager::class.java),
+        )
+        assertEquals(true, RestTimerService.overlayStatus(context)["enabled"])
+        assertEquals(1, windows.views.size)
+    }
+
+    @Test
+    fun explicitlyDisabledFloatingCountdownStaysOffAfterPermissionGrantAndRestart() {
+        RestTimerService.setOverlayEnabled(context, false)
+        val deadline = System.currentTimeMillis() + 90_000L
+        startTimer(seconds = 90, endsAt = deadline)
+        controllers.removeAt(0).destroy()
+        ShadowSettings.setCanDrawOverlays(true)
+        RestTimerService.onAppVisibilityChanged(false)
+
+        val restored = Robolectric.buildService(RestTimerService::class.java)
+            .create().startCommand(0, 2)
+        controllers.add(restored)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val windows = Shadow.extract<ShadowWindowManagerImpl>(
+            context.getSystemService(WindowManager::class.java),
+        )
+        assertEquals(false, RestTimerService.overlayStatus(context)["enabled"])
+        assertTrue(windows.views.isEmpty())
+        assertEquals(deadline, RestTimerService.status(context)["endsAtMillis"])
+    }
+
+    @Test
+    @Config(application = SetflowApplication::class)
+    fun activityStopShowsCountdownAndReturningHidesItWithoutResettingRest() {
+        ShadowSettings.setCanDrawOverlays(true)
+        val activity = Robolectric.buildActivity(Activity::class.java)
+            .create().start().resume().visible()
+        startTimer(seconds = 90)
+        val deadline = RestTimerService.status(context)["endsAtMillis"]
+        val windows = Shadow.extract<ShadowWindowManagerImpl>(
+            context.getSystemService(WindowManager::class.java),
+        )
+        fun overlayWindowCount() = windows.views.count {
+            it.findViewById<View>(R.id.rest_overlay_timer) != null
+        }
+        assertEquals(0, overlayWindowCount())
+
+        activity.pause().stop()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, overlayWindowCount())
+
+        activity.start().resume()
+        assertEquals(0, overlayWindowCount())
+        assertEquals(deadline, RestTimerService.status(context)["endsAtMillis"])
+        activity.pause().stop().destroy()
+    }
+
+    @Test
     fun floatingCountdownAppearsOverOtherAppsAndHidesWhenWorkoutReturns() {
         ShadowSettings.setCanDrawOverlays(true)
         RestTimerService.setOverlayEnabled(context, true)
@@ -249,6 +335,32 @@ class RestTimerServiceTest {
         assertFalse(shadowOf(service).isStoppedBySelf)
         assertTrue(ShadowPowerManager.getLatestWakeLock().isHeld)
         assertEquals(deadline, RestTimerService.status(context)["endsAtMillis"])
+    }
+
+    @Test
+    fun floatingControlsExtendTheSameRestAndFinishWithoutOpeningTheApp() {
+        ShadowSettings.setCanDrawOverlays(true)
+        val deadline = System.currentTimeMillis() + 90_000L
+        startTimer(seconds = 90, endsAt = deadline)
+        RestTimerService.onAppVisibilityChanged(false)
+        val windows = Shadow.extract<ShadowWindowManagerImpl>(
+            context.getSystemService(WindowManager::class.java),
+        )
+        val view = windows.views.single()
+
+        view.findViewById<View>(R.id.rest_overlay_extend).performClick()
+
+        assertEquals(deadline + 30_000L, RestTimerService.status(context)["endsAtMillis"])
+        assertEquals(1, windows.views.size)
+        assertTrue(view === windows.views.single())
+        assertNull(shadowOf(context as Application).nextStartedActivity)
+
+        view.findViewById<View>(R.id.rest_overlay_close).performClick()
+
+        assertEquals(0, RestTimerService.status(context)["remainingSeconds"])
+        assertTrue(windows.views.isEmpty())
+        assertFalse(ShadowPowerManager.getLatestWakeLock().isHeld)
+        assertNull(shadowOf(context as Application).nextStartedActivity)
     }
 
     private fun startTimer(

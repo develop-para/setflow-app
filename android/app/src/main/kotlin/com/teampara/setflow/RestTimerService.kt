@@ -39,7 +39,7 @@ class RestTimerService : Service() {
         super.onCreate()
         createNotificationChannels()
         liveService = WeakReference(this)
-        overlay = RestTimerOverlay(this, ::cancelTimer, ::openWorkout)
+        overlay = RestTimerOverlay(this, ::cancelTimer, ::openWorkout, ::extendTimer)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -200,7 +200,7 @@ class RestTimerService : Service() {
         val endsAt = preferences.getLong(KEY_ENDS_AT, 0L)
         if (!appInForeground && preferences.getBoolean(KEY_ACTIVE, false) &&
             endsAt > System.currentTimeMillis() &&
-            overlayPreferences(this).getBoolean(KEY_OVERLAY_ENABLED, false) &&
+            isOverlayEnabled(this) &&
             Settings.canDrawOverlays(this)
         ) {
             val detail = preferences.getString(KEY_DETAIL, null)
@@ -654,7 +654,7 @@ class RestTimerService : Service() {
         }
 
         fun overlayStatus(context: Context): Map<String, Boolean> = mapOf(
-            "enabled" to overlayPreferences(context).getBoolean(KEY_OVERLAY_ENABLED, false),
+            "enabled" to isOverlayEnabled(context),
             "permissionGranted" to Settings.canDrawOverlays(context),
         )
 
@@ -695,6 +695,12 @@ class RestTimerService : Service() {
                 .apply()
             return payload
         }
+
+        // The timer is on by default, but Android still requires the user's
+        // special-access grant before a floating window can actually appear.
+        // A saved off choice always takes precedence over the default.
+        private fun isOverlayEnabled(context: Context) =
+            overlayPreferences(context).getBoolean(KEY_OVERLAY_ENABLED, true)
 
         private fun overlayPreferences(context: Context) =
             context.getSharedPreferences(OVERLAY_PREFERENCES_NAME, Context.MODE_PRIVATE)

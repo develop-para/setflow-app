@@ -17,6 +17,8 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Button
 import android.widget.TextView
 import android.widget.FrameLayout
 import java.util.Locale
@@ -28,6 +30,7 @@ class RestTimerOverlay(
     private val appContext: Context,
     private val onClose: () -> Unit,
     private val onReturnToWorkout: () -> Unit,
+    private val onExtend: () -> Unit,
 ) {
     private val context: Context by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -46,6 +49,7 @@ class RestTimerOverlay(
     private var root: View? = null
     private var layout: WindowManager.LayoutParams? = null
     private var endsAt = 0L
+    private var detail = ""
     private var positionX: Int? = null
     private var positionY: Int? = null
     private val tick = object : Runnable {
@@ -62,12 +66,12 @@ class RestTimerOverlay(
 
     fun show(timerEndsAt: Long, detail: String) {
         endsAt = timerEndsAt
+        this.detail = detail
         if (!Settings.canDrawOverlays(context)) {
             hide()
             return
         }
         root?.let { view ->
-            view.findViewById<TextView>(R.id.rest_overlay_detail).text = detail
             updateTime(view)
             fitWithinScreen(view)
             updateWindow(view)
@@ -79,14 +83,22 @@ class RestTimerOverlay(
             false,
         )
         view.clipToOutline = true
-        view.findViewById<TextView>(R.id.rest_overlay_detail).text = detail
         view.findViewById<View>(R.id.rest_overlay_close).setOnClickListener { onClose() }
-        view.findViewById<View>(R.id.rest_overlay_return).setOnClickListener {
+        view.findViewById<View>(R.id.rest_overlay_extend).setOnClickListener { onExtend() }
+        val returnControl = view.findViewById<View>(R.id.rest_overlay_return)
+        returnControl.setOnClickListener {
             // Keep the visible window until startActivity has been requested.
             onReturnToWorkout()
         }
-        installDrag(view.findViewById(R.id.rest_overlay_timer))
-        installDrag(view.findViewById(R.id.rest_overlay_title))
+        returnControl.accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = Button::class.java.name
+            }
+        }
+        // One large time/return target: tap to return, drag to move. Buttons
+        // below keep their own gestures so a drag cannot accidentally end rest.
+        installDrag(returnControl)
         @Suppress("DEPRECATION")
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -111,8 +123,8 @@ class RestTimerOverlay(
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER
             }
         }
-        fitWithinScreen(view)
         updateTime(view)
+        fitWithinScreen(view)
         try {
             windowManager.addView(view, layout)
             root = view
@@ -151,12 +163,19 @@ class RestTimerOverlay(
         ).toInt()
         val timer = view.findViewById<TextView>(R.id.rest_overlay_timer)
         val time = String.format(Locale.ROOT, "%d:%02d", remaining / 60, remaining % 60)
-        if (timer.text.toString() == time) return
-        timer.text = time
-        timer.contentDescription = context.getString(
+        if (timer.text.toString() != time) timer.text = time
+        val remainingDescription = context.getString(
             R.string.rest_overlay_remaining,
             remaining / 60,
             remaining % 60,
+        )
+        timer.contentDescription = remainingDescription
+        // Preserve workout context for accessibility without a multi-line
+        // description growing the floating window over another app.
+        view.findViewById<View>(R.id.rest_overlay_return).contentDescription = context.getString(
+            R.string.rest_overlay_return_description,
+            remainingDescription,
+            detail,
         )
     }
 
@@ -176,13 +195,18 @@ class RestTimerOverlay(
                     initialX = params.x
                     initialY = params.y
                     dragging = false
+                    view.drawableHotspotChanged(event.x, event.y)
+                    view.isPressed = true
                     view.parent.requestDisallowInterceptTouchEvent(true)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - rawX
                     val dy = event.rawY - rawY
-                    if (abs(dx) > slop || abs(dy) > slop) dragging = true
+                    if (abs(dx) > slop || abs(dy) > slop) {
+                        dragging = true
+                        view.isPressed = false
+                    }
                     if (dragging) {
                         val direction = if (view.layoutDirection == View.LAYOUT_DIRECTION_RTL) -1 else 1
                         positionX = initialX + dx.toInt() * direction
@@ -195,6 +219,7 @@ class RestTimerOverlay(
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    view.isPressed = false
                     view.parent.requestDisallowInterceptTouchEvent(false)
                     if (!dragging && event.actionMasked == MotionEvent.ACTION_UP) view.performClick()
                     true
@@ -208,8 +233,17 @@ class RestTimerOverlay(
         val params = layout ?: return
         val size = usableSize()
         val margin = context.resources.getDimensionPixelSize(R.dimen.rest_overlay_gap)
-        params.width = context.resources.getDimensionPixelSize(R.dimen.rest_overlay_width)
+        params.width = preferredWidth(view)
             .coerceAtMost((size.x - margin * 2).coerceAtLeast(1))
+        val timer = view.findViewById<TextView>(R.id.rest_overlay_timer)
+        val title = view.findViewById<TextView>(R.id.rest_overlay_title)
+        val padding = context.resources.getDimensionPixelSize(R.dimen.rest_overlay_padding)
+        val returnWidth = timeTextWidth(timer) +
+            title.paint.measureText(title.text.toString()) + margin
+        // On a narrow display, keep the enlarged countdown fully readable.
+        // The whole time row still returns to the workout and retains its label
+        // for accessibility when the visible caption cannot fit beside it.
+        title.visibility = if (returnWidth <= params.width - padding * 2) View.VISIBLE else View.GONE
         val maxHeight = (size.y - margin * 2).coerceAtLeast(1)
         view.measure(
             View.MeasureSpec.makeMeasureSpec(params.width, View.MeasureSpec.EXACTLY),
@@ -222,6 +256,34 @@ class RestTimerOverlay(
         params.x = (positionX ?: maxX).coerceIn(margin, maxX)
         params.y = (positionY ?: margin).coerceIn(margin, maxY)
     }
+
+    private fun preferredWidth(view: View): Int {
+        val resources = context.resources
+        val padding = resources.getDimensionPixelSize(R.dimen.rest_overlay_padding)
+        val gap = resources.getDimensionPixelSize(R.dimen.rest_overlay_gap)
+        val timer = view.findViewById<TextView>(R.id.rest_overlay_timer)
+        val title = view.findViewById<TextView>(R.id.rest_overlay_title)
+        val extend = view.findViewById<TextView>(R.id.rest_overlay_extend)
+        val close = view.findViewById<TextView>(R.id.rest_overlay_close)
+        // Grow for actual scaled text rather than compressing accessibility
+        // fonts into the default small card. The screen still bounds the window.
+        val timeWidth = timeTextWidth(timer)
+        val returnWidth = timeWidth + title.paint.measureText(title.text.toString()) + gap
+        val buttonWidth = maxOf(
+            extend.paint.measureText(extend.text.toString()) + extend.paddingLeft + extend.paddingRight,
+            close.paint.measureText(close.text.toString()) + close.paddingLeft + close.paddingRight,
+        )
+        return maxOf(
+            resources.getDimensionPixelSize(R.dimen.rest_overlay_width),
+            ceil(returnWidth + padding * 2).toInt(),
+            ceil(buttonWidth * 2 + gap + padding * 2).toInt(),
+        )
+    }
+
+    private fun timeTextWidth(timer: TextView): Float = maxOf(
+        timer.paint.measureText("59:59"),
+        timer.paint.measureText(timer.text.toString()),
+    )
 
     private fun usableSize(): Point {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
