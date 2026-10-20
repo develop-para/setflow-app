@@ -192,7 +192,7 @@ enum WorkoutDesignRule {
     basis: WorkoutRuleBasis.recordIntegrity,
     principle: '',
     implementation:
-        '완료한 기록은 새 계획을 만들며 덮어쓰지 않습니다. 운동을 다른 날로 복사하거나 운동 과제·보유 루틴을 새 과제 계획으로 가져오면 완료 상태와 실제 RIR·RPE를 옮기지 않고 원본을 보존합니다. 기록이 없는 중량은 직접 선택하도록 둡니다.',
+        '완료한 기록은 새 계획을 만들며 덮어쓰지 않습니다. 운동을 다른 날로 복사하거나 운동 과제·보유 루틴을 새 과제 계획으로 가져오면 완료 상태와 실제 RIR·RPE를 옮기지 않고 원본을 보존합니다. 기록이 없는 중량은 직접 선택하도록 둡니다. 트레이너가 회원별 공간에서 입력한 기록은 해당 회원 원본으로 분리하고 작성자를 표시하며 트레이너 본인의 운동으로 저장하지 않습니다.',
     rationale:
         '하지 않은 수행·느끼지 않은 RIR·들어본 적 없는 중량을 실제 기록처럼 만들지 않기 위해서입니다. 기록 정정용 복사는 실제 관찰값을 보존합니다.',
     limitations:
@@ -261,5 +261,5 @@ enum WorkoutDesignRule {
   final String limitations;
   final Set<String> evidenceIds;
 
-  static const reviewedOn = '2026-10-19';
+  static const reviewedOn = '2026-10-20';
 }

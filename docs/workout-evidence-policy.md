@@ -162,6 +162,13 @@ Cox의 [공식 본문](https://link.springer.com/article/10.1186/s12966-025-0186
 
 ## 검증과 자동 검사의 범위
 
+2026-10-20 검토: 수업 예약과 앱 가입이 없는 회원도 트레이너가 독립된 회원 공간에 운동을 기록한다.
+회원별 원본과 트레이너 개인 일지를 분리하고, 캘린더에서 회원 직접 기록과 트레이너 작성 기록의 출처를 표시한다.
+회원 계정 연결은 단회 코드 수락과 개인 운동 공유 동의로 확인하며 이름·전화번호의 일치로 소유를 추정하지 않는다.
+새 계획의 완료 여부·실제 RIR·RPE를 자동으로 만들어 저장하지 않고, 기존 다이얼·순차 완료·접기 동작을 재사용한다.
+이는 대상 혼동과 기록 손실을 막기 위한 사용성·기록 보존 원칙이며 운동 수치·추천 알고리즘 변경이나 새로운 연구 주장은 없다.
+원문 연구를 추가 검토하지 않았다. 화면·저장·권한 회귀의 범위는 관리 회원 화면과 어댑터 테스트 및 SQL 실행 검사로 제한된다.
+
 - 계산: `test/resistance_prescription_test.dart`, `test/exercise_recommendation_result_test.dart`,
   `test/personal_coaching_test.dart`, `test/cardio_prescription_engine_test.dart`, 성능·반복 목표 관련 회귀.
 - 화면: `test/exercise_library_recommendation_test.dart`, `test/recommendation_volume_week_flow_test.dart`,

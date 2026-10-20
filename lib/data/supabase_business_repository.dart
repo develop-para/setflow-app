@@ -9,6 +9,8 @@ import '../services/user_image_optimizer.dart';
 import 'business_repository.dart';
 import 'coaching_management_repository.dart';
 import 'supabase_coaching_management_repository.dart';
+import 'supabase_trainer_client_repository.dart';
+import 'trainer_client_repository.dart';
 
 const _memberConsultationPageSize = 200;
 
@@ -243,7 +245,7 @@ const _coachingSessionRecordSelect = '''
 ''';
 
 class SupabaseBusinessRepository
-    with SupabaseCoachingManagement
+    with SupabaseCoachingManagement, SupabaseTrainerClients
     implements
         BusinessRepository,
         PublicTrainerSearchRepository,
@@ -261,6 +263,24 @@ class SupabaseBusinessRepository
   const SupabaseBusinessRepository(this._client);
 
   final SupabaseClient _client;
+
+  @override
+  Future<dynamic> trainerClientRpc(
+    String name, {
+    Map<String, dynamic>? params,
+  }) async {
+    try {
+      return await _client.rpc(name, params: params);
+    } on PostgrestException catch (error) {
+      if (error.code == 'PT409') {
+        throw const TrainerClientWorkoutConflict();
+      }
+      if (error.code == 'PT410') {
+        throw const TrainerClientInvitationUnavailable();
+      }
+      rethrow;
+    }
+  }
 
   @override
   Future<dynamic> managementRpc(

@@ -322,6 +322,116 @@ void main() {
       expect(find.textContaining('trainer-GYM7K2'), findsNothing);
     },
   );
+
+  testWidgets('gym staff distinguishes employees from pending invitations', (
+    tester,
+  ) async {
+    final repository = _InviteBusinessRepository.gym(
+      invites: [
+        _invite(
+          kind: BusinessInviteKind.trainer,
+          expiresAt: DateTime.now().add(const Duration(days: 7)),
+        ),
+        _invite(
+          kind: BusinessInviteKind.trainer,
+          expiresAt: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+        _invite(expiresAt: DateTime.now().add(const Duration(days: 7))),
+      ],
+    );
+    final state = AppState(
+      businessRepository: repository,
+      loadBusinessWithoutAuth: true,
+    );
+    addTearDown(state.dispose);
+    await state.initialize();
+    await _pumpScreen(tester, state, const TrainerManagementPage());
+
+    expect(find.text('근무 중 1명'), findsOneWidget);
+    expect(find.text('근무 중 · 트레이너'), findsOneWidget);
+    expect(find.text('회원 1명 · 피드백 0%'), findsOneWidget);
+    expect(find.textContaining('/25명'), findsNothing);
+    expect(find.text('초대 대기 1'), findsOneWidget);
+  });
+
+  testWidgets(
+    'gym can revoke a pending trainer invitation and retry failures',
+    (tester) async {
+      final repository = _InviteBusinessRepository.gym(
+        revokeFailuresBeforeSuccess: 1,
+        invites: [
+          _invite(
+            kind: BusinessInviteKind.trainer,
+            expiresAt: DateTime.now().add(const Duration(days: 7)),
+          ),
+        ],
+      );
+      final state = AppState(
+        businessRepository: repository,
+        loadBusinessWithoutAuth: true,
+      );
+      addTearDown(state.dispose);
+      await state.initialize();
+      await _pumpScreen(tester, state, const TrainerManagementPage());
+      await tester.tap(find.text('초대 대기 1'));
+      await tester.pumpAndSettle();
+
+      final cancel = find.byKey(
+        const ValueKey('cancel-trainer-invite-$_inviteId'),
+      );
+      await tester.tap(cancel);
+      await tester.pumpAndSettle();
+      expect(state.businessInvites.single.status, BusinessInviteStatus.pending);
+      expect(cancel, findsOneWidget);
+
+      await tester.tap(cancel);
+      await tester.pumpAndSettle();
+      expect(repository.revokeInputs, hasLength(2));
+      expect(repository.revokeInputs.last.$1, _inviteId);
+      expect(state.businessInvites.single.status, BusinessInviteStatus.revoked);
+      expect(find.text('수락을 기다리는 트레이너 초대가 없어요.'), findsOneWidget);
+      expect(cancel, findsNothing);
+    },
+  );
+
+  testWidgets('empty gym staff has a working invitation action', (
+    tester,
+  ) async {
+    final state = AppState(
+      businessRepository: _InviteBusinessRepository.gym(trainers: const []),
+      loadBusinessWithoutAuth: true,
+    );
+    addTearDown(state.dispose);
+    await state.initialize();
+    await _pumpScreen(tester, state, const TrainerManagementPage());
+
+    expect(find.text('근무 중인 트레이너가 없어요'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, '트레이너 초대'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('business-invite-create')), findsOneWidget);
+  });
+
+  testWidgets('gym staff refresh picks up accepted employment invitations', (
+    tester,
+  ) async {
+    final repository = _InviteBusinessRepository.gym(trainers: const []);
+    final state = AppState(
+      businessRepository: repository,
+      loadBusinessWithoutAuth: true,
+    );
+    addTearDown(state.dispose);
+    await state.initialize();
+    await _pumpScreen(tester, state, const TrainerManagementPage());
+    expect(find.text('근무 중 0명'), findsOneWidget);
+
+    repository.workspace = _InviteBusinessRepository.gym().workspace;
+    await tester.tap(find.byTooltip('근무 트레이너 새로고침'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('근무 중 1명'), findsOneWidget);
+    expect(find.text('실트레이너'), findsOneWidget);
+    expect(find.text('근무 중인 트레이너가 없어요'), findsNothing);
+  });
 }
 
 Future<void> _pumpScreen(
@@ -331,6 +441,7 @@ Future<void> _pumpScreen(
 ) async {
   await tester.binding.setSurfaceSize(const Size(432, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pump(const Duration(milliseconds: 300));
   await tester.pumpWidget(
     AppScope(
       notifier: state,
@@ -360,17 +471,19 @@ BusinessInviteAcceptance _acceptance({required bool accepted}) =>
 
 BusinessInviteRecord _invite({
   BusinessInviteStatus status = BusinessInviteStatus.pending,
+  BusinessInviteKind kind = BusinessInviteKind.member,
+  DateTime? expiresAt,
 }) {
   final now = DateTime.utc(2026, 8, 16);
   return BusinessInviteRecord(
     id: _inviteId,
     gymId: _gymId,
-    kind: BusinessInviteKind.member,
+    kind: kind,
     status: status,
     createdByUserId: _userId,
     memberId: _memberId,
     recipientName: '연결할 회원',
-    expiresAt: now.add(const Duration(days: 7)),
+    expiresAt: expiresAt ?? now.add(const Duration(days: 7)),
     createdAt: now,
     updatedAt: now,
   );
@@ -382,6 +495,7 @@ class _InviteBusinessRepository implements BusinessRepository {
     this.workspace,
     this.createCompleter,
     this.acceptance,
+    this.invites = const [],
     int createFailuresBeforeSuccess = 0,
     int acceptFailuresBeforeSuccess = 0,
     int revokeFailuresBeforeSuccess = 0,
@@ -393,6 +507,8 @@ class _InviteBusinessRepository implements BusinessRepository {
     Completer<BusinessInviteCreation>? createCompleter,
     int createFailuresBeforeSuccess = 0,
     int revokeFailuresBeforeSuccess = 0,
+    List<BusinessInviteRecord> invites = const [],
+    List<GymTrainerRecord>? trainers,
   }) {
     const profile = GymBusinessProfile(
       id: _gymId,
@@ -413,6 +529,7 @@ class _InviteBusinessRepository implements BusinessRepository {
       createCompleter: createCompleter,
       createFailuresBeforeSuccess: createFailuresBeforeSuccess,
       revokeFailuresBeforeSuccess: revokeFailuresBeforeSuccess,
+      invites: invites,
       workspace: BusinessWorkspaceData(
         role: UserRole.gym,
         access: access,
@@ -430,18 +547,20 @@ class _InviteBusinessRepository implements BusinessRepository {
             remainingPtSessions: 8,
           ),
         ],
-        trainers: const [
-          GymTrainerRecord(
-            id: '88888888-8888-4888-8888-888888888888',
-            gymId: _gymId,
-            trainerId: _trainerId,
-            displayName: '실트레이너',
-            status: 'active',
-            memberCount: 1,
-            averageRating: 4.8,
-            monthlySales: 1000000,
-          ),
-        ],
+        trainers:
+            trainers ??
+            const [
+              GymTrainerRecord(
+                id: '88888888-8888-4888-8888-888888888888',
+                gymId: _gymId,
+                trainerId: _trainerId,
+                displayName: '실트레이너',
+                status: 'active',
+                memberCount: 1,
+                averageRating: 4.8,
+                monthlySales: 1000000,
+              ),
+            ],
       ),
     );
   }
@@ -461,9 +580,10 @@ class _InviteBusinessRepository implements BusinessRepository {
   );
 
   final BusinessAccess access;
-  final BusinessWorkspaceData? workspace;
+  BusinessWorkspaceData? workspace;
   final Completer<BusinessInviteCreation>? createCompleter;
   final BusinessInviteAcceptance? acceptance;
+  final List<BusinessInviteRecord> invites;
   int _remainingCreateFailures;
   int _remainingAcceptFailures;
   int _remainingRevokeFailures;
@@ -520,7 +640,7 @@ class _InviteBusinessRepository implements BusinessRepository {
     BusinessInviteStatus? status,
   }) async {
     expect(gymId, _gymId);
-    return const [];
+    return invites;
   }
 
   @override

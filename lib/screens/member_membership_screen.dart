@@ -10,6 +10,7 @@ import '../widgets/common.dart';
 import '../widgets/auth_gate.dart';
 import 'coaching_management_screen.dart';
 import 'gym_directory_screen.dart';
+import 'trainer_managed_client_screens.dart';
 
 class MemberMembershipScreen extends StatelessWidget {
   const MemberMembershipScreen({super.key});
@@ -272,6 +273,17 @@ class MemberMembershipScreen extends StatelessWidget {
                 subtitle: const Text('담당 트레이너 · 기록 수정 요청 · 업장 공유'),
                 trailing: const Icon(SetflowIcons.forward),
                 onTap: () => openMemberRecordSharing(context),
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+            ],
+            if (trainerClientRepository(context) != null) ...[
+              ListTile(
+                key: const ValueKey('my-trainer-client-records'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('트레이너 관리 기록'),
+                subtitle: const Text('앱 가입 전 기록 연결 · 회원별 운동 캘린더'),
+                trailing: const Icon(SetflowIcons.forward),
+                onTap: () => openMyTrainerClientRecords(context),
               ),
               const SizedBox(height: SetflowSpacing.md),
             ],

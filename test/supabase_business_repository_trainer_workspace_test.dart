@@ -7,6 +7,7 @@ import 'package:http/io_client.dart';
 import 'package:setflow/app_state.dart';
 import 'package:setflow/data/supabase_business_repository.dart';
 import 'package:setflow/data/business_repository.dart';
+import 'package:setflow/data/trainer_client_repository.dart';
 import 'package:setflow/screens/business_screens.dart';
 import 'package:setflow/theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,6 +21,7 @@ const _secondConsultationId = '66666666-6666-4666-8666-666666666666';
 const _connectionId = '77777777-7777-4777-8777-777777777777';
 const _secondConnectionId = '88888888-8888-4888-8888-888888888888';
 const _otherTrainerId = '99999999-9999-4999-8999-999999999999';
+const _managedClientId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 void main() {
   testWidgets(
@@ -28,6 +30,15 @@ void main() {
       final backend = await tester.runAsync(
         () => _TrainerWorkspaceBackend.start(
           resourceBodies: {
+            'list_trainer_clients': [
+              {
+                'id': _managedClientId,
+                'name': '황성안',
+                'phone': '01012345678',
+                'notes': '앱 가입 전 등록한 회원',
+                'member_user_id': null,
+              },
+            ],
             'list_my_coaching_connections': [
               _connectionRow(_connectionId, _trainerId, _memberUserId, '황성안'),
               _connectionRow(
@@ -54,7 +65,7 @@ void main() {
       );
       expect(backend, isNotNull);
       addTearDown(backend!.close);
-      final repository = SupabaseBusinessRepository(backend.client);
+      final repository = _LoadedTrainerWorkspaceRepository(backend.client);
       final workspace = await tester.runAsync(
         () => repository.loadWorkspace(UserRole.trainer),
       );
@@ -63,6 +74,9 @@ void main() {
         workspace!.coachingConnections.map((connection) => connection.id),
         [_connectionId],
       );
+      // Decode the real loopback RPC before mounting. The widget receives that
+      // response on its fake clock without starving socket I/O with a spinner.
+      await tester.runAsync(repository.loadClientsForWidget);
       final state = AppState(businessRepository: repository)
         ..role = UserRole.trainer
         ..businessAccess = workspace.access
@@ -78,7 +92,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('황성안'), findsOneWidget);
+      expect(find.text('황성안'), findsNWidgets(2));
+      expect(find.text('직접 관리 회원 · 1'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('managed-client-$_managedClientId')),
+        findsOneWidget,
+      );
+      expect(find.text('01012345678 · 앱 미연결'), findsOneWidget);
       expect(find.text('본인 회원 역할'), findsNothing);
       expect(find.text('잘못된 본인 연결'), findsNothing);
       expect(find.text('다른 트레이너 회원'), findsNothing);
@@ -435,6 +455,7 @@ class _TrainerWorkspaceBackend {
       },
       'member_assignments' ||
       'coaching_routines' ||
+      'list_trainer_clients' ||
       'list_my_coaching_connections' ||
       'coaching_session_records' => const [],
       'consultations' => [
@@ -480,6 +501,21 @@ class _TrainerWorkspaceBackend {
       ..write(jsonEncode(body));
     await response.close();
   }
+}
+
+class _LoadedTrainerWorkspaceRepository extends SupabaseBusinessRepository {
+  _LoadedTrainerWorkspaceRepository(super.client);
+
+  List<TrainerManagedClient>? _clients;
+
+  Future<void> loadClientsForWidget() async {
+    _clients = await super.listTrainerClients();
+  }
+
+  @override
+  Future<List<TrainerManagedClient>> listTrainerClients() async =>
+      _clients ??
+      (throw StateError('Load the loopback roster before mounting.'));
 }
 
 // Loopback adapter tests need their own transport even with a widget binding.

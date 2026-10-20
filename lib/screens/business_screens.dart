@@ -31,6 +31,7 @@ import 'notification_screen.dart';
 import 'settlement_detail_screens.dart';
 import 'stats_detail_screens.dart';
 import 'trainer_client_screen.dart';
+import 'trainer_managed_client_screens.dart';
 import 'workspace_screen.dart';
 
 class BusinessShell extends StatefulWidget {
@@ -1023,7 +1024,7 @@ class TrainerHome extends StatelessWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('관리 회원'),
-            subtitle: Text('${facts['members'] ?? '0'}명 · 회원별 기록·과제·상담'),
+            subtitle: Text('연결 회원 ${facts['members'] ?? '0'}명 · 직접 등록 회원 관리'),
             trailing: const Icon(SetflowIcons.forward),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
@@ -1898,6 +1899,7 @@ class _PeoplePageState extends State<PeoplePage> {
   final searchController = TextEditingController();
   bool _extrasRequested = false;
   bool _assignmentsLoaded = false;
+  int _clientsRefreshRevision = 0;
 
   @override
   void didChangeDependencies() {
@@ -1932,6 +1934,10 @@ class _PeoplePageState extends State<PeoplePage> {
       }
     } catch (_) {
       if (mounted) AppSnackbar.error(context, '회원 목록을 새로고침하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      if (mounted && widget.role == UserRole.trainer) {
+        setState(() => _clientsRefreshRevision++);
+      }
     }
   }
 
@@ -2192,6 +2198,11 @@ class _PeoplePageState extends State<PeoplePage> {
                               icon: const Icon(SetflowIcons.close),
                             ),
                     ),
+                    if (!gym && trainerClientRepository(context) != null)
+                      TrainerManagedClientsPanel(
+                        query: query,
+                        refreshRevision: _clientsRefreshRevision,
+                      ),
                     if (gym) ...[
                       const SizedBox(height: SetflowSpacing.md),
                       SingleChildScrollView(
@@ -5516,6 +5527,7 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
   final searchController = TextEditingController();
   String query = '';
   String filter = 'all';
+  bool _refreshing = false;
 
   static const demoTrainers = [
     ('김코치', '18명', 98, 4.9, 4800000.0),
@@ -5533,8 +5545,12 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final staff = state.businessTrainers
+        .where((trainer) => trainer.status == 'active')
+        .toList(growable: false);
+    final pendingInvites = _pendingTrainerInvites(state);
     final trainers = state.usesLiveBusinessData
-        ? state.businessTrainers
+        ? staff
               .map(
                 (trainer) => (
                   trainer.displayName ?? '이름 미등록',
@@ -5565,10 +5581,16 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
       appBar: AppBar(
         title: const Text('트레이너'),
         actions: [
+          if (state.usesLiveBusinessData)
+            IconButton(
+              tooltip: '근무 트레이너 새로고침',
+              onPressed: _refreshing ? null : _refreshStaff,
+              icon: const Icon(SetflowIcons.refresh),
+            ),
           IconButton(
             tooltip: '트레이너 초대',
             onPressed: _showInviteSheet,
-            icon: const Icon(Icons.person_add_alt_1),
+            icon: const Icon(SetflowIcons.signUp),
           ),
         ],
       ),
@@ -5577,18 +5599,40 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
           Padding(
             padding: SetflowInsets.pageHeader,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (state.usesLiveBusinessData) ...[
+                  Wrap(
+                    spacing: SetflowSpacing.md,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        '근무 중 ${staff.length}명',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      TextButton(
+                        onPressed: _showPendingInvitesSheet,
+                        child: Text('초대 대기 ${pendingInvites.length}'),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '센터 초대를 수락한 소속 트레이너입니다.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: SetflowSpacing.md),
+                ],
                 AppTextField(
                   controller: searchController,
                   onChanged: (value) => setState(() => query = value),
-                  prefixIcon: const Icon(Icons.search_rounded),
+                  prefixIcon: const Icon(SetflowIcons.exerciseSearch),
                   hint: '트레이너 이름 검색',
                   suffixIcon: query.isEmpty
                       ? null
                       : IconButton(
                           tooltip: '검색어 지우기',
                           onPressed: _resetSearch,
-                          icon: const Icon(Icons.close_rounded),
+                          icon: const Icon(SetflowIcons.close),
                         ),
                 ),
                 const SizedBox(height: SetflowSpacing.md),
@@ -5653,7 +5697,15 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
               ),
             ),
           Expanded(
-            child: visible.isEmpty
+            child: state.usesLiveBusinessData && trainers.isEmpty
+                ? EmptyState(
+                    icon: SetflowIcons.pro,
+                    title: '근무 중인 트레이너가 없어요',
+                    message: '센터에서 근무하는 트레이너를 초대해주세요. 수락하면 소속 목록에 표시됩니다.',
+                    actionLabel: '트레이너 초대',
+                    onAction: _showInviteSheet,
+                  )
+                : visible.isEmpty
                 ? EmptyState(
                     icon: Icons.manage_search_rounded,
                     title: '조건에 맞는 트레이너가 없어요',
@@ -5670,6 +5722,9 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                     itemBuilder: (_, visibleIndex) {
                       final index = visible[visibleIndex].$1;
                       final trainer = visible[visibleIndex].$2;
+                      final employee = state.usesLiveBusinessData
+                          ? staff[index]
+                          : null;
                       final accentColor = [
                         context.setflowColors.blue,
                         context.setflowColors.teal,
@@ -5679,6 +5734,9 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: SetflowCard(
+                          key: employee == null
+                              ? null
+                              : ValueKey('gym-staff-${employee.id}'),
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => TrainerPerformancePage(
@@ -5718,8 +5776,21 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
                                         fontWeight: FontWeight.w900,
                                       ),
                                     ),
+                                    if (employee != null)
+                                      Text(
+                                        '근무 중 · ${employee.roleTitle ?? '트레이너'}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(
+                                              color:
+                                                  context.setflowColors.success,
+                                            ),
+                                      ),
                                     Text(
-                                      '회원 ${trainer.$2}/25명 · 피드백 ${trainer.$3}%',
+                                      employee == null
+                                          ? '회원 ${trainer.$2}/25명 · 피드백 ${trainer.$3}%'
+                                          : '회원 ${trainer.$2} · 피드백 ${trainer.$3}%',
                                       style: Theme.of(context)
                                           .textTheme
                                           .labelMedium
@@ -5775,6 +5846,116 @@ class _TrainerManagementPageState extends State<TrainerManagementPage> {
   void _resetSearch() {
     searchController.clear();
     setState(() => query = '');
+  }
+
+  List<BusinessInviteRecord> _pendingTrainerInvites(AppState state) {
+    final now = DateTime.now();
+    return state.businessInvites
+        .where(
+          (invite) =>
+              invite.kind == BusinessInviteKind.trainer &&
+              invite.status == BusinessInviteStatus.pending &&
+              invite.expiresAt.isAfter(now),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> _refreshStaff() async {
+    final state = AppScope.of(context);
+    setState(() => _refreshing = true);
+    try {
+      await state.refreshBusinessDashboard(UserRole.gym);
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, '소속 트레이너를 불러오지 못했어요. 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  Future<void> _showPendingInvitesSheet() async {
+    final state = AppScope.of(context);
+    await showSetflowSheet<void>(
+      context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => ListenableBuilder(
+        listenable: state,
+        builder: (context, _) {
+          final invites = _pendingTrainerInvites(state);
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .7,
+            ),
+            child: SingleChildScrollView(
+              padding: SetflowInsets.pageForm,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '초대 대기',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: SetflowSpacing.sm),
+                  const Text('초대를 수락하면 근무 중인 트레이너에 추가됩니다. 취소한 링크는 사용할 수 없어요.'),
+                  const SizedBox(height: SetflowSpacing.lg),
+                  if (invites.isEmpty) const Text('수락을 기다리는 트레이너 초대가 없어요.'),
+                  for (final invite in invites) ...[
+                    SetflowCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            invite.recipientName?.isNotEmpty == true
+                                ? invite.recipientName!
+                                : '이름 미지정',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(invite.roleTitle ?? '트레이너'),
+                          Text(
+                            '${invite.expiresAt.toLocal().month}월 ${invite.expiresAt.toLocal().day}일까지 수락 가능',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              key: ValueKey(
+                                'cancel-trainer-invite-${invite.id}',
+                              ),
+                              onPressed:
+                                  state.isBusinessMutationPending(
+                                    'business-invite:revoke:${invite.id}',
+                                  )
+                                  ? null
+                                  : () async {
+                                      try {
+                                        await state.revokeBusinessInvite(
+                                          invite.id,
+                                        );
+                                      } catch (_) {
+                                        if (sheetContext.mounted) {
+                                          AppSnackbar.error(
+                                            sheetContext,
+                                            '초대를 취소하지 못했어요. 다시 시도해주세요.',
+                                          );
+                                        }
+                                      }
+                                    },
+                              child: const Text('초대 취소'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: SetflowSpacing.md),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _showInviteSheet() async {

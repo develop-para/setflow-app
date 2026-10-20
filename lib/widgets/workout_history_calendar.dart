@@ -16,6 +16,7 @@ class WorkoutHistoryDay {
     required this.totalSets,
     required this.volumeKg,
     required this.cardioSeconds,
+    this.hasNotes = false,
   });
 
   factory WorkoutHistoryDay.business(BusinessWorkoutSession session) =>
@@ -31,17 +32,20 @@ class WorkoutHistoryDay {
         cardioSeconds: session.cardioDurationSeconds,
       );
 
-  factory WorkoutHistoryDay.workout(WorkoutSession session) =>
-      WorkoutHistoryDay(
-        date: session.date,
-        muscles: [
-          for (final exercise in session.exercises) exercise.template.muscle,
-        ],
-        completedSets: session.completedSets,
-        totalSets: session.totalSets,
-        volumeKg: session.volume,
-        cardioSeconds: session.cardioDurationSeconds,
-      );
+  factory WorkoutHistoryDay.workout(
+    WorkoutSession session, {
+    bool hasNotes = false,
+  }) => WorkoutHistoryDay(
+    date: session.date,
+    muscles: [
+      for (final exercise in session.exercises) exercise.template.muscle,
+    ],
+    completedSets: session.completedSets,
+    totalSets: session.totalSets,
+    volumeKg: session.volume,
+    cardioSeconds: session.cardioDurationSeconds,
+    hasNotes: hasNotes,
+  );
 
   final DateTime date;
   final List<String> muscles;
@@ -49,6 +53,7 @@ class WorkoutHistoryDay {
   final int totalSets;
   final double volumeKg;
   final int cardioSeconds;
+  final bool hasNotes;
 }
 
 class WorkoutHistoryCalendar extends StatefulWidget {
@@ -58,6 +63,8 @@ class WorkoutHistoryCalendar extends StatefulWidget {
     this.onMonthChanged,
     this.initialDate,
     this.onDateSelected,
+    this.onDayTapped,
+    this.buildEmptyDates = false,
     this.loading = false,
     super.key,
   });
@@ -67,6 +74,12 @@ class WorkoutHistoryCalendar extends StatefulWidget {
   final Future<void> Function(DateTime month)? onMonthChanged;
   final DateTime? initialDate;
   final ValueChanged<DateTime>? onDateSelected;
+
+  /// 월 이동과 구분하여 날짜 칸을 직접 눌렀을 때만 호출한다.
+  final ValueChanged<DateTime>? onDayTapped;
+
+  /// 기록 작성 화면은 빈 날짜에도 날짜별 동작을 제공한다.
+  final bool buildEmptyDates;
   final bool loading;
 
   @override
@@ -222,7 +235,12 @@ class _WorkoutHistoryCalendarState extends State<WorkoutHistoryCalendar> {
               days: byDate[date] ?? const [],
               inMonth: date.month == month.month,
               selected: DateUtils.isSameDay(date, selected),
-              onTap: busy ? null : () => _select(date),
+              onTap: busy
+                  ? null
+                  : () async {
+                      await _select(date);
+                      if (mounted) widget.onDayTapped?.call(date);
+                    },
             );
           },
         ),
@@ -234,7 +252,7 @@ class _WorkoutHistoryCalendarState extends State<WorkoutHistoryCalendar> {
         const SizedBox(height: SetflowSpacing.sm),
         if (busy)
           const Center(child: CircularProgressIndicator())
-        else if (!byDate.containsKey(selected))
+        else if (!byDate.containsKey(selected) && !widget.buildEmptyDates)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: SetflowSpacing.lg),
             child: Text('이 날짜에는 저장된 운동 기록이 없어요.'),
@@ -268,7 +286,8 @@ class _HistoryCalendarCell extends StatelessWidget {
     final muscles = days.expand((day) => day.muscles).toSet().toList();
     final volume = days.fold<double>(0, (sum, day) => sum + day.volumeKg);
     final cardio = days.fold<int>(0, (sum, day) => sum + day.cardioSeconds);
-    final hasRecord = total > 0;
+    final hasNotes = days.any((day) => day.hasNotes);
+    final hasRecord = total > 0 || hasNotes;
     final alpha = .45 + .55 * (total == 0 ? 0 : completed / total).clamp(0, 1);
     final colors = [
       for (final muscle in muscles)
@@ -364,7 +383,9 @@ class _HistoryCalendarCell extends StatelessWidget {
                     const Spacer(),
                     if (hasRecord) ...[
                       Text(
-                        muscles.isEmpty ? '운동' : muscles.join(' · '),
+                        muscles.isEmpty
+                            ? (hasNotes ? '메모' : '운동')
+                            : muscles.join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -373,7 +394,11 @@ class _HistoryCalendarCell extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        activity.isEmpty ? '$completed/$total' : activity,
+                        activity.isEmpty
+                            ? (total == 0 && hasNotes
+                                  ? '기록'
+                                  : '$completed/$total')
+                            : activity,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

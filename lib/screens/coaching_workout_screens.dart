@@ -766,7 +766,7 @@ class _CoachingWorkoutScreenState extends State<_CoachingWorkoutPage>
           ),
           const SizedBox(height: SetflowSpacing.sm),
           for (var index = 0; index < exercise.sets.length; index++) ...[
-            _CoachingSetRow(
+            CoachingSetRow(
               key: ValueKey('${exercise.id}:$index'),
               template: exercise.template,
               set: exercise.sets[index],
@@ -809,10 +809,10 @@ class _CoachingWorkoutScreenState extends State<_CoachingWorkoutPage>
   }
 }
 
-typedef _SetMutation = void Function(WorkoutSetEntry set);
+typedef CoachingSetMutation = void Function(WorkoutSetEntry set);
 
-class _CoachingSetRow extends StatefulWidget {
-  const _CoachingSetRow({
+class CoachingSetRow extends StatefulWidget {
+  const CoachingSetRow({
     required this.template,
     required this.set,
     required this.enabled,
@@ -833,13 +833,13 @@ class _CoachingSetRow extends StatefulWidget {
   final VoidCallback onExpand;
   final Future<void> Function() onComplete;
   final Future<void> Function() onDelete;
-  final Future<void> Function(_SetMutation) onEdit;
+  final Future<void> Function(CoachingSetMutation) onEdit;
 
   @override
-  State<_CoachingSetRow> createState() => _CoachingSetRowState();
+  State<CoachingSetRow> createState() => CoachingSetRowState();
 }
 
-class _CoachingSetRowState extends State<_CoachingSetRow> {
+class CoachingSetRowState extends State<CoachingSetRow> {
   double _progress = 0;
 
   @override
@@ -976,7 +976,7 @@ class _SetValues extends StatelessWidget {
   final ExerciseTemplate template;
   final WorkoutSetEntry set;
   final bool enabled;
-  final Future<void> Function(_SetMutation) onEdit;
+  final Future<void> Function(CoachingSetMutation) onEdit;
   final bool asPlan;
 
   @override
