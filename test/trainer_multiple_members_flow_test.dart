@@ -45,7 +45,7 @@ void main() {
         textScale: 2,
         keyboardInset: 300,
       );
-      await tester.tap(find.byTooltip('개인 코칭 회원 초대'));
+      await tester.tap(find.byKey(const Key('trainer-connect-member')));
       await tester.pumpAndSettle();
       expect(find.textContaining('회원마다 새 링크'), findsOneWidget);
 
@@ -111,7 +111,9 @@ void main() {
         const PeoplePage(role: UserRole.trainer),
       );
       expect(state.coachingConnections, isEmpty);
-      await tester.tap(find.byTooltip('회원 기록 관리와 수정 요청'));
+      await tester.tap(find.byTooltip('회원 관리 메뉴'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('trainer-connection-requests')));
       await tester.pumpAndSettle();
       expect(find.text('기록 공유 범위를 확인하고 수락해주세요.'), findsNWidgets(2));
       for (final id in _members.keys) {

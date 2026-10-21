@@ -81,9 +81,8 @@ class _TrainerClientPage extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: SetflowSpacing.lg),
-            Wrap(
-              spacing: SetflowSpacing.sm,
-              runSpacing: SetflowSpacing.sm,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (managementRepository(context) != null)
                   FilledButton.icon(
@@ -97,9 +96,10 @@ class _TrainerClientPage extends StatelessWidget {
                     label: const Text('운동 기록'),
                   ),
                 if (state.coachingWorkoutRepository != null)
-                  OutlinedButton.icon(
+                  ListTile(
                     key: const ValueKey('trainer-client-assignments'),
-                    onPressed: () async {
+                    contentPadding: EdgeInsets.zero,
+                    onTap: () async {
                       if (!await requireProAccess(context)) return;
                       if (!context.mounted) return;
                       await Navigator.of(context).push(
@@ -111,14 +111,16 @@ class _TrainerClientPage extends StatelessWidget {
                         ),
                       );
                     },
-                    icon: const Icon(SetflowIcons.record),
-                    label: const Text('운동 과제 관리'),
+                    leading: const Icon(SetflowIcons.routine),
+                    title: const Text('운동 과제'),
+                    trailing: const Icon(SetflowIcons.forward),
                   ),
                 if (conversations.isNotEmpty &&
                     chatRepository is ConsultationChatRepository)
-                  OutlinedButton.icon(
+                  ListTile(
                     key: const ValueKey('trainer-client-chat'),
-                    onPressed: () => Navigator.of(context).push(
+                    contentPadding: EdgeInsets.zero,
+                    onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => ConsultationChatScreen(
                           consultationId: conversations.first.id,
@@ -127,8 +129,9 @@ class _TrainerClientPage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    icon: const Icon(SetflowIcons.coaching),
-                    label: const Text('상담 대화'),
+                    leading: const Icon(SetflowIcons.coaching),
+                    title: const Text('상담 대화'),
+                    trailing: const Icon(SetflowIcons.forward),
                   ),
               ],
             ),

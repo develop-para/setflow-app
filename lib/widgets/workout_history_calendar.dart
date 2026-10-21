@@ -65,6 +65,7 @@ class WorkoutHistoryCalendar extends StatefulWidget {
     this.onDateSelected,
     this.onDayTapped,
     this.buildEmptyDates = false,
+    this.compact = false,
     this.loading = false,
     super.key,
   });
@@ -80,6 +81,7 @@ class WorkoutHistoryCalendar extends StatefulWidget {
 
   /// 기록 작성 화면은 빈 날짜에도 날짜별 동작을 제공한다.
   final bool buildEmptyDates;
+  final bool compact;
   final bool loading;
 
   @override
@@ -221,11 +223,11 @@ class _WorkoutHistoryCalendarState extends State<WorkoutHistoryCalendar> {
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 7,
             mainAxisSpacing: SetflowSpacing.xs,
             crossAxisSpacing: SetflowSpacing.xs,
-            mainAxisExtent: 88,
+            mainAxisExtent: widget.compact ? 68 : 88,
           ),
           itemCount: count,
           itemBuilder: (context, index) {

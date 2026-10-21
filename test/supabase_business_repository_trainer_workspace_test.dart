@@ -93,7 +93,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('황성안'), findsNWidgets(2));
-      expect(find.text('직접 관리 회원 · 1'), findsOneWidget);
+      expect(find.text('전체 2명'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('managed-client-$_managedClientId')),
         findsOneWidget,

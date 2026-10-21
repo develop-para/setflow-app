@@ -238,6 +238,14 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('trainer-completed-actual')),
+        findsNothing,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('trainer-completed-workouts')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('trainer-completed-actual')),
         findsOneWidget,
       );
       for (final excluded in [
@@ -268,15 +276,127 @@ void main() {
     },
   );
 
-  testWidgets('live trainer home places actionable work above monthly income', (
+  testWidgets(
+    'live trainer home starts with member records before work and income',
+    (tester) async {
+      final fixture = _Fixture();
+      var openedMembers = 0;
+      await _mount(
+        tester,
+        fixture,
+        Scaffold(body: TrainerHome(onOpenMembers: () => openedMembers++)),
+      );
+      expect(
+        tester.getTopLeft(find.text('회원 기록하기')).dy,
+        lessThan(tester.getTopLeft(find.text('오늘 할 일')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('오늘 할 일')).dy,
+        lessThan(tester.getTopLeft(find.text('이번 달 예상 수익')).dy),
+      );
+      await tester.tap(find.byKey(const ValueKey('trainer-record-member')));
+      await tester.pumpAndSettle();
+      expect(openedMembers, 1);
+      expect(find.byType(PeoplePage), findsNothing);
+      await _unmount(tester, fixture);
+    },
+  );
+
+  testWidgets(
+    'long work queues preview three items and reveal every action on demand',
+    (tester) async {
+      final fixture = _Fixture();
+      fixture.repository.schedules = [
+        for (var index = 0; index < 5; index++) _schedule('lesson-$index'),
+      ];
+      fixture.state.businessWorkspace = BusinessWorkspaceData(
+        role: UserRole.trainer,
+        access: _access,
+        dashboardStats: const BusinessDashboardMetrics(),
+        consultations: [
+          for (var index = 0; index < 5; index++)
+            _conversation(
+              'chat-$index',
+              'member-$index',
+              '회원 $index',
+              followUp: true,
+            ),
+        ],
+      );
+      final selected = <String>[];
+      await _mount(
+        tester,
+        fixture,
+        Scaffold(
+          body: ListView(
+            children: [
+              TrainerDailyWork(
+                onSchedule: (item) => selected.add('lesson:${item.id}'),
+                onConsultation: (item) => selected.add('reply:${item.id}'),
+                onWorkout: (_) {},
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(find.text('오늘 수업 · 5건'), findsOneWidget);
+      expect(find.text('답변 대기 · 5건'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('trainer-today-lesson-lesson-3')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('trainer-reply-chat-3')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('trainer-more-lessons')));
+      await tester.pumpAndSettle();
+      final lastLesson = find.byKey(
+        const ValueKey('trainer-today-lesson-lesson-4'),
+      );
+      await tester.ensureVisible(lastLesson);
+      await tester.tap(lastLesson);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('trainer-more-replies')),
+      );
+      await tester.tap(find.byKey(const ValueKey('trainer-more-replies')));
+      await tester.pumpAndSettle();
+      final lastReply = find.byKey(const ValueKey('trainer-reply-chat-4'));
+      await tester.ensureVisible(lastReply);
+      await tester.tap(lastReply);
+      expect(selected, ['lesson:lesson-4', 'reply:chat-4']);
+      await _unmount(tester, fixture);
+    },
+  );
+
+  testWidgets('trainer home remains usable with large text on a narrow phone', (
     tester,
   ) async {
     final fixture = _Fixture();
-    await _mount(tester, fixture, const Scaffold(body: TrainerHome()));
-    expect(
-      tester.getTopLeft(find.text('오늘 할 일')).dy,
-      lessThan(tester.getTopLeft(find.text('이번 달 예상 수익')).dy),
+    fixture.repository.schedules = [_schedule('today-lesson')];
+    await tester.binding.setSurfaceSize(const Size(320, 740));
+    await tester.pumpWidget(
+      AppScope(
+        notifier: fixture.state,
+        child: MaterialApp(
+          theme: SetflowTheme.light,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: const Scaffold(body: TrainerHome()),
+        ),
+      ),
     );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('trainer-record-member')), findsOneWidget);
+    expect(find.widgetWithText(AppBar, '오늘'), findsOneWidget);
+    expect(find.byTooltip('알림'), findsNothing);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('trainer-record-member'))).dy,
+      lessThan(200),
+      reason: '큰 글자에서도 헤더가 회원 기록 버튼을 화면 아래로 밀지 않는다',
+    );
+    expect(tester.takeException(), isNull);
     await _unmount(tester, fixture);
   });
 

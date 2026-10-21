@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/auth_gate.dart';
+import '../widgets/coaching_invite_sheet.dart';
 import '../widgets/common.dart';
 import '../widgets/pro_access_gate.dart';
 import '../widgets/workout_history_calendar.dart';
@@ -32,32 +33,80 @@ String _requestId() {
       '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
-/// 기존 연결 회원 목록과 함께 쓰는, 수업 예약이 필요 없는 회원 등록부.
+/// 기존 코칭 관계의 화면과 권한을 그대로 유지하는 회원 목록 항목.
+class TrainerRosterMember {
+  const TrainerRosterMember({
+    required this.id,
+    required this.name,
+    required this.subtitle,
+    required this.onOpen,
+    this.userId,
+    this.lastActivity,
+    this.needsReply = false,
+    this.needsPlan = false,
+  });
+
+  final String id;
+  final String name;
+  final String subtitle;
+  final String? userId;
+  final DateTime? lastActivity;
+  final bool needsReply;
+  final bool needsPlan;
+  final VoidCallback onOpen;
+}
+
+/// 등록 방식 대신 사람을 먼저 고르는 하나의 회원 목록.
 class TrainerManagedClientsPanel extends StatelessWidget {
   const TrainerManagedClientsPanel({
     this.query = '',
     this.refreshRevision = 0,
+    this.connectedMembers = const [],
+    this.filter = 'all',
+    this.onResetSearch,
     super.key,
   });
   final String query;
   final int refreshRevision;
+  final List<TrainerRosterMember> connectedMembers;
+  final String filter;
+  final VoidCallback? onResetSearch;
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    if (state.role != UserRole.trainer) return const SizedBox.shrink();
+    if (state.role != UserRole.trainer) {
+      return FilledButton.icon(
+        key: const Key('trainer-connect-member'),
+        onPressed: () => showCoachingInviteSheet(context),
+        icon: const Icon(SetflowIcons.signUp),
+        label: const Text('회원 초대'),
+      );
+    }
     return _ClientsPanel(
       key: ValueKey(
         '${Auth.instance.currentUser?.id ?? state.businessAccess?.userId}:$refreshRevision',
       ),
       query: query,
+      connectedMembers: connectedMembers,
+      filter: filter,
+      onResetSearch: onResetSearch,
     );
   }
 }
 
 class _ClientsPanel extends StatefulWidget {
-  const _ClientsPanel({required this.query, super.key});
+  const _ClientsPanel({
+    required this.query,
+    required this.connectedMembers,
+    required this.filter,
+    this.onResetSearch,
+    super.key,
+  });
   final String query;
+  final List<TrainerRosterMember> connectedMembers;
+  final String filter;
+  final VoidCallback? onResetSearch;
   @override
   State<_ClientsPanel> createState() => _ClientsPanelState();
 }
@@ -79,9 +128,9 @@ class _ClientsPanelState extends State<_ClientsPanel> {
     final generation = ++_generation;
     setState(() => _loading = true);
     try {
-      final clients = await trainerClientRepository(
-        context,
-      )!.listTrainerClients();
+      final clients =
+          await trainerClientRepository(context)?.listTrainerClients() ??
+          <TrainerManagedClient>[];
       if (!mounted || generation != _generation) return;
       setState(() {
         _clients = clients;
@@ -101,7 +150,10 @@ class _ClientsPanelState extends State<_ClientsPanel> {
     }
   }
 
-  Future<void> _open([TrainerManagedClient? client]) async {
+  Future<void> _open([
+    TrainerManagedClient? client,
+    VoidCallback? onOpenCoaching,
+  ]) async {
     if (!await requireProAccess(context) || !mounted) return;
     if (client == null) {
       client = await Navigator.of(context).push<TrainerManagedClient>(
@@ -111,7 +163,10 @@ class _ClientsPanelState extends State<_ClientsPanel> {
     }
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => TrainerManagedClientScreen(client: client!),
+        builder: (_) => TrainerManagedClientScreen(
+          client: client!,
+          onOpenCoaching: onOpenCoaching,
+        ),
       ),
     );
     if (mounted) await _load();
@@ -119,63 +174,155 @@ class _ClientsPanelState extends State<_ClientsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final query = widget.query.trim();
+    final query = widget.query.trim().toLowerCase();
     final phoneQuery = query.replaceAll(RegExp(r'[\s-]'), '');
-    final visible = _clients.where(
-      (client) =>
-          client.name.contains(query) ||
-          (phoneQuery.isNotEmpty &&
-              client.phone
-                  .replaceAll(RegExp(r'[\s-]'), '')
-                  .contains(phoneQuery)),
-    );
+    final connectedByUser = {
+      for (final member in widget.connectedMembers)
+        if (member.userId != null) member.userId!: member,
+    };
+    final managedUserIds = _clients
+        .map((client) => client.memberUserId)
+        .whereType<String>()
+        .toSet();
+    final rows =
+        <
+          ({
+            String id,
+            String name,
+            String subtitle,
+            String phone,
+            DateTime? lastActivity,
+            bool needsReply,
+            bool needsPlan,
+            VoidCallback onOpen,
+          })
+        >[
+          for (final client in _clients)
+            (
+              id: 'managed-client-${client.id}',
+              name: client.name,
+              phone: client.phone,
+              lastActivity: connectedByUser[client.memberUserId]?.lastActivity,
+              subtitle:
+                  '${client.phone} · ${!client.canConnect
+                      ? '기존 계정 삭제됨'
+                      : client.memberUserId == null
+                      ? '앱 미연결'
+                      : '앱 연결됨'}',
+              needsReply:
+                  connectedByUser[client.memberUserId]?.needsReply ?? false,
+              needsPlan:
+                  connectedByUser[client.memberUserId]?.needsPlan ?? false,
+              onOpen: () =>
+                  _open(client, connectedByUser[client.memberUserId]?.onOpen),
+            ),
+          for (final member in widget.connectedMembers)
+            if (member.userId == null ||
+                !managedUserIds.contains(member.userId))
+              (
+                id: 'trainer-member-${member.id}',
+                name: member.name,
+                phone: '',
+                lastActivity: member.lastActivity,
+                subtitle: member.subtitle,
+                needsReply: member.needsReply,
+                needsPlan: member.needsPlan,
+                onOpen: member.onOpen,
+              ),
+        ];
+    final visible =
+        rows.where((member) {
+          final matchesQuery =
+              member.name.toLowerCase().contains(query) ||
+              (phoneQuery.isNotEmpty &&
+                  member.phone
+                      .replaceAll(RegExp(r'[\s-]'), '')
+                      .toLowerCase()
+                      .contains(phoneQuery));
+          final matchesFilter = switch (widget.filter) {
+            'reply' => member.needsReply,
+            'needsPlan' => member.needsPlan,
+            _ => true,
+          };
+          return matchesQuery && matchesFilter;
+        }).toList()..sort((a, b) {
+          final priority = (b.needsReply ? 1 : 0).compareTo(
+            a.needsReply ? 1 : 0,
+          );
+          if (priority != 0) return priority;
+          final activity = (b.lastActivity ?? DateTime(0)).compareTo(
+            a.lastActivity ?? DateTime(0),
+          );
+          return activity != 0 ? activity : a.name.compareTo(b.name);
+        });
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: SetflowSpacing.md),
-        FilledButton.icon(
-          key: const ValueKey('trainer-add-managed-client'),
-          onPressed: () => _open(),
-          icon: const Icon(SetflowIcons.signUp),
-          label: const Text('회원 등록'),
-        ),
-        const SizedBox(height: SetflowSpacing.sm),
+        if (trainerClientRepository(context) != null) ...[
+          FilledButton.icon(
+            key: const ValueKey('trainer-add-managed-client'),
+            onPressed: () => _open(),
+            icon: const Icon(SetflowIcons.signUp),
+            label: const Text('회원 추가'),
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+        ] else ...[
+          FilledButton.icon(
+            key: const Key('trainer-connect-member'),
+            onPressed: () => showCoachingInviteSheet(context),
+            icon: const Icon(SetflowIcons.signUp),
+            label: const Text('회원 초대'),
+          ),
+          const SizedBox(height: SetflowSpacing.lg),
+        ],
         Text(
-          '앱 가입·수업 예약 없이 이름과 연락처로 등록하고 운동을 기록해요.',
+          query.isEmpty && widget.filter == 'all'
+              ? '전체 ${rows.length}명'
+              : '${visible.length}명',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        const SizedBox(height: SetflowSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '직접 관리 회원 · ${_clients.length}',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-            IconButton(
-              tooltip: '직접 관리 회원 새로고침',
-              onPressed: _loading ? null : _load,
-              icon: const Icon(SetflowIcons.refresh),
-            ),
-          ],
-        ),
+        const SizedBox(height: SetflowSpacing.sm),
         if (_loading) const LinearProgressIndicator(),
         if (_failed) ErrorState(message: '관리 회원을 불러오지 못했어요.', onRetry: _load),
-        if (!_loading && !_failed && _clients.isEmpty)
-          const Text('회원 등록을 눌러 첫 회원의 공간을 만들어보세요.'),
-        for (final client in visible)
+        if (!_loading && !_failed && visible.isEmpty)
+          EmptyState(
+            icon: SetflowIcons.together,
+            title: rows.isEmpty && query.isEmpty && widget.filter == 'all'
+                ? '아직 관리 회원이 없어요'
+                : widget.filter == 'all'
+                ? '검색 결과가 없어요'
+                : '조건에 맞는 회원이 없어요',
+            message: rows.isEmpty && query.isEmpty && widget.filter == 'all'
+                ? trainerClientRepository(context) != null
+                      ? '회원 추가로 이름과 연락처만 등록하면 바로 기록할 수 있어요.'
+                      : '회원 초대에서 링크를 보내주세요. 회원이 수락하면 이 목록에 나타나요.'
+                : '검색어나 선택한 필터를 바꿔보세요.',
+            actionLabel:
+                widget.onResetSearch != null &&
+                    (query.isNotEmpty || widget.filter != 'all')
+                ? '검색 초기화'
+                : null,
+            onAction: widget.onResetSearch,
+          ),
+        for (final member in visible)
           ListTile(
-            key: ValueKey('managed-client-${client.id}'),
+            key: ValueKey(member.id),
             contentPadding: EdgeInsets.zero,
-            title: Text(client.name),
-            subtitle: Text(
-              '${client.phone} · ${client.memberUserId == null ? '앱 미연결' : '앱 연결됨'}',
+            title: Text(member.name),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(member.subtitle),
+                if (member.needsReply)
+                  Text(
+                    '답변 대기',
+                    style: TextStyle(color: context.setflowColors.warning),
+                  ),
+              ],
             ),
             trailing: const Icon(SetflowIcons.forward),
-            onTap: () => _open(client),
+            onTap: member.onOpen,
           ),
-        const SizedBox(height: SetflowSpacing.md),
       ],
     );
   }
@@ -321,21 +468,29 @@ class _ClientFormState extends State<_ClientForm> {
 }
 
 class TrainerManagedClientScreen extends StatelessWidget {
-  const TrainerManagedClientScreen({required this.client, super.key});
+  const TrainerManagedClientScreen({
+    required this.client,
+    this.onOpenCoaching,
+    super.key,
+  });
   final TrainerManagedClient client;
+  final VoidCallback? onOpenCoaching;
   @override
   Widget build(BuildContext context) => CoachingAccountBoundary(
     requiredRole: UserRole.trainer,
-    child: _ClientSpace(client: client),
+    child: _ClientSpace(client: client, onOpenCoaching: onOpenCoaching),
   );
 }
 
 class _ClientSpace extends StatefulWidget {
-  const _ClientSpace({required this.client});
+  const _ClientSpace({required this.client, this.onOpenCoaching});
   final TrainerManagedClient client;
+  final VoidCallback? onOpenCoaching;
   @override
   State<_ClientSpace> createState() => _ClientSpaceState();
 }
+
+enum _ClientInfoAction { edit, connect, coaching }
 
 class _ClientSpaceState extends State<_ClientSpace> {
   late TrainerManagedClient _client = widget.client;
@@ -398,6 +553,100 @@ class _ClientSpaceState extends State<_ClientSpace> {
       ),
     );
     if (mounted && updated != null) setState(() => _client = updated);
+  }
+
+  Future<void> _showInfo() async {
+    final action = await showSetflowSheet<_ClientInfoAction>(
+      context,
+      isScrollControlled: true,
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.85,
+        ),
+        child: SingleChildScrollView(
+          padding: SetflowInsets.pageForm,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('회원 정보', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: SetflowSpacing.lg),
+              Text(
+                _client.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: SetflowSpacing.xs),
+              Text(_client.phone),
+              const SizedBox(height: SetflowSpacing.lg),
+              Text('관리 메모', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: SetflowSpacing.sm),
+              Text(
+                _client.notes.isEmpty ? '등록된 관리 메모가 없어요.' : _client.notes,
+                key: const ValueKey('managed-client-full-private-notes'),
+              ),
+              const SizedBox(height: SetflowSpacing.xs),
+              Text(
+                '트레이너에게만 보여요.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+              OutlinedButton.icon(
+                key: const ValueKey('managed-client-edit-info'),
+                onPressed: () =>
+                    Navigator.pop(sheetContext, _ClientInfoAction.edit),
+                icon: const Icon(SetflowIcons.settings),
+                label: const Text('정보 수정'),
+              ),
+              if (widget.onOpenCoaching != null) ...[
+                const SizedBox(height: SetflowSpacing.sm),
+                ListTile(
+                  key: const ValueKey('managed-client-open-coaching'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('수업·과제·대화'),
+                  trailing: const Icon(SetflowIcons.forward),
+                  onTap: () =>
+                      Navigator.pop(sheetContext, _ClientInfoAction.coaching),
+                ),
+              ],
+              const SizedBox(height: SetflowSpacing.lg),
+              const Divider(),
+              const SizedBox(height: SetflowSpacing.lg),
+              Text('앱 연결', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: SetflowSpacing.sm),
+              if (!_client.canConnect)
+                const Text('기존 회원 계정이 삭제되어 이 공간을 다른 계정과 연결할 수 없어요.')
+              else if (_client.memberUserId != null)
+                const Text('앱 연결됨 · 회원 직접 기록과 트레이너 기록을 함께 확인해요.')
+              else ...[
+                const Text('회원이 앱을 사용하면 연결 코드를 전달해 기록을 함께 확인할 수 있어요.'),
+                const SizedBox(height: SetflowSpacing.md),
+                OutlinedButton.icon(
+                  key: const ValueKey('managed-client-connect-app'),
+                  onPressed: _inviting
+                      ? null
+                      : () => Navigator.pop(
+                          sheetContext,
+                          _ClientInfoAction.connect,
+                        ),
+                  icon: const Icon(SetflowIcons.signUp),
+                  label: const Text('회원 앱 연결 코드'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (action) {
+      case _ClientInfoAction.edit:
+        await _edit();
+      case _ClientInfoAction.connect:
+        await _invite();
+      case _ClientInfoAction.coaching:
+        widget.onOpenCoaching?.call();
+      case null:
+        break;
+    }
   }
 
   Future<void> _record(DateTime date, [TrainerClientWorkout? workout]) async {
@@ -478,110 +727,141 @@ class _ClientSpaceState extends State<_ClientSpace> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(_client.name),
-      actions: [
-        IconButton(
-          tooltip: '회원 정보와 관리 메모 수정',
-          onPressed: _edit,
-          icon: const Icon(SetflowIcons.settings),
-        ),
-      ],
-    ),
-    body: RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: SetflowInsets.pageList,
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          Text(_client.phone, style: Theme.of(context).textTheme.bodyMedium),
-          if (_client.notes.isNotEmpty) ...[
-            const SizedBox(height: SetflowSpacing.sm),
-            Text(
-              _client.notes,
-              key: const ValueKey('managed-client-private-notes'),
-            ),
-          ],
-          const SizedBox(height: SetflowSpacing.sm),
-          if (!_client.canConnect)
-            const Text('기존 회원 계정이 삭제되어 이 공간을 다른 계정과 연결할 수 없어요.')
-          else if (_client.memberUserId == null)
-            OutlinedButton.icon(
-              onPressed: _inviting ? null : _invite,
-              icon: const Icon(SetflowIcons.signUp),
-              label: const Text('회원 앱 연결 코드'),
-            )
-          else
-            const Text('앱 연결됨 · 회원 직접 기록과 트레이너 기록을 함께 확인해요.'),
-          const SizedBox(height: SetflowSpacing.lg),
-          if (_failed) ErrorState(message: '회원 기록을 불러오지 못했어요.', onRetry: _load),
-          WorkoutHistoryCalendar(
-            buildEmptyDates: true,
-            days: _workouts
-                .map(
-                  (record) => WorkoutHistoryDay.workout(
-                    record.session,
-                    hasNotes: record.notes.isNotEmpty,
-                  ),
-                )
-                .toList(),
-            initialDate: _selected,
-            loading: _loading,
-            onDateSelected: (date) => _selected = date,
-            onDayTapped: (date) {
-              if (!_failed &&
-                  !_loading &&
-                  !_workouts.any(
-                    (record) => DateUtils.isSameDay(record.session.date, date),
-                  )) {
-                _record(date);
-              }
-            },
-            recordBuilder: (date) {
-              final records = _workouts
-                  .where(
-                    (record) => DateUtils.isSameDay(record.session.date, date),
-                  )
-                  .toList();
-              final editable = records
-                  .where((record) => record.canEdit)
-                  .firstOrNull;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final record in records) ...[
-                    _WorkoutRecordCard(
-                      record: record,
-                      onEdit: record.canEdit
-                          ? () => _record(date, record)
-                          : null,
-                    ),
-                    const SizedBox(height: SetflowSpacing.md),
-                  ],
-                  if (!_loading && !_failed)
-                    FilledButton.icon(
-                      key: const ValueKey('managed-client-add-workout'),
-                      onPressed: () => _record(date, editable),
-                      icon: const Icon(SetflowIcons.record),
-                      label: Text(
-                        editable == null ? '이 날짜에 운동 기록' : '기록 이어서 작성',
-                      ),
-                    ),
-                ],
-              );
-            },
+  Widget build(BuildContext context) {
+    final editable = _workouts
+        .where(
+          (record) =>
+              record.canEdit &&
+              DateUtils.isSameDay(record.session.date, _selected),
+        )
+        .firstOrNull;
+    final theme = Theme.of(context);
+    final connectionLabel = _client.memberUserId != null
+        ? '앱 연결됨'
+        : _client.canConnect
+        ? '앱 미연결'
+        : '기존 계정 삭제됨';
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_client.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          TextButton(
+            key: const ValueKey('managed-client-info'),
+            onPressed: _showInfo,
+            child: const Text('회원 정보'),
           ),
         ],
       ),
-    ),
-  );
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: SetflowInsets.pageList,
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            Text(
+              '${_client.phone} · $connectionLabel',
+              style: theme.textTheme.bodySmall,
+            ),
+            if (_client.notes.isNotEmpty) ...[
+              TextButton(
+                key: const ValueKey('managed-client-private-notes'),
+                onPressed: _showInfo,
+                style: TextButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  padding: EdgeInsets.zero,
+                  foregroundColor: theme.colorScheme.onSurfaceVariant,
+                ),
+                child: Text(
+                  '관리 메모 · ${_client.notes}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
+            const SizedBox(height: SetflowSpacing.sm),
+            if (_failed)
+              ErrorState(message: '회원 기록을 불러오지 못했어요.', onRetry: _load),
+            WorkoutHistoryCalendar(
+              buildEmptyDates: true,
+              compact: true,
+              days: _workouts
+                  .map(
+                    (record) => WorkoutHistoryDay.workout(
+                      record.session,
+                      hasNotes: record.notes.isNotEmpty,
+                    ),
+                  )
+                  .toList(),
+              initialDate: _selected,
+              loading: _loading,
+              onDateSelected: (date) => setState(() => _selected = date),
+              onDayTapped: (date) {
+                if (!_failed &&
+                    !_loading &&
+                    !_workouts.any(
+                      (record) =>
+                          DateUtils.isSameDay(record.session.date, date),
+                    )) {
+                  _record(date);
+                }
+              },
+              recordBuilder: (date) {
+                final records = _workouts
+                    .where(
+                      (record) =>
+                          DateUtils.isSameDay(record.session.date, date),
+                    )
+                    .toList();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final record in records) ...[
+                      _WorkoutRecordCard(record: record),
+                      const SizedBox(height: SetflowSpacing.md),
+                    ],
+                    if (records.isEmpty && !_loading && !_failed)
+                      const Text('아직 기록이 없어요. 아래 버튼으로 운동과 메모를 남겨보세요.'),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: SetflowInsets.bottomAction,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${_selected.month}월 ${_selected.day}일',
+                style: theme.textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: SetflowSpacing.xs),
+              FilledButton.icon(
+                key: const ValueKey('managed-client-add-workout'),
+                onPressed: _loading || _failed
+                    ? null
+                    : () => _record(_selected, editable),
+                icon: const Icon(SetflowIcons.record),
+                label: Text(editable == null ? '운동 기록하기' : '기록 이어서 작성'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _WorkoutRecordCard extends StatelessWidget {
-  const _WorkoutRecordCard({required this.record, this.onEdit});
+  const _WorkoutRecordCard({required this.record});
   final TrainerClientWorkout record;
-  final VoidCallback? onEdit;
   @override
   Widget build(BuildContext context) => SetflowCard(
     child: Column(
@@ -619,8 +899,6 @@ class _WorkoutRecordCard extends StatelessWidget {
           const SizedBox(height: SetflowSpacing.sm),
         ],
         if (record.notes.isNotEmpty) Text(record.notes),
-        if (onEdit != null)
-          TextButton(onPressed: onEdit, child: const Text('기록 이어서 작성·수정')),
       ],
     ),
   );

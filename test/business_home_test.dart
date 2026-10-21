@@ -45,7 +45,7 @@ void main() {
     await pumpBusiness(tester, UserRole.trainer);
 
     expect(find.text('안녕하세요, 김코치님'), findsOneWidget);
-    expect(find.text('관리 회원'), findsOneWidget);
+    expect(find.text('회원 기록하기'), findsOneWidget);
     expect(find.text('상담'), findsOneWidget);
 
     await tester.tap(find.text('상담'));
@@ -64,7 +64,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('운영 현황을 최신 상태로 갱신했어요.'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('알림'));
+    await tester.tap(find.byTooltip('더보기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('업무 알림'));
     await tester.pumpAndSettle();
     expect(find.text('새 상담이 도착했어요'), findsWidgets);
 
@@ -138,7 +140,9 @@ void main() {
       repository: repository,
     );
 
-    await tester.tap(find.byTooltip('알림'));
+    await tester.tap(find.byTooltip('더보기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('업무 알림'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('모두 읽음'));
     await tester.pumpAndSettle();

@@ -169,6 +169,13 @@ Cox의 [공식 본문](https://link.springer.com/article/10.1186/s12966-025-0186
 이는 대상 혼동과 기록 손실을 막기 위한 사용성·기록 보존 원칙이며 운동 수치·추천 알고리즘 변경이나 새로운 연구 주장은 없다.
 원문 연구를 추가 검토하지 않았다. 화면·저장·권한 회귀의 범위는 관리 회원 화면과 어댑터 테스트 및 SQL 실행 검사로 제한된다.
 
+2026-10-21 검토: 트레이너의 회원 선택 → 날짜 선택 → 기록 흐름에서 등록 방식별 목록과 중복 기록 버튼을 줄였다.
+회원 목록은 명시적으로 연결된 동일 계정 식별자만 하나로 표시하며 동명이인이나 같은 연락처를 근거로 합치지 않는다.
+날짜별 작성·수정은 하나의 고정 버튼으로 모으고 회원이 직접 남긴 원본은 읽기 전용으로 유지한다.
+홈의 수업·답변은 각 3건을 먼저 보여주고 나머지와 완료 이력은 펼쳐서 확인한다. 이 수와 달력 행 높이는 조작 편의를 위한 제품 선택이다.
+운동 처방·실제 수행 수치·추천 알고리즘은 바꾸지 않았으며 추가 연구 원문은 검토하지 않았다.
+검증은 트레이너 홈·통합 회원 목록·회원 공간의 동작, 동의와 대상 식별 보존, 작은 화면·큰 글자·다크 모드 범위다.
+
 - 계산: `test/resistance_prescription_test.dart`, `test/exercise_recommendation_result_test.dart`,
   `test/personal_coaching_test.dart`, `test/cardio_prescription_engine_test.dart`, 성능·반복 목표 관련 회귀.
 - 화면: `test/exercise_library_recommendation_test.dart`, `test/recommendation_volume_week_flow_test.dart`,

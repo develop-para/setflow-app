@@ -99,6 +99,9 @@ void main() {
     expect(find.byType(TrainerManagedClientScreen), findsOneWidget);
     expect(find.text('민지'), findsOneWidget);
     expect(repository.loadedClientIds, ['client-one']);
+    expect(find.text('회원 앱 연결 코드'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('managed-client-info')));
+    await tester.pumpAndSettle();
     expect(find.text('회원 앱 연결 코드'), findsOneWidget);
     expect(state.sessions, isEmpty);
   });
@@ -113,7 +116,9 @@ void main() {
       state,
       const TrainerManagedClientScreen(client: _client),
     );
-    await tester.tap(find.byTooltip('회원 정보와 관리 메모 수정'));
+    await tester.tap(find.byKey(const ValueKey('managed-client-info')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('managed-client-edit-info')));
     await tester.pumpAndSettle();
     await _enter(tester, 'managed-client-name', '김민지');
     await _enter(tester, 'managed-client-phone', '01087654321');
@@ -126,6 +131,8 @@ void main() {
 
     expect(repository.updatedClientIds, ['client-one']);
     expect(find.text('김민지'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('managed-client-info')));
+    await tester.pumpAndSettle();
     expect(find.text('01087654321'), findsOneWidget);
     expect(find.text('새로운 관리 메모'), findsOneWidget);
     expect(find.text('회원 앱 연결 코드'), findsOneWidget);
@@ -186,7 +193,7 @@ void main() {
       await tester.tap(find.byKey(ValueKey(todayKey)));
       await tester.pumpAndSettle();
       expect(find.byType(TrainerClientWorkoutScreen), findsNothing);
-      await tester.ensureVisible(find.text('기록 이어서 작성·수정'));
+      await tester.ensureVisible(find.text('기록 이어서 작성'));
       await tester.pumpAndSettle();
 
       expect(find.text('회원 직접 기록'), findsOneWidget);
@@ -194,8 +201,8 @@ void main() {
       expect(find.text('회원이 남긴 메모'), findsOneWidget);
       expect(find.text('수업 메모'), findsOneWidget);
       expect(find.text('1세트 · 40.0kg × 8회 · 휴식 90초 · 완료'), findsNWidgets(2));
-      expect(find.text('기록 이어서 작성·수정'), findsOneWidget);
-      await tester.tap(find.text('기록 이어서 작성·수정'));
+      expect(find.text('기록 이어서 작성'), findsOneWidget);
+      await tester.tap(find.text('기록 이어서 작성'));
       await tester.pumpAndSettle();
       final editor = tester.widget<TrainerClientWorkoutScreen>(
         find.byType(TrainerClientWorkoutScreen),
@@ -244,7 +251,7 @@ void main() {
       expect(find.byType(TrainerClientWorkoutScreen), findsNothing);
       await tester.ensureVisible(find.text('오늘은 어깨 상태만 확인했어요.'));
       expect(find.text('오늘은 어깨 상태만 확인했어요.'), findsOneWidget);
-      expect(find.text('기록 이어서 작성·수정'), findsOneWidget);
+      expect(find.text('기록 이어서 작성'), findsOneWidget);
       expect(state.sessions, isEmpty);
     },
   );

@@ -11,7 +11,6 @@ import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
 import '../widgets/coaching_invite_sheet.dart';
-import '../widgets/bottom_bar.dart';
 import '../widgets/pro_access_gate.dart';
 import '../widgets/trainer_daily_work.dart';
 import 'coaching_workout_screens.dart';
@@ -117,12 +116,12 @@ class _BusinessShellState extends State<BusinessShell> {
   Widget build(BuildContext context) {
     final config = _roleConfig(context, widget.role);
     final pages = switch (widget.role) {
-      UserRole.trainer => const [
-        TrainerHome(),
-        PeoplePage(role: UserRole.trainer),
-        RoutineManagerPage(role: UserRole.trainer),
-        ConsultationQueuePage(role: UserRole.trainer),
-        BusinessSettingsListScreen(role: UserRole.trainer),
+      UserRole.trainer => [
+        TrainerHome(onOpenMembers: () => _show(1)),
+        const PeoplePage(role: UserRole.trainer),
+        const RoutineManagerPage(role: UserRole.trainer),
+        const ConsultationQueuePage(role: UserRole.trainer),
+        const BusinessSettingsListScreen(role: UserRole.trainer),
       ],
       UserRole.gym => const [
         GymHome(),
@@ -179,57 +178,24 @@ class _BusinessShellState extends State<BusinessShell> {
             ),
           ],
         ),
-        bottomNavigationBar: widget.role == UserRole.trainer
-            ? SetflowActionNavBar(
-                items: const [
-                  SetflowNavItem(
-                    icon: SetflowIcons.home,
-                    selectedIcon: SetflowIcons.homeActive,
-                    label: '홈',
-                  ),
-                  SetflowNavItem(
-                    icon: SetflowIcons.together,
-                    selectedIcon: SetflowIcons.togetherActive,
-                    label: '회원',
-                  ),
-                  SetflowNavItem(
-                    icon: SetflowIcons.community,
-                    selectedIcon: SetflowIcons.communityActive,
-                    label: '상담',
-                  ),
-                  SetflowNavItem(
-                    icon: SetflowIcons.settings,
-                    selectedIcon: SetflowIcons.settings,
-                    label: '설정',
-                  ),
-                ],
-                selectedIndex: index == 2
-                    ? null
-                    : (index < 2 ? index : index - 1),
-                onSelected: (slot) => _show(const [0, 1, 3, 4][slot]),
-                centerLabel: '루틴',
-                centerIcon: SetflowIcons.record,
-                centerSelected: index == 2,
-                onCenterTap: () => _show(2),
-              )
-            : NavigationBar(
-                height: 64,
-                selectedIndex: index,
-                // 인디케이터는 테마가 정한다(잉크 바 + 라임). 역할색 14%는 검은 바
-                // 위에서 사실상 보이지 않았다 — 어느 탭인지 라벨 굵기로만 읽혔다.
-                onDestinationSelected: (value) {
-                  HapticFeedback.selectionClick();
-                  _show(value);
-                },
-                destinations: [
-                  for (final item in config.nav)
-                    NavigationDestination(
-                      icon: Icon(item.$1),
-                      selectedIcon: Icon(_selectedBusinessIcon(item.$1)),
-                      label: item.$2,
-                    ),
-                ],
+        bottomNavigationBar: NavigationBar(
+          height: 64,
+          selectedIndex: index,
+          // 인디케이터는 테마가 정한다(잉크 바 + 라임). 역할색 14%는 검은 바
+          // 위에서 사실상 보이지 않았다 — 어느 탭인지 라벨 굵기로만 읽혔다.
+          onDestinationSelected: (value) {
+            HapticFeedback.selectionClick();
+            _show(value);
+          },
+          destinations: [
+            for (final item in config.nav)
+              NavigationDestination(
+                icon: Icon(item.$1),
+                selectedIcon: Icon(_selectedBusinessIcon(item.$1)),
+                label: item.$2,
               ),
+          ],
+        ),
       ),
     );
   }
@@ -283,11 +249,12 @@ Color _businessKindColor(BuildContext context, String kind) {
     UserRole.trainer => (
       title: '트레이너',
       color: context.setflowColors.blue,
-      nav: [
-        (Icons.dashboard_outlined, '홈'),
-        (Icons.people_outline, '회원'),
-        (Icons.fitness_center, '루틴'),
-        (Icons.chat_bubble_outline, '상담'),
+      nav: const [
+        (SetflowIcons.home, '오늘'),
+        (SetflowIcons.together, '회원'),
+        (SetflowIcons.routine, '루틴'),
+        (SetflowIcons.coaching, '상담'),
+        (SetflowIcons.settings, '설정'),
       ],
     ),
     UserRole.gym => (
@@ -315,23 +282,41 @@ Color _businessKindColor(BuildContext context, String kind) {
   };
 }
 
-class _BusinessHeader extends StatelessWidget {
+class _BusinessHeader extends StatelessWidget implements PreferredSizeWidget {
   const _BusinessHeader({
     required this.eyebrow,
     required this.title,
     required this.accent,
     required this.onRefresh,
+    this.compact = false,
   });
   final String eyebrow;
   final String title;
   final Color accent;
   final VoidCallback onRefresh;
+  final bool compact;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final unreadCount = state.unreadBusinessNotifications(state.role);
     final theme = Theme.of(context);
+    if (compact) {
+      return AppBar(
+        title: Text(state.usesLiveBusinessData ? '오늘' : '오늘 (데모)'),
+        actions: [
+          IconButton(
+            tooltip: '새로고침',
+            onPressed: onRefresh,
+            icon: const Icon(SetflowIcons.refresh),
+          ),
+          _menu(context, includeNotifications: true),
+        ],
+      );
+    }
     // 역할색 eyebrow는 장식이었다 — 색은 의미에만 쓰고, 라벨은 회색이면 된다
     // (회원 쪽과 같은 문법). accent는 알림 시트의 강조에만 남는다.
     final eyebrowColor = theme.colorScheme.onSurfaceVariant;
@@ -377,57 +362,47 @@ class _BusinessHeader extends StatelessWidget {
               child: const Icon(Icons.notifications_none_rounded),
             ),
           ),
-          PopupMenuButton<String>(
-            tooltip: '더보기',
-            onSelected: (value) {
-              final role = AppScope.of(context).role;
-              if (value == 'tools') {
-                _showWorkspaceMenu(context);
-              } else if (value == 'workspace') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => WorkspaceScreen(role: role),
-                  ),
-                );
-              } else if (value == 'settings') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => BusinessSettingsListScreen(role: role),
-                  ),
-                );
-              }
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'tools',
-                child: ListTile(
-                  leading: Icon(Icons.grid_view_rounded),
-                  title: Text('빠른 이동'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              if (!state.usesLiveBusinessData)
-                const PopupMenuItem(
-                  value: 'workspace',
-                  child: ListTile(
-                    leading: Icon(Icons.dashboard_customize_outlined),
-                    title: Text('PC 요약'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              const PopupMenuItem(
-                value: 'settings',
-                child: ListTile(
-                  leading: Icon(Icons.settings_outlined),
-                  title: Text('설정'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
-            icon: const Icon(Icons.more_vert_rounded),
-          ),
+          _menu(context),
         ],
       ),
+    );
+  }
+
+  Widget _menu(BuildContext context, {bool includeNotifications = false}) {
+    final state = AppScope.of(context);
+    final unreadCount = state.unreadBusinessNotifications(state.role);
+    return PopupMenuButton<String>(
+      tooltip: '더보기',
+      icon: const Icon(SetflowIcons.appMenu),
+      onSelected: (value) {
+        final role = AppScope.of(context).role;
+        if (value == 'notifications') {
+          _showNotifications(context, accent);
+        } else if (value == 'tools') {
+          _showWorkspaceMenu(context);
+        } else if (value == 'workspace') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => WorkspaceScreen(role: role)),
+          );
+        } else if (value == 'settings') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => BusinessSettingsListScreen(role: role),
+            ),
+          );
+        }
+      },
+      itemBuilder: (_) => [
+        if (includeNotifications)
+          PopupMenuItem(
+            value: 'notifications',
+            child: Text(unreadCount == 0 ? '업무 알림' : '업무 알림 · $unreadCount'),
+          ),
+        const PopupMenuItem(value: 'tools', child: Text('빠른 이동')),
+        if (!state.usesLiveBusinessData)
+          const PopupMenuItem(value: 'workspace', child: Text('PC 요약')),
+        const PopupMenuItem(value: 'settings', child: Text('설정')),
+      ],
     );
   }
 
@@ -728,113 +703,120 @@ class _BusinessHomeFrameState extends State<_BusinessHomeFrame> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    return SafeArea(
-      child: Column(
-        children: [
-          _BusinessHeader(
-            eyebrow: widget.eyebrow,
-            title: widget.title,
-            accent: widget.accent,
-            onRefresh: _refresh,
-          ),
-          if (state.usesLiveBusinessData && state.businessError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                SetflowSpacing.xxl,
-                SetflowSpacing.xs,
-                SetflowSpacing.xxl,
-                SetflowSpacing.sm,
+    return Scaffold(
+      appBar: widget.role == UserRole.trainer
+          ? _BusinessHeader(
+              eyebrow: widget.eyebrow,
+              title: widget.title,
+              accent: widget.accent,
+              onRefresh: _refresh,
+              compact: true,
+            )
+          : null,
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (widget.role != UserRole.trainer)
+              _BusinessHeader(
+                eyebrow: widget.eyebrow,
+                title: widget.title,
+                accent: widget.accent,
+                onRefresh: _refresh,
               ),
-              child: Material(
-                color: Theme.of(
-                  context,
-                ).colorScheme.errorContainer.withValues(alpha: .55),
-                borderRadius: BorderRadius.circular(SetflowRadii.md),
-                child: ListTile(
-                  leading: const Icon(Icons.cloud_off_rounded),
-                  title: const Text(
-                    '운영 데이터를 불러오지 못했어요.',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  trailing: TextButton(
-                    onPressed: _refresh,
-                    child: const Text('재시도'),
-                  ),
+            if (state.usesLiveBusinessData && state.businessError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.xxl,
+                  SetflowSpacing.xs,
+                  SetflowSpacing.xxl,
+                  SetflowSpacing.sm,
                 ),
-              ),
-            ),
-          if (state.persistenceError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                SetflowSpacing.xxl,
-                SetflowSpacing.xs,
-                SetflowSpacing.xxl,
-                SetflowSpacing.sm,
-              ),
-              child: Material(
-                color: Theme.of(
-                  context,
-                ).colorScheme.errorContainer.withValues(alpha: .5),
-                borderRadius: BorderRadius.circular(SetflowRadii.md),
-                child: ListTile(
-                  leading: Icon(
-                    Icons.cloud_off_rounded,
-                    color: context.setflowColors.error,
-                  ),
-                  title: const Text(
-                    '운영 데이터 저장에 실패했어요.',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  trailing: TextButton(
-                    onPressed: () {
-                      state.retryPersistence();
-                      AppSnackbar.info(context, '저장을 다시 시도했어요.');
-                    },
-                    child: const Text('재시도'),
-                  ),
-                ),
-              ),
-            ),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: SetflowMotion.standard,
-              switchInCurve: SetflowMotion.standardCurve,
-              switchOutCurve: SetflowMotion.standardCurve,
-              child: refreshing
-                  ? const Padding(
-                      key: ValueKey('business-loading'),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: SetflowSpacing.xxl,
-                      ),
-                      child: LoadingState(itemCount: 5),
-                    )
-                  : state.dashboardFor(widget.role).facts.isEmpty &&
-                        state.dashboardFor(widget.role).tasks.isEmpty
-                  ? EmptyState(
-                      key: const ValueKey('business-empty'),
-                      icon: Icons.dashboard_customize_outlined,
-                      title: '표시할 운영 데이터가 없어요',
-                      message: '데이터를 다시 불러오거나 운영 설정을 확인해주세요.',
-                      actionLabel: '다시 불러오기',
-                      onAction: _refresh,
-                    )
-                  : RefreshIndicator(
-                      key: const ValueKey('business-content'),
-                      onRefresh: _refresh,
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(
-                          SetflowSpacing.xxl,
-                          SetflowSpacing.xs,
-                          SetflowSpacing.xxl,
-                          SetflowSpacing.xxl,
-                        ),
-                        children: widget.children,
-                      ),
+                child: Material(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.errorContainer.withValues(alpha: .55),
+                  borderRadius: BorderRadius.circular(SetflowRadii.md),
+                  child: ListTile(
+                    leading: const Icon(Icons.cloud_off_rounded),
+                    title: const Text(
+                      '운영 데이터를 불러오지 못했어요.',
+                      style: TextStyle(fontWeight: FontWeight.w800),
                     ),
+                    trailing: TextButton(
+                      onPressed: _refresh,
+                      child: const Text('재시도'),
+                    ),
+                  ),
+                ),
+              ),
+            if (state.persistenceError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  SetflowSpacing.xxl,
+                  SetflowSpacing.xs,
+                  SetflowSpacing.xxl,
+                  SetflowSpacing.sm,
+                ),
+                child: Material(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.errorContainer.withValues(alpha: .5),
+                  borderRadius: BorderRadius.circular(SetflowRadii.md),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.cloud_off_rounded,
+                      color: context.setflowColors.error,
+                    ),
+                    title: const Text(
+                      '운영 데이터 저장에 실패했어요.',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () {
+                        state.retryPersistence();
+                        AppSnackbar.info(context, '저장을 다시 시도했어요.');
+                      },
+                      child: const Text('재시도'),
+                    ),
+                  ),
+                ),
+              ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: SetflowMotion.standard,
+                switchInCurve: SetflowMotion.standardCurve,
+                switchOutCurve: SetflowMotion.standardCurve,
+                child: refreshing
+                    ? const Padding(
+                        key: ValueKey('business-loading'),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: SetflowSpacing.gutter,
+                        ),
+                        child: LoadingState(itemCount: 5),
+                      )
+                    : state.dashboardFor(widget.role).facts.isEmpty &&
+                          state.dashboardFor(widget.role).tasks.isEmpty
+                    ? EmptyState(
+                        key: const ValueKey('business-empty'),
+                        icon: Icons.dashboard_customize_outlined,
+                        title: '표시할 운영 데이터가 없어요',
+                        message: '데이터를 다시 불러오거나 운영 설정을 확인해주세요.',
+                        actionLabel: '다시 불러오기',
+                        onAction: _refresh,
+                      )
+                    : RefreshIndicator(
+                        key: const ValueKey('business-content'),
+                        onRefresh: _refresh,
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: SetflowInsets.pageListTight,
+                          children: widget.children,
+                        ),
+                      ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -980,21 +962,46 @@ Widget _businessNotificationPage(UserRole role, String kind) {
 }
 
 class TrainerHome extends StatelessWidget {
-  const TrainerHome({super.key});
+  const TrainerHome({this.onOpenMembers, super.key});
+
+  final VoidCallback? onOpenMembers;
+
+  void _openMembers(BuildContext context) {
+    if (onOpenMembers != null) {
+      onOpenMembers!();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const PeoplePage(role: UserRole.trainer),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final dashboard = state.dashboardFor(UserRole.trainer);
     final facts = dashboard.facts;
-    final accent = context.setflowColors.blue;
-    if (state.usesLiveBusinessData) {
-      return _BusinessHomeFrame(
-        eyebrow: 'TRAINER',
-        title: '안녕하세요, ${facts['displayName'] ?? '트레이너'}님',
-        accent: accent,
-        role: UserRole.trainer,
-        children: [
+    return _BusinessHomeFrame(
+      eyebrow: state.usesLiveBusinessData ? '트레이너' : '트레이너 (데모)',
+      title: '안녕하세요, ${facts['displayName'] ?? '트레이너'}님',
+      accent: context.setflowColors.blue,
+      role: UserRole.trainer,
+      children: [
+        Text(
+          '안녕하세요, ${facts['displayName'] ?? '트레이너'}님',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: SetflowSpacing.md),
+        FilledButton.icon(
+          key: const ValueKey('trainer-record-member'),
+          onPressed: () => _openMembers(context),
+          icon: const Icon(SetflowIcons.record),
+          label: const Text('회원 기록하기'),
+        ),
+        const SizedBox(height: SetflowSpacing.xxl),
+        if (state.usesLiveBusinessData)
           TrainerDailyWork(
             onSchedule: (schedule) => Navigator.of(context).push(
               MaterialPageRoute<void>(
@@ -1019,199 +1026,56 @@ class TrainerHome extends StatelessWidget {
                 builder: (_) => CoachingWorkoutScreen(workoutId: workout.id),
               ),
             ),
-          ),
-          const SizedBox(height: SetflowSpacing.xl),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('관리 회원'),
-            subtitle: Text('연결 회원 ${facts['members'] ?? '0'}명 · 직접 등록 회원 관리'),
-            trailing: const Icon(SetflowIcons.forward),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const PeoplePage(role: UserRole.trainer),
-              ),
-            ),
-          ),
-          const Divider(),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('이번 달 예상 수익'),
-            trailing: Text(
-              facts['revenue'] ?? '0원',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-        ],
-      );
-    }
-    return _BusinessHomeFrame(
-      eyebrow: 'VERIFIED TRAINER',
-      title: '안녕하세요, ${facts['displayName'] ?? '트레이너'}님',
-      accent: accent,
-      role: UserRole.trainer,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(SetflowSpacing.xl),
-          decoration: BoxDecoration(
-            // 돈이 걸린 히어로는 어디서나 잉크 블록이다(정산 카드와 같은 판).
-            // 파란 슬랩은 카테고리 색을 포털에서 제일 큰 면에 쓰는 일이었다.
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [SetflowColors.inkBlockTop, SetflowColors.inkBlockBottom],
-            ),
-            borderRadius: BorderRadius.circular(SetflowRadii.lg),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.verified_rounded,
-                          color: SetflowColors.brand,
-                        ),
-                        SizedBox(width: SetflowSpacing.sm),
-                        Flexible(
-                          child: Text(
-                            '인증 트레이너',
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: SetflowSpacing.md),
-                  Text(
-                    'PRO',
-                    style: TextStyle(
-                      color: SetflowColors.brand,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: SetflowSpacing.xl),
-              Text(
-                '이번 달 예상 수익',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: SetflowFontSize.caption,
-                ),
-              ),
-              SizedBox(height: SetflowSpacing.xs),
-              Text(
-                facts['revenue'] ?? '0원',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: SetflowFontSize.display,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              SizedBox(height: SetflowSpacing.sm),
-              Text(
-                facts['revenueChange'] ?? '비교 데이터 없음',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: SetflowFontSize.caption,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: SetflowSpacing.md2),
-        Row(
-          children: [
-            MetricCard(
-              label: '관리 회원',
-              value: facts['members'] ?? '0',
-              suffix: facts['memberCapacity'] ?? '/ 0명',
-              icon: Icons.people_outline,
-              tint: context.setflowColors.purple,
-            ),
-            const SizedBox(width: SetflowSpacing.md),
-            MetricCard(
-              label: '피드백 대기',
-              value: facts['feedbackPending'] ?? '0',
-              suffix: '건',
-              icon: Icons.mark_chat_unread_outlined,
-              tint: context.setflowColors.orange,
-            ),
-          ],
-        ),
-        const SizedBox(height: SetflowSpacing.xxl),
-        const SectionTitle('오늘 할 일'),
-        const SizedBox(height: SetflowSpacing.md),
-        for (var index = 0; index < dashboard.tasks.length; index++) ...[
-          _ActionTile(
-            icon: _businessKindIcon(dashboard.tasks[index].kind),
-            color: _businessKindColor(context, dashboard.tasks[index].kind),
-            title: dashboard.tasks[index].title,
-            subtitle: dashboard.tasks[index].subtitle,
-            action: dashboard.tasks[index].action,
-            onTap: () => _openBusinessTask(
-              context,
-              UserRole.trainer,
-              dashboard.tasks[index],
-            ),
-          ),
-          if (index < dashboard.tasks.length - 1)
-            const SizedBox(height: SetflowSpacing.md),
-        ],
-        const SizedBox(height: SetflowSpacing.xxl),
-        SectionTitle(state.usesLiveBusinessData ? '운영 데이터' : '루틴 성과'),
-        const SizedBox(height: SetflowSpacing.md),
-        // 카드가 아니라 헤어라인 목록 — 회원 홈과 같은 문법.
-        if (state.usesLiveBusinessData)
-          Column(
-            children: [
-              _StatusRow(
-                label: '등록 루틴',
-                status: '${state.ownedBusinessRoutines.length}개',
-                color: context.setflowColors.blue,
-              ),
-              const Divider(height: 26),
-              _StatusRow(
-                label: '전체 상담',
-                status: '${state.businessConsultations.length}건',
-                color: context.setflowColors.orange,
-              ),
-              const Divider(height: 26),
-              _StatusRow(
-                label: '답변 완료',
-                status:
-                    '${state.businessConsultations.where(_hasBusinessReply).length}건',
-                color: context.setflowColors.success,
-              ),
-            ],
           )
-        else
-          Column(
+        else ...[
+          const SectionTitle('오늘 할 일'),
+          const SizedBox(height: SetflowSpacing.md),
+          for (var index = 0; index < dashboard.tasks.length; index++) ...[
+            _ActionTile(
+              icon: _businessKindIcon(dashboard.tasks[index].kind),
+              color: _businessKindColor(context, dashboard.tasks[index].kind),
+              title: dashboard.tasks[index].title,
+              subtitle: dashboard.tasks[index].subtitle,
+              action: dashboard.tasks[index].action,
+              onTap: () => _openBusinessTask(
+                context,
+                UserRole.trainer,
+                dashboard.tasks[index],
+              ),
+            ),
+            if (index < dashboard.tasks.length - 1)
+              const SizedBox(height: SetflowSpacing.md),
+          ],
+          if (dashboard.tasks.isEmpty) const Text('오늘 남은 할 일이 없어요.'),
+        ],
+        const SizedBox(height: SetflowSpacing.xxl),
+        const Divider(),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('이번 달 예상 수익'),
+          subtitle: Text(facts['revenue'] ?? '0원'),
+        ),
+        if (!state.usesLiveBusinessData)
+          ExpansionTile(
+            key: const ValueKey('trainer-demo-performance'),
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            title: const Text('루틴 성과 (데모)'),
             children: [
-              _PerformanceRow(
-                label: '루틴 조회수',
-                value: facts['routineViews'] ?? '0',
-                change: facts['routineViewsChange'] ?? '-',
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('루틴 조회수'),
+                subtitle: Text(facts['routineViews'] ?? '0'),
               ),
-              const Divider(height: 26),
-              _PerformanceRow(
-                label: '상담 전환',
-                value: facts['consultationConversion'] ?? '0%',
-                change: facts['consultationConversionChange'] ?? '-',
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('상담 전환'),
+                subtitle: Text(facts['consultationConversion'] ?? '0%'),
               ),
-              const Divider(height: 26),
-              _PerformanceRow(
-                label: '가져가기',
-                value: facts['routineImports'] ?? '0회',
-                change: facts['routineImportsChange'] ?? '-',
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('가져가기'),
+                subtitle: Text(facts['routineImports'] ?? '0회'),
               ),
             ],
           ),
@@ -2085,6 +1949,15 @@ class _PeoplePageState extends State<PeoplePage> {
         )
         .map((item) => item.memberUserId)
         .toSet();
+    if (!gym) {
+      return _trainerMembersPage(
+        state,
+        people,
+        pendingMemberIds,
+        plannedMemberIds,
+        assignmentsReady,
+      );
+    }
     final filtered = people.where((item) {
       final matchesQuery = item.$1.contains(query.trim());
       final matchesFilter = switch (filter) {
@@ -2093,32 +1966,13 @@ class _PeoplePageState extends State<PeoplePage> {
               ? !(assignedMemberIds?.contains(item.$5) ?? false)
               : assignments['memberAssignment.${item.$1}'] == null,
         'attention' => item.$4 < 80,
-        'reply' => pendingMemberIds.contains(_memberUserId(state, item)),
-        'needsPlan' =>
-          assignmentsReady &&
-              _memberUserId(state, item) != null &&
-              !plannedMemberIds.contains(_memberUserId(state, item)),
         _ => true,
       };
       return matchesQuery && matchesFilter;
     }).toList();
-    if (!gym && state.usesLiveBusinessData) {
-      filtered.sort((a, b) {
-        final priority =
-            (pendingMemberIds.contains(_memberUserId(state, b)) ? 1 : 0)
-                .compareTo(
-                  pendingMemberIds.contains(_memberUserId(state, a)) ? 1 : 0,
-                );
-        if (priority != 0) return priority;
-        final activity = (_lastActivity(state, b) ?? DateTime(0)).compareTo(
-          _lastActivity(state, a) ?? DateTime(0),
-        );
-        return activity != 0 ? activity : a.$1.compareTo(b.$1);
-      });
-    }
     return Scaffold(
       appBar: AppBar(
-        title: Text(gym ? '전체 회원' : '관리 회원'),
+        title: const Text('전체 회원'),
         actions: [
           IconButton(
             tooltip: '회원 목록 새로고침',
@@ -2146,42 +2000,6 @@ class _PeoplePageState extends State<PeoplePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!gym) ...[
-                      Wrap(
-                        spacing: SetflowSpacing.sm,
-                        runSpacing: SetflowSpacing.sm,
-                        children: [
-                          Tooltip(
-                            message: '개인 코칭 회원 초대',
-                            child: FilledButton.icon(
-                              key: const Key('trainer-connect-member'),
-                              onPressed: () => showCoachingInviteSheet(context),
-                              icon: const Icon(SetflowIcons.signUp),
-                              label: const Text('회원 연결'),
-                            ),
-                          ),
-                          if (managementRepository(context) != null)
-                            Tooltip(
-                              message: '회원 기록 관리와 수정 요청',
-                              child: OutlinedButton.icon(
-                                key: const Key('trainer-connection-requests'),
-                                onPressed: () =>
-                                    openTrainerMemberRecords(context),
-                                icon: const Icon(SetflowIcons.coaching),
-                                label: const Text('회원 기록 관리'),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: SetflowSpacing.sm),
-                      Text(
-                        '회원 연결은 초대 링크로, 전체 기록 공유는 별도 동의로 시작해요.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: SetflowSpacing.md),
-                    ],
                     AppTextField(
                       controller: searchController,
                       onChanged: (value) => setState(() => query = value),
@@ -2198,11 +2016,6 @@ class _PeoplePageState extends State<PeoplePage> {
                               icon: const Icon(SetflowIcons.close),
                             ),
                     ),
-                    if (!gym && trainerClientRepository(context) != null)
-                      TrainerManagedClientsPanel(
-                        query: query,
-                        refreshRevision: _clientsRefreshRevision,
-                      ),
                     if (gym) ...[
                       const SizedBox(height: SetflowSpacing.md),
                       SingleChildScrollView(
@@ -2218,46 +2031,24 @@ class _PeoplePageState extends State<PeoplePage> {
                         ),
                       ),
                     ],
-                    if (!gym && state.usesLiveBusinessData) ...[
-                      const SizedBox(height: SetflowSpacing.md),
-                      Wrap(
-                        spacing: SetflowSpacing.sm,
-                        runSpacing: SetflowSpacing.sm,
-                        children: [
-                          _memberFilterChip('all', '전체'),
-                          _memberFilterChip('reply', '답변 대기'),
-                          if (assignmentsReady)
-                            _memberFilterChip('needsPlan', '예정 운동 없음'),
-                        ],
-                      ),
-                    ],
                   ],
                 ),
               );
             }
             if (filtered.isEmpty) {
-              if (filter == 'needsPlan' && !assignmentsReady) {
-                return const LoadingState(itemCount: 2);
-              }
-              return !gym && query.trim().isEmpty && filter == 'all'
-                  ? const EmptyState(
-                      icon: SetflowIcons.coaching,
-                      title: '아직 연결된 회원이 없어요',
-                      message: '회원 연결에서 링크를 보내주세요. 회원이 수락하면 이 목록에 나타나요.',
-                    )
-                  : EmptyState(
-                      icon: SetflowIcons.exerciseSearch,
-                      title: '검색 결과가 없어요',
-                      message: '다른 이름으로 검색하거나 검색어를 초기화해주세요.',
-                      actionLabel: '검색 초기화',
-                      onAction: () {
-                        searchController.clear();
-                        setState(() {
-                          query = '';
-                          filter = 'all';
-                        });
-                      },
-                    );
+              return EmptyState(
+                icon: SetflowIcons.exerciseSearch,
+                title: '검색 결과가 없어요',
+                message: '다른 이름으로 검색하거나 검색어를 초기화해주세요.',
+                actionLabel: '검색 초기화',
+                onAction: () {
+                  searchController.clear();
+                  setState(() {
+                    query = '';
+                    filter = 'all';
+                  });
+                },
+              );
             }
             final person = filtered[index - 1];
             final isCoachingConnection =
@@ -2393,6 +2184,131 @@ class _PeoplePageState extends State<PeoplePage> {
               label: const Text('초대'),
             )
           : null,
+    );
+  }
+
+  Widget _trainerMembersPage(
+    AppState state,
+    List<(String, String, String, int, String?)> people,
+    Set<String?> pendingMemberIds,
+    Set<String> plannedMemberIds,
+    bool assignmentsReady,
+  ) {
+    final hasClientRegister = trainerClientRepository(context) != null;
+    final hasSharing = managementRepository(context) != null;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('회원'),
+        actions: [
+          IconButton(
+            tooltip: '회원 목록 새로고침',
+            icon: const Icon(SetflowIcons.refresh),
+            onPressed: _refreshMembers,
+          ),
+          if (hasClientRegister || hasSharing)
+            PopupMenuButton<String>(
+              tooltip: '회원 관리 메뉴',
+              icon: const Icon(SetflowIcons.settings),
+              onSelected: (value) {
+                if (value == 'invite') {
+                  showCoachingInviteSheet(context);
+                } else {
+                  openTrainerMemberRecords(context);
+                }
+              },
+              itemBuilder: (_) => [
+                if (hasClientRegister)
+                  const PopupMenuItem(
+                    key: Key('trainer-connect-member'),
+                    value: 'invite',
+                    child: Text('앱 회원 초대'),
+                  ),
+                if (hasSharing)
+                  const PopupMenuItem(
+                    key: Key('trainer-connection-requests'),
+                    value: 'sharing',
+                    child: Text('기록 공유·수정 요청'),
+                  ),
+              ],
+            ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _refreshMembers,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: SetflowInsets.pageListTight,
+          children: [
+            AppTextField(
+              controller: searchController,
+              onChanged: (value) => setState(() => query = value),
+              prefixIcon: const Icon(SetflowIcons.exerciseSearch),
+              hint: hasClientRegister ? '이름·연락처 검색' : '회원 이름 검색',
+              suffixIcon: query.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: '검색어 지우기',
+                      onPressed: () {
+                        searchController.clear();
+                        setState(() => query = '');
+                      },
+                      icon: const Icon(SetflowIcons.close),
+                    ),
+            ),
+            const SizedBox(height: SetflowSpacing.md),
+            if (people.isNotEmpty && state.usesLiveBusinessData) ...[
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _memberFilterChip('all', '전체'),
+                    const SizedBox(width: SetflowSpacing.sm),
+                    _memberFilterChip('reply', '답변 대기'),
+                    if (assignmentsReady) ...[
+                      const SizedBox(width: SetflowSpacing.sm),
+                      _memberFilterChip('needsPlan', '예정 운동 없음'),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: SetflowSpacing.md),
+            ],
+            TrainerManagedClientsPanel(
+              query: query,
+              filter: filter,
+              refreshRevision: _clientsRefreshRevision,
+              onResetSearch: () {
+                searchController.clear();
+                setState(() {
+                  query = '';
+                  filter = 'all';
+                });
+              },
+              connectedMembers: [
+                for (final person in people)
+                  TrainerRosterMember(
+                    id: person.$5 ?? person.$1,
+                    userId: _memberUserId(state, person),
+                    lastActivity: _lastActivity(state, person),
+                    name: person.$1,
+                    subtitle:
+                        '${person.$2} · ${person.$3 == '기록 없음' ? '기록 없음' : '마지막 기록 ${person.$3}'}',
+                    needsReply: pendingMemberIds.contains(
+                      _memberUserId(state, person),
+                    ),
+                    needsPlan:
+                        assignmentsReady &&
+                        _memberUserId(state, person) != null &&
+                        !plannedMemberIds.contains(
+                          _memberUserId(state, person),
+                        ),
+                    onOpen: () => _showMember(context, person),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -7642,47 +7558,6 @@ class _ActionTile extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PerformanceRow extends StatelessWidget {
-  const _PerformanceRow({
-    required this.label,
-    required this.value,
-    required this.change,
-  });
-  final String label;
-  final String value;
-  final String change;
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: Text(
-          label,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      Text(
-        value,
-        style: const TextStyle(
-          fontSize: SetflowFontSize.titleLarge,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-      const SizedBox(width: SetflowSpacing.sm2),
-      Text(
-        change,
-        style: TextStyle(
-          color: context.setflowColors.success,
-          fontSize: SetflowFontSize.small,
-          fontWeight: SetflowWeight.medium,
-        ),
-      ),
-    ],
-  );
 }
 
 class _PersonRow extends StatelessWidget {

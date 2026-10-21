@@ -66,8 +66,8 @@ void main() {
     tester,
   ) async {
     await _mount(tester, _Repository());
-    expect(find.text('회원 연결'), findsOneWidget);
-    expect(find.text('아직 연결된 회원이 없어요'), findsOneWidget);
+    expect(find.text('회원 초대'), findsOneWidget);
+    expect(find.text('아직 관리 회원이 없어요'), findsOneWidget);
     expect(find.textContaining('회원이 수락하면 이 목록'), findsOneWidget);
     await _open(tester);
     expect(find.textContaining('회원마다 새 링크'), findsOneWidget);

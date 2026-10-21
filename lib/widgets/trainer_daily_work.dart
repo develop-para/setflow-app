@@ -28,8 +28,12 @@ class TrainerDailyWork extends StatefulWidget {
 }
 
 class _TrainerDailyWorkState extends State<TrainerDailyWork> {
+  static const _previewCount = 3;
+
   bool _loading = true;
   bool _failed = false;
+  bool _showAllLessons = false;
+  bool _showAllReplies = false;
 
   @override
   void initState() {
@@ -110,12 +114,16 @@ class _TrainerDailyWorkState extends State<TrainerDailyWork> {
             title: const Text('수업·운동 일부를 불러오지 못했어요'),
             trailing: TextButton(onPressed: _load, child: const Text('재시도')),
           ),
-        Text(
-          '오늘 수업 ${lessons.length}건 · 답변 대기 ${replies.length}건',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: SetflowSpacing.sm),
-        for (final item in lessons)
+        if (lessons.isNotEmpty) ...[
+          Text(
+            '오늘 수업 · ${lessons.length}건',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: SetflowSpacing.xs),
+        ],
+        for (final item in lessons.take(
+          _showAllLessons ? lessons.length : _previewCount,
+        ))
           ListTile(
             key: ValueKey('trainer-today-lesson-${item.id}'),
             contentPadding: EdgeInsets.zero,
@@ -126,11 +134,38 @@ class _TrainerDailyWorkState extends State<TrainerDailyWork> {
             trailing: const Icon(SetflowIcons.forward),
             onTap: () => widget.onSchedule(item),
           ),
-        for (final item in replies)
+        if (lessons.length > _previewCount)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              key: const ValueKey('trainer-more-lessons'),
+              onPressed: () =>
+                  setState(() => _showAllLessons = !_showAllLessons),
+              child: Text(
+                _showAllLessons
+                    ? '수업 접기'
+                    : '수업 ${lessons.length - _previewCount}건 더 보기',
+              ),
+            ),
+          ),
+        if (lessons.isNotEmpty && replies.isNotEmpty) ...[
+          const Divider(),
+          const SizedBox(height: SetflowSpacing.sm),
+        ],
+        if (replies.isNotEmpty) ...[
+          Text(
+            '답변 대기 · ${replies.length}건',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: SetflowSpacing.xs),
+        ],
+        for (final item in replies.take(
+          _showAllReplies ? replies.length : _previewCount,
+        ))
           ListTile(
             key: ValueKey('trainer-reply-${item.id}'),
             contentPadding: EdgeInsets.zero,
-            title: Text('${item.memberName ?? '회원'} · 답변 대기'),
+            title: Text(item.memberName ?? '회원'),
             subtitle: Text(
               item.latestMessage?.text ?? item.question ?? '상담 내용을 확인해주세요.',
               maxLines: 2,
@@ -139,6 +174,20 @@ class _TrainerDailyWorkState extends State<TrainerDailyWork> {
             trailing: const Icon(SetflowIcons.forward),
             onTap: () => widget.onConsultation(item),
           ),
+        if (replies.length > _previewCount)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              key: const ValueKey('trainer-more-replies'),
+              onPressed: () =>
+                  setState(() => _showAllReplies = !_showAllReplies),
+              child: Text(
+                _showAllReplies
+                    ? '답변 대기 접기'
+                    : '답변 대기 ${replies.length - _previewCount}건 더 보기',
+              ),
+            ),
+          ),
         if (!_loading && !_failed && lessons.isEmpty && replies.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: SetflowSpacing.md),
@@ -146,19 +195,26 @@ class _TrainerDailyWorkState extends State<TrainerDailyWork> {
           ),
         if (completed.isNotEmpty) ...[
           const SizedBox(height: SetflowSpacing.lg),
-          const SectionTitle('최근 완료한 코칭 운동'),
-          const SizedBox(height: SetflowSpacing.sm),
-          for (final item in completed.take(5))
-            ListTile(
-              key: ValueKey('trainer-completed-${item.id}'),
-              contentPadding: EdgeInsets.zero,
-              title: Text('${item.memberName} · ${item.title}'),
-              subtitle: Text(
-                '${DateFormat('M월 d일').format(item.date)} · 실제 ${item.session.completedSets}세트',
-              ),
-              trailing: const Icon(SetflowIcons.forward),
-              onTap: () => widget.onWorkout(item),
-            ),
+          ExpansionTile(
+            key: const ValueKey('trainer-completed-workouts'),
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            title: const Text('완료한 운동'),
+            subtitle: Text('${completed.length}건'),
+            children: [
+              for (final item in completed)
+                ListTile(
+                  key: ValueKey('trainer-completed-${item.id}'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('${item.memberName} · ${item.title}'),
+                  subtitle: Text(
+                    '${DateFormat('M월 d일').format(item.date)} · 실제 ${item.session.completedSets}세트',
+                  ),
+                  trailing: const Icon(SetflowIcons.forward),
+                  onTap: () => widget.onWorkout(item),
+                ),
+            ],
+          ),
         ],
       ],
     );

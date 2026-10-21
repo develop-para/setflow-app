@@ -424,25 +424,36 @@ void main() {
     });
   }
 
-  testWidgets('trainer uses the member bar with a working fifth settings tab', (
+  testWidgets('trainer has five clear tabs and records opens the member tab', (
     tester,
   ) async {
     await launch(tester, home: const BusinessShell(role: UserRole.trainer));
-    final bar = tester.widget<SetflowActionNavBar>(
-      find.byType(SetflowActionNavBar),
+    final destinations = find.byType(NavigationDestination);
+    expect(
+      tester
+          .widgetList<NavigationDestination>(destinations)
+          .map((item) => item.label),
+      ['오늘', '회원', '루틴', '상담', '설정'],
     );
-    expect(bar.items.map((item) => item.label), ['홈', '회원', '상담', '설정']);
-    expect(bar.centerLabel, '루틴');
-    expect(find.byType(NavigationBar), findsNothing);
-    await tester.tap(navLabel('설정'));
+    expect(find.byType(SetflowActionNavBar), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('trainer-record-member')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      1,
+    );
+    expect(find.byType(PeoplePage), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(destinations.at(4));
     await tester.pumpAndSettle();
     expect(find.byType(BusinessSettingsListScreen), findsOneWidget);
-    await tester.tap(keyed('bottom-bar-center-action'));
+    await tester.tap(destinations.at(2));
     await tester.pumpAndSettle();
     expect(find.byType(RoutineManagerPage), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.tap(keyed('bottom-bar-center-action'));
+    await tester.tap(destinations.at(2));
     await tester.pumpAndSettle();
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
