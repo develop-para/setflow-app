@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../app_state.dart';
 import '../domain/community_feed.dart';
@@ -180,7 +181,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
         top: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final columns = (constraints.maxWidth / 240).floor().clamp(2, 6);
+            final contentWidth =
+                constraints.maxWidth - SetflowSpacing.gutter * 2;
+            final columns = (contentWidth / 140).floor().clamp(3, 8);
             return RefreshIndicator(
               onRefresh: _load,
               child: CustomScrollView(
@@ -302,7 +305,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                     crossAxisCount: columns,
                                     crossAxisSpacing: SetflowSpacing.xs,
                                     mainAxisSpacing: SetflowSpacing.xs,
-                                    childAspectRatio: 3 / 4,
+                                    childAspectRatio: 1,
                                   ),
                               itemBuilder: (_, index) => _PhotoTile(
                                 post: _posts[index],
@@ -371,11 +374,28 @@ class _PhotoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final postedAt = post.createdAt.toLocal();
+    final metric = post.metric.trim();
+    final workout = switch (metric) {
+      '' || '일상 기록' => '운동 기록 미첨부',
+      '오늘 운동 기록' => '첨부된 운동 수치 없음',
+      _ => metric,
+    };
+    final labelStyle = const TextStyle(
+      color: SetflowNeutral.n0,
+      fontSize: SetflowFontSize.small,
+      fontWeight: SetflowWeight.medium,
+      height: 1.1,
+    );
     return LayoutBuilder(
       builder: (context, constraints) => Semantics(
         key: ValueKey('community-photo-${post.id}'),
         button: true,
-        label: '${post.author}의 사진 게시물, 좋아요 ${post.likes}개, 상세 보기',
+        onTap: onTap,
+        excludeSemantics: true,
+        label:
+            '${post.author}의 사진 게시물, 게시 ${DateFormat('yyyy년 M월 d일 HH:mm').format(postedAt)}, '
+            '오늘 운동 기록: $workout, 좋아요 ${post.likes}개, 상세 보기',
         child: ClipRRect(
           borderRadius: BorderRadius.circular(SetflowRadii.xs),
           child: Stack(
@@ -384,7 +404,7 @@ class _PhotoTile extends StatelessWidget {
               ColoredBox(color: context.setflowColors.surfaceContainer),
               Image.network(
                 post.imageUrl?.trim() ?? '',
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
                 cacheWidth:
                     (constraints.maxWidth *
                             MediaQuery.devicePixelRatioOf(context))
@@ -396,6 +416,64 @@ class _PhotoTile extends StatelessWidget {
                     child: Icon(
                       SetflowIcons.imageUnavailable,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+              // 사진에 이미 새긴 글자는 그대로 보존하고, 작은 썸네일의
+              // 읽는 정보는 게시 시각과 작성 당시 공개한 운동 요약으로 표시한다.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: MediaQuery.withClampedTextScaling(
+                    minScaleFactor: 1,
+                    maxScaleFactor: 1.1,
+                    child: Padding(
+                      padding: const EdgeInsets.all(SetflowSpacing.xs),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.topLeft,
+                            child: ColoredBox(
+                              color: SetflowColors.inkBlockBottom.withValues(
+                                alpha: .82,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(
+                                  SetflowSpacing.xxs,
+                                ),
+                                child: Text(
+                                  '${DateFormat('yy.MM.dd').format(postedAt)}\n'
+                                  '게시 ${DateFormat('HH:mm').format(postedAt)}',
+                                  key: ValueKey(
+                                    'community-photo-date-${post.id}',
+                                  ),
+                                  style: labelStyle,
+                                ),
+                              ),
+                            ),
+                          ),
+                          ColoredBox(
+                            color: SetflowColors.inkBlockBottom.withValues(
+                              alpha: .82,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(SetflowSpacing.xxs),
+                              child: Text(
+                                workout.replaceAll(' · ', '\n'),
+                                key: ValueKey(
+                                  'community-photo-workout-${post.id}',
+                                ),
+                                style: labelStyle,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -105,13 +105,14 @@ void main() {
     },
   );
 
-  testWidgets('photos fill two large columns with no board captions', (
+  testWidgets('photos fill three square columns with saved information', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
     final repository = _FeedRepository([
       _post('old', likes: 20),
-      _post('new', day: 2),
+      _post('new', day: 3),
+      _post('second', day: 2),
       _post('text', photo: false),
     ]);
     await pumpFeed(tester, repository);
@@ -120,19 +121,27 @@ void main() {
     expect(left.left, SetflowSpacing.gutter);
     expect(right.right, 432 - SetflowSpacing.gutter);
     expect(left.top, right.top);
-    expect(left.width, greaterThan(190));
-    expect(left.height / left.width, closeTo(4 / 3, 0.01));
+    expect(
+      left.width,
+      closeTo(
+        (432 - SetflowSpacing.gutter * 2 - SetflowSpacing.xs * 2) / 3,
+        .01,
+      ),
+    );
+    expect(left.height / left.width, closeTo(1, 0.01));
     expect(find.text('운동 이야기 new'), findsNothing);
     expect(find.text('작성자 new'), findsNothing);
     expect(_photo('text'), findsNothing);
     expect(
       tester
           .widgetList<Image>(find.byType(Image))
-          .every((image) => image.fit == BoxFit.cover),
+          .every((image) => image.fit == BoxFit.contain),
       isTrue,
     );
     expect(
-      find.bySemanticsLabel('작성자 new의 사진 게시물, 좋아요 0개, 상세 보기'),
+      find.bySemanticsLabel(
+        RegExp('작성자 new의 사진 게시물, 게시 .*오늘 운동 기록: 오늘 운동, 좋아요 0개, 상세 보기'),
+      ),
       findsOneWidget,
     );
     expect(repository.calls.single.media, CommunityFeedMedia.photos);

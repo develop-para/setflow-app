@@ -176,6 +176,12 @@ Cox의 [공식 본문](https://link.springer.com/article/10.1186/s12966-025-0186
 운동 처방·실제 수행 수치·추천 알고리즘은 바꾸지 않았으며 추가 연구 원문은 검토하지 않았다.
 검증은 트레이너 홈·통합 회원 목록·회원 공간의 동작, 동의와 대상 식별 보존, 작은 화면·큰 글자·다크 모드 범위다.
 
+2026-10-24 검토: 커뮤니티 사진 목록을 3열 이상으로 표시하고 게시 시각과 글 작성 당시 공개한 운동 요약을 함께 보여준다.
+운동 숫자는 저장된 게시물의 요약을 사용하며 조회자의 현재 운동으로 대체하지 않는다. 수치가 없는 글은 미첨부 또는 수치 없음으로 구분한다.
+사진의 기존 글자와 원본을 잘라내지 않고, 썸네일의 배율만 제한하며 전체 요약은 스크린리더와 상세 화면에서 확인할 수 있다.
+이는 작은 사진의 가독성과 기록 출처를 보존하려는 표시 동작이며 운동 수치·추천 알고리즘은 바꾸지 않았다.
+추가 연구 원문은 검토하지 않았다. 회귀 범위는 커뮤니티 사진의 열 수·출처·게시 시각·글자 배율·상세 이동과 기존 업로드 스냅샷 보존이다.
+
 - 계산: `test/resistance_prescription_test.dart`, `test/exercise_recommendation_result_test.dart`,
   `test/personal_coaching_test.dart`, `test/cardio_prescription_engine_test.dart`, 성능·반복 목표 관련 회귀.
 - 화면: `test/exercise_library_recommendation_test.dart`, `test/recommendation_volume_week_flow_test.dart`,
