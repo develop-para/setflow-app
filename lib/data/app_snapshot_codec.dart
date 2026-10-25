@@ -371,7 +371,9 @@ abstract final class AppSnapshotCodec {
       // A database exercise may not be in the built-in catalog on a cold,
       // offline restart. Keep a small inline fallback so an unknown ID never
       // makes a user's recorded exercise disappear during decode.
-      if (exercise.template.sourceName != null || _isUuid(exercise.template.id))
+      if (exercise.template.sourceName != null ||
+          _isUuid(exercise.template.id) ||
+          exercise.template.displayNameOverride != null)
         'template': _exerciseTemplateToJson(
           exercise.template,
           includeSearchMetadata: false,
@@ -440,7 +442,9 @@ abstract final class AppSnapshotCodec {
     bool includeSearchMetadata = true,
   }) => {
     'id': exercise.id,
-    'name': exercise.storedName,
+    'name': exercise.displayNameOverride ?? exercise.storedName,
+    if (exercise.displayNameOverride != null) 'storedName': exercise.storedName,
+    'displayNameOverride': ?exercise.displayNameOverride,
     'muscle': exercise.muscle,
     'measurement': exercise.measurement.name,
     if (exercise.customRecommendation != null)
@@ -465,7 +469,10 @@ abstract final class AppSnapshotCodec {
     Map<String, dynamic> json,
   ) {
     final id = json['id']?.toString().trim() ?? '';
-    final name = json['name']?.toString().trim() ?? '';
+    final storedName = json['storedName']?.toString().trim() ?? '';
+    final name = storedName.isNotEmpty
+        ? storedName
+        : json['name']?.toString().trim() ?? '';
     final muscle = json['muscle']?.toString().trim() ?? '';
     if (id.isEmpty || name.isEmpty || muscle.isEmpty) return null;
     final measurement = ExerciseMeasurement.values.firstWhere(
@@ -511,6 +518,7 @@ abstract final class AppSnapshotCodec {
       sourceName: optionalString('sourceName'),
       sourceId: optionalString('sourceId'),
       databaseId: optionalString('databaseId'),
+      displayNameOverride: optionalString('displayNameOverride'),
     );
   }
 
@@ -545,19 +553,26 @@ abstract final class AppSnapshotCodec {
     final inlineMatches =
         inline != null &&
         (templateId == null || inline.referencesId(templateId));
-    final template =
+    final resolved =
         inlineMatches &&
             (existing == null ||
                 (existing.databaseReferenceId == null &&
                     inline.databaseReferenceId != null))
         ? inline
         : existing;
-    if (template != null) {
-      templates[template.id] = template;
-      final databaseId = template.databaseReferenceId;
-      if (databaseId != null) templates[databaseId] = template;
+    if (resolved == null) return null;
+    // A display label belongs to one saved record. Keep it out of the shared
+    // lookup so decoding a new label cannot rename an older record of this ID.
+    final canonical = resolved.displayNameOverride == null
+        ? resolved
+        : resolved.withDisplayNameOverride(null);
+    templates[canonical.id] = canonical;
+    final databaseId = canonical.databaseReferenceId;
+    if (databaseId != null) templates[databaseId] = canonical;
+    if (inlineMatches && inline.displayNameOverride != null) {
+      return canonical.withDisplayNameOverride(inline.displayNameOverride);
     }
-    return template;
+    return resolved;
   }
 
   static Map<String, dynamic> _routineToJson(RoutineData routine) {

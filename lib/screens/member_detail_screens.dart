@@ -178,7 +178,18 @@ class _MemberDetailScreenState extends State<MemberDetailScreen>
             _MemberCalendarTab(sessions: visibleSessions),
             _MemberRoutineTab(routines: routines),
             const _MemberCommunityTab(),
-            _MemberLibraryTab(exercises: state.exercises),
+            _MemberLibraryTab(
+              exercises: <String, ExerciseTemplate>{
+                for (final exercise in state.selectableExercises)
+                  exercise.id: exercise,
+                for (final routine in routines)
+                  for (final exercise in routine.exercises)
+                    exercise.id: exercise,
+                for (final session in visibleSessions.values)
+                  for (final exercise in session.exercises)
+                    exercise.template.id: exercise.template,
+              }.values.toList(growable: false),
+            ),
           ];
 
     return DefaultTabController(

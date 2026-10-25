@@ -313,8 +313,14 @@ class _ClientWorkoutPageState extends State<_ClientWorkoutPage> {
       context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) =>
-          _ClientExercisePicker(catalog: AppScope.of(context).exercises),
+      builder: (_) => _ClientExercisePicker(
+        catalog: <String, ExerciseTemplate>{
+          for (final exercise in AppScope.of(context).selectableExercises)
+            exercise.id: exercise,
+          for (final exercise in _draft.exercises)
+            exercise.template.id: exercise.template,
+        }.values.toList(growable: false),
+      ),
     );
     if (template == null || !mounted) return;
     _change(() {

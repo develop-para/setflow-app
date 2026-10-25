@@ -210,7 +210,11 @@ class _RoutineEditorScreenState extends State<RoutineEditorScreen> {
   }
 
   Future<void> _chooseExercises() async {
-    final catalog = AppScope.of(context).exercises;
+    final catalog = <String, ExerciseTemplate>{
+      for (final exercise in AppScope.of(context).selectableExercises)
+        exercise.id: exercise,
+      for (final exercise in _exercises) exercise.id: exercise,
+    }.values.toList(growable: false);
     final selected = await showSetflowSheet<List<ExerciseTemplate>>(
       context,
       isScrollControlled: true,

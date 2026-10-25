@@ -7,6 +7,7 @@ import '../app_state.dart';
 import '../services/push_service.dart';
 import '../data/business_repository.dart';
 import '../data/coaching_workout_repository.dart';
+import '../domain/exercise_catalog_selection.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
 import '../widgets/common.dart';
@@ -3215,13 +3216,11 @@ RoutineData _routineDataFromOwned(AppState state, OwnedCoachingRoutine record) {
   final setPlans = <String, List<RoutineSetPlan>>{};
   for (final item in record.exercises) {
     final template =
-        state.exercises
-            .where(
-              (template) =>
-                  template.referencesId(item.baseExerciseId) ||
-                  template.name == item.name,
-            )
-            .firstOrNull ??
+        resolveCatalogExerciseReference(
+          catalog: state.exercises,
+          referenceId: item.baseExerciseId,
+          name: item.name,
+        ) ??
         ExerciseTemplate(
           id: item.baseExerciseId ?? item.id,
           name: item.name,
@@ -4266,7 +4265,7 @@ Future<void> _showRoutineCreate(BuildContext context, UserRole role) async {
                     const SectionTitle('운동 선택'),
                     const SizedBox(height: SetflowSpacing.sm),
                     _BusinessExerciseMultiPicker(
-                      catalog: state.exercises,
+                      catalog: state.selectableExercises,
                       selectedIds: selectedExerciseIds,
                       enabled: !saving,
                     ),
@@ -4321,7 +4320,7 @@ Future<void> _showRoutineCreate(BuildContext context, UserRole role) async {
                             if (!(formKey.currentState?.validate() ?? false)) {
                               return;
                             }
-                            final selectedExercises = state.exercises
+                            final selectedExercises = state.selectableExercises
                                 .where(
                                   (exercise) =>
                                       selectedExerciseIds.contains(exercise.id),

@@ -29,6 +29,7 @@ import 'domain/personal_coaching.dart';
 import 'services/personal_coaching_engine.dart';
 import 'data/together_repository.dart';
 import 'domain/cardio.dart';
+import 'domain/exercise_catalog_selection.dart';
 import 'domain/exercise_display_name.dart';
 import 'models.dart';
 import 'services/setflow_web.dart';
@@ -893,6 +894,22 @@ class AppState extends ChangeNotifier {
   bool exerciseCatalogLoading = false;
   Object? exerciseCatalogError;
 
+  /// Simplified choices without changing the registry used to restore records.
+  /// Recompute from live records so loading, adding or removing one cannot leave
+  /// a referenced exercise hidden behind a stale selection cache.
+  List<ExerciseTemplate> get selectableExercises =>
+      buildSelectableExerciseCatalog(
+        catalog: exercises,
+        preservedExercises: [
+          for (final session in sessions.values)
+            for (final exercise in session.exercises)
+              if (!exercise.id.startsWith('seed_')) exercise.template,
+          for (final routine in routines) ...routine.exercises,
+          ...customExercises,
+          for (final item in localEquipment) item.exercise,
+        ],
+      );
+
   final Map<DateTime, WorkoutSession> sessions = {};
   final List<RoutineData> routines = [];
   final List<RoutineData> _marketRoutines = [];
@@ -1195,8 +1212,15 @@ class AppState extends ChangeNotifier {
       if (databaseId != null) lookup[databaseId] = exercise;
     }
 
-    ExerciseTemplate resolved(ExerciseTemplate current) =>
-        lookup[current.id] ?? lookup[current.databaseId] ?? current;
+    ExerciseTemplate resolved(ExerciseTemplate current) {
+      final canonical =
+          lookup[current.id] ?? lookup[current.databaseId] ?? current;
+      if (current.displayNameOverride == null ||
+          identical(canonical, current)) {
+        return canonical;
+      }
+      return canonical.withDisplayNameOverride(current.displayNameOverride);
+    }
 
     for (final session in sessions.values) {
       for (var index = 0; index < session.exercises.length; index++) {
@@ -4415,13 +4439,11 @@ class AppState extends ChangeNotifier {
     final setPlans = <String, List<RoutineSetPlan>>{};
     for (final catalogExercise in item.exercises) {
       final template =
-          exercises
-              .where(
-                (exercise) =>
-                    exercise.referencesId(catalogExercise.baseExerciseId) ||
-                    exercise.name == catalogExercise.name,
-              )
-              .firstOrNull ??
+          resolveCatalogExerciseReference(
+            catalog: exercises,
+            referenceId: catalogExercise.baseExerciseId,
+            name: catalogExercise.name,
+          ) ??
           ExerciseTemplate(
             id:
                 catalogExercise.baseExerciseId ??
@@ -4474,13 +4496,11 @@ class AppState extends ChangeNotifier {
     final baseExerciseIds = <String, String?>{};
     for (final item in record.exercises) {
       final template =
-          exercises
-              .where(
-                (exercise) =>
-                    exercise.referencesId(item.baseExerciseId) ||
-                    exercise.name == item.name,
-              )
-              .firstOrNull ??
+          resolveCatalogExerciseReference(
+            catalog: exercises,
+            referenceId: item.baseExerciseId,
+            name: item.name,
+          ) ??
           ExerciseTemplate(
             id: item.baseExerciseId ?? item.id,
             name: item.name,

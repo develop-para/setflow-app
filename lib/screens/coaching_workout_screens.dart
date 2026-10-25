@@ -7,6 +7,7 @@ import 'package:flutter/semantics.dart';
 import '../app_state.dart';
 import '../data/business_repository.dart';
 import '../data/coaching_workout_repository.dart';
+import '../domain/exercise_catalog_selection.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
@@ -498,7 +499,10 @@ class _CoachingWorkoutScreenState extends State<_CoachingWorkoutPage>
   }
 
   Future<void> _addExercise() async {
-    final template = await _pickExercise(context);
+    final template = await _pickExercise(
+      context,
+      existing: _draft!.exercises.map((exercise) => exercise.template),
+    );
     if (template == null || !mounted || !_editable) return;
     final next = _cloneSession(_draft!);
     next.exercises.add(_newExercise(template));
@@ -1115,13 +1119,21 @@ WorkoutExercise _newExercise(ExerciseTemplate template) => WorkoutExercise(
   sets: [_defaultSet(template)],
 );
 
-Future<ExerciseTemplate?> _pickExercise(BuildContext context) =>
-    showSetflowSheet<ExerciseTemplate>(
-      context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _ExercisePicker(catalog: AppScope.of(context).exercises),
-    );
+Future<ExerciseTemplate?> _pickExercise(
+  BuildContext context, {
+  Iterable<ExerciseTemplate> existing = const [],
+}) => showSetflowSheet<ExerciseTemplate>(
+  context,
+  isScrollControlled: true,
+  showDragHandle: true,
+  builder: (_) => _ExercisePicker(
+    catalog: <String, ExerciseTemplate>{
+      for (final exercise in AppScope.of(context).selectableExercises)
+        exercise.id: exercise,
+      for (final exercise in existing) exercise.id: exercise,
+    }.values.toList(growable: false),
+  ),
+);
 
 class _ExercisePicker extends StatefulWidget {
   const _ExercisePicker({required this.catalog});
@@ -1930,7 +1942,12 @@ class _CoachingAssignmentComposerScreenState
               onPressed: _locked
                   ? null
                   : () async {
-                      final template = await _pickExercise(context);
+                      final template = await _pickExercise(
+                        context,
+                        existing: _session.exercises.map(
+                          (exercise) => exercise.template,
+                        ),
+                      );
                       if (template != null && mounted) {
                         setState(() {
                           _session.exercises.add(_newExercise(template));
@@ -2083,17 +2100,14 @@ class _AssignmentRoutineChoice {
     OwnedRoutineExercise exercise,
     List<ExerciseTemplate> catalog,
   ) {
-    // 이름이 비슷한 종목으로 바꾸지 않는다. 연결된 ID가 없는 자체 종목은
-    // 루틴의 이름·부위·계획값을 그대로 사용하고 실제 수행값은 만들지 않는다.
+    // Prefer the saved identity and keep ambiguous names independent. Import
+    // only the routine's plan values, without fabricating performed effort.
     final template =
-        catalog
-            .where(
-              (item) =>
-                  exercise.baseExerciseId != null &&
-                  (item.id == exercise.baseExerciseId ||
-                      item.databaseReferenceId == exercise.baseExerciseId),
-            )
-            .firstOrNull ??
+        resolveCatalogExerciseReference(
+          catalog: catalog,
+          referenceId: exercise.baseExerciseId,
+          name: exercise.name,
+        ) ??
         ExerciseTemplate(
           id: 'coaching-routine-${exercise.id}',
           name: exercise.name,

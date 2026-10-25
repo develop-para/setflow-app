@@ -3312,7 +3312,8 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     final query = search.trim();
-    final filtered = state.exercises.where((item) {
+    final catalog = state.selectableExercises;
+    final filtered = catalog.where((item) {
       final matchesSearch = item.matchesCatalogQuery(query);
       // The field promises a whole-catalog search. Typing from inside a body
       // part must therefore not leave the previous part as a hidden filter.
@@ -3326,7 +3327,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       return matchesSearch && matchesMuscle && matchesEquipment;
     }).toList();
     final equipmentFacets = <String, String>{
-      for (final item in state.exercises)
+      for (final item in catalog)
         item.resolvedEquipmentKey: item.resolvedEquipmentName,
     }.entries.toList()..sort((a, b) => a.value.compareTo(b.value));
     final showCategories = query.isEmpty && muscle == null && equipment == null;
@@ -3497,8 +3498,8 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                       Widget categoryCard(BuildContext _, int index) {
                         final category = categories[index];
                         final count = category.name == '전체'
-                            ? state.exercises.length
-                            : state.exercises
+                            ? catalog.length
+                            : catalog
                                   .where(
                                     (exercise) =>
                                         exercise.muscle == category.name,
@@ -3576,7 +3577,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                                 label: const Text('부위 선택'),
                               ),
                               Text(
-                                '${filtered.length}개 운동 · 전체 ${state.exercises.length}개',
+                                '${filtered.length}개 운동 · 전체 ${catalog.length}개',
                                 style: TextStyle(
                                   fontSize: SetflowFontSize.small,
                                   color: Theme.of(
@@ -3827,7 +3828,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   void _addSelected(BuildContext context) {
     FocusScope.of(context).unfocus();
     final state = AppScope.of(context);
-    for (final template in state.exercises.where(
+    for (final template in state.selectableExercises.where(
       (item) => selected.contains(item.id),
     )) {
       state.addExercise(widget.date, template);

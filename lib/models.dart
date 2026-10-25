@@ -412,13 +412,18 @@ class ExerciseTemplate {
     this.sourceId,
     this.databaseId,
     this.customRecommendation,
+    this.displayNameOverride,
     // Keep the public `name` argument while storing the original label privately.
     // ignore: prefer_initializing_formals
   }) : _name = name;
 
   final String id;
   final String _name;
-  String get name => exerciseDisplayName(_name);
+  String get name => displayNameOverride ?? exerciseDisplayName(_name);
+
+  /// The label chosen for a new record without replacing its source name.
+  /// Older records omit this value and retain their existing presentation.
+  final String? displayNameOverride;
 
   /// Keep historical labels in persistence so an offline round trip preserves
   /// manufacturer search terms and the original user-entered name.
@@ -466,6 +471,28 @@ class ExerciseTemplate {
     sourceId: sourceId,
     databaseId: databaseId,
     customRecommendation: value,
+    displayNameOverride: displayNameOverride,
+  );
+
+  ExerciseTemplate withDisplayNameOverride(String? value) => ExerciseTemplate(
+    id: id,
+    name: storedName,
+    muscle: muscle,
+    icon: icon,
+    measurement: measurement,
+    nameEnglish: nameEnglish,
+    equipmentKey: equipmentKey,
+    equipmentName: equipmentName,
+    aliases: aliases,
+    difficulty: difficulty,
+    category: category,
+    primaryMuscles: primaryMuscles,
+    secondaryMuscles: secondaryMuscles,
+    sourceName: sourceName,
+    sourceId: sourceId,
+    databaseId: databaseId,
+    customRecommendation: customRecommendation,
+    displayNameOverride: value,
   );
 
   static final RegExp _uuidPattern = RegExp(
@@ -499,7 +526,7 @@ class ExerciseTemplate {
   String get resolvedEquipmentKey {
     final explicit = equipmentKey?.trim();
     if (explicit != null && explicit.isNotEmpty) return explicit;
-    final value = name.toLowerCase();
+    final value = storedName.toLowerCase();
     if (value.contains('덤벨')) return 'dumbbell';
     if (value.contains('바벨')) return 'barbell';
     if (value.contains('이지바') || value.contains('ez')) {

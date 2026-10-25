@@ -506,6 +506,8 @@ const exerciseCatalog = <ExerciseTemplate>[
   // Bodyweight — 기구 없이 하는 운동. 무게 다이얼이 없어야 하는 종목들이다.
   ExerciseTemplate(
     id: 'bodyweight_squat',
+    // Matches the URL-namespace UUIDv5 in the free-exercise-db import migration.
+    databaseId: '2f6b6525-2731-57e0-9b9f-75ff31b4b5e1',
     name: '맨몸 스쿼트',
     muscle: '하체',
     icon: Icons.accessibility_new,

@@ -305,6 +305,29 @@ void main() {
       await tester.binding.setSurfaceSize(null);
     },
   );
+
+  test(
+    'a live routine restores a simple bodyweight name without selecting the weighted squat',
+    () async {
+      final state = AppState(
+        businessRepository: _BodyweightRoutineRepository(),
+        loadBusinessWithoutAuth: true,
+      );
+      addTearDown(state.dispose);
+      await state.initialize();
+      final routine = state.routines.singleWhere(
+        (item) => item.id == 'bodyweight-routine',
+      );
+      final exercise = routine.exercises.single;
+      expect(exercise.id, 'bodyweight_squat');
+      expect(exercise.name, '스쿼트');
+      expect(exercise.storedName, '맨몸 스쿼트');
+      expect(exercise.isRepsOnly, isTrue);
+      expect(exercise.resolvedEquipmentKey, 'body_only');
+      expect(routine.setsFor(exercise).single.reps, 12);
+      expect(routine.setsFor(exercise).single.restSeconds, 60);
+    },
+  );
 }
 
 const _oldTemplate = {
@@ -448,4 +471,35 @@ class _RoutineBusinessRepository extends Fake implements BusinessRepository {
       ),
     ],
   );
+}
+
+class _BodyweightRoutineRepository extends _RoutineBusinessRepository {
+  @override
+  Future<List<PersonalRoutineRecord>> listPersonalRoutines() async => [
+    const PersonalRoutineRecord(
+      id: 'bodyweight-routine',
+      ownerUserId: 'member',
+      name: '기구 없는 하체',
+      exercises: [
+        OwnedRoutineExercise(
+          id: 'bodyweight-exercise',
+          routineId: 'bodyweight-routine',
+          baseExerciseId: '2f6b6525-2731-57e0-9b9f-75ff31b4b5e1',
+          name: '스쿼트',
+          targetMuscle: '하체',
+          orderIndex: 0,
+          sets: [
+            OwnedRoutineSet(
+              id: 'bodyweight-plan',
+              exerciseId: 'bodyweight-exercise',
+              setNumber: 1,
+              type: 'normal',
+              targetReps: 12,
+              restSeconds: 60,
+            ),
+          ],
+        ),
+      ],
+    ),
+  ];
 }

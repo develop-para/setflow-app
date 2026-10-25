@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../app_state.dart';
 import '../data/business_repository.dart';
+import '../domain/exercise_catalog_selection.dart';
 import '../domain/weight_input_unit.dart';
 import '../theme.dart';
 import '../theme/icons.dart';
@@ -278,12 +279,25 @@ class _BusinessRoutineEditorScreenState
         .where((item) => item.baseExerciseId == null)
         .map((item) => item.name)
         .toSet();
+    final existingTemplates = <ExerciseTemplate>[];
+    for (final draft in _exercises) {
+      final existing = resolveCatalogExerciseReference(
+        catalog: state.exercises,
+        referenceId: draft.baseExerciseId,
+        name: draft.name,
+      );
+      if (existing != null) existingTemplates.add(existing);
+    }
     final selected = await showSetflowSheet<ExerciseTemplate>(
       context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (_) => _BusinessExercisePickerSheet(
-        catalog: state.exercises,
+        catalog: <String, ExerciseTemplate>{
+          for (final exercise in state.selectableExercises)
+            exercise.id: exercise,
+          for (final exercise in existingTemplates) exercise.id: exercise,
+        }.values.toList(growable: false),
         selectedIds: selectedIds,
         legacySelectedNames: legacySelectedNames,
       ),

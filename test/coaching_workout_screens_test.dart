@@ -590,10 +590,16 @@ void main() {
   );
 
   testWidgets(
-    'assignment picker finds a machine by brand while displaying its movement',
+    'assignment picker keeps a recorded machine searchable by brand',
     (tester) async {
       final repository = _Repository();
       final state = _state(repository);
+      state.addExercise(
+        DateTime(2026, 10, 20),
+        state.exercises.singleWhere(
+          (exercise) => exercise.id == 'machine_newtech_advance_seated_row',
+        ),
+      );
       await _mount(
         tester,
         state,
