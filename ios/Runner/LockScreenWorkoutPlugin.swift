@@ -4,6 +4,13 @@ import Foundation
 import UIKit
 
 final class LockScreenWorkoutPlugin: NSObject, FlutterPlugin {
+  private let storageAvailable: () -> Bool
+
+  init(storageAvailable: @escaping () -> Bool = { LockScreenWorkoutStore.available }) {
+    self.storageAvailable = storageAvailable
+    super.init()
+  }
+
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
       name: "com.teampara.setflow/lock_screen_workout",
@@ -18,8 +25,12 @@ final class LockScreenWorkoutPlugin: NSObject, FlutterPlugin {
       case "openSettings":
         guard let url = URL(string: UIApplication.openSettingsURLString) else { result(false); return }
         UIApplication.shared.open(url, options: [:]) { result($0) }
-      case "getGuestOwnerKey": result(try LockScreenWorkoutStore.guestOwnerKey())
-      case "readEvents": result(try LockScreenWorkoutStore.readEvents())
+      case "getGuestOwnerKey":
+        guard storageAvailable() else { result(nil); return }
+        result(try LockScreenWorkoutStore.guestOwnerKey())
+      case "readEvents":
+        guard storageAvailable() else { result([]); return }
+        result(try LockScreenWorkoutStore.readEvents())
       case "ack":
         guard let arguments = call.arguments as? [String: Any],
               let ids = arguments["eventIds"] as? [String] else {
@@ -28,12 +39,16 @@ final class LockScreenWorkoutPlugin: NSObject, FlutterPlugin {
         try LockScreenWorkoutStore.acknowledge(ids)
         result(nil)
       case "status":
+        guard storageAvailable() else {
+          result(["supported": false, "enabled": false, "notificationsAllowed": false])
+          return
+        }
         let state = try LockScreenWorkoutStore.readState()
         let projection = state["projection"] as? [String: Any]
         let enabled = LockScreenWorkoutStore.currentSet(in: state) != nil
         if #available(iOS 17.0, *) {
           result([
-            "supported": LockScreenWorkoutStore.available,
+            "supported": storageAvailable(),
             "enabled": enabled,
             "notificationsAllowed": ActivityAuthorizationInfo().areActivitiesEnabled,
             "ownerKey": projection?["ownerKey"] ?? NSNull(),
@@ -44,6 +59,7 @@ final class LockScreenWorkoutPlugin: NSObject, FlutterPlugin {
           result(["supported": false, "enabled": false, "notificationsAllowed": false])
         }
       case "publish":
+        guard storageAvailable() else { result(false); return }
         guard let projection = call.arguments as? [String: Any] else {
           throw LockScreenWorkoutStore.StoreError.invalidProjection
         }
@@ -62,6 +78,7 @@ final class LockScreenWorkoutPlugin: NSObject, FlutterPlugin {
           }
         } else { result(false) }
       case "clear":
+        guard storageAvailable() else { result(nil); return }
         try LockScreenWorkoutStore.clear()
         if #available(iOS 17.0, *) {
           Task { @MainActor in

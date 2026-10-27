@@ -61,6 +61,10 @@ jobs:
           xcrun simctl boot "$SIMULATOR_ID" || true
           xcrun simctl bootstatus "$SIMULATOR_ID" -b
           xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug -destination "id=$SIMULATOR_ID" -destination-timeout 120 -derivedDataPath build/ios-native-tests -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -test-timeouts-enabled YES -default-test-execution-time-allowance 60 -maximum-test-execution-time-allowance 120 -resultBundlePath build/ios-native-tests/Result.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee .dart_tool/ios-lockscreen-tests.log
+          if grep -Eq 'Unhandled Exception: PlatformException\(lock_screen_workout' .dart_tool/ios-lockscreen-tests.log; then
+            printf '%s\n' '::error::잠금화면 기능의 플랫폼 오류가 앱 시작 중 처리되지 않았습니다.'
+            exit 1
+          fi
       - name: Preserve iOS native diagnostics
         if: always()
         uses: actions/upload-artifact@v4

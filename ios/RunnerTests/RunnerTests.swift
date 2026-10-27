@@ -96,6 +96,41 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(try LockScreenWorkoutStore.readEvents().count, 1)
   }
 
+  func testUnavailableAppGroupIsAnUnsupportedFeatureWithoutBreakingStartup() throws {
+    let plugin = LockScreenWorkoutPlugin(storageAvailable: { false })
+    XCTAssertNil(call(plugin, method: "getGuestOwnerKey"))
+    XCTAssertTrue((call(plugin, method: "readEvents") as? [Any])?.isEmpty == true)
+    let status = try XCTUnwrap(call(plugin, method: "status") as? [String: Bool])
+    XCTAssertEqual(status["supported"], false)
+    XCTAssertEqual(status["enabled"], false)
+    XCTAssertEqual(status["notificationsAllowed"], false)
+    XCTAssertNil(call(plugin, method: "clear"))
+    XCTAssertEqual(call(plugin, method: "publish", arguments: projection()) as? Bool, false)
+  }
+
+  func testExistingStorageFailureRemainsAnErrorInsteadOfDiscardingRecords() throws {
+    let blockedPath = directory.appendingPathComponent("WorkoutCheck")
+    let existing = Data("keep-existing-records".utf8)
+    try existing.write(to: blockedPath)
+    let plugin = LockScreenWorkoutPlugin(storageAvailable: { true })
+    let error = try XCTUnwrap(call(plugin, method: "getGuestOwnerKey") as? FlutterError)
+    XCTAssertEqual(error.code, "lock_screen_workout_unavailable")
+    XCTAssertEqual(try Data(contentsOf: blockedPath), existing)
+  }
+
+  private func call(
+    _ plugin: LockScreenWorkoutPlugin, method: String, arguments: Any? = nil
+  ) -> Any? {
+    var invoked = false
+    var response: Any?
+    plugin.handle(FlutterMethodCall(methodName: method, arguments: arguments)) { value in
+      invoked = true
+      response = value
+    }
+    XCTAssertTrue(invoked, "Unsupported and local I/O responses must complete synchronously")
+    return response
+  }
+
   private func projection() -> [String: Any] {
     [
       "schemaVersion": 1, "sessionId": "session-1", "ownerKey": "account-1",
