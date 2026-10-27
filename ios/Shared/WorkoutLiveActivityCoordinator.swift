@@ -8,6 +8,8 @@ enum WorkoutLiveActivityCoordinator {
     let state = try LockScreenWorkoutStore.readState()
     guard let projection = state["projection"] as? [String: Any],
           let sessionId = projection["sessionId"] as? String,
+          let ownerKey = projection["ownerKey"] as? String,
+          let workoutDate = projection["workoutDate"] as? String,
           LockScreenWorkoutStore.number(projection["expiresAtMillis"]) > LockScreenWorkoutStore.nowMillis else {
       await endAll()
       return
@@ -17,6 +19,7 @@ enum WorkoutLiveActivityCoordinator {
     let restEndsAt = restMillis > LockScreenWorkoutStore.nowMillis
       ? Date(timeIntervalSince1970: restMillis / 1000) : nil
     let content = WorkoutActivityAttributes.ContentState(
+      sessionId: sessionId,
       exerciseName: current?["exerciseName"] as? String ?? "오늘 운동 기록 완료",
       valuesLabel: current?["valuesLabel"] as? String ?? "앱에서 기록을 확인할 수 있어요",
       setNumber: Int(LockScreenWorkoutStore.number(current?["setNumber"])),
@@ -31,7 +34,8 @@ enum WorkoutLiveActivityCoordinator {
     let activityContent = ActivityContent(state: content, staleDate: stale)
     var matching: Activity<WorkoutActivityAttributes>?
     for activity in Activity<WorkoutActivityAttributes>.activities {
-      if activity.attributes.sessionId == sessionId {
+      if activity.attributes.ownerKey == ownerKey &&
+          activity.attributes.workoutDate == workoutDate {
         matching = activity
       } else {
         await activity.end(nil, dismissalPolicy: .immediate)
@@ -42,8 +46,8 @@ enum WorkoutLiveActivityCoordinator {
     } else if allowStart && ActivityAuthorizationInfo().areActivitiesEnabled {
       _ = try Activity.request(
         attributes: WorkoutActivityAttributes(
-          sessionId: sessionId,
-          workoutDate: projection["workoutDate"] as? String ?? ""
+          ownerKey: ownerKey,
+          workoutDate: workoutDate
         ),
         content: activityContent, pushType: nil
       )

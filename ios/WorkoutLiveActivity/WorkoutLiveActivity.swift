@@ -84,7 +84,7 @@ struct SetflowWorkoutLiveActivity: Widget {
       Text("저장됨").font(.subheadline.weight(.semibold))
     } else if context.state.canComplete && !context.isStale {
       Button(intent: CompleteWorkoutSetIntent(
-        sessionId: context.attributes.sessionId, token: context.state.token
+        sessionId: context.state.sessionId, token: context.state.token
       )) {
         Text("세트 완료").font(.subheadline.weight(.semibold)).padding(.vertical, 8)
       }

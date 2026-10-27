@@ -52,7 +52,9 @@ final class LockScreenWorkoutPlugin: NSObject, FlutterPlugin {
           guard try LockScreenWorkoutStore.publish(projection) else { result(false); return }
           Task { @MainActor in
             do {
-              try await WorkoutLiveActivityCoordinator.refresh(allowStart: true)
+              try await WorkoutLiveActivityCoordinator.refresh(
+                allowStart: UIApplication.shared.applicationState == .active
+              )
               result(true)
             } catch {
               result(Self.failure(error))
