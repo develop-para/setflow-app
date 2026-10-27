@@ -1065,6 +1065,9 @@ class SupabaseAppRepository
           .toList(growable: false),
       businessDashboards: const {},
       customExercises: List<ExerciseTemplate>.of(source.customExercises),
+      lockScreenAppliedEventIds: List<String>.of(
+        source.lockScreenAppliedEventIds,
+      ),
     );
   }
 }

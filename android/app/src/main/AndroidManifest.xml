@@ -102,7 +102,7 @@
             android:stopWithTask="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Visible workout rest countdown with a persistent notification and home screen widget" />
+                android:value="User-started workout set recording and rest countdown with a persistent lock screen notification and home screen widget" />
         </service>
         <receiver
             android:name=".RestTimerWidgetProvider"

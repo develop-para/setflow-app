@@ -24,6 +24,10 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler(FirebaseAppUpdateBridge())
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
+            WorkoutLockScreenBridge.CHANNEL_NAME,
+        ).setMethodCallHandler(WorkoutLockScreenBridge(this))
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
             "com.teampara.setflow/app_background",
         ).setMethodCallHandler { call, result ->
             when (call.method) {

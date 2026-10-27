@@ -40,6 +40,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   intl: ^0.20.3
+  crypto: 3.0.7
   hive_ce_flutter: ^2.3.4
   supabase_flutter: 2.17.2
   image_picker: ^1.2.3
@@ -61,8 +62,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  # Catalog import verifies the pinned source bytes before touching Supabase.
-  crypto: 3.0.7
   # Repository outage tests use MockClient without changing production HTTP.
   http: 1.6.0
 

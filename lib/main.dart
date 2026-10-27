@@ -250,9 +250,12 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     state.addListener(_openPendingPushDetail);
     state.addListener(_revealWorkspaceSelection);
     state.addListener(_observeRestWorkout);
+    state.addListener(_refreshLockScreenWorkout);
     unawaited(_consumeRestWorkoutOpen());
     _persistenceSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      unawaited(state.syncPersistenceToServer().catchError((_) {}));
+      if (state.isInitialized) {
+        unawaited(_resumeWorkoutRecording().catchError((_) {}));
+      }
     });
     _coachingSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (state.isInitialized &&
@@ -269,7 +272,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
       onError: (_) {},
     );
     _appLinkSubscription = _appLinks.uriLinkStream.listen(
-      state.captureIncomingUri,
+      _captureIncomingUri,
       onError: (_) {},
     );
     unawaited(_captureInitialAppLink());
@@ -290,6 +293,19 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   /// 셸이 탭을 옮기고(`pendingPushOpen`), 상세 화면이 있는 알림은 그 위에
   /// push한다. 초기화 전에 도착하면 셸이 뜨고 나서 처리되도록 상태에만 남긴다.
   void _handlePushOpen(PushOpen open) => state.openPush(open);
+
+  void _captureIncomingUri(Uri uri) {
+    if (uri.scheme == 'com.teampara.setflow' && uri.host == 'workout') {
+      final rawDate = uri.queryParameters['date'];
+      final date = rawDate == null ? null : DateTime.tryParse(rawDate);
+      if (date != null && date.toIso8601String().split('T').first == rawDate) {
+        _pendingRestWorkoutOpen = RestWorkoutOpen(workoutDate: date);
+        _openPendingRestWorkout();
+        return;
+      }
+    }
+    state.captureIncomingUri(uri);
+  }
 
   void _revealWorkspaceSelection() {
     if (_workspaceNavigationScheduled ||
@@ -420,10 +436,28 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
 
   Future<void> _initializeState() async {
     await state.initialize();
+    await state.reconcileLockScreenWorkout();
+    await state.lockScreenWorkoutStatus();
+    await state.refreshLockScreenWorkoutProjection();
     await state.syncRestTimerFromPlatform();
     // 세션이 복원된 채로 시작하면 signedIn 이벤트가 안 올 수 있다. 등록은
     // upsert라 두 번 불려도 같은 결과다.
     unawaited(state.syncPushRegistration());
+  }
+
+  void _refreshLockScreenWorkout() {
+    if (!state.isInitialized || !state.lockScreenWorkoutActive) return;
+    unawaited(state.refreshLockScreenWorkoutProjection().catchError((_) {}));
+  }
+
+  Future<void> _resumeWorkoutRecording() async {
+    // Native receipts are durable records. Merge them before server work or a
+    // new projection can replace the values the person just confirmed.
+    await state.reconcileLockScreenWorkout();
+    await state.lockScreenWorkoutStatus();
+    await state.refreshLockScreenWorkoutProjection();
+    await state.syncRestTimerFromPlatform();
+    await state.syncPersistenceToServer();
   }
 
   /// Retain the source route while its timer runs so returning also preserves
@@ -690,8 +724,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     if (lifecycleState == AppLifecycleState.resumed) {
       unawaited(_consumeRestWorkoutOpen());
       unawaited(AppUpdates.instance.check());
-      unawaited(state.syncRestTimerFromPlatform());
-      unawaited(state.syncPersistenceToServer().catchError((_) {}));
+      unawaited(_resumeWorkoutRecording().catchError((_) {}));
       // 자리를 비운 사이 알림이 왔을 수 있다. 헤더의 점이 그때 붙어야
       // "배지는 있는데 앱은 모르는" 상태가 안 생긴다.
       unawaited(state.refreshUnreadNotifications().catchError((_) {}));
@@ -744,7 +777,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
   Future<void> _captureInitialAppLink() async {
     try {
       final uri = await _appLinks.getInitialLink();
-      if (uri != null) state.captureIncomingUri(uri);
+      if (uri != null) _captureIncomingUri(uri);
     } catch (_) {
       // The live stream still handles links delivered after startup.
     }
@@ -757,6 +790,7 @@ class _SetflowAppState extends State<SetflowApp> with WidgetsBindingObserver {
     state.removeListener(_openPendingPushDetail);
     state.removeListener(_revealWorkspaceSelection);
     state.removeListener(_observeRestWorkout);
+    state.removeListener(_refreshLockScreenWorkout);
     unawaited(_authSubscription?.cancel());
     unawaited(_appLinkSubscription?.cancel());
     unawaited(_pushOpenSubscription?.cancel());

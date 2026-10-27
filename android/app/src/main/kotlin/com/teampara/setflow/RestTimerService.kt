@@ -34,6 +34,7 @@ class RestTimerService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var completionSoundRunnable: Runnable? = null
     private lateinit var overlay: RestTimerOverlay
+    private var workoutExpiryRunnable: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -45,6 +46,14 @@ class RestTimerService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_WORKOUT_COMPLETE) {
+            completeWorkoutSet(intent)
+            return START_STICKY
+        }
+        if (intent?.action == ACTION_WORKOUT_REFRESH) {
+            restoreTimer()
+            return START_STICKY
+        }
         if (intent?.hasExtra(EXTRA_COMMAND_GENERATION) == true &&
             intent.getLongExtra(EXTRA_COMMAND_GENERATION, -1L) != commandGeneration(this)
         ) {
@@ -86,6 +95,7 @@ class RestTimerService : Service() {
                     .putString(KEY_WORKOUT_DATE, intent.getStringExtra(EXTRA_WORKOUT_DATE))
                     .putString(KEY_SESSION_ID, intent.getStringExtra(EXTRA_SESSION_ID))
                     .apply()
+                WorkoutLockScreenStore.setRestEndsAt(this, endsAt)
                 if (endsAt <= now) finishTimer() else runTimer(endsAt)
             }
             else -> restoreTimer()
@@ -101,6 +111,7 @@ class RestTimerService : Service() {
         val now = System.currentTimeMillis()
         val endsAt = maxOf(preferences.getLong(KEY_ENDS_AT, now), now) + EXTEND_MILLIS
         preferences.edit().putLong(KEY_ENDS_AT, endsAt).apply()
+        WorkoutLockScreenStore.setRestEndsAt(this, endsAt)
         runTimer(endsAt)
     }
 
@@ -112,6 +123,8 @@ class RestTimerService : Service() {
         clearBeeps()
         completionSoundRunnable?.let(handler::removeCallbacks)
         completionSoundRunnable = null
+        workoutExpiryRunnable?.let(handler::removeCallbacks)
+        workoutExpiryRunnable = null
         releaseWakeLock()
         toneGenerator?.release()
         toneGenerator = null
@@ -131,7 +144,28 @@ class RestTimerService : Service() {
     private fun restoreTimer() {
         val endsAt = preferences.getLong(KEY_ENDS_AT, 0L)
         if (!preferences.getBoolean(KEY_ACTIVE, false)) {
-            cancelTimer()
+            // A freshly enabled projection can already be in a Dart-started
+            // rest. Restore its absolute deadline instead of offering a button
+            // which the journal would correctly refuse until rest ends.
+            val workout = WorkoutLockScreenStore.state(this)
+            val workoutDeadline = WorkoutLockScreenStore.restEndsAt(this)
+            if (workout != null && workoutDeadline > System.currentTimeMillis()) {
+                preferences.edit()
+                    .putBoolean(KEY_ACTIVE, true)
+                    .putLong(KEY_ENDS_AT, workoutDeadline)
+                    .putBoolean(KEY_SHOW_COMPLETION, workout.optBoolean("showCompletion", true))
+                    .putBoolean(KEY_VIBRATE, workout.optBoolean("vibrate", true))
+                    .putBoolean(KEY_SOUND, workout.optBoolean("sound", true))
+                    .putInt(KEY_COUNTDOWN_SECONDS, workout.optInt("countdownSeconds", 30))
+                    .putString(KEY_WORKOUT_DATE, workout.optString("workoutDate"))
+                    .putString(KEY_DETAIL, WorkoutLockScreenStore.currentSet(this)?.let {
+                        "${it.optString("exerciseName")} · ${it.optInt("setNumber")}/${it.optInt("setTotal")}세트"
+                    })
+                    .apply()
+                runTimer(workoutDeadline)
+                return
+            }
+            if (!showWorkout()) cancelTimer()
             return
         }
         if (endsAt <= System.currentTimeMillis()) {
@@ -142,6 +176,8 @@ class RestTimerService : Service() {
     }
 
     private fun runTimer(endsAt: Long) {
+        workoutExpiryRunnable?.let(handler::removeCallbacks)
+        workoutExpiryRunnable = null
         finishRunnable?.let(handler::removeCallbacks)
         completionSoundRunnable?.let(handler::removeCallbacks)
         completionSoundRunnable = null
@@ -313,7 +349,9 @@ class RestTimerService : Service() {
         getSystemService(Vibrator::class.java)?.cancel()
         clearCompletion(this)
         preferences.edit().clear().apply()
+        WorkoutLockScreenStore.setRestEndsAt(this, 0L)
         RestTimerWidgetProvider.updateAll(this)
+        if (showWorkout()) return
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -331,8 +369,10 @@ class RestTimerService : Service() {
             .putBoolean(KEY_ACTIVE, false)
             .putLong(KEY_ENDS_AT, 0L)
             .apply()
+        WorkoutLockScreenStore.setRestEndsAt(this, 0L)
         RestTimerWidgetProvider.updateAll(this)
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        val continuesWorkout = showWorkout()
+        if (!continuesWorkout) stopForeground(STOP_FOREGROUND_REMOVE)
         if (showCompletion) {
             val manager = getSystemService(NotificationManager::class.java)
             try {
@@ -348,12 +388,119 @@ class RestTimerService : Service() {
             completionSoundRunnable = Runnable {
                 completionSoundRunnable = null
                 releaseWakeLock()
-                stopSelf()
+                if (!continuesWorkout) stopSelf()
             }.also { handler.postDelayed(it, COMPLETION_TONE_MILLIS.toLong()) }
         } else {
             releaseWakeLock()
-            stopSelf()
+            if (!continuesWorkout) stopSelf()
         }
+    }
+
+    private fun completeWorkoutSet(intent: Intent) {
+        val event = try {
+            WorkoutLockScreenStore.complete(
+                this,
+                intent.getStringExtra(EXTRA_WORKOUT_SESSION),
+                intent.getStringExtra(EXTRA_WORKOUT_TOKEN),
+            )
+        } catch (_: RuntimeException) {
+            // A failed durable write does not advance either the set or timer.
+            null
+        }
+        if (event == null) {
+            restoreTimer()
+            return
+        }
+        val state = WorkoutLockScreenStore.state(this)
+        val deadline = event.optLong("restEndsAtMillis")
+        if (state != null && deadline > System.currentTimeMillis()) {
+            try {
+                start(
+                    this,
+                    ((deadline - System.currentTimeMillis()) / 1_000L).toInt().coerceAtLeast(1),
+                    state.optBoolean("showCompletion", true),
+                    state.optBoolean("vibrate", true),
+                    state.optBoolean("sound", true),
+                    state.optInt("countdownSeconds", 30),
+                    WorkoutLockScreenStore.currentSet(this)?.let {
+                        "${it.optString("exerciseName")} · ${it.optInt("setNumber")}/${it.optInt("setTotal")}세트"
+                    },
+                    state.optString("workoutDate"),
+                    null,
+                    deadline,
+                )
+            } catch (_: RuntimeException) {
+                // The performed receipt is safe even if this device rejects rest.
+                showWorkout()
+            }
+        } else {
+            showWorkout()
+        }
+    }
+
+    /** Returns true only while an actionable, unexpired plan stays visible. */
+    private fun showWorkout(): Boolean {
+        workoutExpiryRunnable?.let(handler::removeCallbacks)
+        workoutExpiryRunnable = null
+        val state = WorkoutLockScreenStore.state(this) ?: return false
+        val set = WorkoutLockScreenStore.currentSet(this)
+        if (set == null) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return false
+        }
+        val open = PendingIntent.getActivity(
+            this,
+            40,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val builder = notificationBuilder(ONGOING_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_rest_timer)
+            .setContentTitle("${set.optString("exerciseName")} · ${set.optInt("setNumber")}/${set.optInt("setTotal")}세트")
+            .setContentText(set.optString("valuesLabel"))
+            .setContentIntent(open)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setCategory(Notification.CATEGORY_PROGRESS)
+        if (set.optBoolean("canComplete")) {
+            val completeIntent = Intent(this, RestTimerService::class.java)
+                .setAction(ACTION_WORKOUT_COMPLETE)
+                .setData(Uri.Builder().scheme("setflow-workout").authority("complete")
+                    .appendPath(state.optString("sessionId"))
+                    .appendPath(set.optString("token")).build())
+                .putExtra(EXTRA_WORKOUT_SESSION, state.optString("sessionId"))
+                .putExtra(EXTRA_WORKOUT_TOKEN, set.optString("token"))
+            builder.addAction(Notification.Action.Builder(
+                null,
+                getString(R.string.workout_lock_screen_complete),
+                PendingIntent.getService(this, 41, completeIntent, PendingIntent.FLAG_IMMUTABLE),
+            ).build())
+        } else {
+            builder.addAction(Notification.Action.Builder(
+                null,
+                getString(R.string.workout_lock_screen_edit),
+                open,
+            ).build())
+        }
+        try {
+            startTimerForeground(builder.build())
+        } catch (_: RuntimeException) {
+            return false
+        }
+        val delay = (state.optLong("expiresAtMillis") - System.currentTimeMillis()).coerceAtLeast(1L)
+        workoutExpiryRunnable = Runnable {
+            workoutExpiryRunnable = null
+            if (!showWorkout()) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }.also { handler.postDelayed(it, delay) }
+        return true
     }
 
     private fun buildOngoingNotification(endsAt: Long): Notification {
@@ -514,6 +661,10 @@ class RestTimerService : Service() {
         private const val ACTION_START = "com.teampara.setflow.action.START_REST_TIMER"
         private const val ACTION_CANCEL = "com.teampara.setflow.action.CANCEL_REST_TIMER"
         private const val ACTION_EXTEND = "com.teampara.setflow.action.EXTEND_REST_TIMER"
+        private const val ACTION_WORKOUT_REFRESH = "com.teampara.setflow.action.REFRESH_LOCK_SCREEN_WORKOUT"
+        private const val ACTION_WORKOUT_COMPLETE = "com.teampara.setflow.action.COMPLETE_LOCK_SCREEN_WORKOUT"
+        private const val EXTRA_WORKOUT_SESSION = "workoutSessionId"
+        private const val EXTRA_WORKOUT_TOKEN = "workoutSetToken"
         private const val EXTEND_MILLIS = 30_000L
         private const val WAKE_LOCK_GRACE_MILLIS = 5_000L
         private const val COMPLETION_TONE_MILLIS = 500
@@ -564,6 +715,22 @@ class RestTimerService : Service() {
             } else {
                 context.startService(intent)
             }
+        }
+
+        fun refreshWorkout(context: Context) {
+            liveService?.get()?.let { service ->
+                service.restoreTimer()
+                return
+            }
+            if (WorkoutLockScreenStore.state(context) == null) {
+                if ((status(context)["remainingSeconds"] as? Int ?: 0) == 0) {
+                    context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
+                }
+                return
+            }
+            val intent = Intent(context, RestTimerService::class.java).setAction(ACTION_WORKOUT_REFRESH)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
         }
 
         /// 휴식 끝 알림을 걷어낸다.

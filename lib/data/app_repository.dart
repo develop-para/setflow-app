@@ -42,6 +42,7 @@ class AppSnapshot {
     this.consultations = const [],
     this.businessDashboards = const {},
     this.customExercises = const [],
+    this.lockScreenAppliedEventIds = const [],
   });
 
   /// 리마인더 시각의 범위. 새벽에 울리는 운동 알림은 없다.
@@ -108,6 +109,9 @@ class AppSnapshot {
   final List<ConsultationData> consultations;
   final Map<UserRole, BusinessDashboardData> businessDashboards;
   final List<ExerciseTemplate> customExercises;
+
+  /// Retained until the native performed-event journal confirms durable ack.
+  final List<String> lockScreenAppliedEventIds;
 }
 
 /// A locally durable write that has not yet been acknowledged by Supabase.

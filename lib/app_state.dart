@@ -31,6 +31,8 @@ import 'data/together_repository.dart';
 import 'domain/cardio.dart';
 import 'domain/exercise_catalog_selection.dart';
 import 'domain/exercise_display_name.dart';
+import 'domain/lock_screen_workout.dart';
+import 'services/lock_screen_workout_platform.dart';
 import 'models.dart';
 import 'services/setflow_web.dart';
 import 'services/cardio_prescription_engine.dart';
@@ -108,12 +110,16 @@ class AppState extends ChangeNotifier {
     this.exerciseCatalogRepository,
     this.togetherRepository,
     this.notificationRepository,
+    LockScreenWorkoutPlatform? lockScreenWorkoutPlatform,
     this.coachingWorkoutRepository,
     LocalEquipmentRepository? localEquipmentRepository,
     GymDirectoryRepository? gymDirectoryRepository,
     GymPlaceRepository? gymPlaceRepository,
     this.gymDirectoryRequestRepository,
   }) : _repository = repository ?? MemoryAppRepository(),
+       _lockScreenWorkoutPlatform =
+           lockScreenWorkoutPlatform ??
+           MethodChannelLockScreenWorkoutPlatform(),
        localEquipmentRepository =
            localEquipmentRepository ?? MemoryLocalEquipmentRepository(),
        gymDirectoryRepository =
@@ -136,6 +142,626 @@ class AppState extends ChangeNotifier {
   }
 
   final AppRepository _repository;
+  final LockScreenWorkoutPlatform _lockScreenWorkoutPlatform;
+  final Set<String> _lockScreenAppliedEventIds = {};
+  Future<void> _lockScreenOperation = Future<void>.value();
+  Future<void>? _lockScreenRefreshFuture;
+  bool _lockScreenRefreshRequested = false;
+  bool _lockScreenActive = false;
+  String? _lockScreenOwner, _lockScreenGuestOwner, _lockScreenSessionId;
+  String? _lockScreenExerciseEntryId, _lockScreenPublishedPayload;
+  DateTime? _lockScreenDate;
+  int _lockScreenPublishedAtMillis = 0;
+  Object? lockScreenWorkoutError;
+  List<LockScreenWorkoutEvent> _lockScreenPendingEvents = const [];
+  List<LockScreenWorkoutEvent> get lockScreenWorkoutPendingEvents =>
+      _lockScreenPendingEvents;
+
+  bool get lockScreenWorkoutActive =>
+      _lockScreenActive &&
+      _lockScreenOwner ==
+          (Auth.instance.hasAuthenticatedUser
+              ? 'account:${Auth.instance.currentUser?.id}'
+              : _lockScreenGuestOwner);
+  DateTime? get lockScreenWorkoutDate =>
+      lockScreenWorkoutActive ? _lockScreenDate : null;
+
+  Future<T> _serializeLockScreen<T>(Future<T> Function() action) {
+    final future = _lockScreenOperation.then((_) => action());
+    _lockScreenOperation = future.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {
+        if (!_disposed &&
+            lockScreenWorkoutError.toString() != error.toString()) {
+          lockScreenWorkoutError = error;
+          notifyListeners();
+        }
+      },
+    );
+    return future;
+  }
+
+  Future<String?> _currentLockScreenOwner() async {
+    if (Auth.instance.hasAuthenticatedUser) {
+      final id = Auth.instance.currentUser?.id;
+      return id == null ? null : 'account:$id';
+    }
+    final guest = await _lockScreenWorkoutPlatform.getGuestOwnerKey();
+    if (guest == null || guest.isEmpty || Auth.instance.hasAuthenticatedUser) {
+      return null;
+    }
+    _lockScreenGuestOwner = 'guest:$guest';
+    return _lockScreenGuestOwner;
+  }
+
+  Future<LockScreenWorkoutStatus> lockScreenWorkoutStatus() =>
+      _serializeLockScreen(() async {
+        final epoch = _accountEpoch;
+        final status = await _lockScreenWorkoutPlatform.status();
+        final owner = await _currentLockScreenOwner();
+        if (_isCurrentAccount(epoch)) _restoreLockScreenStatus(status, owner);
+        return status;
+      });
+
+  void _restoreLockScreenStatus(LockScreenWorkoutStatus status, String? owner) {
+    if (status.enabled &&
+        status.ownerKey == owner &&
+        status.sessionId != null &&
+        status.workoutDate != null) {
+      final date = DateTime.tryParse(status.workoutDate!);
+      if (date != null &&
+          lockScreenWorkoutDateKey(date) == status.workoutDate &&
+          dateOnly(date) == dateOnly(DateTime.now())) {
+        _lockScreenActive = true;
+        _lockScreenOwner = owner;
+        _lockScreenDate = dateOnly(date);
+        _lockScreenSessionId = status.sessionId;
+        _lockScreenPublishedAtMillis = _lockScreenPublishedAtMillis == 0
+            ? DateTime.now().millisecondsSinceEpoch
+            : _lockScreenPublishedAtMillis;
+        return;
+      }
+    }
+    if (!status.enabled || status.ownerKey != owner) _lockScreenActive = false;
+  }
+
+  Future<bool> openLockScreenWorkoutSettings() =>
+      _lockScreenWorkoutPlatform.openSettings();
+
+  Future<bool> startLockScreenWorkout(
+    DateTime date, {
+    String? exerciseEntryId,
+  }) => _serializeLockScreen(() async {
+    if (!_initialized || _disposed) return false;
+    final epoch = _accountEpoch;
+    final owner = await _currentLockScreenOwner();
+    final status = await _lockScreenWorkoutPlatform.status();
+    if (!_isCurrentAccount(epoch) ||
+        owner == null ||
+        !status.supported ||
+        !status.notificationsAllowed) {
+      return false;
+    }
+    if (dateOnly(date) != dateOnly(DateTime.now())) {
+      throw StateError('오늘 운동만 잠금화면에서 기록할 수 있어요.');
+    }
+    final recovered = await _reconcileLockScreenEvents(owner, epoch);
+    if (recovered.hasConflicts) throw StateError('잠금화면에서 저장한 기록을 먼저 확인해주세요.');
+    _schedulePersist();
+    await flushPersistence();
+    if (!_isCurrentAccount(epoch)) return false;
+    _lockScreenOwner = owner;
+    _lockScreenDate = dateOnly(date);
+    _lockScreenExerciseEntryId = exerciseEntryId;
+    _lockScreenPublishedAtMillis = DateTime.now().millisecondsSinceEpoch;
+    _lockScreenSessionId =
+        '${_lockScreenPublishedAtMillis}_${Random.secure().nextInt(1 << 32)}';
+    _lockScreenPublishedPayload = null;
+    _lockScreenActive = true;
+    final published = await _publishLockScreenProjection(epoch);
+    if (!_isCurrentAccount(epoch)) return false;
+    _lockScreenActive = published;
+    lockScreenWorkoutError = published
+        ? null
+        : StateError('잠금화면 기록을 시작하지 못했어요. 알림 설정을 확인해주세요.');
+    notifyListeners();
+    return published;
+  });
+
+  Future<void> stopLockScreenWorkout() => _serializeLockScreen(() async {
+    _lockScreenActive = false;
+    _lockScreenDate = null;
+    _lockScreenPublishedPayload = null;
+    await _lockScreenWorkoutPlatform.clear();
+    if (!_disposed) notifyListeners();
+  });
+
+  Future<LockScreenWorkoutReconciliation> reconcileLockScreenWorkout() =>
+      _serializeLockScreen(() async {
+        if (!_initialized || _disposed) {
+          return const LockScreenWorkoutReconciliation();
+        }
+        final epoch = _accountEpoch;
+        final owner = await _currentLockScreenOwner();
+        if (owner == null || !_isCurrentAccount(epoch)) {
+          return const LockScreenWorkoutReconciliation();
+        }
+        final status = await _lockScreenWorkoutPlatform.status();
+        if (!_isCurrentAccount(epoch)) {
+          return const LockScreenWorkoutReconciliation();
+        }
+        _restoreLockScreenStatus(status, owner);
+        final result = await _reconcileLockScreenEvents(owner, epoch);
+        if (_isCurrentAccount(epoch) &&
+            lockScreenWorkoutActive &&
+            !result.hasConflicts) {
+          await _publishLockScreenProjection(epoch);
+        }
+        return result;
+      });
+
+  /// Coalesced and serialized: journal ingestion always precedes publication.
+  /// Timer ticks and ordinary listeners cannot overwrite a native completion.
+  Future<void> refreshLockScreenWorkoutProjection() {
+    if (!lockScreenWorkoutActive || !_initialized || _disposed) {
+      return Future<void>.value();
+    }
+    final existing = _lockScreenRefreshFuture;
+    if (existing != null) {
+      _lockScreenRefreshRequested = true;
+      return existing;
+    }
+    late final Future<void> future;
+    future =
+        _serializeLockScreen(() async {
+          final epoch = _accountEpoch;
+          final owner = await _currentLockScreenOwner();
+          if (owner != _lockScreenOwner ||
+              !_isCurrentAccount(epoch) ||
+              !lockScreenWorkoutActive) {
+            return;
+          }
+          final recovered = await _reconcileLockScreenEvents(owner!, epoch);
+          if (recovered.hasConflicts || !_isCurrentAccount(epoch)) return;
+          await _publishLockScreenProjection(epoch);
+        }).whenComplete(() {
+          if (identical(_lockScreenRefreshFuture, future)) {
+            _lockScreenRefreshFuture = null;
+          }
+          final requested = _lockScreenRefreshRequested;
+          _lockScreenRefreshRequested = false;
+          if (requested && !_disposed) {
+            scheduleMicrotask(
+              () => unawaited(
+                refreshLockScreenWorkoutProjection().catchError((_) {}),
+              ),
+            );
+          }
+        });
+    _lockScreenRefreshFuture = future;
+    return future;
+  }
+
+  Future<bool> _publishLockScreenProjection(
+    int epoch, {
+    int retries = 0,
+  }) async {
+    if (!lockScreenWorkoutActive ||
+        _lockScreenDate == null ||
+        !_isCurrentAccount(epoch)) {
+      return false;
+    }
+    if (_lockScreenDate != dateOnly(DateTime.now())) {
+      _lockScreenActive = false;
+      await _lockScreenWorkoutPlatform.clear();
+      notifyListeners();
+      return false;
+    }
+    final session = sessions[_lockScreenDate];
+    final exercises =
+        session?.exercises
+            .where(
+              (item) =>
+                  item.coachingWorkoutId == null &&
+                  !item.id.startsWith('seed_'),
+            )
+            .toList() ??
+        <WorkoutExercise>[];
+    final chosen = exercises
+        .where((item) => item.id == _lockScreenExerciseEntryId)
+        .firstOrNull;
+    if (chosen != null) {
+      exercises.remove(chosen);
+      exercises.insert(0, chosen);
+    }
+    final targets = [
+      for (final exercise in exercises)
+        for (final set in exercise.sets)
+          if (!set.completed)
+            LockScreenWorkoutSet.fromExercise(
+              ownerKey: _lockScreenOwner!,
+              date: _lockScreenDate!,
+              exercise: exercise,
+              set: set,
+              unit: weightUnit,
+            ).toJson(),
+    ].take(200).toList();
+    if (targets.isEmpty) {
+      _lockScreenActive = false;
+      await _lockScreenWorkoutPlatform.clear();
+      notifyListeners();
+      return false;
+    }
+    final nextDay = DateTime(
+      _lockScreenDate!.year,
+      _lockScreenDate!.month,
+      _lockScreenDate!.day + 1,
+    );
+    final payload = <String, Object?>{
+      'schemaVersion': 1,
+      'sessionId': _lockScreenSessionId,
+      'ownerKey': _lockScreenOwner,
+      'workoutDate': lockScreenWorkoutDateKey(_lockScreenDate!),
+      'publishedAtMillis': _lockScreenPublishedAtMillis,
+      'expiresAtMillis': nextDay.millisecondsSinceEpoch,
+      'unit': weightUnit,
+      'autoStartRestTimer': autoStartRestTimer,
+      'sound': timerSound,
+      'vibrate': timerVibration,
+      'showCompletion': restTimerNotifications,
+      'countdownSeconds': timerCountdownSeconds,
+      'sets': targets,
+      'restEndsAtMillis': _restTimerEndsAt?.millisecondsSinceEpoch ?? 0,
+    };
+    final content = Map<String, Object?>.of(payload)
+      ..remove('sessionId')
+      ..remove('publishedAtMillis');
+    final encoded = jsonEncode(content);
+    if (encoded == _lockScreenPublishedPayload) return true;
+    // A new generation invalidates old PendingIntents and lets an explicitly
+    // undone set become available again even when its values are unchanged.
+    final publishedAt = DateTime.now().millisecondsSinceEpoch;
+    payload['sessionId'] = '${publishedAt}_${Random.secure().nextInt(1 << 32)}';
+    payload['publishedAtMillis'] = publishedAt;
+    _schedulePersist();
+    await flushPersistence();
+    if (!_isCurrentAccount(epoch) || !lockScreenWorkoutActive) return false;
+    final result = await _lockScreenWorkoutPlatform.publish(payload);
+    if (_isCurrentAccount(epoch) && result) {
+      _lockScreenPublishedPayload = encoded;
+      _lockScreenSessionId = payload['sessionId'] as String;
+      _lockScreenPublishedAtMillis = publishedAt;
+    } else if (_isCurrentAccount(epoch) && retries < 2) {
+      // Native publication atomically rejects replacement when a tap landed
+      // after our journal read. Merge that performed event before retrying.
+      final recovered = await _reconcileLockScreenEvents(
+        _lockScreenOwner!,
+        epoch,
+      );
+      if (!recovered.hasConflicts &&
+          recovered.applied + recovered.alreadyApplied > 0) {
+        return _publishLockScreenProjection(epoch, retries: retries + 1);
+      }
+    }
+    return result;
+  }
+
+  Future<LockScreenWorkoutReconciliation> _reconcileLockScreenEvents(
+    String owner,
+    int epoch,
+  ) async {
+    final raw = await _lockScreenWorkoutPlatform.readEvents();
+    if (!_isCurrentAccount(epoch)) {
+      return const LockScreenWorkoutReconciliation();
+    }
+    final events =
+        raw
+            .map(LockScreenWorkoutEvent.tryFromJson)
+            .whereType<LockScreenWorkoutEvent>()
+            .toList()
+          ..sort((a, b) => a.completedAtMillis.compareTo(b.completedAtMillis));
+    final ack = <String>{};
+    var applied = 0,
+        alreadyApplied = 0,
+        conflicts = raw.length - events.length,
+        otherOwners = 0;
+    WorkoutSession? latestSession;
+    WorkoutExercise? latestExercise;
+    LockScreenWorkoutEvent? latestEvent;
+    for (final event in events) {
+      if (event.ownerKey != owner) {
+        otherOwners++;
+        continue;
+      }
+      if (_lockScreenAppliedEventIds.contains(event.eventId)) {
+        ack.add(event.eventId);
+        alreadyApplied++;
+        continue;
+      }
+      final date = event.validDate;
+      final session = date == null ? null : sessions[date];
+      final exercise = session?.exercises
+          .where(
+            (item) =>
+                item.id == event.set['exerciseEntryId'] &&
+                item.coachingWorkoutId == null,
+          )
+          .firstOrNull;
+      final target = exercise?.sets
+          .where((set) => set.number == event.set['setNumber'])
+          .toList();
+      if (!event.hasValidCompletionTime(DateTime.now()) ||
+          session == null ||
+          exercise == null ||
+          target == null ||
+          target.length != 1) {
+        conflicts++;
+        continue;
+      }
+      final set = target.single;
+      final expected = LockScreenWorkoutSet.fromExercise(
+        ownerKey: owner,
+        date: date!,
+        exercise: exercise,
+        set: set,
+        unit: weightUnit,
+      );
+      if (!event.matches(expected) ||
+          (!set.completed &&
+              !identical(
+                exercise.sets.where((item) => !item.completed).firstOrNull,
+                set,
+              ))) {
+        conflicts++;
+        continue;
+      }
+      if (!set.completed) {
+        set.completed = true;
+        final performedAt = DateTime.fromMillisecondsSinceEpoch(
+          event.completedAtMillis,
+        );
+        if (session.startedAt == null ||
+            performedAt.isBefore(session.startedAt!)) {
+          session.startedAt = performedAt;
+        }
+        if (session.endedAt == null || performedAt.isAfter(session.endedAt!)) {
+          session.endedAt = performedAt;
+        }
+        latestSession = session;
+        latestExercise = exercise;
+        latestEvent = event;
+        applied++;
+      } else {
+        alreadyApplied++;
+      }
+      _lockScreenAppliedEventIds.add(event.eventId);
+      ack.add(event.eventId);
+    }
+    if (ack.isNotEmpty) {
+      _schedulePersist();
+      notifyListeners();
+      await flushPersistence();
+      if (!_isCurrentAccount(epoch)) {
+        return LockScreenWorkoutReconciliation(
+          applied: applied,
+          alreadyApplied: alreadyApplied,
+          conflicts: conflicts,
+          otherOwners: otherOwners,
+        );
+      }
+      // A failed ack keeps these receipts in the account snapshot. A successful
+      // durable ack permits pruning; no unacknowledged event is ever evicted.
+      await _lockScreenWorkoutPlatform.acknowledge(ack.toList());
+      if (!_isCurrentAccount(epoch)) {
+        return LockScreenWorkoutReconciliation(
+          applied: applied,
+          alreadyApplied: alreadyApplied,
+          conflicts: conflicts,
+          otherOwners: otherOwners,
+        );
+      }
+      _lockScreenAppliedEventIds.removeAll(ack);
+      _schedulePersist();
+      await flushPersistence();
+      if (latestEvent != null &&
+          latestSession != null &&
+          latestExercise != null) {
+        final endMillis = latestEvent.restEndsAtMillis;
+        if (endMillis != null &&
+            endMillis > DateTime.now().millisecondsSinceEpoch &&
+            autoStartRestTimer &&
+            dateOnly(DateTime.now()) == latestSession.date) {
+          _restTimerRevision++;
+          restSessionId++;
+          restFocus = restFocusFor(latestSession, latestExercise);
+          _restTimer?.cancel();
+          _restTimerEndsAt = DateTime.fromMillisecondsSinceEpoch(endMillis);
+          _refreshRestRemaining();
+          _restTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+            _refreshRestRemaining();
+            notifyListeners();
+          });
+        }
+      }
+      _scheduleServerSync();
+    }
+    if (conflicts > 0) {
+      final pending = List<LockScreenWorkoutEvent>.unmodifiable(
+        events.where(
+          (event) => event.ownerKey == owner && !ack.contains(event.eventId),
+        ),
+      );
+      final error = StateError(
+        '잠금화면 기록 $conflicts건이 변경된 운동과 달라요. 저장된 원본은 보관하고 있어요.',
+      );
+      final changed =
+          lockScreenWorkoutError.toString() != error.toString() ||
+          !listEquals(
+            pending.map((item) => item.eventId).toList(),
+            _lockScreenPendingEvents.map((item) => item.eventId).toList(),
+          );
+      _lockScreenPendingEvents = pending;
+      lockScreenWorkoutError = error;
+      if (changed && !_disposed) notifyListeners();
+    } else if (lockScreenWorkoutError != null ||
+        _lockScreenPendingEvents.isNotEmpty) {
+      _lockScreenPendingEvents = const [];
+      lockScreenWorkoutError = null;
+      if (!_disposed) notifyListeners();
+    }
+    return LockScreenWorkoutReconciliation(
+      applied: applied,
+      alreadyApplied: alreadyApplied,
+      conflicts: conflicts,
+      otherOwners: otherOwners,
+    );
+  }
+
+  /// The user chooses explicitly between retaining the current app record and
+  /// preserving the captured performance alongside it. Neither path overwrites
+  /// a changed set or treats the old planned values as a new observation.
+  Future<void> resolveLockScreenWorkoutConflict(
+    String eventId, {
+    required bool restoreAsSeparateRecord,
+  }) => _serializeLockScreen(() async {
+    final epoch = _accountEpoch;
+    final owner = await _currentLockScreenOwner();
+    final events = await _lockScreenWorkoutPlatform.readEvents();
+    if (!_isCurrentAccount(epoch) || owner == null) return;
+    final event = events
+        .map(LockScreenWorkoutEvent.tryFromJson)
+        .whereType<LockScreenWorkoutEvent>()
+        .where((item) => item.eventId == eventId && item.ownerKey == owner)
+        .firstOrNull;
+    if (event == null || event.validDate == null) {
+      throw StateError('현재 사용자의 잠금화면 기록을 찾지 못했어요.');
+    }
+    if (!_lockScreenAppliedEventIds.contains(eventId) &&
+        restoreAsSeparateRecord) {
+      final captured = event.set;
+      final templateId = captured['templateId'];
+      final name = captured['exerciseName'];
+      final number = captured['setNumber'];
+      final weight = captured['weight'];
+      final reps = captured['reps'];
+      final duration = captured['durationSeconds'];
+      final distance = captured['distanceKm'];
+      final intensity = captured['intensityRpe'];
+      final rest = captured['restSeconds'];
+      final measurement = captured['measurement'];
+      final type = captured['type'];
+      final rir = captured['rir'];
+      if (!event.hasValidCompletionTime(DateTime.now()) ||
+          templateId is! String ||
+          name is! String ||
+          number is! num ||
+          weight is! num ||
+          !weight.isFinite ||
+          weight < 0 ||
+          reps is! num ||
+          reps < 0 ||
+          duration is! num ||
+          duration < 0 ||
+          distance is! num ||
+          !distance.isFinite ||
+          distance < 0 ||
+          intensity is! num ||
+          !intensity.isFinite ||
+          intensity < 0 ||
+          rest is! num ||
+          rest < 0 ||
+          type is! String ||
+          !const [
+            'weightReps',
+            'repsOnly',
+            'duration',
+            'cardio',
+          ].contains(measurement) ||
+          (rir != null && rir is! num)) {
+        throw StateError('보관된 운동 값을 확인할 수 없어 원본을 그대로 보관했어요.');
+      }
+      final original = exercises
+          .where((item) => item.id == templateId)
+          .firstOrNull;
+      final template = ExerciseTemplate(
+        id: templateId,
+        name: name,
+        muscle: measurement == 'cardio' ? '유산소' : original?.muscle ?? '기타',
+        icon: original?.icon ?? exerciseIconForMuscle('기타'),
+        measurement: ExerciseMeasurement.values.firstWhere(
+          (item) => item.name == measurement,
+          orElse: () => ExerciseMeasurement.weightReps,
+        ),
+        equipmentKey: original?.equipmentKey,
+        equipmentName: original?.equipmentName,
+        aliases: original?.aliases ?? const [],
+        nameEnglish: original?.nameEnglish,
+        primaryMuscles: original?.primaryMuscles ?? const [],
+        secondaryMuscles: original?.secondaryMuscles ?? const [],
+        sourceName: original?.sourceName ?? 'lock-screen-recovery',
+        sourceId: original?.sourceId,
+        databaseId: original?.databaseId,
+        displayNameOverride: name,
+      );
+      final set = WorkoutSetEntry(
+        number: number.toInt(),
+        weight: weight.toDouble(),
+        reps: reps.toInt(),
+        completed: true,
+        type: type,
+        restSeconds: rest.toInt(),
+        durationSeconds: duration.toInt(),
+        distanceKm: distance.toDouble(),
+        intensityRpe: intensity.toDouble(),
+        rir: (rir as num?)?.toInt(),
+      );
+      final capturedEntry = WorkoutExercise(
+        id: captured['exerciseEntryId']?.toString() ?? '',
+        template: template,
+        sets: [set],
+      );
+      final expected = LockScreenWorkoutSet.fromExercise(
+        ownerKey: owner,
+        date: event.validDate!,
+        exercise: capturedEntry,
+        set: set,
+        unit: weightUnit,
+      );
+      if (!event.matches(expected)) {
+        throw StateError('보관된 기록의 원래 값을 확인할 수 없어요. 원본은 보관했어요.');
+      }
+      final session = sessionFor(event.validDate!);
+      final id = 'lockscreen_recovered_$eventId';
+      if (!session.exercises.any((item) => item.id == id)) {
+        session.exercises.add(
+          WorkoutExercise(id: id, template: template, sets: [set]),
+        );
+        final performedAt = DateTime.fromMillisecondsSinceEpoch(
+          event.completedAtMillis,
+        );
+        if (session.startedAt == null ||
+            performedAt.isBefore(session.startedAt!)) {
+          session.startedAt = performedAt;
+        }
+        if (session.endedAt == null || performedAt.isAfter(session.endedAt!)) {
+          session.endedAt = performedAt;
+        }
+      }
+    }
+    _lockScreenAppliedEventIds.add(eventId);
+    _schedulePersist();
+    await flushPersistence();
+    if (!_isCurrentAccount(epoch)) return;
+    await _lockScreenWorkoutPlatform.acknowledge([eventId]);
+    if (!_isCurrentAccount(epoch)) return;
+    _lockScreenAppliedEventIds.remove(eventId);
+    _schedulePersist();
+    await flushPersistence();
+    await _reconcileLockScreenEvents(owner, epoch);
+    _scheduleServerSync();
+    if (!_disposed) notifyListeners();
+  });
+
   final LocalEquipmentRepository localEquipmentRepository;
   final GymDirectoryRepository gymDirectoryRepository;
   final GymPlaceRepository gymPlaceRepository;
@@ -7845,6 +8471,9 @@ class AppState extends ChangeNotifier {
         ? Map<UserRole, BusinessDashboardData>.unmodifiable(businessDashboards)
         : const {},
     customExercises: List<ExerciseTemplate>.unmodifiable(customExercises),
+    lockScreenAppliedEventIds: List<String>.unmodifiable(
+      _lockScreenAppliedEventIds,
+    ),
   );
 
   /// 휴식을 새로 시작한다. [focus]는 "무엇을 하다 쉬는지" — 세트 완료가 아닌
@@ -8022,6 +8651,9 @@ class AppState extends ChangeNotifier {
         snapshot.recommendationProfile != null;
     hasSwipedSet = snapshot.hasSwipedSet;
     hasSeenTogetherGuide = snapshot.hasSeenTogetherGuide;
+    _lockScreenAppliedEventIds
+      ..clear()
+      ..addAll(snapshot.lockScreenAppliedEventIds);
     recommendationProfile = snapshot.recommendationProfile;
     recommendationPreferences = snapshot.recommendationPreferences;
     customExercises
@@ -8069,6 +8701,22 @@ class AppState extends ChangeNotifier {
   }
 
   void _resetForSignedOutUser() {
+    _lockScreenActive = false;
+    _lockScreenDate = null;
+    _lockScreenOwner = null;
+    _lockScreenSessionId = null;
+    _lockScreenPublishedPayload = null;
+    _lockScreenPublishedAtMillis = 0;
+    _lockScreenAppliedEventIds.clear();
+    _lockScreenPendingEvents = const [];
+    lockScreenWorkoutError = null;
+    // Logging out hides the old owner's controls immediately. Their performed
+    // events stay in the native journal for their own next authenticated visit.
+    unawaited(
+      _serializeLockScreen(
+        () => _lockScreenWorkoutPlatform.clear(),
+      ).catchError((_) {}),
+    );
     _clearMemberCoachingConnections();
     _personalCoachingAccess = null;
     personalCoachingAccessError = null;

@@ -17,6 +17,7 @@ abstract final class SetflowIcons {
   static const refresh = Icons.refresh_rounded;
   static const numberInput = Icons.keyboard_rounded;
   static const appUpdate = Icons.system_update_rounded;
+  static const lockScreenWorkout = Icons.phonelink_lock_rounded;
   static const equipment = Icons.fitness_center_rounded;
   static const camera = Icons.photo_camera_outlined;
   static const gallery = Icons.photo_library_outlined;

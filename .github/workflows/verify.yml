@@ -20,6 +20,45 @@ env:
   FLUTTER_VERSION: '3.44.7'
 
 jobs:
+  android-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build Android host
+        run: flutter build apk --debug
+      - name: Native notification and durable recording tests
+        working-directory: android
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
+  ios-simulator:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build iOS app and Live Activity extension without signing
+        run: flutter build ios --simulator --debug --no-codesign
+      - name: Test durable iOS recording on a simulator
+        run: |
+          SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys;d=json.load(sys.stdin);print(next(v["udid"] for group in d["devices"].values() for v in group if v.get("isAvailable") and v["name"].startswith("iPhone")))')
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug -destination "id=$SIMULATOR_ID" -derivedDataPath build/ios-native-tests CODE_SIGNING_ALLOWED=NO test > .dart_tool/ios-lockscreen-tests.log 2>&1 || { tail -100 .dart_tool/ios-lockscreen-tests.log; exit 1; }
+
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20

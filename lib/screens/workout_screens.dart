@@ -116,8 +116,187 @@ class DailyWorkoutScreen extends StatefulWidget {
 
 class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
   bool emptyDayRecommendationDismissed = false;
+  bool _lockScreenSupported = false;
+  bool _checkingLockScreen = false;
+  bool _lockScreenStarting = false;
 
   DateTime get date => widget.date;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_checkingLockScreen) return;
+    _checkingLockScreen = true;
+    unawaited(
+      AppScope.of(context)
+          .lockScreenWorkoutStatus()
+          .then((status) {
+            if (mounted) {
+              setState(() => _lockScreenSupported = status.supported);
+            }
+          })
+          .catchError((_) {}),
+    );
+  }
+
+  Future<void> _configureLockScreenWorkout() async {
+    if (_lockScreenStarting) return;
+    final state = AppScope.of(context);
+    if (state.lockScreenWorkoutActive &&
+        state.lockScreenWorkoutDate == state.dateOnly(date)) {
+      await state.stopLockScreenWorkout();
+      return;
+    }
+    final status = await state.lockScreenWorkoutStatus();
+    if (!mounted || !status.supported) return;
+    final start = await showSetflowSheet<bool>(
+      context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SingleChildScrollView(
+        padding: SetflowInsets.pageForm,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('잠금화면 기록', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: SetflowSpacing.md),
+            const Text('잠금화면에서 표시된 무게·횟수를 확인하고 현재 세트를 완료할 수 있어요.'),
+            const SizedBox(height: SetflowSpacing.sm),
+            const Text('무게나 횟수를 바꾸려면 앱에서 수정하세요. 완료한 기록은 앱에서 되돌릴 수 있어요.'),
+            if (!status.notificationsAllowed) ...[
+              const SizedBox(height: SetflowSpacing.md),
+              const Text('기기 설정에서 셋플로우의 알림 또는 실시간 현황을 켜주세요.'),
+            ],
+            const SizedBox(height: SetflowSpacing.lg),
+            AppButton(
+              key: const ValueKey('lock-screen-workout-start'),
+              label: status.notificationsAllowed ? '잠금화면 기록 켜기' : '기기 설정 열기',
+              onPressed: () => Navigator.pop(sheetContext, true),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (start != true || !mounted) return;
+    if (!status.notificationsAllowed) {
+      await state.openLockScreenWorkoutSettings();
+      return;
+    }
+    setState(() => _lockScreenStarting = true);
+    try {
+      if (!await state.startLockScreenWorkout(date) && mounted) {
+        AppSnackbar.error(context, '잠금화면 기록을 켜지 못했어요. 알림 설정을 확인해주세요.');
+      }
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, '기록을 저장하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => _lockScreenStarting = false);
+    }
+  }
+
+  Future<void> _reviewLockScreenRecords() async {
+    final state = AppScope.of(context);
+    await state.reconcileLockScreenWorkout();
+    if (!mounted || state.lockScreenWorkoutPendingEvents.isEmpty) return;
+    String? saving;
+    await showSetflowSheet<void>(
+      context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, updateSheet) => SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .8,
+          child: ListView(
+            padding: SetflowInsets.pageForm,
+            children: [
+              Text('기록 확인', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: SetflowSpacing.md),
+              const Text(
+                '앱에서 값이나 세트가 바뀌어 그대로 보관한 잠금화면 기록이에요. 원래 앱 기록은 바뀌지 않았어요.',
+              ),
+              const SizedBox(height: SetflowSpacing.lg),
+              for (final event in state.lockScreenWorkoutPendingEvents) ...[
+                Text(
+                  '${event.set['exerciseName'] ?? '운동'} · ${event.set['setNumber']}세트',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: SetflowSpacing.sm),
+                Text(
+                  '${event.workoutDate} · ${event.set['valuesLabel'] ?? ''}',
+                ),
+                const SizedBox(height: SetflowSpacing.md),
+                AppButton(
+                  label: '별도 기록 복원',
+                  isLoading: saving == event.eventId,
+                  onPressed: saving != null
+                      ? null
+                      : () async {
+                          updateSheet(() => saving = event.eventId);
+                          try {
+                            await state.resolveLockScreenWorkoutConflict(
+                              event.eventId,
+                              restoreAsSeparateRecord: true,
+                            );
+                            if (sheetContext.mounted) {
+                              if (state
+                                  .lockScreenWorkoutPendingEvents
+                                  .isEmpty) {
+                                Navigator.pop(sheetContext);
+                              } else {
+                                updateSheet(() => saving = null);
+                              }
+                            }
+                          } catch (_) {
+                            if (sheetContext.mounted) {
+                              updateSheet(() => saving = null);
+                              AppSnackbar.error(
+                                sheetContext,
+                                '기록을 복원하지 못했어요. 다시 시도해주세요.',
+                              );
+                            }
+                          }
+                        },
+                ),
+                TextButton(
+                  onPressed: saving != null
+                      ? null
+                      : () async {
+                          updateSheet(() => saving = event.eventId);
+                          try {
+                            await state.resolveLockScreenWorkoutConflict(
+                              event.eventId,
+                              restoreAsSeparateRecord: false,
+                            );
+                            if (sheetContext.mounted) {
+                              if (state
+                                  .lockScreenWorkoutPendingEvents
+                                  .isEmpty) {
+                                Navigator.pop(sheetContext);
+                              } else {
+                                updateSheet(() => saving = null);
+                              }
+                            }
+                          } catch (_) {
+                            if (sheetContext.mounted) {
+                              updateSheet(() => saving = null);
+                              AppSnackbar.error(
+                                sheetContext,
+                                '확인 내용을 저장하지 못했어요. 다시 시도해주세요.',
+                              );
+                            }
+                          }
+                        },
+                  child: const Text('앱 기록 유지'),
+                ),
+                const SizedBox(height: SetflowSpacing.lg),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +314,34 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
     // whoever places this, so the same blocks fit the empty column and the
     // list's header without doubling up.
     final statusBlocks = <Widget>[
+      if (state.lockScreenWorkoutPendingEvents.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+          child: OutlinedButton.icon(
+            key: const ValueKey('lock-screen-workout-review'),
+            onPressed: _reviewLockScreenRecords,
+            icon: const Icon(SetflowIcons.lockScreenWorkout),
+            label: const Text('잠금화면 기록 확인'),
+          ),
+        ),
+      if (state.lockScreenWorkoutActive &&
+          state.lockScreenWorkoutDate == state.dateOnly(date))
+        Padding(
+          key: const ValueKey('lock-screen-workout-active'),
+          padding: const EdgeInsets.only(bottom: SetflowSpacing.md),
+          child: Row(
+            children: [
+              const Icon(SetflowIcons.lockScreenWorkout),
+              const SizedBox(width: SetflowSpacing.sm),
+              Expanded(
+                child: Text(
+                  '잠금화면 기록 켜짐 · 화면을 잠그고 세트를 체크하세요',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+        ),
       Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: _WorkoutSummaryBar(
@@ -270,6 +477,9 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
             // 허공에 뜬 것처럼 보였다. 메뉴는 연 버튼 아래에 붙어야 한다.
             position: PopupMenuPosition.under,
             onSelected: (value) {
+              if (value == 'lock-screen-workout') {
+                unawaited(_configureLockScreenWorkout());
+              }
               if (value == 'delete') _deleteWorkout(context);
               if (value == 'set-defaults') _showSetDefaultsSheet(context);
               if (value == 'rest-timer-settings') {
@@ -287,6 +497,22 @@ class _DailyWorkoutScreenState extends State<DailyWorkoutScreen> {
             // 메모와 공유는 눌러도 토스트만 뜨고 아무것도 저장·공유하지 않아서 뺐다.
             // 만들어지면 그때 다시 넣는다 — 있는 척하는 메뉴가 없는 것보다 나쁘다.
             itemBuilder: (_) => [
+              if (_lockScreenSupported &&
+                  state.dateOnly(date) == state.dateOnly(DateTime.now()) &&
+                  session.exercises.any(
+                    (exercise) => exercise.coachingWorkoutId == null,
+                  ))
+                PopupMenuItem(
+                  key: const ValueKey('daily-lock-screen-workout'),
+                  value: 'lock-screen-workout',
+                  enabled: !_lockScreenStarting,
+                  child: Text(
+                    state.lockScreenWorkoutActive &&
+                            state.lockScreenWorkoutDate == state.dateOnly(date)
+                        ? '잠금화면 기록 끄기'
+                        : '잠금화면 기록',
+                  ),
+                ),
               PopupMenuItem(
                 key: const ValueKey('daily-recommendation-settings'),
                 value: 'recommendation-settings',

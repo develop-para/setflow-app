@@ -49,6 +49,8 @@ abstract final class AppSnapshotCodec {
   static Map<String, dynamic> toJson(AppSnapshot snapshot) {
     return {
       'schemaVersion': schemaVersion,
+      if (snapshot.lockScreenAppliedEventIds.isNotEmpty)
+        'lockScreenAppliedEventIds': snapshot.lockScreenAppliedEventIds,
       'preferences': {
         'role': snapshot.role.name,
         'isDarkMode': snapshot.isDarkMode,
@@ -281,6 +283,12 @@ abstract final class AppSnapshotCodec {
         consultations: consultations,
         businessDashboards: businessDashboards,
         customExercises: customExercises,
+        lockScreenAppliedEventIds: [
+          for (final value
+              in root['lockScreenAppliedEventIds'] as List? ?? const [])
+            if (value is String && value.isNotEmpty && value.length <= 200)
+              value,
+        ],
       );
     } on FormatException {
       return null;
