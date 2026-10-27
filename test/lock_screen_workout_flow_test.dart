@@ -12,12 +12,14 @@ void main() {
   var settingsOpened = false;
   var supported = true;
   var notificationsAllowed = true;
+  var events = <Map<String, Object?>>[];
 
   setUp(() {
     published = null;
     settingsOpened = false;
     supported = true;
     notificationsAllowed = true;
+    events = [];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           switch (call.method) {
@@ -35,7 +37,7 @@ void main() {
             case 'getGuestOwnerKey':
               return 'lock-screen-flow-guest';
             case 'readEvents':
-              return [];
+              return events;
             case 'publish':
               published = Map<Object?, Object?>.from(call.arguments as Map);
               return true;
@@ -46,6 +48,8 @@ void main() {
               settingsOpened = true;
               return true;
             case 'ack':
+              final ids = (call.arguments as Map)['eventIds'] as List;
+              events.removeWhere((event) => ids.contains(event['eventId']));
               return null;
           }
           throw PlatformException(code: 'unexpected_method');
@@ -150,4 +154,72 @@ void main() {
     expect(published, isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  for (final restore in [true, false]) {
+    testWidgets(
+      'a changed set can be explicitly reviewed (restore: $restore)',
+      (tester) async {
+        final state = await pumpRecording(tester);
+        final date = state.dateOnly(DateTime.now());
+        expect(await state.startLockScreenWorkout(date), isTrue);
+        final source = Map<Object?, Object?>.of(published!);
+        final target = Map<String, Object?>.from(
+          (source['sets'] as List).first as Map,
+        );
+        events = [
+          {
+            'eventId': 'review-event',
+            'sessionId': source['sessionId'],
+            'ownerKey': source['ownerKey'],
+            'workoutDate': source['workoutDate'],
+            'publishedAtMillis': source['publishedAtMillis'],
+            'expiresAtMillis': source['expiresAtMillis'],
+            'completedAtMillis': DateTime.now().millisecondsSinceEpoch,
+            'set': target,
+          },
+        ];
+        final original = state.sessionFor(date).exercises.single;
+        state.updateSet(original.sets.first, weight: 45);
+        await state.reconcileLockScreenWorkout();
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('lock-screen-workout-review')),
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('lock-screen-workout-review')),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining(target['valuesLabel'] as String),
+          findsOneWidget,
+        );
+        final choice = find.text(restore ? '별도 기록 복원' : '앱 기록 유지');
+        await tester.scrollUntilVisible(
+          choice,
+          160,
+          scrollable: find
+              .descendant(
+                of: find.byType(BottomSheet),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        await tester.tap(choice);
+        await tester.pumpAndSettle();
+        expect(original.sets.first.weight, 45);
+        expect(original.sets.first.completed, isFalse);
+        expect(state.sessionFor(date).exercises.length, restore ? 2 : 1);
+        if (restore) {
+          final recovered = state.sessionFor(date).exercises.last.sets.single;
+          expect(recovered.completed, isTrue);
+          expect(recovered.weight, 40);
+          expect(recovered.reps, 10);
+        }
+        expect(events, isEmpty);
+        expect(state.lockScreenWorkoutPendingEvents, isEmpty);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
 }

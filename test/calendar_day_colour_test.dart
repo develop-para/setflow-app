@@ -38,12 +38,20 @@ void main() {
   /// Matched on having an explicit colour rather than on a weight: the weight
   /// belongs to the type scale and moves when the scale does, which is exactly
   /// what this test must not care about.
-  Color colourOf(WidgetTester tester, int day) {
+  Color colourOf(WidgetTester tester, DateTime date) {
+    // A six-week month also contains neighbouring dates with the same number.
+    // For example October 2026 starts with Sunday September 27, before today's
+    // October 27. Read the requested date's cell rather than the first "27".
+    final cell = find.byKey(
+      ValueKey('calendar-tint-${date.year}${date.month}${date.day}'),
+    );
     final texts = tester
-        .widgetList<Text>(find.text('$day'))
+        .widgetList<Text>(
+          find.descendant(of: cell, matching: find.text('${date.day}')),
+        )
         .where((text) => text.style?.color != null);
-    expect(texts, isNotEmpty, reason: '$day일 칸을 찾지 못했다');
-    return texts.first.style!.color!;
+    expect(texts, hasLength(1), reason: '$date 칸의 날짜를 하나만 찾아야 한다');
+    return texts.single.style!.color!;
   }
 
   /// A day in the month the calendar is showing, matching [test].
@@ -87,11 +95,23 @@ void main() {
           d.day != DateTime.now().day,
     );
 
-    expect(colourOf(tester, sunday), colors.error, reason: '일요일이 빨강이 아니다');
-    expect(colourOf(tester, saturday), colors.blue, reason: '토요일이 파랑이 아니다');
-    expect(colourOf(tester, weekday), onSurface, reason: '평일이 주말 색으로 칠해졌다');
     expect(
-      colourOf(tester, month.day),
+      colourOf(tester, DateTime(month.year, month.month, sunday)),
+      colors.error,
+      reason: '일요일이 빨강이 아니다',
+    );
+    expect(
+      colourOf(tester, DateTime(month.year, month.month, saturday)),
+      colors.blue,
+      reason: '토요일이 파랑이 아니다',
+    );
+    expect(
+      colourOf(tester, DateTime(month.year, month.month, weekday)),
+      onSurface,
+      reason: '평일이 주말 색으로 칠해졌다',
+    );
+    expect(
+      colourOf(tester, month),
       SetflowTheme.light.colorScheme.onPrimary,
       reason: '오늘의 라임 원 위에는 대비가 확보된 onPrimary를 써야 한다',
     );
@@ -117,7 +137,7 @@ void main() {
     if (holiday == null) return;
 
     expect(
-      colourOf(tester, holiday),
+      colourOf(tester, DateTime(month.year, month.month, holiday)),
       colors.error,
       reason: '$holiday일은 공휴일인데 빨강이 아니다',
     );
