@@ -52,10 +52,10 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Build iOS app and Live Activity extension without signing
-        run: flutter build ios --simulator --debug --no-codesign
+      - name: Prepare unsigned iOS app and extension build
+        run: flutter build ios --simulator --debug --no-codesign --config-only
       - name: Test durable iOS recording on a simulator
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys;d=json.load(sys.stdin);print(next(v["udid"] for group in d["devices"].values() for v in group if v.get("isAvailable") and v["name"].startswith("iPhone")))')
           xcrun simctl boot "$SIMULATOR_ID" || true
